@@ -14,7 +14,6 @@ module Effects.Database.Tables.Orders
 
     -- * Table Definition
     Order (..),
-    orderSchema,
 
     -- * Model (Result alias)
     Model,
@@ -241,43 +240,6 @@ instance Display (Order Result) where
 -- @Model@ is the same as @Order Result@.
 type Model = Order Result
 
--- | Table schema connecting the Haskell type to the database table.
-orderSchema :: TableSchema (Order Name)
-orderSchema =
-  TableSchema
-    { name = "orders",
-      columns =
-        Order
-          { oId = "id",
-            oOrderNumber = "order_number",
-            oEmail = "email",
-            oStatus = "status",
-            oShippingFirstName = "shipping_first_name",
-            oShippingLastName = "shipping_last_name",
-            oShippingAddressLine1 = "shipping_address_line1",
-            oShippingAddressLine2 = "shipping_address_line2",
-            oShippingCity = "shipping_city",
-            oShippingState = "shipping_state",
-            oShippingZip = "shipping_zip",
-            oShippingCountry = "shipping_country",
-            oShippingMethod = "shipping_method",
-            oSubtotalCents = "subtotal_cents",
-            oShippingCents = "shipping_cents",
-            oTaxCents = "tax_cents",
-            oTotalCents = "total_cents",
-            oStripePaymentIntentId = "stripe_payment_intent_id",
-            oStripeCheckoutSessionId = "stripe_checkout_session_id",
-            oPaypalOrderId = "paypal_order_id",
-            oPaymentMethod = "payment_method",
-            oEasypostShipmentId = "easypost_shipment_id",
-            oTrackingNumber = "tracking_number",
-            oLabelUrl = "label_url",
-            oNotes = "notes",
-            oCreatedAt = "created_at",
-            oUpdatedAt = "updated_at"
-          }
-    }
-
 --------------------------------------------------------------------------------
 -- Insert Type
 
@@ -308,8 +270,10 @@ data Insert = Insert
 
 -- | Insert a new order. Status defaults to 'pending'.
 insertOrder :: Insert -> Hasql.Statement () (Maybe Id)
-insertOrder Insert {..} = interp True
-  [sql|
+insertOrder Insert {..} =
+  interp
+    True
+    [sql|
     INSERT INTO orders
       (order_number, email,
        shipping_first_name, shipping_last_name,
@@ -329,11 +293,12 @@ insertOrder Insert {..} = interp True
     RETURNING id
   |]
 
-
 -- | Get an order by ID.
 getById :: Id -> Hasql.Statement () (Maybe Model)
-getById orderId = interp False
-  [sql|
+getById orderId =
+  interp
+    False
+    [sql|
     SELECT id, order_number, email, status,
            shipping_first_name, shipping_last_name,
            shipping_address_line1, shipping_address_line2,
@@ -348,11 +313,12 @@ getById orderId = interp False
     WHERE id = #{orderId}
   |]
 
-
 -- | Get an order by order number.
 getByOrderNumber :: Text -> Hasql.Statement () (Maybe Model)
-getByOrderNumber orderNumber = interp False
-  [sql|
+getByOrderNumber orderNumber =
+  interp
+    False
+    [sql|
     SELECT id, order_number, email, status,
            shipping_first_name, shipping_last_name,
            shipping_address_line1, shipping_address_line2,
@@ -367,11 +333,12 @@ getByOrderNumber orderNumber = interp False
     WHERE order_number = #{orderNumber}
   |]
 
-
 -- | Get an order by Stripe Checkout Session ID.
 getByStripeCheckoutSessionId :: Text -> Hasql.Statement () (Maybe Model)
-getByStripeCheckoutSessionId sessionId = interp False
-  [sql|
+getByStripeCheckoutSessionId sessionId =
+  interp
+    False
+    [sql|
     SELECT id, order_number, email, status,
            shipping_first_name, shipping_last_name,
            shipping_address_line1, shipping_address_line2,
@@ -386,11 +353,12 @@ getByStripeCheckoutSessionId sessionId = interp False
     WHERE stripe_checkout_session_id = #{sessionId}
   |]
 
-
 -- | Get an order by Stripe Payment Intent ID.
 getByStripePaymentIntentId :: Text -> Hasql.Statement () (Maybe Model)
-getByStripePaymentIntentId paymentIntentId = interp False
-  [sql|
+getByStripePaymentIntentId paymentIntentId =
+  interp
+    False
+    [sql|
     SELECT id, order_number, email, status,
            shipping_first_name, shipping_last_name,
            shipping_address_line1, shipping_address_line2,
@@ -405,11 +373,12 @@ getByStripePaymentIntentId paymentIntentId = interp False
     WHERE stripe_payment_intent_id = #{paymentIntentId}
   |]
 
-
 -- | Update the status of an order. Returns the updated order.
 updateStatus :: Id -> OrderStatus -> Hasql.Statement () (Maybe Model)
-updateStatus orderId status = interp False
-  [sql|
+updateStatus orderId status =
+  interp
+    False
+    [sql|
     UPDATE orders
     SET status = #{status}, updated_at = NOW()
     WHERE id = #{orderId}
@@ -425,36 +394,43 @@ updateStatus orderId status = interp False
               notes, created_at, updated_at
   |]
 
-
 -- | Update the Stripe Checkout Session ID for an order.
 updateStripeCheckoutSessionId :: Id -> Text -> Hasql.Statement () ()
-updateStripeCheckoutSessionId orderId sessionId = interp True
-  [sql|
+updateStripeCheckoutSessionId orderId sessionId =
+  interp
+    True
+    [sql|
     UPDATE orders
     SET stripe_checkout_session_id = #{sessionId}, updated_at = NOW()
     WHERE id = #{orderId}
   |]
 
-
 -- | Update the Stripe Payment Intent ID for an order.
 updateStripePaymentIntentId :: Id -> Text -> Hasql.Statement () ()
-updateStripePaymentIntentId orderId paymentIntentId = interp True
-  [sql|
+updateStripePaymentIntentId orderId paymentIntentId =
+  interp
+    True
+    [sql|
     UPDATE orders
     SET stripe_payment_intent_id = #{paymentIntentId}, updated_at = NOW()
     WHERE id = #{orderId}
   |]
 
-
 -- | Update tracking information for an order.
 updateTracking ::
-  Id ->           -- ^ Order ID
-  Text ->         -- ^ Tracking number
-  Maybe Text ->   -- ^ EasyPost shipment ID
-  Maybe Text ->   -- ^ Label URL
+  -- | Order ID
+  Id ->
+  -- | Tracking number
+  Text ->
+  -- | EasyPost shipment ID
+  Maybe Text ->
+  -- | Label URL
+  Maybe Text ->
   Hasql.Statement () ()
-updateTracking orderId trackingNumber easypostShipmentId labelUrl = interp True
-  [sql|
+updateTracking orderId trackingNumber easypostShipmentId labelUrl =
+  interp
+    True
+    [sql|
     UPDATE orders
     SET tracking_number = #{trackingNumber},
         easypost_shipment_id = #{easypostShipmentId},
@@ -463,16 +439,16 @@ updateTracking orderId trackingNumber easypostShipmentId labelUrl = interp True
     WHERE id = #{orderId}
   |]
 
-
 -- | Update the notes for an order.
 updateNotes :: Id -> Text -> Hasql.Statement () ()
-updateNotes orderId notes = interp True
-  [sql|
+updateNotes orderId notes =
+  interp
+    True
+    [sql|
     UPDATE orders
     SET notes = #{notes}, updated_at = NOW()
     WHERE id = #{orderId}
   |]
-
 
 -- | List orders, optionally filtered by status. Ordered by created_at DESC.
 listOrders :: Maybe OrderStatus -> Hasql.Statement () [Model]
@@ -480,11 +456,12 @@ listOrders = \case
   Nothing -> listAllOrders
   Just status -> listOrdersByStatus status
 
-
 -- | List all orders ordered by created_at DESC.
 listAllOrders :: Hasql.Statement () [Model]
-listAllOrders = interp False
-  [sql|
+listAllOrders =
+  interp
+    False
+    [sql|
     SELECT id, order_number, email, status,
            shipping_first_name, shipping_last_name,
            shipping_address_line1, shipping_address_line2,
@@ -499,11 +476,12 @@ listAllOrders = interp False
     ORDER BY created_at DESC
   |]
 
-
 -- | List orders filtered by status, ordered by created_at DESC.
 listOrdersByStatus :: OrderStatus -> Hasql.Statement () [Model]
-listOrdersByStatus status = interp False
-  [sql|
+listOrdersByStatus status =
+  interp
+    False
+    [sql|
     SELECT id, order_number, email, status,
            shipping_first_name, shipping_last_name,
            shipping_address_line1, shipping_address_line2,
@@ -519,18 +497,18 @@ listOrdersByStatus status = interp False
     ORDER BY created_at DESC
   |]
 
-
 -- | Cancel pending orders older than 30 minutes. Returns the IDs of
 -- cancelled orders so the caller can restore their inventory.
 cancelStalePendingOrders :: Hasql.Statement () [Id]
-cancelStalePendingOrders = interp True
-  [sql|
+cancelStalePendingOrders =
+  interp
+    True
+    [sql|
     UPDATE orders
     SET status = 'cancelled', updated_at = NOW()
     WHERE status = 'pending' AND created_at < NOW() - INTERVAL '30 minutes'
     RETURNING id
   |]
-
 
 -- | Get the next order number from the sequence, formatted as KPBJ-NNNN.
 -- Returns Maybe Text because interp infers Maybe for single-row SELECTs.
@@ -538,5 +516,6 @@ cancelStalePendingOrders = interp True
 nextOrderNumber :: Hasql.Statement () (Maybe Text)
 nextOrderNumber =
   fmap (fmap getOneColumn) $
-    interp False
+    interp
+      False
       [sql| SELECT 'KPBJ-' || LPAD(nextval('order_number_seq')::TEXT, 4, '0') |]

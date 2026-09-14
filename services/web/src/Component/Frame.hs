@@ -16,7 +16,6 @@ import Design (base, class_, tablet)
 import Design.FormStyles (formBuilderCSS)
 import Design.Theme (defaultTheme, getTheme, themeCSS)
 import Design.Tokens qualified as Tokens
-import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.GoogleAnalyticsId (GoogleAnalyticsId (..))
 import Effects.Database.Tables.UserMetadata (SuspensionStatus (..))
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -65,8 +64,6 @@ storeCartGetUrl :: Link.URI
 storeCartGetUrl = Link.linkURI storeLinks.cart
 
 --------------------------------------------------------------------------------
-
-newtype UserInfo = UserInfo {userDisplayName :: DisplayName}
 
 -- | Desktop music player (hidden on mobile)
 -- Contains the shared audio element and Alpine state

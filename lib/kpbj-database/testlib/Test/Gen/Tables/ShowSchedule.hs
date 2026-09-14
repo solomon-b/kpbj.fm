@@ -58,19 +58,6 @@ weekOfMonth day =
   let (_, _, dayOfMonth) = toGregorian day
    in fromIntegral ((dayOfMonth - 1) `div` 7 + 1)
 
--- | The first instant on or after @from@ that @template@ airs.
---
--- Takes the template's start time and the first Pacific date whose weekday and
--- week of the month the template covers. An episode fixture built with this
--- satisfies the air-date trigger, which rejects an episode whose date its
--- template does not air on.
---
--- The timezone is America/Los_Angeles whatever stiTimezone says, because the
--- trigger and getCurrentlyAiringEpisode both hardcode it.
-airTimeForTemplate :: ShowSchedule.ScheduleTemplateInsert -> Day -> UTCTime
-airTimeForTemplate template from =
-  airTimeOn template (airDayForTemplate template from)
-
 -- | The first date on or after @from@ that @template@ airs.
 airDayForTemplate :: ShowSchedule.ScheduleTemplateInsert -> Day -> Day
 airDayForTemplate template from =
@@ -96,7 +83,7 @@ airTimeOn template day =
 
 -- | The last instant strictly before @before@ that @template@ airs.
 --
--- The backward counterpart of 'airTimeForTemplate', for a fixture that has to sit
+-- The backward counterpart of 'airDayForTemplate', for a fixture that has to sit
 -- in the past.
 lastAirDayBefore :: ShowSchedule.ScheduleTemplateInsert -> Day -> Day
 lastAirDayBefore template before =
@@ -172,7 +159,3 @@ genRecurringScheduleInsert showId = do
         stiTimezone = timezone,
         stiReplayStartTime = replayStartTime
       }
-
--- | Generate a schedule template insert.
-scheduleTemplateInsertGen :: (MonadGen m) => Shows.Id -> m ShowSchedule.ScheduleTemplateInsert
-scheduleTemplateInsertGen = genRecurringScheduleInsert

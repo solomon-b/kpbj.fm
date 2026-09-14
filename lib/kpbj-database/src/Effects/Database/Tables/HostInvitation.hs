@@ -36,7 +36,6 @@ module Effects.Database.Tables.HostInvitation
     -- * Queries
     insert,
     getByToken,
-    getAll,
     getAllWithCreator,
     claimInvitation,
     revokeInvitation,
@@ -305,17 +304,6 @@ getByToken tokenValue =
     WHERE token = #{tokenValue}
       AND status = 'pending'
       AND expires_at > NOW()
-  |]
-
--- | Get all host invitations ordered by creation date (newest first).
-getAll :: Hasql.Statement () [Model]
-getAll =
-  interp
-    True
-    [sql|
-    SELECT id, token, status, schedule_data, recipient_email, created_by, claimed_by, claimed_at, created_at, expires_at
-    FROM host_invitations
-    ORDER BY created_at DESC
   |]
 
 -- | Get all host invitations with creator and claimer display names.

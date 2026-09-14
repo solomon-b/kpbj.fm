@@ -9,7 +9,6 @@
 module Effects.Database.Tables.StoreSettings
   ( -- * Table Definition
     StoreSetting (..),
-    storeSettingSchema,
 
     -- * Model (Result alias)
     Model,
@@ -71,7 +70,6 @@ deriving stock instance (f ~ Result) => Eq (StoreSetting f)
 -- | DecodeRow instance for hasql-interpolate raw SQL compatibility.
 instance DecodeRow (StoreSetting Result)
 
-
 -- | Display instance for StoreSetting Result.
 instance Display (StoreSetting Result) where
   displayBuilder settings =
@@ -83,26 +81,6 @@ instance Display (StoreSetting Result) where
 --
 -- @Model@ is the same as @StoreSetting Result@.
 type Model = StoreSetting Result
-
--- | Table schema connecting the Haskell type to the database table.
-storeSettingSchema :: TableSchema (StoreSetting Name)
-storeSettingSchema =
-  TableSchema
-    { name = "store_settings",
-      columns =
-        StoreSetting
-          { ssId = "id",
-            ssTaxRate = "tax_rate",
-            ssShipFromName = "ship_from_name",
-            ssShipFromAddressLine1 = "ship_from_address_line1",
-            ssShipFromCity = "ship_from_city",
-            ssShipFromState = "ship_from_state",
-            ssShipFromZip = "ship_from_zip",
-            ssShipFromCountry = "ship_from_country",
-            ssOrderNotificationEmail = "order_notification_email",
-            ssUpdatedAt = "updated_at"
-          }
-    }
 
 --------------------------------------------------------------------------------
 -- Update Type

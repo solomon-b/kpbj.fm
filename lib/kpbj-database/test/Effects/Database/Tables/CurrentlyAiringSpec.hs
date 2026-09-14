@@ -41,7 +41,7 @@ import Domain.Types.DisplayName (mkDisplayNameUnsafe)
 import Domain.Types.EmailAddress (mkEmailAddress)
 import Domain.Types.FullName (mkFullNameUnsafe)
 import Domain.Types.Slug (mkSlug)
-import Domain.Types.Timezone (pacificDay, pacificToUtc)
+import Domain.Types.Timezone (pacificToUtc)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -353,7 +353,7 @@ setupRecurringTestData ::
   -- | The date the episode claims to air on
   Day ->
   TRX.Transaction Episodes.Id
-setupRecurringTestData passHash dayOfWeek weeksOfMonth episodeDate = do
+setupRecurringTestData passHash dayOfWeek' weeksOfMonth episodeDate = do
   (OneRow userId) <-
     TRX.statement () $
       User.insertUser $
@@ -386,7 +386,7 @@ setupRecurringTestData passHash dayOfWeek weeksOfMonth episodeDate = do
       ShowSchedule.insertScheduleTemplate
         ShowSchedule.ScheduleTemplateInsert
           { stiShowId = showId,
-            stiDayOfWeek = dayOfWeek,
+            stiDayOfWeek = dayOfWeek',
             stiWeeksOfMonth = weeksOfMonth,
             stiStartTime = TimeOfDay 14 0 0,
             stiEndTime = TimeOfDay 16 0 0,
@@ -1413,7 +1413,7 @@ multiSlotFirstSlot cfg = bracketConn cfg $ do
       airDate2 = testDay
       queryTime = mkTestTime (TimeOfDay 10 0 0) -- 10 AM (during first slot)
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-    (ep1, showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing airDate1 (Just "audio/slot1.mp3") testDay Nothing Nothing
+    (ep1, _showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing airDate1 (Just "audio/slot1.mp3") testDay Nothing Nothing
     _ep2 <- addTimeslot "slot2" userId slot2Start slot2End Nothing airDate2 (Just "audio/slot2.mp3") testDay Nothing
     mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
     pure (ep1, mEpisode)
@@ -1440,7 +1440,7 @@ multiSlotSecondSlot cfg = bracketConn cfg $ do
       airDate2 = testDay
       queryTime = mkTestTime (TimeOfDay 15 0 0) -- 3 PM (during second slot)
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-    (_ep1, showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing airDate1 (Just "audio/slot1.mp3") testDay Nothing Nothing
+    (_ep1, _showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing airDate1 (Just "audio/slot1.mp3") testDay Nothing Nothing
     ep2 <- addTimeslot "slot2" userId slot2Start slot2End Nothing airDate2 (Just "audio/slot2.mp3") testDay Nothing
     mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
     pure (ep2, mEpisode)
@@ -1467,7 +1467,7 @@ multiSlotBetween cfg = bracketConn cfg $ do
       airDate2 = testDay
       queryTime = mkTestTime (TimeOfDay 12 0 0) -- Noon (between slots)
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-    (_ep1, showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing airDate1 (Just "audio/slot1.mp3") testDay Nothing Nothing
+    (_ep1, _showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing airDate1 (Just "audio/slot1.mp3") testDay Nothing Nothing
     _ep2 <- addTimeslot "slot2" userId slot2Start slot2End Nothing airDate2 (Just "audio/slot2.mp3") testDay Nothing
     TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
 
@@ -1490,7 +1490,7 @@ multiSlotBeforeAll cfg = bracketConn cfg $ do
       airDate2 = testDay
       queryTime = mkTestTime (TimeOfDay 8 0 0) -- 8 AM (before both)
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-    (_ep1, showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing airDate1 (Just "audio/slot1.mp3") testDay Nothing Nothing
+    (_ep1, _showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing airDate1 (Just "audio/slot1.mp3") testDay Nothing Nothing
     _ep2 <- addTimeslot "slot2" userId slot2Start slot2End Nothing airDate2 (Just "audio/slot2.mp3") testDay Nothing
     TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
 
@@ -1513,7 +1513,7 @@ multiSlotAfterAll cfg = bracketConn cfg $ do
       airDate2 = testDay
       queryTime = mkTestTime (TimeOfDay 17 0 0) -- 5 PM (after both)
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-    (_ep1, showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing airDate1 (Just "audio/slot1.mp3") testDay Nothing Nothing
+    (_ep1, _showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing airDate1 (Just "audio/slot1.mp3") testDay Nothing Nothing
     _ep2 <- addTimeslot "slot2" userId slot2Start slot2End Nothing airDate2 (Just "audio/slot2.mp3") testDay Nothing
     TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
 
@@ -1740,7 +1740,7 @@ springForwardGapSlotNeverAirs cfg = bracketConn cfg $ do
       invertedAt = springForwardDay
       probes = map (utcAt springForwardDay) [TimeOfDay 10 0 0, TimeOfDay 10 15 0, TimeOfDay 10 30 0, TimeOfDay 10 45 0]
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-    (_, showId, userId) <-
+    (_, _showId, userId) <-
       setupTestDataFull passHash (TimeOfDay 2 0 0) (TimeOfDay 3 0 0) Nothing emptyAt (Just "audio/empty.mp3") springForwardDay Nothing Nothing
     _ <- addTimeslot "inverted" userId (TimeOfDay 2 30 0) (TimeOfDay 3 0 0) Nothing invertedAt (Just "audio/inverted.mp3") springForwardDay Nothing
     airing <- traverse (TRX.statement () . Episodes.getCurrentlyAiringEpisodes) probes
@@ -1765,7 +1765,7 @@ overlapIsDeterministic cfg = bracketConn cfg $ do
       lateStart = TimeOfDay 15 0 0
       queryTime = mkTestTime (TimeOfDay 15 30 0)
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-    (early, showId, userId) <- setupTestDataFull passHash earlyStart (TimeOfDay 16 0 0) Nothing testDay (Just "audio/early.mp3") testDay Nothing Nothing
+    (early, _showId, userId) <- setupTestDataFull passHash earlyStart (TimeOfDay 16 0 0) Nothing testDay (Just "audio/early.mp3") testDay Nothing Nothing
     late <- addTimeslot "late" userId lateStart (TimeOfDay 17 0 0) Nothing testDay (Just "audio/late.mp3") testDay Nothing
     both <- TRX.statement () $ Episodes.getCurrentlyAiringEpisodes queryTime
     picked <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
@@ -1948,7 +1948,7 @@ primaryBeatsReplay cfg = bracketConn cfg $ do
   passHash <- hashPassword $ mkPassword "testpass"
   let queryTime = mkTestTime (TimeOfDay 22 30 0)
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-    (live, showId, userId) <-
+    (live, _showId, userId) <-
       setupTestDataFull passHash (TimeOfDay 18 0 0) (TimeOfDay 23 0 0) Nothing testDay (Just "audio/live.mp3") testDay Nothing Nothing
     replayed <- addTimeslot "replayed" userId (TimeOfDay 20 0 0) (TimeOfDay 21 0 0) (Just (TimeOfDay 22 0 0)) testDay (Just "audio/replayed.mp3") testDay Nothing
     both <- TRX.statement () $ Episodes.getCurrentlyAiringEpisodes queryTime

@@ -9,7 +9,6 @@ module Effects.Database.Tables.OrderItems
 
     -- * Table Definition
     OrderItem (..),
-    orderItemSchema,
 
     -- * Model (Result alias)
     Model,
@@ -32,8 +31,8 @@ import Data.Text.Display (Display (..))
 import Data.Time (UTCTime)
 import Domain.Types.Cents (Cents)
 import Effects.Database.Tables.Orders qualified as Orders
-import Effects.Database.Tables.Products qualified as Products
 import Effects.Database.Tables.ProductVariants qualified as ProductVariants
+import Effects.Database.Tables.Products qualified as Products
 import GHC.Generics (Generic)
 import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), interp, sql)
 import Hasql.Statement qualified as Hasql
@@ -98,25 +97,6 @@ instance Display (OrderItem Result) where
 -- @Model@ is the same as @OrderItem Result@.
 type Model = OrderItem Result
 
--- | Table schema connecting the Haskell type to the database table.
-orderItemSchema :: TableSchema (OrderItem Name)
-orderItemSchema =
-  TableSchema
-    { name = "order_items",
-      columns =
-        OrderItem
-          { oiId = "id",
-            oiOrderId = "order_id",
-            oiProductId = "product_id",
-            oiVariantId = "variant_id",
-            oiProductName = "product_name",
-            oiVariantLabel = "variant_label",
-            oiQuantity = "quantity",
-            oiUnitPriceCents = "unit_price_cents",
-            oiCreatedAt = "created_at"
-          }
-    }
-
 --------------------------------------------------------------------------------
 -- Insert Type
 
@@ -137,8 +117,10 @@ data Insert = Insert
 
 -- | Insert a new order item. Returns the new item's ID.
 insertOrderItem :: Insert -> Hasql.Statement () (Maybe Id)
-insertOrderItem Insert {..} = interp True
-  [sql|
+insertOrderItem Insert {..} =
+  interp
+    True
+    [sql|
     INSERT INTO order_items
       (order_id, product_id, variant_id,
        product_name, variant_label,
@@ -150,11 +132,12 @@ insertOrderItem Insert {..} = interp True
     RETURNING id
   |]
 
-
 -- | Get all order items for a given order, ordered by ID.
 getByOrderId :: Orders.Id -> Hasql.Statement () [Model]
-getByOrderId orderId = interp False
-  [sql|
+getByOrderId orderId =
+  interp
+    False
+    [sql|
     SELECT id, order_id, product_id, variant_id,
            product_name, variant_label,
            quantity, unit_price_cents, created_at

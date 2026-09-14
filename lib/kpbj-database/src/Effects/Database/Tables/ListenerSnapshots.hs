@@ -9,7 +9,6 @@ module Effects.Database.Tables.ListenerSnapshots
     BucketSize (..),
 
     -- * Queries
-    getLatestSnapshot,
     getSnapshotBuckets,
     getPeakInRange,
     getAverageInRange,
@@ -32,19 +31,6 @@ data BucketSize = FiveMinute | Hourly | Daily
 
 --------------------------------------------------------------------------------
 -- Queries
-
--- | Get the most recent listener snapshot.
-getLatestSnapshot :: Hasql.Statement () (Maybe (Int64, UTCTime))
-getLatestSnapshot =
-  interp
-    False
-    [sql|
-      SELECT listener_count::bigint, recorded_at
-      FROM listener_snapshots
-      ORDER BY recorded_at DESC
-      LIMIT 1
-    |]
-
 
 -- | Get listener counts bucketed by time interval within a range.
 --
@@ -92,7 +78,6 @@ getSnapshotBuckets bucket start end = case bucket of
         ORDER BY bucket
       |]
 
-
 -- | Get peak listener count within a range.
 --
 -- Returns 'Nothing' when the range contains no snapshots.
@@ -106,7 +91,6 @@ getPeakInRange start end =
         FROM listener_snapshots
         WHERE recorded_at >= #{start} AND recorded_at < #{end}
       |]
-
 
 -- | Get average listener count within a range.
 --

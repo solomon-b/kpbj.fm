@@ -24,7 +24,6 @@ module Effects.Database.Tables.ProductOptionValues
     getByOptionTypeId,
     getByProductId,
     insertOptionValue,
-    deleteOptionValue,
   )
 where
 
@@ -33,7 +32,6 @@ where
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Functor.Contravariant ((>$<))
 import Data.Int (Int64)
-import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import Data.Text.Display (Display (..))
 import Effects.Database.Tables.ProductOptionTypes qualified as ProductOptionTypes
@@ -86,7 +84,6 @@ deriving stock instance (f ~ Result) => Eq (ProductOptionValue f)
 
 -- | DecodeRow instance for hasql-interpolate raw SQL compatibility.
 instance DecodeRow (ProductOptionValue Result)
-
 
 -- | Display instance for ProductOptionValue Result.
 instance Display (ProductOptionValue Result) where
@@ -158,30 +155,17 @@ insertOptionValue :: Insert -> Hasql.Statement () Id
 insertOptionValue Insert {..} =
   run1 $
     insert
-        Rel8.Insert
-          { into = productOptionValueSchema,
-            rows =
-              values
-                [ ProductOptionValue
-                    { povId = nextId "product_option_values_id_seq",
-                      povOptionTypeId = lit oviOptionTypeId,
-                      povValue = lit oviValue,
-                      povSortOrder = lit oviSortOrder
-                    }
-                ],
-            onConflict = Abort,
-            returning = Returning povId
-          }
-
--- | Delete a product option value by ID.
-deleteOptionValue :: Id -> Hasql.Statement () (Maybe Id)
-deleteOptionValue optionValueId =
-  fmap listToMaybe $
-    run $
-      delete
-        Rel8.Delete
-          { from = productOptionValueSchema,
-            using = pure (),
-            deleteWhere = \_ value -> povId value ==. lit optionValueId,
-            returning = Returning povId
-          }
+      Rel8.Insert
+        { into = productOptionValueSchema,
+          rows =
+            values
+              [ ProductOptionValue
+                  { povId = nextId "product_option_values_id_seq",
+                    povOptionTypeId = lit oviOptionTypeId,
+                    povValue = lit oviValue,
+                    povSortOrder = lit oviSortOrder
+                  }
+              ],
+          onConflict = Abort,
+          returning = Returning povId
+        }

@@ -6,7 +6,6 @@ module Test.Database.Monad
     writeOnce,
     readOnlyTestDBConfig,
     withTestDB,
-    withAuth,
     bracketConn,
     withTracer,
     noOpLoggerEnv,
@@ -196,24 +195,6 @@ bracketConn perTestConfig actionTestDB =
       )
       release
       (\connection -> runTestDB actionTestDB (connection, tracer) noOpLoggerEnv)
-
-withAuth :: SpecWith (Authz, TestDBConfig) -> SpecWith TestDBConfig
-withAuth = beforeWith getAuth
-  where
-    getAuth :: TestDBConfig -> IO (Authz, TestDBConfig)
-    getAuth cfg =
-      bracketConn cfg $ do
-        pass <- hashPassword $ mkPassword "foo"
-        auth <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-          uid <- TRX.statement () $ User.insertUser $ User.ModelInsert (mkEmailAddress "user@host.com") pass
-          u <- TRX.statement () $ User.getUser $ getOneRow uid
-          -- Create user_metadata for the test user
-          _ <- TRX.statement () $ UserMetadata.insertUserMetadata $ UserMetadata.Insert (getOneRow uid) (mkDisplayNameUnsafe "Test User") (mkFullNameUnsafe "Test User") Nothing UserMetadata.Host UserMetadata.Automatic UserMetadata.DefaultTheme
-          sm <- TRX.statement () $ ServerSessions.insertServerSession $ ServerSessions.ServerSessionInsert (getOneRow uid) Nothing Nothing (read "2099-01-01 10:30:20 UTC")
-          pure $ Authz (fromMaybe (error "withAuth failure: Failed to look up user") u) (getOneRow sm)
-        case auth of
-          Left err -> error $ "withAuth failure: " <> show err
-          Right authz -> pure (authz, cfg)
 
 withTestDB :: SpecWith TestDBConfig -> Spec
 withTestDB = around $ bracket before after . during

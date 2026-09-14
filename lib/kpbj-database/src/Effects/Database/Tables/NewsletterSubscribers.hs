@@ -25,7 +25,6 @@ module Effects.Database.Tables.NewsletterSubscribers
     countByEmail,
     getPaginated,
     countAll,
-    getById,
     getByEmail,
     deleteById,
     updateEmail,
@@ -188,18 +187,6 @@ countAll mSearch =
           |]
    in maybe 0 getOneColumn <$> query
 
--- | Look up a single subscriber by primary key.
-getById :: Id -> Hasql.Statement () (Maybe Model)
-getById subId =
-  fmap listToMaybe $
-    interp
-      False
-      [sql|
-      SELECT id, email, created_at, mailchimp_member_id, mailchimp_status, mailchimp_synced_at
-      FROM newsletter_subscribers
-      WHERE id = #{subId}
-    |]
-
 -- | Look up a single subscriber by email address (case-insensitive).
 --
 -- The webhook receiver uses this to translate Mailchimp's @data[email]@
@@ -259,7 +246,6 @@ updateEmail subId email =
           mailchimp_synced_at = NULL
       WHERE id = #{subId}
     |]
-
 
 -- | Stamp a row with the latest Mailchimp identity and status.
 --

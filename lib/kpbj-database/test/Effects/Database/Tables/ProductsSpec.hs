@@ -13,7 +13,7 @@ import Hedgehog (PropertyT, (===))
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllT)
 import Hedgehog.Range qualified as Range
-import Test.Database.Helpers (insertTestProduct, unwrapInsert)
+import Test.Database.Helpers (unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertJust, assertNothing, assertRight, (<==))

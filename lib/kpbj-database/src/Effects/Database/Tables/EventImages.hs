@@ -25,7 +25,6 @@ module Effects.Database.Tables.EventImages
     getByEventId,
     insertImage,
     deleteImage,
-    updateSortOrder,
     updateImageMeta,
   )
 where
@@ -194,19 +193,6 @@ getById imageId =
         image <- each eventImageSchema
         where_ $ eviId image ==. lit imageId
         pure image
-
--- | Update the sort order of an event image.
-updateSortOrder :: Id -> Int64 -> Hasql.Statement () ()
-updateSortOrder imageId newSortOrder =
-  run_ $
-    update
-      Rel8.Update
-        { target = eventImageSchema,
-          from = pure (),
-          set = \_ image -> image {eviSortOrder = lit newSortOrder},
-          updateWhere = \_ image -> eviId image ==. lit imageId,
-          returning = NoReturning
-        }
 
 -- | Update the sort order, caption, and alt text of an event image.
 updateImageMeta ::

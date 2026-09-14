@@ -24,7 +24,6 @@ module Effects.Database.Tables.ProductImages
     getByProductId,
     insertImage,
     deleteImage,
-    updateSortOrder,
     updateImageMeta,
   )
 where
@@ -90,7 +89,6 @@ deriving stock instance (f ~ Result) => Eq (ProductImage f)
 
 -- | DecodeRow instance for hasql-interpolate raw SQL compatibility.
 instance DecodeRow (ProductImage Result)
-
 
 -- | Display instance for ProductImage Result.
 instance Display (ProductImage Result) where
@@ -190,21 +188,6 @@ getById imageId =
         image <- each productImageSchema
         where_ $ piId image ==. lit imageId
         pure image
-
-
--- | Update the sort order of a product image.
-updateSortOrder :: Id -> Int64 -> Hasql.Statement () ()
-updateSortOrder imageId newSortOrder =
-  run_ $
-    update
-      Rel8.Update
-        { target = productImageSchema,
-          from = pure (),
-          set = \_ image -> image {piSortOrder = lit newSortOrder},
-          updateWhere = \_ image -> piId image ==. lit imageId,
-          returning = NoReturning
-        }
-
 
 -- | Update both sort order and alt text of a product image.
 updateImageMeta ::

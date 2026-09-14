@@ -53,7 +53,6 @@ module API.Links
     dashboardStoreOrdersLinks,
     storeLinks,
     storeApiLinks,
-    webhookLinks,
     inviteLinks,
     staticAssetLink,
   )
@@ -221,7 +220,3 @@ storeLinks = apiLinks.store
 -- | Store API route links.
 storeApiLinks :: StoreApiRoutes (AsLink Link)
 storeApiLinks = apiLinks.storeApi
-
--- | Webhook route links.
-webhookLinks :: WebhookRoutes (AsLink Link)
-webhookLinks = apiLinks.webhooks

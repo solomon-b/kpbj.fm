@@ -8,8 +8,6 @@ module Domain.Types.Timezone
     pacificDay,
     startOfPacificDay,
     pacificToUtc,
-    formatPacificDate,
-    formatPacificDateLong,
 
     -- * Date Formatting
     formatDate,
@@ -82,16 +80,6 @@ formatDate = Text.pack . formatTime defaultTimeLocale "%b %d, %Y"
 -- | Format a date at length (e.g., "February 03, 2026").
 formatDateLong :: Day -> Text
 formatDateLong = Text.pack . formatTime defaultTimeLocale "%B %d, %Y"
-
--- | Format a UTC time as a Pacific date string (e.g., "Feb 03, 2026").
-formatPacificDate :: UTCTime -> Text
-formatPacificDate utc =
-  Text.pack $ formatTime defaultTimeLocale "%b %d, %Y" (utcToPacific utc)
-
--- | Format a UTC time as a long Pacific date string (e.g., "February 03, 2026").
-formatPacificDateLong :: UTCTime -> Text
-formatPacificDateLong utc =
-  Text.pack $ formatTime defaultTimeLocale "%B %d, %Y" (utcToPacific utc)
 
 -- | Convert a Pacific local time to UTC with proper DST handling.
 --

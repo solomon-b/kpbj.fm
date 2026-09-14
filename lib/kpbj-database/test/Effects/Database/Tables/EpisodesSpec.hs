@@ -7,7 +7,7 @@ module Effects.Database.Tables.EpisodesSpec where
 import Control.Monad.IO.Class (liftIO)
 import Data.List (isInfixOf)
 import Data.Time.Calendar (Day, addDays, dayOfWeek, fromGregorian, toGregorian)
-import Data.Time.Clock (NominalDiffTime, UTCTime (..), addUTCTime, getCurrentTime, secondsToDiffTime, utctDay)
+import Data.Time.Clock (getCurrentTime, utctDay)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Offset (Offset (..))
@@ -1614,7 +1614,6 @@ prop_unscheduledEpisodesSortLast cfg = do
     epTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
 
     act $ do
-      now <- liftIO getCurrentTime
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
         (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
@@ -2009,11 +2008,11 @@ prop_closeSchedules_keepsPastEpisode cfg = do
         pure (templateId, pastTime, detached, afterClose)
 
       assert $ do
-        (templateId, pastTime, detached, mAfterClose) <- assertRight result
+        (templateId, pastTime', detached, mAfterClose) <- assertRight result
         detached === []
         afterClose <- assertJust mAfterClose
         UUT.scheduleTemplateId afterClose === Just templateId
-        UUT.airDate afterClose === Just pastTime
+        UUT.airDate afterClose === Just pastTime'
 
 -- | closeSchedulesAndDetachEpisodes: a window that already closed does not move.
 --

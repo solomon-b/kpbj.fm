@@ -3,7 +3,6 @@
 module Effects.Storage.Local
   ( -- * Local Storage Operations
     storeFileLocal,
-    storeFileStagingLocal,
     storeFileStagingLocalFromFile,
     moveFileLocal,
     buildLocalPath,
@@ -70,33 +69,6 @@ buildLocalPath ::
 buildLocalPath config bucketType resourceType dateHier filename =
   localStorageRoot config
     </> Text.unpack (buildStorageKey bucketType resourceType dateHier filename)
-
--- | Store a file to a flat staging area (no date hierarchy).
---
--- Used for staged uploads that will be moved to their final location
--- when claimed.
-storeFileStagingLocal ::
-  (MonadIO m) =>
-  LocalStorageConfig ->
-  BucketType ->
-  -- | Subdirectory within bucket (e.g., "staging")
-  Text ->
-  -- | Filename
-  Text ->
-  -- | File content
-  BS.ByteString ->
-  m (Either Text Text)
-storeFileStagingLocal config bucketType subdir filename content = liftIO $ do
-  let fullPath = buildLocalStagingPath config bucketType subdir filename
-      objectKey = buildStagingKey bucketType subdir filename
-
-  -- Create directory structure
-  createDirectoryIfMissing True (takeDirectory fullPath)
-
-  -- Write file
-  BS.writeFile fullPath content
-
-  pure $ Right objectKey
 
 -- | Store a file to a flat staging area by copying from a source file path.
 --

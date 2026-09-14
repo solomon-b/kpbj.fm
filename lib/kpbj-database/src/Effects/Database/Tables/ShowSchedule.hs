@@ -65,17 +65,16 @@ where
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Functor.Contravariant ((>$<))
 import Data.Int (Int32, Int64)
-import Data.Maybe (fromMaybe, listToMaybe)
+import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (Display (..), display)
-import Data.Time (Day, DayOfWeek (..), LocalTime (..), TimeOfDay, UTCTime, addDays, dayOfWeek)
+import Data.Time (Day, DayOfWeek (..), LocalTime (..), TimeOfDay, UTCTime, addDays)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Slug (Slug)
-import Domain.Types.Timezone (minutesFromMidnight, pacificDay, pacificToUtc, utcToPacific)
+import Domain.Types.Timezone (minutesFromMidnight, pacificToUtc, utcToPacific)
 import Effects.Database.Tables.Shows qualified as Shows
-import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
 import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneColumn (..), OneRow (..), interp, sql)
 import Hasql.Statement qualified as Hasql
@@ -83,7 +82,6 @@ import OrphanInstances.DayOfWeek ()
 import OrphanInstances.Rel8 ()
 import OrphanInstances.TimeOfDay ()
 import Rel8 hiding (Insert)
-import Rel8 qualified
 
 --------------------------------------------------------------------------------
 -- Schedule Template Types
@@ -931,10 +929,10 @@ makeUpcomingShowDateFromTemplate template airDate =
     -- Haskell. Both treat an end at or before the start as a slot that crosses
     -- midnight, and pacificToUtc agrees with @AT TIME ZONE@ on both transitions.
     computeEndTime :: ScheduleTemplate Result -> Day -> UTCTime
-    computeEndTime tmpl airDate =
+    computeEndTime tmpl airDate' =
       let endDay =
             if tmpl.stEndTime > tmpl.stStartTime
-              then airDate
+              then airDate'
               else addDays 1 airDate
        in pacificToUtc (LocalTime endDay tmpl.stEndTime)
 

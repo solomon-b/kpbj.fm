@@ -23,15 +23,35 @@ roots = [
 ]
 
 # Modules where every export counts as a root.
-# The three Lucid libraries under services/web/lib are written to stand alone
-# and are meant to leave this repo. Their public API is the product, so an
-# export that kpbj-web does not call yet is not dead code.
+#
+# Each one is an API surface rather than application code. The question weeder
+# answers, "does anything in this repo call it", is the wrong question for
+# these, because the answer says nothing about whether they should exist. An
+# export that kpbj-web does not call yet is not dead code here.
+#
+# Application code belongs nowhere in this list. kpbj-web, kpbj-database,
+# kpbj-types, and kpbj-email are consumed only by this repo, so weeder's
+# question is exactly the right one for them.
 root-modules = [
+  # The three Lucid libraries under services/web/lib are written to stand
+  # alone and are meant to leave this repo.
   "^Lucid\\.HTMX$",
   "^Lucid\\.Alpine$",
   "^Lucid\\.HTML5\\.Extra$",
   "^Lucid\\.Form\\.Builder.*$",
-  "^Lucid\\.Tailwind$"
+  "^Lucid\\.Tailwind$",
+  # The design system vocabulary. It is deliberately wider than the set of
+  # tokens and combinators any one page happens to use.
+  "^Design\\.Tokens$",
+  "^Design\\.StyleBuilder$",
+  # The property test assertion DSL. Its operators come in families, and a
+  # family is worth keeping whole even when one member has no call site.
+  "^Test\\.Database\\.Property\\.Assert$",
+  # Client libraries for somebody else's HTTP API. Each is measured against
+  # the vendor's API surface, not against what this repo happens to call.
+  "^Stripe\\..*$",
+  "^EasyPost\\..*$",
+  "^Mailchimp\\..*$"
 ]
 
 # Treat every type class instance as a root.
