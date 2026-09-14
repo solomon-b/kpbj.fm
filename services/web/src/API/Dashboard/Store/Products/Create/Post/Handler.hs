@@ -50,7 +50,7 @@ validateInlineCreateForm form = do
     t -> Sanitize.parseNonNegativeInt t
 
   -- Derive slug from name
-  let Slug.Slug slugText = Slug.mkSlug validName
+  let slug = Slug.mkSlug validName
 
   -- Sanitize optional category
   let mCategory =
@@ -63,7 +63,7 @@ validateInlineCreateForm form = do
   Right
     Products.Insert
       { Products.piName = validName,
-        Products.piSlug = slugText,
+        Products.piSlug = slug,
         Products.piDescription = "",
         Products.piBasePriceCents = basePriceCents,
         Products.piWeightOz = 0,

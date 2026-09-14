@@ -6,6 +6,7 @@ import API.Store.List.Get.Handler (StoreListViewData (..), action)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Either (isRight)
 import Data.Text qualified as Text
+import Domain.Types.Slug (Slug (..))
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.Products qualified as Products
 import Hasql.Transaction.Sessions qualified as TRX
@@ -69,7 +70,7 @@ prop_returnsActiveProducts cfg = do
               insertTestProduct
                 ins
                   { Products.piIsActive = True,
-                    Products.piSlug = Products.piSlug ins <> "-active-" <> Text.pack (show i)
+                    Products.piSlug = Products.piSlug ins <> Slug ("active-" <> Text.pack (show i))
                   }
           )
           (zip [(0 :: Int) ..] inserts)
@@ -96,7 +97,7 @@ prop_excludesInactiveProducts cfg = do
         insertTestProduct
           ins
             { Products.piIsActive = False,
-              Products.piSlug = Products.piSlug ins <> "-inactive"
+              Products.piSlug = Products.piSlug ins <> "inactive"
             }
 
       afterResult <- runExceptT action

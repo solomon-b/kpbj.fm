@@ -23,11 +23,15 @@ genFullName = do
   lastName <- Gen.text (Range.linear 1 30) Gen.alpha
   pure $ mkFullNameUnsafe $ firstName <> " " <> lastName
 
+-- | A slug that stays distinct from the other slugs a property draws.
+--
+-- The suffix does not shrink. Hedgehog shrinks every draw to the same minimum,
+-- so two shows in one property collide on the unique slug constraint, and the
+-- shrinker reports that fixture error in place of the real counterexample.
 genSlug :: (MonadGen m) => m Slug
 genSlug = do
-  -- Generate a unique slug by combining random elements
   prefix <- Gen.text (Range.linear 3 10) Gen.lower
-  suffix <- Gen.text (Range.linear 3 10) Gen.alphaNum
+  suffix <- Gen.prune $ Gen.text (Range.linear 3 10) Gen.alphaNum
   -- Add a separator to make it more realistic
   pure $ mkSlug $ prefix <> "-" <> suffix
 

@@ -280,7 +280,7 @@ uploadProductImage ::
   -- | AWS environment (required for S3, Nothing for local)
   Maybe AWS.Env ->
   -- | Product slug for filename prefix
-  Text ->
+  Slug ->
   -- | Uploaded product image file data
   FileData Mem ->
   m (Either UploadError (Maybe UploadResult))
@@ -306,7 +306,7 @@ uploadProductImage backend mAwsEnv productSlug fileData
         -- Generate filename and date hierarchy
         let dateHier = dateHierarchyFromTime time
             extension = getExtensionFromMimeType actualMimeType
-            filename = generateUniqueFilename productSlug extension seed
+            filename = generateUniqueFilename (display productSlug) extension seed
 
         -- Store file using appropriate backend
         objectKey <- ExceptT $ storeFile backend mAwsEnv ImageBucket ProductImage dateHier filename content actualMimeType

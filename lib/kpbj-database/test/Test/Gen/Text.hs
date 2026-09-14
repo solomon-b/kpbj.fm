@@ -15,12 +15,6 @@ genText = Gen.text (Range.linear 5 100) Gen.alpha -- Use alpha instead of unicod
 genShortText :: (MonadGen m) => m Text
 genShortText = Gen.text (Range.linear 3 20) Gen.alphaNum
 
-genSlug :: (MonadGen m) => m Text
-genSlug = do
-  prefix <- Gen.text (Range.linear 3 10) Gen.lower
-  suffix <- Gen.text (Range.linear 3 10) Gen.alphaNum
-  pure $ prefix <> "-" <> suffix
-
 genUrl :: (MonadGen m) => m Text
 genUrl = do
   path <- Gen.text (Range.linear 1 50) Gen.alphaNum

@@ -17,7 +17,7 @@ import Data.Text (Text)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Cents qualified as Cents
-import Domain.Types.Slug (Slug (..))
+import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.Products qualified as Products
 import Lucid qualified
@@ -26,8 +26,8 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
-productGetUrl :: Text -> Links.URI
-productGetUrl slug = Links.linkURI $ storeLinks.product (Slug slug)
+productGetUrl :: Slug -> Links.URI
+productGetUrl slug = Links.linkURI $ storeLinks.product slug
 
 --------------------------------------------------------------------------------
 

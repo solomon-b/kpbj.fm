@@ -7,8 +7,8 @@ import Effects.Database.Tables.Products qualified as Products
 import Hedgehog (MonadGen (..))
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
-import Test.Gen.DomainTypes (genCents)
-import Test.Gen.Text (genSlug, genText)
+import Test.Gen.DomainTypes (genCents, genSlug)
+import Test.Gen.Text (genText)
 
 --------------------------------------------------------------------------------
 

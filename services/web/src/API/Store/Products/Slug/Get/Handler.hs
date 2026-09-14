@@ -16,11 +16,10 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Functor ((<&>))
 import Data.Has (getter)
-import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
 import Domain.Types.HxRequest qualified as HxRequest
-import Domain.Types.Slug (Slug (..))
+import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ProductImages qualified as ProductImages
@@ -57,10 +56,10 @@ handler ::
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler (Slug slugText) cookie hxRequest =
+handler slug cookie hxRequest =
   handleHtmlErrors "Product detail" apiLinks.rootGet $ do
     mUserInfo <- lift $ getUserInfo cookie <&> fmap snd
-    vd <- action slugText
+    vd <- action slug
     let hxReq = HxRequest.foldHxReq hxRequest
     lift $
       renderTemplate hxReq mUserInfo $
@@ -76,15 +75,15 @@ handler (Slug slugText) cookie hxRequest =
 --------------------------------------------------------------------------------
 
 -- | Business logic: fetch product and all related data.
-action :: Text -> ExceptT HandlerError AppM ProductDetailData
-action slugText = do
+action :: Slug -> ExceptT HandlerError AppM ProductDetailData
+action slug = do
   storageBackend <- asks getter
 
   -- Fetch product by slug; 404 if missing
   product' <-
     fromMaybeM (throwNotFound "Product") $
       fromRightM throwDatabaseError $
-        execQuery (Products.getBySlug slugText)
+        execQuery (Products.getBySlug slug)
 
   -- Inactive products are treated as not found
   unless product'.pIsActive $

@@ -31,6 +31,7 @@ import Data.Text.Encoding qualified as Text.Encoding
 import Domain.Types.Cents qualified as Cents
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
+import Domain.Types.Slug (Slug)
 import Domain.Types.VariantsPayload (OptionPayload (..), VariantPayload (..), VariantsPayload (..))
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Execute (execQuery, execTransaction)
@@ -89,7 +90,7 @@ parsePrice dollars =
 -- The slug is preserved from the existing product (immutable after creation).
 validateEditForm ::
   -- | Existing product slug to preserve.
-  Text ->
+  Slug ->
   EditProductForm ->
   Either Text Products.Insert
 validateEditForm existingSlug form = do
@@ -220,7 +221,7 @@ instance FromJSON ImageMetadata where
 prepareImageUpdates ::
   Products.Id ->
   -- | Product slug for generating filenames.
-  Text ->
+  Slug ->
   EditProductForm ->
   ExceptT HandlerError AppM (Int, [(ProductImages.Id, Text)], [ProductImages.Id], [(ProductImages.Id, Int64, Text)], [ProductImages.Insert])
 prepareImageUpdates productId productSlug editForm = do
@@ -263,7 +264,7 @@ prepareImageUpdates productId productSlug editForm = do
 prepareImageOps ::
   Products.Id ->
   -- | Product slug for filenames.
-  Text ->
+  Slug ->
   [ImageMetadata] ->
   -- | New image files (consumed in order for entries without an id).
   [FileData Mem] ->

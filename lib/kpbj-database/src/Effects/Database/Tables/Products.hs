@@ -50,6 +50,7 @@ import Data.Text (Text)
 import Data.Text.Display (Display (..))
 import Data.Time (UTCTime)
 import Domain.Types.Cents (Cents)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
 import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), interp, sql)
@@ -87,7 +88,7 @@ newtype Id = Id {unId :: Int64}
 data Product f = Product
   { pId :: Column f Id,
     pName :: Column f Text,
-    pSlug :: Column f Text,
+    pSlug :: Column f Slug,
     pDescription :: Column f Text,
     pBasePriceCents :: Column f Cents,
     pWeightOz :: Column f Int64,
@@ -149,7 +150,7 @@ productSchema =
 -- | Insert type for creating new products.
 data Insert = Insert
   { piName :: Text,
-    piSlug :: Text,
+    piSlug :: Slug,
     piDescription :: Text,
     piBasePriceCents :: Cents,
     piWeightOz :: Int64,
@@ -193,7 +194,7 @@ getById productId = interp False
 -- | Get product by slug.
 --
 -- Uses the @products_with_inventory@ view for effective inventory.
-getBySlug :: Text -> Hasql.Statement () (Maybe Model)
+getBySlug :: Slug -> Hasql.Statement () (Maybe Model)
 getBySlug slug = interp False
   [sql|
     SELECT id, name, slug, description, base_price_cents,
@@ -316,7 +317,7 @@ restoreInventory productId qty = interp True
 data ProductWithHeroImage = ProductWithHeroImage
   { pwhId :: Id,
     pwhName :: Text,
-    pwhSlug :: Text,
+    pwhSlug :: Slug,
     pwhDescription :: Text,
     pwhBasePriceCents :: Cents,
     pwhWeightOz :: Int64,
