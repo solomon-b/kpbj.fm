@@ -18,7 +18,6 @@ where
 
 --------------------------------------------------------------------------------
 
-import App.Auth (Authz (..))
 import Control.Concurrent (MVar, newEmptyMVar)
 import Control.Concurrent.MVar (readMVar, tryPutMVar)
 import Control.Exception (Exception, throw, throwIO)
@@ -31,28 +30,19 @@ import Control.Monad.Reader (MonadReader (..), ReaderT (..), asks)
 import Data.Bifunctor (first)
 import Data.ByteString (toStrict)
 import Data.Has qualified as Has
-import Data.Maybe (fromMaybe)
-import Data.Password.Argon2
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8)
 import Data.UUID (toString)
 import Data.UUID.V4 (nextRandom)
-import Domain.Types.DisplayName (mkDisplayNameUnsafe)
-import Domain.Types.EmailAddress (mkEmailAddress)
-import Domain.Types.FullName (mkFullNameUnsafe)
 import Effects.Database.Class (MonadDB (..))
-import Effects.Database.Tables.ServerSessions qualified as ServerSessions
-import Effects.Database.Tables.User qualified as User
-import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import GHC.IO (unsafePerformIO)
 import GHC.IO.Exception (ExitCode (..))
 import Hasql.Connection (Connection, acquire, release)
 import Hasql.Connection.Setting qualified as HSQL.Setting
 import Hasql.Connection.Setting.Connection qualified as HSQL.Connection
 import Hasql.Connection.Setting.Connection.Param qualified as HSQL.Params
-import Hasql.Interpolate (getOneRow)
 import Hasql.Pool (UsageError (..))
 import Hasql.Session (Session, run)
 import Hasql.Transaction qualified as TRX
@@ -64,7 +54,7 @@ import OpenTelemetry.Processor.Simple (SimpleProcessorConfig (..), simpleProcess
 import OpenTelemetry.Trace qualified as OTEL
 import System.Process.Typed (proc, readProcess)
 import Test.Hspec (Spec, SpecWith)
-import Test.Hspec.Core.Hooks (around, beforeWith)
+import Test.Hspec.Core.Hooks (around)
 import Test.Hspec.Core.Spec (ActionWith, Example (..), Params, ProgressCallback, Result)
 
 --------------------------------------------------------------------------------
