@@ -1121,6 +1121,11 @@ prop_replaceEpisodeTags cfg = do
 -- The expectation is computed from the same instant the statement compares
 -- against, so this asserts that Postgres and Haskell agree on when an episode
 -- airs. It does not restate the rule in a second place.
+--
+-- The timezone is pinned to Pacific for that reason. The expectation builds its
+-- instant with 'airTimeOn', which is Pacific, while the statement reads the
+-- start time through @st.timezone@. Those agree only when the template is
+-- Pacific, and every template in production is.
 prop_sameDayChangeSplitsOnAirTime :: TestDBConfig -> PropertyT IO ()
 prop_sameDayChangeSplitsOnAirTime cfg = do
   arrange (bracketConn cfg) $ do
@@ -1140,7 +1145,8 @@ prop_sameDayChangeSplitsOnAirTime cfg = do
               { ShowSchedule.stiDayOfWeek = dayOfWeek today,
                 ShowSchedule.stiWeeksOfMonth = [1, 2, 3, 4, 5],
                 ShowSchedule.stiStartTime = start,
-                ShowSchedule.stiEndTime = end
+                ShowSchedule.stiEndTime = end,
+                ShowSchedule.stiTimezone = "America/Los_Angeles"
               }
           earlyTemplate = airsTodayAt earlyTemplateGen (TimeOfDay 0 0 0) (TimeOfDay 1 0 0)
           lateTemplate = airsTodayAt lateTemplateGen (TimeOfDay 23 0 0) (TimeOfDay 23 59 0)
