@@ -180,11 +180,17 @@
           # they need the server binaries and sqlx on PATH. They also need the
           # migrations, which live under services/web and are therefore outside
           # the source tree of kpbj-database, so MIGRATIONS_DIR names them.
+          #
+          # Profiling is off here. Nixpkgs turns it on by default, which compiles
+          # every module a second time, and nothing reads the profiling libraries.
+          # The packages and the devShell keep it, so profiling a build by hand
+          # still works.
           checks =
             let
               runTests = pkg:
                 pkgs.haskell.lib.overrideCabal
-                  (pkgs.haskell.lib.doCheck pkg)
+                  (pkgs.haskell.lib.doCheck
+                    (pkgs.haskell.lib.disableLibraryProfiling pkg))
                   (old: {
                     testToolDepends = (old.testToolDepends or [ ]) ++ [ pkgs.postgresql_17 pkgs.sqlx-cli ];
                     preCheck = (old.preCheck or "") + ''
