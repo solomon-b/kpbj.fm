@@ -173,6 +173,35 @@
 
           defaultPackage = packages.kpbj-web;
 
+          # Every package above is built with dontCheck, so a deploy never waits
+          # on the suites and a broken test never blocks a build. These run them.
+          #
+          # The database suites start their own Postgres through tmp-postgres, so
+          # they need the server binaries and sqlx on PATH. They also need the
+          # migrations, which live under services/web and are therefore outside
+          # the source tree of kpbj-database, so MIGRATIONS_DIR names them.
+          checks =
+            let
+              runTests = pkg:
+                pkgs.haskell.lib.overrideCabal
+                  (pkgs.haskell.lib.doCheck pkg)
+                  (old: {
+                    testToolDepends = (old.testToolDepends or [ ]) ++ [ pkgs.postgresql_17 pkgs.sqlx-cli ];
+                    preCheck = (old.preCheck or "") + ''
+                      export MIGRATIONS_DIR=${./services/web/migrations}
+                      export LC_ALL=C
+                    '';
+                  });
+            in
+            {
+              kpbj-web = runTests hsPkgs.kpbj-web;
+              kpbj-database = runTests hsPkgs.kpbj-database;
+              stripe-http = runTests hsPkgs.stripe-http;
+              easypost-http = runTests hsPkgs.easypost-http;
+              mailchimp-http = runTests hsPkgs.mailchimp-http;
+              sync-host-emails = runTests hsPkgs.sync-host-emails;
+            };
+
           apps = {
             kpbj-web = {
               type = "app";
