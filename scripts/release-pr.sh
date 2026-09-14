@@ -70,18 +70,18 @@ echo "Updating CHANGELOG.md..."
 sed -i "s/^## \[Unreleased\]/## [Unreleased]\n\n_No changes yet._\n\n---\n\n## [$VERSION] - $TODAY/" CHANGELOG.md
 
 # Update cabal version
-echo "Updating kpbj-api.cabal version to $VERSION"
-sed -i "s/^version:.*$/version:            $VERSION/" services/web/kpbj-api.cabal
+echo "Updating kpbj-web.cabal version to $VERSION"
+sed -i "s/^version:.*$/version:            $VERSION/" services/web/kpbj-web.cabal
 
 # Verify the cabal change
-CABAL_VERSION=$(grep -oP '^version:\s*\K[0-9]+\.[0-9]+\.[0-9]+' services/web/kpbj-api.cabal)
+CABAL_VERSION=$(grep -oP '^version:\s*\K[0-9]+\.[0-9]+\.[0-9]+' services/web/kpbj-web.cabal)
 if [ "$CABAL_VERSION" != "$VERSION" ]; then
   echo "ERROR: Failed to update cabal version"
   exit 1
 fi
 
 # Commit and push
-git add services/web/kpbj-api.cabal CHANGELOG.md
+git add services/web/kpbj-web.cabal CHANGELOG.md
 git commit -m "chore: bump version to $VERSION"
 git push -u origin "$BRANCH"
 

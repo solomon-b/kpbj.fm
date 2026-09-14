@@ -109,7 +109,7 @@ just release-pr 0.3.2
 This will:
 - Create a `release/0.3.2` branch from `main`
 - Move `[Unreleased]` changes to `[0.3.2]` in the changelog
-- Bump the version in `kpbj-api.cabal`
+- Bump the version in `kpbj-web.cabal`
 - Push and open a PR
 
 **3. Merge the PR**

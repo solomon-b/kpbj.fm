@@ -47,7 +47,7 @@ jobs:
         with:
           name: kpbj-fm
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-          pushFilter: '(-kpbj-api|-sync-host-emails|-token-cleanup|-lucid-|-web-server-core)'
+          pushFilter: '(-kpbj-web|-sync-host-emails|-token-cleanup|-lucid-|-web-server-core)'
 
       - name: Setup SSH
         run: |

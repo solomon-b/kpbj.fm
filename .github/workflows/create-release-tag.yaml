@@ -34,7 +34,7 @@ jobs:
         env:
           EXPECTED: ${{ steps.extract-version.outputs.version }}
         run: |
-          CABAL_VERSION=$(grep -oP '^version:\s*\K[0-9]+\.[0-9]+\.[0-9]+' services/web/kpbj-api.cabal)
+          CABAL_VERSION=$(grep -oP '^version:\s*\K[0-9]+\.[0-9]+\.[0-9]+' services/web/kpbj-web.cabal)
 
           echo "Expected version (from branch): $EXPECTED"
           echo "Cabal version: $CABAL_VERSION"

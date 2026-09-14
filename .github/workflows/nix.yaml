@@ -25,7 +25,7 @@ jobs:
       with:
         name: kpbj-fm
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-        pushFilter: '(-kpbj-api|-sync-host-emails|-token-cleanup|-lucid-|-web-server-core)'
+        pushFilter: '(-kpbj-web|-sync-host-emails|-token-cleanup|-lucid-|-web-server-core)'
 
     - name: Build 🔨
       run: nix build
@@ -74,7 +74,7 @@ jobs:
         with:
           name: kpbj-fm
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-          pushFilter: '(-kpbj-api|-sync-host-emails|-token-cleanup|-lucid-|-web-server-core)'
+          pushFilter: '(-kpbj-web|-sync-host-emails|-token-cleanup|-lucid-|-web-server-core)'
 
       - name: Build web server
         run: nix build
@@ -92,7 +92,7 @@ jobs:
 
       - name: Start web server
         run: |
-          ./result/bin/kpbj-api > /tmp/kpbj-server.log 2>&1 &
+          ./result/bin/kpbj-web > /tmp/kpbj-server.log 2>&1 &
           echo $! > /tmp/kpbj-server.pid
           for i in $(seq 1 30); do
             if curl -sf http://localhost:4000 > /dev/null 2>&1; then

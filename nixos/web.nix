@@ -2,12 +2,12 @@
 # Web service — Haskell/Servant application
 # ──────────────────────────────────────────────────────────────
 #
-# Runs the kpbj-api binary as a native systemd service with
+# Runs the kpbj-web binary as a native systemd service with
 # DynamicUser isolation. Runs sqlx migrations before start.
 # Declares SOPS secrets and renders an env file for the service.
 # Adds Nginx vhosts for the web domain and uploads subdomain.
 # ──────────────────────────────────────────────────────────────
-{ config, lib, pkgs, kpbj-api, ... }:
+{ config, lib, pkgs, kpbj-web, ... }:
 
 let
   cfg = config.kpbj.web;
@@ -317,7 +317,7 @@ in
           ${pkgs.sqlx-cli}/bin/sqlx migrate run --source ${migrationsDir}
         '';
 
-        ExecStart = "${kpbj-api}/bin/kpbj-api";
+        ExecStart = "${kpbj-web}/bin/kpbj-web";
         Restart = "on-failure";
         RestartSec = 5;
 

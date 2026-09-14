@@ -25,7 +25,7 @@ import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Pool.Config qualified as HSQL.Pool.Config
 import Network.HTTP.Client qualified as HTTP
 import Test.Database.Monad (TestDBConfig (..), noOpLoggerEnv)
-import "kpbj-api" App.Monad (AppM)
+import "kpbj-web" App.Monad (AppM)
 import "web-server-core" App.Monad qualified as Core (AppM (..))
 
 --------------------------------------------------------------------------------

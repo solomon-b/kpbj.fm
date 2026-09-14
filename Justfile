@@ -75,7 +75,7 @@ _remote-logs host units since until:
 
 # Run the backend service
 run:
-  cabal run exe:kpbj-api
+  cabal run exe:kpbj-web
 
 # Build all haskell packages.
 build:
