@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.13.0] - 2026-09-13
+
 ### Added
 - **Episode archive page** — A new public `/archive` page (linked as "Archive" in the top nav, right after "Shows") shows a grid of every published episode across all shows, newest-published first, with infinite scroll. Cards reuse the existing episode card (artwork with an inline play button that feeds the persistent player, linking to the episode detail page) and, on the archive only, also show the owning show's title linking to the show page. Episodes from inactive shows are included; soft-deleted shows and unaired/deleted episodes are excluded. Backed by a new `Episodes.getPublishedEpisodesWithShows` query (`episodes` joined with `shows`, ordered by `published_at DESC`) and a handler mirroring the blog list page (`API.Archive.Get`).
 - **Admin manual password reset** — Admins can now assign a new password to any user directly from the dashboard users index (`/dashboard/users`). A new admin-only "Reset Password" action in each row's Actions dropdown (`POST /dashboard/users/:id/reset-password`) auto-generates a random 16-character alphanumeric password (the admin does not type one), hashes it with Argon2, writes it to the user's record, and deletes all of that user's `server_sessions` rows so they are signed out everywhere and must log in with the new password. The plaintext password is returned once inside an Alpine.js modal (with a copy button) shown in place on the index; it is never stored in plaintext. Backed by a new `generateRandomPassword` in `Effects.PasswordReset` (reusing the existing UUID-v4 entropy source and guaranteeing the default password policy by construction) and by exposing the module's existing `updateUserPassword`/`deleteAllSessionsForUser` helpers.
