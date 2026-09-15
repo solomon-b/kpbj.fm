@@ -165,6 +165,7 @@ import API.Invite.Token.Get.Route qualified as Invite.Token.Get
 import API.Invite.Token.Post.Route qualified as Invite.Token.Post
 import API.Media.Get.Route qualified as Media.Get
 import API.Newsletter.Subscribe.Post.Route qualified as Newsletter.Subscribe.Post
+import API.Playout.Break.Get.Route qualified as Playout.Break.Get
 import API.Playout.Fallback.Get.Route qualified as Playout.Fallback.Get
 import API.Playout.Now.Get.Route qualified as Playout.Now.Get
 import API.Playout.Played.Post.Route qualified as Playout.Played.Post
@@ -783,6 +784,8 @@ data PlayoutRoutes mode = PlayoutRoutes
     now :: mode :- Playout.Now.Get.Route,
     -- | @GET /api/playout/fallback@ - Get random ephemeral track for fallback
     fallback :: mode :- Playout.Fallback.Get.Route,
+    -- | @GET /api/playout/break@ - Get the tracks for one break window
+    breakWindow :: mode :- Playout.Break.Get.Route,
     -- | @POST /api/playout/played@ - Log a track that started playing
     played :: mode :- Playout.Played.Post.Route
   }
