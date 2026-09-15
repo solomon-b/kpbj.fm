@@ -41,6 +41,9 @@ module Effects.Database.Tables.ShowSchedule
     ScheduledShowWithDetails (..),
     getScheduledShowsForDate,
 
+    -- * Break Windows
+    isBreakDue,
+
     -- * Upcoming Show Dates
     UpcomingShowDate (..),
     getUpcomingShowDates,
@@ -703,6 +706,125 @@ getScheduledShowsForDate targetDate =
 
     ORDER BY start_time
   |]
+
+--------------------------------------------------------------------------------
+-- Break Windows
+
+-- | Is a break due for the slot boundary at this instant?
+--
+-- The break window is the last two minutes before a boundary. Liquidsoap asks
+-- at @:28@ and @:58@, and the caller passes the boundary itself, not the moment
+-- of the call.
+--
+-- A break is due when the boundary is either:
+--
+-- * the end of a scheduled slot, or
+-- * the top of an hour that no slot spans
+--
+-- So a 30 minute show breaks at its own @:28@ and again at @:58@ once the hour
+-- has fallen back to automation, a 1 hour show breaks at @:58@, and a 2 hour
+-- show breaks only at the @:58@ of its second hour. Hosts deliver audio two
+-- minutes short of the slot, so a break that fired at the midpoint of a long
+-- show would cut the file mid sentence.
+--
+-- == What it reads
+--
+-- Slots, not episodes. A slot whose host uploaded nothing still gets its break,
+-- because the boundary is a property of the schedule rather than of the audio.
+--
+-- == Time arithmetic
+--
+-- The window CTE is the one in 'Effects.Database.Tables.Episodes.getCurrentlyAiringEpisodes',
+-- minus the episode join. It keeps all four of that query's parts: the
+-- @slot_length@ interval that wraps midnight, the @VALUES@ lateral that fans a
+-- template into a primary window and a replay window, the @LEAST@ correction
+-- that resolves an ambiguous fall-back clock reading to the earlier instant,
+-- and the hardcoded zone. Read the Haddock there before changing any of it.
+--
+-- Air dates are scanned over yesterday and today in Pacific, so an overnight
+-- slot that closes after midnight is still found.
+--
+-- A slot that opens inside the spring-forward gap yields an empty or inverted
+-- window, which matches neither branch, so no break fires for it. That is the
+-- same way the airing query treats such a slot.
+--
+-- The equality against @window_end@ is exact. Both sides carry whole seconds:
+-- a window end is a date plus a @TIME@, and the caller rounds to a boundary.
+isBreakDue :: UTCTime -> Hasql.Statement () Bool
+isBreakDue breakEnd =
+  maybe False getOneColumn
+    <$> interp
+      True
+      [sql|
+      WITH slot_windows AS (
+        SELECT w.window_start, w.window_end
+        FROM schedule_templates st
+        JOIN schedule_template_validity stv ON stv.template_id = st.id
+        JOIN shows s ON s.id = st.show_id
+        -- A window opens on its air date and closes at most one date later, so
+        -- only these two dates can hold the boundary.
+        CROSS JOIN (
+          VALUES
+            ((#{breakEnd} AT TIME ZONE 'America/Los_Angeles')::DATE - 1),
+            ((#{breakEnd} AT TIME ZONE 'America/Los_Angeles')::DATE)
+        ) AS d(air_date)
+        -- The length of the slot as a time interval. An overnight slot wraps midnight.
+        CROSS JOIN LATERAL (
+          SELECT
+            CASE WHEN st.end_time > st.start_time
+              THEN st.end_time - st.start_time
+              ELSE INTERVAL '24 hours' - (st.start_time - st.end_time)
+            END AS slot_length
+        ) sl
+        -- One row for the primary window, one for the replay. A replay runs for
+        -- the same length as its primary.
+        CROSS JOIN LATERAL (
+          VALUES
+            (st.start_time, st.end_time),
+            (st.replay_start_time, (st.replay_start_time + sl.slot_length)::TIME)
+        ) AS v(start_time, end_time)
+        -- The window as a pair of local timestamps. A window that closes at or
+        -- before it opens runs onto the next date.
+        CROSS JOIN LATERAL (
+          SELECT
+            d.air_date + v.start_time AS local_start,
+            (d.air_date + CASE WHEN v.end_time <= v.start_time THEN 1 ELSE 0 END) + v.end_time
+              AS local_end
+        ) l
+        -- The same pair as timestamptz values, resolving the repeated hour on
+        -- the fall-back date to its first instant.
+        CROSS JOIN LATERAL (
+          SELECT
+            LEAST(
+              l.local_start AT TIME ZONE 'America/Los_Angeles',
+              (l.local_start - INTERVAL '1 hour') AT TIME ZONE 'America/Los_Angeles'
+                + INTERVAL '1 hour'
+            ) AS window_start,
+            LEAST(
+              l.local_end AT TIME ZONE 'America/Los_Angeles',
+              (l.local_end - INTERVAL '1 hour') AT TIME ZONE 'America/Los_Angeles'
+                + INTERVAL '1 hour'
+            ) AS window_end
+        ) w
+        WHERE
+          -- A template with no replay contributes its primary row only.
+          v.start_time IS NOT NULL
+          AND s.status = 'active'
+          AND s.deleted_at IS NULL
+          AND stv.effective_from <= d.air_date
+          AND (stv.effective_until IS NULL OR stv.effective_until > d.air_date)
+          AND recurrence_airs_on(day_of_week_num(st.day_of_week), st.weeks_of_month, d.air_date)
+      )
+      SELECT
+        EXISTS (SELECT 1 FROM slot_windows WHERE window_end = #{breakEnd})
+        OR (
+          EXTRACT(MINUTE FROM (#{breakEnd} AT TIME ZONE 'America/Los_Angeles')) = 0
+          AND NOT EXISTS (
+            SELECT 1 FROM slot_windows
+            WHERE window_start < #{breakEnd} AND window_end > #{breakEnd}
+          )
+        )
+    |]
 
 --------------------------------------------------------------------------------
 -- Upcoming Show Dates (for episode scheduling)

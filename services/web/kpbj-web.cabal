@@ -294,6 +294,20 @@ library
     API.Dashboard.StationBlog.Slug.Get.Handler
     API.Dashboard.StationBlog.Slug.Get.Route
     API.Dashboard.StationBlog.Slug.Get.Templates.Page
+    API.Dashboard.BreakItems.Form
+    API.Dashboard.BreakItems.Shared
+    API.Dashboard.Psas.Get.Route
+    API.Dashboard.Psas.New.Get.Route
+    API.Dashboard.Psas.New.Post.Route
+    API.Dashboard.Psas.Id.Edit.Get.Route
+    API.Dashboard.Psas.Id.Edit.Post.Route
+    API.Dashboard.Psas.Id.Delete.Route
+    API.Dashboard.AdSpots.Get.Route
+    API.Dashboard.AdSpots.New.Get.Route
+    API.Dashboard.AdSpots.New.Post.Route
+    API.Dashboard.AdSpots.Id.Edit.Get.Route
+    API.Dashboard.AdSpots.Id.Edit.Post.Route
+    API.Dashboard.AdSpots.Id.Delete.Route
     API.Dashboard.StationIds.Get.Handler
     API.Dashboard.StationIds.Get.Route
     API.Dashboard.StationIds.Get.Templates.ItemsFragment
@@ -509,6 +523,8 @@ library
     API.Playout.Now.Get.Handler
     API.Playout.Fallback.Get.Route
     API.Playout.Fallback.Get.Handler
+    API.Playout.Break.Get.Route
+    API.Playout.Break.Get.Handler
     API.Playout.Played.Post.Route
     API.Playout.Played.Post.Handler
     API.Analytics.EpisodePlay.Post.Route
@@ -570,6 +586,7 @@ library
     Component.ActionsDropdown
     Component.AudioDurationScript
     Component.AudioPlayer.Waveform
+    Component.BreakItems
     Component.InfiniteScroll
     Component.TrackListingEditor
     Component.ScheduleEditor
@@ -765,6 +782,7 @@ test-suite kpbj-web-test
        API.Events.Get.HandlerSpec
        API.Get.HandlerSpec
        API.Playout.Fallback.Get.HandlerSpec
+       API.Playout.Break.Get.HandlerSpec
        API.Schedule.Get.HandlerSpec
        API.Shows.Get.HandlerSpec
        API.Shows.Slug.Blog.Get.HandlerSpec

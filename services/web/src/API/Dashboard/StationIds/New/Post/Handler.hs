@@ -27,6 +27,7 @@ import Effects.Database.Tables.User qualified as User
 import Effects.StagedUploads (claimAndRelocateUpload)
 import Log qualified
 import Servant qualified
+import Text.Read (readMaybe)
 import Utils (fromMaybeM, fromRightM)
 
 --------------------------------------------------------------------------------
@@ -86,12 +87,21 @@ action user form = do
     Right path -> pure path
 
   -- 5. Create the station ID record
-  let insert =
+  --
+  -- The duration comes from the browser and is only used to budget the break
+  -- window, so a missing or nonsense value is dropped rather than rejected. The
+  -- break handler then assumes a length for this row.
+  let durationSeconds = do
+        raw <- fdDurationSeconds form
+        parsed <- readMaybe (Text.unpack raw)
+        if parsed > 0 then Just parsed else Nothing
+      insert =
         StationIds.Insert
           { StationIds.siiTitle = title,
             StationIds.siiAudioFilePath = storagePath,
             StationIds.siiMimeType = StagedUploads.mimeType stagedUpload,
             StationIds.siiFileSize = StagedUploads.fileSize stagedUpload,
+            StationIds.siiDurationSeconds = durationSeconds,
             StationIds.siiCreatorId = User.mId user
           }
   _ <-

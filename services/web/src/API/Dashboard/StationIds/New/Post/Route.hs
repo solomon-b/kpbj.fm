@@ -25,7 +25,12 @@ type Route =
 -- | Form data for station ID upload
 data FormData = FormData
   { fdTitle :: Text,
-    fdAudioToken :: Text
+    fdAudioToken :: Text,
+    -- | Duration in seconds, read from the audio file in the browser.
+    --
+    -- The break window subtracts the station ID's length from its budget before
+    -- it picks break items. Absent when the browser could not read the file.
+    fdDurationSeconds :: Maybe Text
   }
   deriving stock (Show)
 
@@ -34,3 +39,4 @@ instance FromMultipart Mem FormData where
     FormData
       <$> lookupInput "title" multipartData
       <*> lookupInput "audio_file_token" multipartData
+      <*> pure (either (const Nothing) Just (lookupInput "duration_seconds" multipartData))
