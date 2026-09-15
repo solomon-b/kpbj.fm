@@ -61,6 +61,7 @@ library
   exposed-modules:
     Effects.Database.Tables.BlogPosts
     Effects.Database.Tables.BlogTags
+    Effects.Database.Tables.BreakItems
     Effects.Database.Tables.EmailVerificationTokens
     Effects.Database.Tables.EphemeralUploads
     Effects.Database.Tables.Episodes
