@@ -86,6 +86,12 @@ data StationId f = StationId
     simAudioFilePath :: Column f Text,
     simMimeType :: Column f Text,
     simFileSize :: Column f Int64,
+    -- | Audio length, read in the browser at upload time.
+    --
+    -- NULL on rows uploaded before the break window existed. The break handler
+    -- falls back to an assumed length for those, so an old station ID still
+    -- opens a break.
+    simDurationSeconds :: Column f (Maybe Int64),
     simCreatorId :: Column f User.Id,
     simCreatedAt :: Column f UTCTime
   }
@@ -120,6 +126,7 @@ stationIdSchema =
             simAudioFilePath = "audio_file_path",
             simMimeType = "mime_type",
             simFileSize = "file_size",
+            simDurationSeconds = "duration_seconds",
             simCreatorId = "creator_id",
             simCreatedAt = "created_at"
           }
@@ -134,6 +141,7 @@ data Insert = Insert
     siiAudioFilePath :: Text,
     siiMimeType :: Text,
     siiFileSize :: Int64,
+    siiDurationSeconds :: Maybe Int64,
     siiCreatorId :: User.Id
   }
   deriving stock (Generic, Show, Eq)
@@ -193,12 +201,12 @@ getRandomStationId =
   interp
     False
     [sql|
-    SELECT id, title, audio_file_path, mime_type, file_size, creator_id, created_at
+    SELECT id, title, audio_file_path, mime_type, file_size, duration_seconds,
+           creator_id, created_at
     FROM station_ids
     ORDER BY RANDOM()
     LIMIT 1
   |]
-
 
 -- | Insert a new station ID and return its ID.
 insertStationId :: Insert -> Hasql.Statement () (Maybe Id)
@@ -216,6 +224,7 @@ insertStationId Insert {..} =
                       simAudioFilePath = lit siiAudioFilePath,
                       simMimeType = lit siiMimeType,
                       simFileSize = lit siiFileSize,
+                      simDurationSeconds = lit siiDurationSeconds,
                       simCreatorId = lit siiCreatorId,
                       simCreatedAt = now
                     }
