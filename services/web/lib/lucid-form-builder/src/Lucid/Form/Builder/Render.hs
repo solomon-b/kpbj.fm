@@ -311,6 +311,7 @@ renderField field = case fType field of
   StagedAudioField url uploadType -> renderStagedAudioField field url uploadType
   StagedImageField url uploadType -> renderStagedImageField field url uploadType
   DateTimeField -> renderDateTimeField field
+  DateField -> renderDateField field
   NumberField minV maxV step -> renderNumberField field minV maxV step
   CheckboxField -> renderCheckboxField field
   ToggleField -> renderToggleField field
@@ -2113,7 +2114,18 @@ renderStagedImageField field uploadUrl uploadType = do
 -- DateTime Field
 
 renderDateTimeField :: Field -> Lucid.Html ()
-renderDateTimeField field = do
+renderDateTimeField = renderDateInputField "datetime-local" "Please select a date and time"
+
+-- | Render a calendar date field, with no time of day.
+renderDateField :: Field -> Lucid.Html ()
+renderDateField = renderDateInputField "date" "Please select a date"
+
+-- | The shared body of the date and date-time fields.
+--
+-- They differ only in the input type and the message shown when validation
+-- fails.
+renderDateInputField :: Text -> Text -> Field -> Lucid.Html ()
+renderDateInputField inputType errorMessage field = do
   let name = fName field
       cfg = fConfig field
       val = fValidation field
@@ -2127,9 +2139,9 @@ renderDateTimeField field = do
       [Lucid.for_ name, Lucid.class_ "fb-label"]
       (Lucid.toHtml $ fromMaybe name (fcLabel cfg) <> if isReq then " *" else "")
 
-    -- DateTime input
+    -- Date input
     Lucid.input_ $
-      [ Lucid.type_ "datetime-local",
+      [ Lucid.type_ inputType,
         Lucid.name_ name,
         Lucid.id_ name,
         Lucid.class_ "fb-input"
@@ -2152,7 +2164,7 @@ renderDateTimeField field = do
           Lucid.class_ "fb-error",
           Lucid.style_ "display: none;"
         ]
-        "Please select a date and time"
+        (Lucid.toHtml errorMessage)
 
     -- Hint
     forM_ (fcHint cfg) $ \h ->

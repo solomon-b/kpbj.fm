@@ -65,6 +65,7 @@ needsValidation field = case fType field of
   -- Multi-image field handles its own validation via inline Alpine.js
   ImagesField {} -> False
   DateTimeField -> hasValidationRules field
+  DateField -> hasValidationRules field
   NumberField {} -> hasValidationRules field
   CheckboxField -> hasValidationRules field
   RadioField -> hasValidationRules field
