@@ -6,4 +6,4 @@
 
 ALTER TABLE station_ids ADD COLUMN duration_seconds BIGINT;
 
-COMMENT ON COLUMN station_ids.duration_seconds IS 'Audio length, read in the browser at upload time. NULL on rows uploaded before the break window existed';
+COMMENT ON COLUMN station_ids.duration_seconds IS 'Audio length, measured by ffprobe when the file was staged. NULL on rows uploaded before the break window existed';

@@ -9,7 +9,6 @@ where
 
 import API.Links (dashboardStationIdsLinks)
 import API.Types
-import Component.AudioDurationScript (renderAudioDurationScript)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Lucid qualified
@@ -30,9 +29,6 @@ stationIdListUrl = Links.linkURI $ dashboardStationIdsLinks.list Nothing
 stationIdUploadForm :: Text -> Lucid.Html ()
 stationIdUploadForm uploadUrl = do
   renderForm config form
-  -- Fills the hidden duration_seconds field once a file is chosen. The break
-  -- window subtracts the station ID's length from its budget.
-  renderAudioDurationScript "audio_file-input"
   where
     postUrl = [i|/#{stationIdNewPostUrl}|]
     cancelUrl = [i|/#{stationIdListUrl}|]

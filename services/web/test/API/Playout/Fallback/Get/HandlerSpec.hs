@@ -25,9 +25,9 @@ spec :: Spec
 spec =
   withTestDB $
     describe "API.Playout.Fallback.Get.Handler" $ do
-      it "returns 2-element array when both station ID and ephemeral exist" test_bothExist
-      it "returns 1-element array when only ephemeral exists" test_onlyEphemeral
-      it "returns empty array when neither exists" test_neitherExist
+      it "returns the ephemeral track alone, with no station ID" test_ephemeralOnly
+      it "returns the ephemeral track when no station ID exists" test_noStationId
+      it "returns an empty array when no ephemeral exists" test_neitherExist
 
 --------------------------------------------------------------------------------
 
@@ -55,8 +55,12 @@ mkStationIdInsert title creatorId =
 
 --------------------------------------------------------------------------------
 
-test_bothExist :: TestDBConfig -> IO ()
-test_bothExist cfg = do
+-- | A station ID in the table must not reach the filler pool.
+--
+-- Break windows place station IDs. The fallback used to lead every ephemeral
+-- track with one, and this is the test that it no longer does.
+test_ephemeralOnly :: TestDBConfig -> IO ()
+test_ephemeralOnly cfg = do
   userInsert <- mkUserInsert "fallback-both" UserMetadata.Host
 
   bracketAppM cfg $ do
@@ -72,16 +76,10 @@ test_bothExist cfg = do
 
     tracks <- handler
 
-    liftIO $ do
-      length tracks `shouldBe` 2
-      case tracks of
-        (first : second : _) -> do
-          ptSourceType first `shouldBe` "station_id"
-          ptSourceType second `shouldBe` "ephemeral"
-        _ -> error "Expected at least 2 tracks"
+    liftIO $ map ptSourceType tracks `shouldBe` ["ephemeral"]
 
-test_onlyEphemeral :: TestDBConfig -> IO ()
-test_onlyEphemeral cfg = do
+test_noStationId :: TestDBConfig -> IO ()
+test_noStationId cfg = do
   userInsert <- mkUserInsert "fallback-eph-only" UserMetadata.Host
 
   bracketAppM cfg $ do

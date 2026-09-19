@@ -30,6 +30,21 @@ def rewrite_url(url)
   end
 end
 
+# Build a request from an API track, carrying its metadata as annotations.
+#
+# The fallback pool and the break window both answer with the same track shape,
+# so both build their requests here. The annotate values reach Icecast as ICY
+# metadata and come back to us on the source.on_track callback, which posts them
+# to /played.
+def track_to_request(track)
+  title = track.title ?? "KPBJ 95.9 FM"
+  artist = track.artist ?? "Community Radio"
+  source_type = track.source_type ?? "unknown"
+  url = rewrite_url(track.url)
+  annotated = "annotate:title=\"#{title}\",artist=\"#{artist}\",source_type=\"#{source_type}\",source_url=\"#{url}\":#{url}"
+  request.create(annotated)
+end
+
 # State: URL of the last scheduled show we played (to avoid duplicates)
 last_scheduled = ref("")
 
@@ -48,14 +63,7 @@ def get_fallback()
   if response.status_code == 200 then
     try
       let json.parse (tracks : [{url: string, title: string?, artist: string?, source_type: string?}]) = response
-      list.map(fun(track) -> begin
-        title = track.title ?? "KPBJ 95.9 FM"
-        artist = track.artist ?? "Community Radio"
-        source_type = track.source_type ?? "unknown"
-        url = rewrite_url(track.url)
-        annotated = "annotate:title=\"#{title}\",artist=\"#{artist}\",source_type=\"#{source_type}\",source_url=\"#{url}\":#{url}"
-        request.create(annotated)
-      end, tracks)
+      list.map(track_to_request, tracks)
     catch _ do
       log.info("[KPBJ] Failed to parse fallback response")
       []
@@ -132,8 +140,16 @@ end
 # in the two minutes before the boundary. An empty array means no break is due
 # at this boundary, or that nothing was available for one. Both cases leave the
 # current source untouched, so a failure here never cuts a show for silence.
+#
+# The call carries the playout secret, because the API stamps last_played_at to
+# advance the rotation. A blank secret answers 401 and logs, which is the same
+# path a wrong secret takes.
 def do_break()
-  response = http.get(timeout=5., "#{api_base}/break")
+  response = http.get(
+    timeout=5.,
+    headers=[("X-Playout-Secret", playout_secret)],
+    "#{api_base}/break"
+  )
 
   if response.status_code != 200 then
     log.important("[KPBJ] Break API returned status #{response.status_code}")
@@ -156,12 +172,7 @@ def do_break()
         source.skip(scheduled_queue)
 
         list.iter(fun(track) -> begin
-          title = track.title ?? "KPBJ 95.9 FM"
-          artist = track.artist ?? "Community Radio"
-          source_type = track.source_type ?? "unknown"
-          url = rewrite_url(track.url)
-          annotated = "annotate:title=\"#{title}\",artist=\"#{artist}\",source_type=\"#{source_type}\",source_url=\"#{url}\":#{url}"
-          break_queue.push(request.create(annotated))
+          break_queue.push(track_to_request(track))
         end, tracks)
       end
     catch _ do

@@ -29,6 +29,7 @@ import Data.Text.Display (display)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Origin (Origin (..))
 import Domain.Types.StorageBackend (StorageBackend)
+import Effects.AudioDuration (probeDurationSeconds)
 import Effects.Database.Tables.User qualified as User
 import Effects.MimeTypeValidation qualified as MimeValidation
 import Log qualified
@@ -158,19 +159,28 @@ processAudioUpload user form = do
             pcLogPrefix = "Audio"
           }
 
-  result <- processStagedUpload config backend mAwsEnv user.mId originalName browserMimeType tempFilePath
+  -- The length is read here rather than in the browser, so the break budget
+  -- never depends on what a client reports. A file ffprobe cannot measure is
+  -- one the stream cannot play, so it is refused now rather than at submit.
+  mDuration <- probeDurationSeconds tempFilePath
 
-  case result of
-    Left err -> pure $ UploadError (displayStagedUploadError "Audio" err)
-    Right (token, origName, mimeType, fileSize) ->
-      pure $
-        UploadSuccess
-          UploadResponse
-            { urToken = token,
-              urOriginalName = origName,
-              urMimeType = mimeType,
-              urFileSize = fileSize
-            }
+  case mDuration of
+    Nothing -> pure $ UploadError "Could not read the length of this audio. The file may be damaged. Re-encode it and upload again."
+    Just durationSeconds -> do
+      result <- processStagedUpload config backend mAwsEnv user.mId originalName browserMimeType tempFilePath
+
+      case result of
+        Left err -> pure $ UploadError (displayStagedUploadError "Audio" err)
+        Right (token, origName, mimeType, fileSize) ->
+          pure $
+            UploadSuccess
+              UploadResponse
+                { urToken = token,
+                  urOriginalName = origName,
+                  urMimeType = mimeType,
+                  urFileSize = fileSize,
+                  urDurationSeconds = durationSeconds
+                }
 
 --------------------------------------------------------------------------------
 -- Audio-specific configuration

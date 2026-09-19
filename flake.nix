@@ -2,6 +2,19 @@
   description = "kpbj.fm";
 
   inputs = {
+    # This pin also fixes the Liquidsoap version, currently 2.3.3, which
+    # nixos/streaming.nix deploys as pkgs.liquidsoap.
+    #
+    # Re-check services/liquidsoap/radio.liq when this moves. Liquidsoap makes
+    # breaking language changes between minor releases, and the script only fails
+    # at load time, so a bad bump takes the stream off the air rather than the
+    # build. 2.4 already removes source.on_track, which radio.liq calls to log
+    # track changes and POST them to /played.
+    #
+    #   nix eval --impure --expr \
+    #     '(builtins.getFlake (builtins.toString ./.)).inputs.nixpkgs.legacyPackages.x86_64-linux.liquidsoap.version'
+    #   $(nix build --print-out-paths nixpkgs#liquidsoap)/bin/liquidsoap \
+    #     --check services/liquidsoap/radio.liq
     nixpkgs.url = github:NixOS/nixpkgs/nixos-25.11;
     flake-utils.url = github:numtide/flake-utils;
 

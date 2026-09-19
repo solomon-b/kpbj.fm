@@ -10,10 +10,10 @@ module API.Playout.Break.Get.HandlerSpec where
 --------------------------------------------------------------------------------
 
 import API.Playout.Break.Get.Handler
-  ( assumedStationIdSeconds,
+  ( action,
+    assumedStationIdSeconds,
     breakWindowSeconds,
     fillWindow,
-    handlerAt,
     nextBoundary,
   )
 import API.Playout.Types (PlayoutTrack (..))
@@ -61,13 +61,16 @@ spec = do
     it "returns nothing for an empty budget" fillEmptyBudget
 
   withTestDB $
-    describe "API.Playout.Break.Get.Handler.handlerAt" $ do
+    describe "API.Playout.Break.Get.Handler.action" $ do
       it "returns nothing when no break is due" handlerNoBreakDue
       it "opens the window with a station ID" handlerStationIdFirst
       it "returns the station ID alone when nothing is eligible" handlerStationIdOnly
       it "keeps the window inside its budget" handlerRespectsBudget
       it "leaves out an item whose dates have passed" handlerSkipsExpired
       it "advances the rotation between windows" handlerRotates
+      it "airs an item on its final day in the 23:58 window" handlerAirsOnFinalDay
+      it "holds back an item that starts the next day" handlerSkipsNotYetStarted
+      it "records a PSA under its own source type" handlerPsaSourceType
 
 --------------------------------------------------------------------------------
 -- nextBoundary
@@ -159,6 +162,13 @@ atFiftyEight = pacificAt (TimeOfDay 10 58 0)
 atTwentyEight :: UTCTime
 atTwentyEight = pacificAt (TimeOfDay 10 28 0)
 
+-- | 23:58 Pacific, so the next boundary is 00:00 on the following date.
+--
+-- This is the one window each day that airs on one Pacific date and ends on the
+-- next. Eligibility must read the date the break airs.
+atElevenFiftyEight :: UTCTime
+atElevenFiftyEight = pacificAt (TimeOfDay 23 58 0)
+
 mkStationIdInsert :: User.Id -> StationIds.Insert
 mkStationIdInsert creatorId =
   StationIds.Insert
@@ -198,6 +208,22 @@ addBreakItem title secs endsOn creatorId = do
   _ <- unwrapInsert $ BreakItems.insertBreakItem (mkBreakItemInsert title secs endsOn creatorId)
   pure ()
 
+-- | 'addBreakItem' with an explicit first air date.
+--
+-- Only the date tests set one. The rest start well before 'testDay'.
+addBreakItemFrom :: Day -> Text -> Int64 -> Maybe Day -> User.Id -> TRX.Transaction ()
+addBreakItemFrom startsOn title secs endsOn creatorId = do
+  let base = mkBreakItemInsert title secs endsOn creatorId
+  _ <- unwrapInsert $ BreakItems.insertBreakItem base {BreakItems.biiStartsOn = startsOn}
+  pure ()
+
+-- | 'addBreakItem' as a PSA. The other fixtures all insert advertisements.
+addPsa :: Text -> Int64 -> User.Id -> TRX.Transaction ()
+addPsa title secs creatorId = do
+  let base = mkBreakItemInsert title secs Nothing creatorId
+  _ <- unwrapInsert $ BreakItems.insertBreakItem base {BreakItems.biiCategory = BreakItems.Psa}
+  pure ()
+
 -- | Insert the user, run the caller's fixture, and fail loudly on a DB error.
 runSetup ::
   UserMetadata.UserWithMetadataInsert ->
@@ -212,7 +238,7 @@ runSetup userInsert fixture = do
     Right () -> pure ()
 
 --------------------------------------------------------------------------------
--- handlerAt
+-- action
 
 -- | Nothing is scheduled and the boundary is a half hour, so no break is due.
 handlerNoBreakDue :: TestDBConfig -> IO ()
@@ -222,7 +248,7 @@ handlerNoBreakDue cfg = do
     runSetup userInsert $ \userId -> do
       _ <- insertTestStationId (mkStationIdInsert userId)
       addBreakItem "spot" 30 Nothing userId
-    tracks <- handlerAt atTwentyEight
+    tracks <- action atTwentyEight
     liftIO $ tracks `shouldSatisfy` null
 
 handlerStationIdFirst :: TestDBConfig -> IO ()
@@ -232,13 +258,13 @@ handlerStationIdFirst cfg = do
     runSetup userInsert $ \userId -> do
       _ <- insertTestStationId (mkStationIdInsert userId)
       addBreakItem "spot-a" 30 Nothing userId
-    tracks <- handlerAt atFiftyEight
+    tracks <- action atFiftyEight
     liftIO $ do
       length tracks `shouldBe` 2
       case tracks of
         (firstTrack : secondTrack : _) -> do
           ptSourceType firstTrack `shouldBe` "station_id"
-          ptSourceType secondTrack `shouldBe` "break_item"
+          ptSourceType secondTrack `shouldBe` "advertisement"
         _ -> error "Expected two tracks"
 
 -- | The window always opens with a station ID, even with nothing to follow it.
@@ -249,7 +275,7 @@ handlerStationIdOnly cfg = do
     runSetup userInsert $ \userId -> do
       _ <- insertTestStationId (mkStationIdInsert userId)
       pure ()
-    tracks <- handlerAt atFiftyEight
+    tracks <- action atFiftyEight
     liftIO $ do
       length tracks `shouldBe` 1
       case tracks of
@@ -268,7 +294,7 @@ handlerRespectsBudget cfg = do
       mapM_
         (\n -> addBreakItem ("spot-" <> Text.pack (show (n :: Int))) 45 Nothing userId)
         [1 .. 4]
-    tracks <- handlerAt atFiftyEight
+    tracks <- action atFiftyEight
     liftIO $ do
       breakWindowSeconds `shouldBe` 120
       assumedStationIdSeconds `shouldBe` 15
@@ -281,7 +307,7 @@ handlerSkipsExpired cfg = do
     runSetup userInsert $ \userId -> do
       _ <- insertTestStationId (mkStationIdInsert userId)
       addBreakItem "expired" 30 (Just (fromGregorian 2025 1 5)) userId
-    tracks <- handlerAt atFiftyEight
+    tracks <- action atFiftyEight
     liftIO $ do
       length tracks `shouldBe` 1
       case tracks of
@@ -301,9 +327,48 @@ handlerRotates cfg = do
       addBreakItem "spot-a" 100 Nothing userId
       addBreakItem "spot-b" 100 Nothing userId
 
-    firstRun <- handlerAt atFiftyEight
-    secondRun <- handlerAt atFiftyEight
+    firstRun <- action atFiftyEight
+    secondRun <- action atFiftyEight
 
     liftIO $ case (drop 1 firstRun, drop 1 secondRun) of
       ([a], [b]) -> ptTitle a `shouldSatisfy` (/= ptTitle b)
       other -> error $ "Expected one break item in each window, got " <> show other
+
+-- | The 23:58 window airs on 'testDay' but ends at 00:00 the next date.
+--
+-- A spot sold through 'testDay' has paid for this window. Reading the date off
+-- the boundary would drop it from the last break of its own final day.
+handlerAirsOnFinalDay :: TestDBConfig -> IO ()
+handlerAirsOnFinalDay cfg = do
+  userInsert <- mkUserInsert "break-final-day" UserMetadata.Staff
+  bracketAppM cfg $ do
+    runSetup userInsert $ \userId -> do
+      _ <- insertTestStationId (mkStationIdInsert userId)
+      addBreakItem "final-day" 30 (Just testDay) userId
+    tracks <- action atElevenFiftyEight
+    liftIO $ map ptSourceType tracks `shouldBe` ["station_id", "advertisement"]
+
+-- | The other side of the same boundary.
+--
+-- A spot whose run starts the next date must not air two minutes early.
+handlerSkipsNotYetStarted :: TestDBConfig -> IO ()
+handlerSkipsNotYetStarted cfg = do
+  userInsert <- mkUserInsert "break-not-started" UserMetadata.Staff
+  bracketAppM cfg $ do
+    runSetup userInsert $ \userId -> do
+      _ <- insertTestStationId (mkStationIdInsert userId)
+      addBreakItemFrom (succ testDay) "tomorrow" 30 Nothing userId
+    tracks <- action atElevenFiftyEight
+    liftIO $ map ptSourceType tracks `shouldBe` ["station_id"]
+
+-- | The two categories reach playback_history apart, so an airplay report can
+-- separate paid spots from filler without matching titles.
+handlerPsaSourceType :: TestDBConfig -> IO ()
+handlerPsaSourceType cfg = do
+  userInsert <- mkUserInsert "break-psa-category" UserMetadata.Staff
+  bracketAppM cfg $ do
+    runSetup userInsert $ \userId -> do
+      _ <- insertTestStationId (mkStationIdInsert userId)
+      addPsa "a-psa" 30 userId
+    tracks <- action atFiftyEight
+    liftIO $ map ptSourceType tracks `shouldBe` ["station_id", "psa"]

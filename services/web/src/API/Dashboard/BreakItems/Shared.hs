@@ -344,10 +344,6 @@ editPostHandler sec itemId cookie form =
             ( BreakItems.updateBreakItem
                 item.bimId
                 parsed.pbiTitle
-                item.bimAudioFilePath
-                item.bimMimeType
-                item.bimFileSize
-                (fromMaybe item.bimDurationSeconds parsed.pbiDurationSeconds)
                 parsed.pbiStartsOn
                 parsed.pbiEndsOn
                 parsed.pbiPriority
@@ -425,8 +421,14 @@ parseBreakItemForm form = do
     Just end | end < startsOn -> throwValidationError "The last air date is before the first."
     _ -> pure ()
 
-  let priority = fromMaybe 0 (readMaybe (Text.unpack (Text.strip form.bifPriority)))
-      duration = do
+  priority <-
+    if Text.null (Text.strip form.bifPriority)
+      then pure 0
+      else
+        fromMaybeM (throwValidationError "The priority is not a whole number.") $
+          pure (readMaybe (Text.unpack (Text.strip form.bifPriority)))
+
+  let duration = do
         parsed <- readMaybe (Text.unpack (Text.strip form.bifDurationSeconds))
         if parsed > 0 && parsed <= 3600 then Just parsed else Nothing
 

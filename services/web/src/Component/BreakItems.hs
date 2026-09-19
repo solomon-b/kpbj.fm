@@ -28,7 +28,6 @@ where
 --------------------------------------------------------------------------------
 
 import Component.ActionsDropdown qualified as ActionsDropdown
-import Component.AudioDurationScript (renderAudioDurationScript)
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -48,6 +47,7 @@ import Design (base, class_)
 import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
 import Domain.Types.PageNumber (PageNumber (..))
+import Domain.Types.Timezone (formatDate, pacificDay)
 import Effects.Database.Tables.BreakItems qualified as BreakItems
 import Lucid qualified
 import Lucid.Form.Builder
@@ -301,11 +301,6 @@ renderBreakItemForm ::
   Lucid.Html ()
 renderBreakItemForm urls postUrl submitLabel mUploadUrl startsOn endsOn priority title = do
   renderForm config form
-  -- Fills the hidden duration_seconds field once a file is chosen. The break
-  -- window needs the length to decide what fits in two minutes.
-  case mUploadUrl of
-    Nothing -> mempty
-    Just _ -> renderAudioDurationScript "audio_file-input"
   where
     cancelUrl = pageUrl urls 1
     nounLower = Text.toLower urls.suNoun
@@ -375,17 +370,19 @@ formatDuration secs
 
 -- | Render an on-air range, leaving an open end open.
 formatRange :: Day -> Maybe Day -> Text
-formatRange startsOn Nothing = formatShortDay startsOn <> " onward"
+formatRange startsOn Nothing = formatDate startsOn <> " onward"
 formatRange startsOn (Just endsOn)
-  | startsOn == endsOn = formatShortDay startsOn
-  | otherwise = formatShortDay startsOn <> " to " <> formatShortDay endsOn
+  | startsOn == endsOn = formatDate startsOn
+  | otherwise = formatDate startsOn <> " to " <> formatDate endsOn
 
 -- | @YYYY-MM-DD@, which is what a date input reads and writes.
 formatDay :: Day -> Text
 formatDay = Text.pack . formatTime defaultTimeLocale "%Y-%m-%d"
 
-formatShortDay :: Day -> Text
-formatShortDay = Text.pack . formatTime defaultTimeLocale "%b %d, %Y"
-
+-- | The Pacific date a break last aired on.
+--
+-- @last_played_at@ is a 'UTCTime', and the UTC date is already tomorrow for the
+-- last seven hours of every Pacific day. The On Air column beside this one
+-- renders Pacific dates, so this has to as well.
 formatDateTime :: UTCTime -> Text
-formatDateTime = Text.pack . formatTime defaultTimeLocale "%b %d, %Y"
+formatDateTime = formatDate . pacificDay

@@ -34,7 +34,9 @@ data UploadResponse = UploadResponse
   { urToken :: StagedUploads.Token,
     urOriginalName :: Text,
     urMimeType :: Text,
-    urFileSize :: Int64
+    urFileSize :: Int64,
+    -- | Audio length in seconds, measured by @ffprobe@.
+    urDurationSeconds :: Int64
   }
   deriving stock (Generic, Show, Eq)
 
@@ -44,7 +46,8 @@ instance ToJSON UploadResponse where
       [ "token" Aeson..= StagedUploads.unToken (urToken resp),
         "originalName" Aeson..= urOriginalName resp,
         "mimeType" Aeson..= urMimeType resp,
-        "fileSize" Aeson..= urFileSize resp
+        "fileSize" Aeson..= urFileSize resp,
+        "durationSeconds" Aeson..= urDurationSeconds resp
       ]
 
 --------------------------------------------------------------------------------

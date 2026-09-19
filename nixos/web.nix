@@ -270,6 +270,10 @@ in
       wants = [ "network-online.target" ];
       wantedBy = [ "multi-user.target" ];
 
+      # ffprobe measures an audio upload's length. The break window budgets on
+      # it, so an upload it cannot measure is refused.
+      path = [ pkgs.ffmpeg ];
+
       environment = {
         APP_ENVIRONMENT = cfg.environment;
         APP_HOSTNAME = cfg.hostname;

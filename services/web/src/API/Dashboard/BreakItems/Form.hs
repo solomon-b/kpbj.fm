@@ -21,9 +21,11 @@ data BreakItemForm = BreakItemForm
   { bifTitle :: Text,
     -- | Staged upload token. Empty on an edit, which never replaces audio.
     bifAudioToken :: Text,
-    -- | Duration in seconds, read from the audio file in the browser.
+    -- | Duration in seconds, measured by @ffprobe@ when the audio was staged
+    -- and returned in the upload response.
     --
-    -- Required on upload, because the break window cannot budget without it.
+    -- Present on upload, because the break window cannot budget without it.
+    -- Empty on an edit, which never replaces audio.
     bifDurationSeconds :: Text,
     -- | First air date as @YYYY-MM-DD@.
     bifStartsOn :: Text,

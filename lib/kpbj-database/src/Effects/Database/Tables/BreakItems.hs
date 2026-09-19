@@ -20,8 +20,6 @@ module Effects.Database.Tables.BreakItems
 
     -- * Category
     Category (..),
-    categoryToText,
-    parseCategory,
 
     -- * Table Definition
     BreakItem (..),
@@ -35,7 +33,6 @@ module Effects.Database.Tables.BreakItems
 
     -- * Queries
     getByCategory,
-    countByCategory,
     getById,
     getEligibleForBreak,
     insertBreakItem,
@@ -63,7 +60,7 @@ import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneColumn (..), interp, sql)
+import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), interp, sql)
 import Hasql.Statement qualified as Hasql
 import OrphanInstances.Rel8 ()
 import Rel8 hiding (Enum, Insert)
@@ -129,19 +126,6 @@ instance Display Category where
   displayBuilder = \case
     Psa -> "PSA"
     Advertisement -> "Advertisement"
-
--- | Convert a category to its human-readable label.
-categoryToText :: Category -> Text
-categoryToText = \case
-  Psa -> "PSA"
-  Advertisement -> "Advertisement"
-
--- | Parse a human-readable label into a category.
-parseCategory :: Text -> Maybe Category
-parseCategory = \case
-  "PSA" -> Just Psa
-  "Advertisement" -> Just Advertisement
-  _ -> Nothing
 
 --------------------------------------------------------------------------------
 -- Table Definition
@@ -253,24 +237,10 @@ getByCategory category (Limit lim) (Offset off) =
     FROM break_items
     WHERE deleted_at IS NULL
       AND category = #{category}
-    ORDER BY created_at DESC
+    ORDER BY created_at DESC, id DESC
     LIMIT #{lim}
     OFFSET #{off}
   |]
-
--- | Count the live break items in a category.
-countByCategory :: Category -> Hasql.Statement () Int64
-countByCategory category =
-  let query =
-        interp
-          False
-          [sql|
-          SELECT COUNT(*)::INT8
-          FROM break_items
-          WHERE deleted_at IS NULL
-            AND category = #{category}
-        |]
-   in maybe 0 getOneColumn <$> query
 
 -- | Get a break item by its ID.
 --
@@ -359,19 +329,14 @@ insertBreakItem Insert {..} =
 -- sections only by being deleted and uploaded again, so a stale link cannot
 -- silently change which permission gate guards a row.
 --
+-- The audio is not editable either, so the columns describing it are absent. A
+-- new recording is a new row.
+--
 -- Returns the updated row, or Nothing when the ID names no live row.
 updateBreakItem ::
   Id ->
   -- | Title
   Text ->
-  -- | Audio file path
-  Text ->
-  -- | MIME type
-  Text ->
-  -- | File size in bytes
-  Int64 ->
-  -- | Duration in seconds
-  Int64 ->
   -- | First air date, inclusive
   Day ->
   -- | Last air date, inclusive. Nothing runs open ended
@@ -379,17 +344,13 @@ updateBreakItem ::
   -- | Priority
   Int64 ->
   Hasql.Statement () (Maybe Model)
-updateBreakItem breakItemId newTitle newAudioFilePath newMimeType newFileSize newDuration newStartsOn newEndsOn newPriority =
+updateBreakItem breakItemId newTitle newStartsOn newEndsOn newPriority =
   listToMaybe
     <$> interp
       False
       [sql|
       UPDATE break_items
       SET title = #{newTitle},
-          audio_file_path = #{newAudioFilePath},
-          mime_type = #{newMimeType},
-          file_size = #{newFileSize},
-          duration_seconds = #{newDuration},
           starts_on = #{newStartsOn},
           ends_on = #{newEndsOn},
           priority = #{newPriority},

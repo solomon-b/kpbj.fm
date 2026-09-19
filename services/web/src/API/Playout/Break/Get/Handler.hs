@@ -1,9 +1,9 @@
 -- | Handler for GET /api/playout/break.
 module API.Playout.Break.Get.Handler
   ( handler,
+    action,
 
     -- * Exported for testing
-    handlerAt,
     breakWindowSeconds,
     assumedStationIdSeconds,
     nextBoundary,
@@ -15,23 +15,27 @@ where
 
 import API.Playout.Types (BreakResponse, PlayoutTrack (..), sanitizeAnnotateValue)
 import App.BaseUrl (baseUrl)
+import App.Handler.Combinators (requirePlayoutSecret)
 import App.Monad (AppM)
 import App.Storage (StorageBackend (..), buildMediaUrl)
-import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Catch (throwM)
 import Control.Monad.Reader (asks)
+import Control.Monad.Trans.Except (runExceptT)
 import Data.Has qualified as Has
 import Data.Int (Int64)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
-import Data.Time (UTCTime (..), getCurrentTime)
+import Data.Time (UTCTime (..), addUTCTime)
 import Data.Time.Clock (DiffTime, diffTimeToPicoseconds, secondsToDiffTime)
 import Domain.Types.Timezone (pacificDay)
+import Effects.Clock (currentSystemTime)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.BreakItems qualified as BreakItems
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.StationIds qualified as StationIds
 import Log qualified
+import Servant.Server (err401)
 
 --------------------------------------------------------------------------------
 
@@ -63,16 +67,26 @@ assumedStationIdSeconds = 15
 -- database error. Liquidsoap treats an empty array as "play on", so a failure
 -- here leaves the current show or filler untouched rather than cutting it for
 -- silence.
-handler :: AppM BreakResponse
-handler = liftIO getCurrentTime >>= handlerAt
-
--- | 'handler', with the clock supplied.
 --
--- The answer depends on where the instant falls against the schedule, so tests
--- pass a fixed one rather than racing the wall clock.
-handlerAt :: UTCTime -> AppM BreakResponse
-handlerAt currentTime = do
+-- A bad or absent @X-Playout-Secret@ header answers 401 rather than an empty
+-- array. An empty array reads as "no break is due", which would hide a
+-- misconfigured secret until someone noticed the breaks had stopped. Liquidsoap
+-- logs the status and leaves the current source alone either way.
+handler :: Maybe Text -> AppM BreakResponse
+handler mSecret =
+  runExceptT (requirePlayoutSecret mSecret) >>= \case
+    Left _ -> throwM err401
+    Right () -> currentSystemTime >>= action
+
+action :: UTCTime -> AppM BreakResponse
+action currentTime = do
   let breakEnd = nextBoundary currentTime
+      -- The instant the window opens. Eligibility is judged on the date a break
+      -- airs, which is not the date it ends: the 23:58 window ends at 00:00 the
+      -- next day. Reading the date off the boundary would drop an advertisement
+      -- from the last break of its own final day, and admit one two minutes
+      -- before its first.
+      breakStart = addUTCTime (negate (fromIntegral breakWindowSeconds)) breakEnd
 
   dueResult <- execQuery (ShowSchedule.isBreakDue breakEnd)
   case dueResult of
@@ -87,10 +101,13 @@ handlerAt currentTime = do
       -- A station ID always opens the window. Its length comes off the budget
       -- before any break item is considered.
       stationIdResult <- execQuery StationIds.getRandomStationId
-      let mStationId = case stationIdResult of
-            Right (Just sid) -> Just sid
-            _ -> Nothing
-          stationIdLength =
+      mStationId <- case stationIdResult of
+        Left err -> do
+          Log.logAttention "Break window: station ID lookup failed" (show err)
+          pure Nothing
+        Right mSid -> pure mSid
+
+      let stationIdLength =
             maybe 0 (fromMaybe assumedStationIdSeconds . (.simDurationSeconds)) mStationId
           budget = breakWindowSeconds - stationIdLength
           mStationIdTrack =
@@ -105,7 +122,7 @@ handlerAt currentTime = do
               )
               mStationId
 
-      itemsResult <- execQuery (BreakItems.getEligibleForBreak (pacificDay breakEnd) budget)
+      itemsResult <- execQuery (BreakItems.getEligibleForBreak (pacificDay breakStart) budget)
       chosen <- case itemsResult of
         Left err -> do
           Log.logAttention "Break window: break item lookup failed" (show err)
@@ -130,7 +147,7 @@ handlerAt currentTime = do
                     { ptUrl = buildFullMediaUrl appBaseUrl storageBackend item.bimAudioFilePath,
                       ptTitle = sanitizeAnnotateValue item.bimTitle,
                       ptArtist = sanitizeAnnotateValue "KPBJ 95.9 FM",
-                      ptSourceType = "break_item"
+                      ptSourceType = categorySourceType item.bimCategory
                     }
               )
               chosen
@@ -181,6 +198,16 @@ fillWindow budget = go 0
       | otherwise = go used rest
 
 --------------------------------------------------------------------------------
+
+-- | The @source_type@ a category is recorded under in @playback_history@.
+--
+-- The two categories are recorded apart rather than both as @break_item@,
+-- because an airplay report has to answer which advertisements aired and
+-- @playback_history@ carries no @break_item_id@.
+categorySourceType :: BreakItems.Category -> Text
+categorySourceType = \case
+  BreakItems.Psa -> "psa"
+  BreakItems.Advertisement -> "advertisement"
 
 -- | Build a full URL for media files, ensuring external services can fetch them.
 --

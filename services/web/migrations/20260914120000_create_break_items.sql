@@ -48,7 +48,7 @@ COMMENT ON COLUMN break_items.category IS 'Which dashboard section owns this row
 COMMENT ON COLUMN break_items.audio_file_path IS 'Path to the audio file in storage (local or S3)';
 COMMENT ON COLUMN break_items.mime_type IS 'MIME type of the audio file';
 COMMENT ON COLUMN break_items.file_size IS 'Size of the audio file in bytes';
-COMMENT ON COLUMN break_items.duration_seconds IS 'Audio length, read in the browser at upload time. The break budget needs it to decide what fits';
+COMMENT ON COLUMN break_items.duration_seconds IS 'Audio length, measured by ffprobe when the file was staged. The break budget needs it to decide what fits';
 COMMENT ON COLUMN break_items.starts_on IS 'First Pacific date this item may air on, inclusive';
 COMMENT ON COLUMN break_items.ends_on IS 'Last Pacific date this item may air on, inclusive. NULL runs open ended';
 COMMENT ON COLUMN break_items.priority IS 'Higher values are selected first. Ties break on last_played_at';

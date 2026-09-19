@@ -111,6 +111,7 @@ library
                   , time
                   , tz
                   , transformers
+                  , typed-process
                   , unliftio
                   , unliftio-core
                   , unordered-containers
@@ -584,7 +585,6 @@ library
     App.Storage
     App.Handler.Error
     Component.ActionsDropdown
-    Component.AudioDurationScript
     Component.AudioPlayer.Waveform
     Component.BreakItems
     Component.InfiniteScroll
@@ -612,6 +612,7 @@ library
     Design.Tokens
     Design.FormStyles
     Domain.Types.VariantsPayload
+    Effects.AudioDuration
     Effects.AWS
     Effects.ContentSanitization
     Effects.Diff
