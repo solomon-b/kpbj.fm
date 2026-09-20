@@ -15,18 +15,20 @@ import Data.Has qualified as Has
 import Data.Text (Text)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
-import Effects.Database.Tables.StationIds qualified as StationIds
 
 --------------------------------------------------------------------------------
 
 -- | Handler for GET /api/playout/fallback.
 --
--- Returns a JSON array of tracks for fallback playback:
--- 1. A randomly selected station ID (if any exist)
--- 2. A randomly selected ephemeral upload
+-- Returns a one-element array holding a randomly selected ephemeral upload.
 --
--- Returns an empty array if no ephemeral uploads exist or on ephemeral DB error.
--- Station ID DB errors are silently skipped (only the ephemeral track is returned).
+-- Returns an empty array if no ephemeral uploads exist or on a database error.
+-- Liquidsoap then asks again rather than cutting to silence.
+--
+-- A station ID used to lead every ephemeral track. Break windows place station
+-- IDs now, so the filler pool no longer does. The fallback only plays when no
+-- break and no show is on air, and a break opens every hour that no slot spans,
+-- so the hourly identification still lands.
 handler :: AppM FallbackResponse
 handler = do
   ephemeralResult <- execQuery EphemeralUploads.getRandomEphemeralUpload
@@ -38,28 +40,14 @@ handler = do
       storageBackend <- asks (Has.getter @StorageBackend)
       appBaseUrl <- baseUrl
 
-      let ephemeralTrack =
-            PlayoutTrack
-              { ptUrl = buildFullMediaUrl appBaseUrl storageBackend upload.eumAudioFilePath,
-                ptTitle = sanitizeAnnotateValue upload.eumTitle,
-                ptArtist = sanitizeAnnotateValue "KPBJ 95.9 FM",
-                ptSourceType = "ephemeral"
-              }
-
-      -- Try to get a station ID; skip on error or if none exist
-      stationIdResult <- execQuery StationIds.getRandomStationId
-      let mStationIdTrack = case stationIdResult of
-            Right (Just sid) ->
-              Just
-                PlayoutTrack
-                  { ptUrl = buildFullMediaUrl appBaseUrl storageBackend sid.simAudioFilePath,
-                    ptTitle = sanitizeAnnotateValue sid.simTitle,
-                    ptArtist = sanitizeAnnotateValue "KPBJ 95.9 FM",
-                    ptSourceType = "station_id"
-                  }
-            _ -> Nothing
-
-      pure $ maybe [ephemeralTrack] (\sidTrack -> [sidTrack, ephemeralTrack]) mStationIdTrack
+      pure
+        [ PlayoutTrack
+            { ptUrl = buildFullMediaUrl appBaseUrl storageBackend upload.eumAudioFilePath,
+              ptTitle = sanitizeAnnotateValue upload.eumTitle,
+              ptArtist = sanitizeAnnotateValue "KPBJ 95.9 FM",
+              ptSourceType = "ephemeral"
+            }
+        ]
 
 -- | Build a full URL for media files, ensuring external services can fetch them.
 --

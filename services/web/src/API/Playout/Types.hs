@@ -10,6 +10,7 @@ module API.Playout.Types
     sanitizeAnnotateValue,
     PlayoutTrack (..),
     FallbackResponse,
+    BreakResponse,
     NowPlayingResponse (..),
   )
 where
@@ -58,6 +59,16 @@ instance ToJSON PlayoutTrack where
 --
 -- Serializes to a JSON array. Empty array means no content available.
 type FallbackResponse = [PlayoutTrack]
+
+-- | Break response is a list of tracks for one break window.
+--
+-- A station ID first, then the PSAs and advertisement spots that fit in the
+-- rest of the window.
+--
+-- Serializes to a JSON array. Empty array means no break is due, or that no
+-- content is available for one. Liquidsoap plays on without cutting the
+-- current source in either case, so the two need not be distinguished.
+type BreakResponse = [PlayoutTrack]
 
 --------------------------------------------------------------------------------
 

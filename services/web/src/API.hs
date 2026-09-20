@@ -62,6 +62,7 @@ import API.Dashboard.Blogs.Slug.Delete.Handler qualified as Dashboard.Blogs.Slug
 import API.Dashboard.Blogs.Slug.Edit.Get.Handler qualified as Dashboard.Blogs.Slug.Edit.Get
 import API.Dashboard.Blogs.Slug.Edit.Post.Handler qualified as Dashboard.Blogs.Slug.Edit.Post
 import API.Dashboard.Blogs.Slug.Get.Handler qualified as Dashboard.Blogs.Slug.Get
+import API.Dashboard.BreakItems.Shared qualified as BreakItems.Shared
 import API.Dashboard.EphemeralUploads.Get.Handler qualified as Dashboard.EphemeralUploads.Get
 import API.Dashboard.EphemeralUploads.Id.Delete.Handler qualified as Dashboard.EphemeralUploads.Id.Delete
 import API.Dashboard.EphemeralUploads.Id.Edit.Get.Handler qualified as Dashboard.EphemeralUploads.Id.Edit.Get
@@ -169,6 +170,7 @@ import API.Invite.Token.Post.Handler qualified as Invite.Token.Post
 import API.Links
 import API.Media.Get.Handler qualified as Media.Get
 import API.Newsletter.Subscribe.Post.Handler qualified as Newsletter.Subscribe.Post
+import API.Playout.Break.Get.Handler qualified as Playout.Break.Get
 import API.Playout.Fallback.Get.Handler qualified as Playout.Fallback.Get
 import API.Playout.Now.Get.Handler qualified as Playout.Now.Get
 import API.Playout.Played.Post.Handler qualified as Playout.Played.Post
@@ -397,7 +399,32 @@ server =
           missingEpisodes = Dashboard.MissingEpisodes.Get.handler,
           analytics = dashboardAnalyticsRoutes,
           store = dashboardStoreRoutes,
-          newsletterSubscribers = dashboardNewsletterSubscribersRoutes
+          newsletterSubscribers = dashboardNewsletterSubscribersRoutes,
+          psas = dashboardPsasRoutes,
+          adSpots = dashboardAdSpotsRoutes
+        }
+
+    -- Both break item sections run the same handlers. They differ only in the
+    -- Section value, which carries the category, the URLs, and the permission
+    -- gate. See "API.Dashboard.BreakItems.Shared".
+    dashboardPsasRoutes =
+      DashboardPsasRoutes
+        { list = BreakItems.Shared.listHandler BreakItems.Shared.psaSection,
+          newGet = BreakItems.Shared.newGetHandler BreakItems.Shared.psaSection,
+          newPost = BreakItems.Shared.newPostHandler BreakItems.Shared.psaSection,
+          editGet = BreakItems.Shared.editGetHandler BreakItems.Shared.psaSection,
+          editPost = BreakItems.Shared.editPostHandler BreakItems.Shared.psaSection,
+          delete = BreakItems.Shared.deleteHandler BreakItems.Shared.psaSection
+        }
+
+    dashboardAdSpotsRoutes =
+      DashboardAdSpotsRoutes
+        { list = BreakItems.Shared.listHandler BreakItems.Shared.adSpotSection,
+          newGet = BreakItems.Shared.newGetHandler BreakItems.Shared.adSpotSection,
+          newPost = BreakItems.Shared.newPostHandler BreakItems.Shared.adSpotSection,
+          editGet = BreakItems.Shared.editGetHandler BreakItems.Shared.adSpotSection,
+          editPost = BreakItems.Shared.editPostHandler BreakItems.Shared.adSpotSection,
+          delete = BreakItems.Shared.deleteHandler BreakItems.Shared.adSpotSection
         }
 
     dashboardNewsletterSubscribersRoutes =
@@ -562,6 +589,7 @@ server =
       PlayoutRoutes
         { now = Playout.Now.Get.handler,
           fallback = Playout.Fallback.Get.handler,
+          breakWindow = Playout.Break.Get.handler,
           played = Playout.Played.Post.handler
         }
 

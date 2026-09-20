@@ -12,6 +12,7 @@ where
 
 import API.Links
   ( apiLinks,
+    dashboardAdSpotsLinks,
     dashboardAnalyticsLinks,
     dashboardBlogsLinks,
     dashboardEphemeralUploadsLinks,
@@ -21,6 +22,7 @@ import API.Links
     dashboardLinks,
     dashboardMissingEpisodesLink,
     dashboardNewsletterSubscribersLinks,
+    dashboardPsasLinks,
     dashboardShowsLinks,
     dashboardSitePagesLinks,
     dashboardStationBlogLinks,
@@ -116,6 +118,12 @@ dashboardNewsletterSubscribersGetUrl :: Links.URI
 dashboardNewsletterSubscribersGetUrl =
   Links.linkURI $ dashboardNewsletterSubscribersLinks.list Nothing Nothing
 
+dashboardPsasGetUrl :: Links.URI
+dashboardPsasGetUrl = Links.linkURI $ dashboardPsasLinks.list Nothing
+
+dashboardAdSpotsGetUrl :: Links.URI
+dashboardAdSpotsGetUrl = Links.linkURI $ dashboardAdSpotsLinks.list Nothing
+
 dashboardStoreProductsGetUrl :: Links.URI
 dashboardStoreProductsGetUrl = Links.linkURI dashboardStoreProductsLinks.list
 
@@ -145,6 +153,8 @@ data DashboardNav
   | NavAnalytics
   | NavInvitations
   | NavNewsletterSubscribers
+  | NavPsas
+  | NavAdSpots
   | NavStoreProducts
   | NavStoreOrders
   | NavStoreSettings
@@ -169,6 +179,8 @@ isShowScoped = \case
   NavAnalytics -> False
   NavInvitations -> False
   NavNewsletterSubscribers -> False
+  NavPsas -> False
+  NavAdSpots -> False
   NavStoreProducts -> False
   NavStoreOrders -> False
   NavStoreSettings -> False
@@ -261,6 +273,8 @@ sidebar userMeta activeNav selectedShow =
             staffNavItem "STATION BLOG" NavStationBlog activeNav
             staffNavItem "EVENTS" NavEvents activeNav
             staffNavItem "MISSING EPISODES" NavMissingEpisodes activeNav
+            staffNavItem "PSAS" NavPsas activeNav
+            staffNavItem "AD SPOTS" NavAdSpots activeNav
             staffNavItem "SITE PAGES" NavSitePages activeNav
             -- Admin-only items
             when (UserMetadata.isAdmin userMeta.mUserRole) $ do
@@ -381,6 +395,8 @@ staffNavUrl = \case
   NavAnalytics -> Just dashboardAnalyticsGetUrl
   NavInvitations -> Just dashboardInvitationsGetUrl
   NavNewsletterSubscribers -> Just dashboardNewsletterSubscribersGetUrl
+  NavPsas -> Just dashboardPsasGetUrl
+  NavAdSpots -> Just dashboardAdSpotsGetUrl
   NavStoreProducts -> Just dashboardStoreProductsGetUrl
   NavStoreOrders -> Just dashboardStoreOrdersGetUrl
   NavStoreSettings -> Just dashboardStoreSettingsGetUrl
@@ -409,6 +425,8 @@ navUrl nav mShow =
         NavAnalytics -> Just dashboardAnalyticsGetUrl
         NavInvitations -> Just dashboardInvitationsGetUrl
         NavNewsletterSubscribers -> Just dashboardNewsletterSubscribersGetUrl
+        NavPsas -> Just dashboardPsasGetUrl
+        NavAdSpots -> Just dashboardAdSpotsGetUrl
         NavStoreProducts -> Just dashboardStoreProductsGetUrl
         NavStoreOrders -> Just dashboardStoreOrdersGetUrl
         NavStoreSettings -> Just dashboardStoreSettingsGetUrl

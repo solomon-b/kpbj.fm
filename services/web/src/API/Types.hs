@@ -27,6 +27,8 @@ module API.Types
     DashboardUsersRoutes (..),
     DashboardInvitationsRoutes (..),
     DashboardNewsletterSubscribersRoutes (..),
+    DashboardPsasRoutes (..),
+    DashboardAdSpotsRoutes (..),
     DashboardSitePagesRoutes (..),
     DashboardStreamSettingsRoutes (..),
     DashboardAnalyticsRoutes (..),
@@ -50,6 +52,12 @@ import API.Analytics.EpisodePlay.Post.Route qualified as Analytics.EpisodePlay.P
 import API.Archive.Get.Route qualified as Archive.Get
 import API.Blog.Get.Route qualified as Blog.Get
 import API.Blog.Post.Get.Route qualified as Blog.Post.Get
+import API.Dashboard.AdSpots.Get.Route qualified as Dashboard.AdSpots.Get
+import API.Dashboard.AdSpots.Id.Delete.Route qualified as Dashboard.AdSpots.Id.Delete
+import API.Dashboard.AdSpots.Id.Edit.Get.Route qualified as Dashboard.AdSpots.Id.Edit.Get
+import API.Dashboard.AdSpots.Id.Edit.Post.Route qualified as Dashboard.AdSpots.Id.Edit.Post
+import API.Dashboard.AdSpots.New.Get.Route qualified as Dashboard.AdSpots.New.Get
+import API.Dashboard.AdSpots.New.Post.Route qualified as Dashboard.AdSpots.New.Post
 import API.Dashboard.Analytics.Data.Get.Route qualified as Dashboard.Analytics.Data.Get
 import API.Dashboard.Analytics.Get.Route qualified as Dashboard.Analytics.Get
 import API.Dashboard.Blogs.Get.Route qualified as Dashboard.Blogs.Get
@@ -99,6 +107,12 @@ import API.Dashboard.NewsletterSubscribers.Delete.Route qualified as Dashboard.N
 import API.Dashboard.NewsletterSubscribers.Get.Route qualified as Dashboard.NewsletterSubscribers.Get
 import API.Dashboard.Profile.Edit.Get.Route qualified as Dashboard.Profile.Edit.Get
 import API.Dashboard.Profile.Edit.Post.Route qualified as Dashboard.Profile.Edit.Post
+import API.Dashboard.Psas.Get.Route qualified as Dashboard.Psas.Get
+import API.Dashboard.Psas.Id.Delete.Route qualified as Dashboard.Psas.Id.Delete
+import API.Dashboard.Psas.Id.Edit.Get.Route qualified as Dashboard.Psas.Id.Edit.Get
+import API.Dashboard.Psas.Id.Edit.Post.Route qualified as Dashboard.Psas.Id.Edit.Post
+import API.Dashboard.Psas.New.Get.Route qualified as Dashboard.Psas.New.Get
+import API.Dashboard.Psas.New.Post.Route qualified as Dashboard.Psas.New.Post
 import API.Dashboard.Shows.Get.Route qualified as Dashboard.Shows.Get
 import API.Dashboard.Shows.New.Get.Route qualified as Dashboard.Shows.New.Get
 import API.Dashboard.Shows.New.Post.Route qualified as Dashboard.Shows.New.Post
@@ -165,6 +179,7 @@ import API.Invite.Token.Get.Route qualified as Invite.Token.Get
 import API.Invite.Token.Post.Route qualified as Invite.Token.Post
 import API.Media.Get.Route qualified as Media.Get
 import API.Newsletter.Subscribe.Post.Route qualified as Newsletter.Subscribe.Post
+import API.Playout.Break.Get.Route qualified as Playout.Break.Get
 import API.Playout.Fallback.Get.Route qualified as Playout.Fallback.Get
 import API.Playout.Now.Get.Route qualified as Playout.Now.Get
 import API.Playout.Played.Post.Route qualified as Playout.Played.Post
@@ -436,7 +451,48 @@ data DashboardAdminRoutes mode = DashboardAdminRoutes
     -- | @/dashboard/store/...@ - Store management routes
     store :: mode :- NamedRoutes DashboardStoreRoutes,
     -- | @/dashboard/newsletter-subscribers/...@ - Newsletter subscriber management routes
-    newsletterSubscribers :: mode :- NamedRoutes DashboardNewsletterSubscribersRoutes
+    newsletterSubscribers :: mode :- NamedRoutes DashboardNewsletterSubscribersRoutes,
+    -- | @/dashboard/psas/...@ - PSA management routes
+    psas :: mode :- NamedRoutes DashboardPsasRoutes,
+    -- | @/dashboard/ad-spots/...@ - Advertisement spot management routes
+    adSpots :: mode :- NamedRoutes DashboardAdSpotsRoutes
+  }
+  deriving stock (Generic)
+
+-- | Dashboard PSA management routes under @/dashboard/psas@.
+--
+-- PSAs and advertisement spots share one table and one playout rotation. They
+-- are two route groups so each can carry its own permission gate.
+data DashboardPsasRoutes mode = DashboardPsasRoutes
+  { -- | @GET /dashboard/psas@ - PSA list
+    list :: mode :- Dashboard.Psas.Get.Route,
+    -- | @GET /dashboard/psas/new@ - New PSA form
+    newGet :: mode :- Dashboard.Psas.New.Get.Route,
+    -- | @POST /dashboard/psas/new@ - Create PSA
+    newPost :: mode :- Dashboard.Psas.New.Post.Route,
+    -- | @GET /dashboard/psas/:psa_id/edit@ - Edit PSA form
+    editGet :: mode :- Dashboard.Psas.Id.Edit.Get.Route,
+    -- | @POST /dashboard/psas/:psa_id/edit@ - Update PSA
+    editPost :: mode :- Dashboard.Psas.Id.Edit.Post.Route,
+    -- | @DELETE /dashboard/psas/:psa_id@ - Delete PSA
+    delete :: mode :- Dashboard.Psas.Id.Delete.Route
+  }
+  deriving stock (Generic)
+
+-- | Dashboard advertisement spot routes under @/dashboard/ad-spots@.
+data DashboardAdSpotsRoutes mode = DashboardAdSpotsRoutes
+  { -- | @GET /dashboard/ad-spots@ - Ad spot list
+    list :: mode :- Dashboard.AdSpots.Get.Route,
+    -- | @GET /dashboard/ad-spots/new@ - New ad spot form
+    newGet :: mode :- Dashboard.AdSpots.New.Get.Route,
+    -- | @POST /dashboard/ad-spots/new@ - Create ad spot
+    newPost :: mode :- Dashboard.AdSpots.New.Post.Route,
+    -- | @GET /dashboard/ad-spots/:ad_spot_id/edit@ - Edit ad spot form
+    editGet :: mode :- Dashboard.AdSpots.Id.Edit.Get.Route,
+    -- | @POST /dashboard/ad-spots/:ad_spot_id/edit@ - Update ad spot
+    editPost :: mode :- Dashboard.AdSpots.Id.Edit.Post.Route,
+    -- | @DELETE /dashboard/ad-spots/:ad_spot_id@ - Delete ad spot
+    delete :: mode :- Dashboard.AdSpots.Id.Delete.Route
   }
   deriving stock (Generic)
 
@@ -783,6 +839,8 @@ data PlayoutRoutes mode = PlayoutRoutes
     now :: mode :- Playout.Now.Get.Route,
     -- | @GET /api/playout/fallback@ - Get random ephemeral track for fallback
     fallback :: mode :- Playout.Fallback.Get.Route,
+    -- | @GET /api/playout/break@ - Get the tracks for one break window
+    breakWindow :: mode :- Playout.Break.Get.Route,
     -- | @POST /api/playout/played@ - Log a track that started playing
     played :: mode :- Playout.Played.Post.Route
   }
