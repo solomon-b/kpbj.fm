@@ -4,7 +4,8 @@
 #
 # Polls the web API at :00 and :30 for scheduled shows.
 # Asks the web API at :28 and :58 for a break window of PSAs and ad spots.
-# Uses request.queue() with manual push to avoid prefetch bugs.
+# Uses request.queue() with manual push to avoid prefetch bugs. The break queue
+# is the one exception, and the note above it says why.
 # Tracks last_scheduled to prevent replaying the same show.
 
 settings.init.allow_root.set(true)
@@ -90,7 +91,21 @@ scheduled_source = buffer(buffer=5., max=10., scheduled_queue)
 # Break source - outranks both other sources so a break can cut a show.
 # The API only ever hands us tracks that fit inside the window, so the queue
 # drains before the boundary and playback falls back on its own.
-break_queue = request.queue(id="break")
+#
+# prefetch resolves the next items while the current one plays. Without it the
+# queue fetches each file from storage only after the previous track ends, and
+# the producer emits nothing during that fetch while the consumer keeps draining
+# at 1x. Each transition then costs the buffer about a second, so a six item
+# break exhausted the 5s buffer on its fifth transition, break_source went
+# unready, and fallback() let a filler track into the middle of the break.
+#
+# Raising the buffer instead would only raise the item count needed to break it,
+# and it would delay the start of every break by however much it was raised.
+#
+# This is safe here in a way it is not for the schedule: every break request is
+# pushed up front, so prefetch changes only when a file is fetched, not which
+# track is chosen or when its metadata reaches the output.
+break_queue = request.queue(id="break", prefetch=3)
 break_source = buffer(buffer=5., max=10., break_queue)
 
 # Poll the API for the current scheduled show
