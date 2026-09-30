@@ -10,6 +10,7 @@ module API.Playout.Types
     sanitizeAnnotateValue,
     PlayoutTrack (..),
     FallbackResponse,
+    BreakResponse,
     NowPlayingResponse (..),
   )
 where
@@ -17,6 +18,7 @@ where
 --------------------------------------------------------------------------------
 
 import Data.Aeson (FromJSON, ToJSON (..), object, (.=))
+import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime)
@@ -35,13 +37,18 @@ data PlayoutMetadata = PlayoutMetadata
 
 -- | A single track in a playout response with its source type.
 --
--- Used by the fallback endpoint to return multiple tracks (station ID + ephemeral).
--- Serializes to flat JSON: @{"url": "...", "title": "...", "artist": "...", "source_type": "..."}@
+-- Used by the fallback and break endpoints.
+-- Serializes to flat JSON: @{"url": "...", "title": "...", "artist": "...",
+-- "source_type": "...", "break_item_id": 12}@. The id is null for a track that
+-- is not a break item.
 data PlayoutTrack = PlayoutTrack
   { ptUrl :: Text,
     ptTitle :: Text,
     ptArtist :: Text,
-    ptSourceType :: Text
+    ptSourceType :: Text,
+    -- | The break item this track plays. Liquidsoap reports it back through
+    -- @/played@, so delivery counts do not match titles or URLs.
+    ptBreakItemId :: Maybe Int64
   }
   deriving stock (Generic, Show, Eq)
 
@@ -51,13 +58,24 @@ instance ToJSON PlayoutTrack where
       [ "url" .= sanitizeAnnotateValue track.ptUrl,
         "title" .= track.ptTitle,
         "artist" .= track.ptArtist,
-        "source_type" .= track.ptSourceType
+        "source_type" .= track.ptSourceType,
+        "break_item_id" .= track.ptBreakItemId
       ]
 
 -- | Fallback response is a list of tracks (station ID + ephemeral).
 --
 -- Serializes to a JSON array. Empty array means no content available.
 type FallbackResponse = [PlayoutTrack]
+
+-- | Break response is a list of tracks for one break window.
+--
+-- A station ID first, then the underwriting announcements and PSAs that the
+-- daily plan puts in the window.
+--
+-- Serializes to a JSON array. Empty array means no break is due, or that no
+-- content is available for one. Liquidsoap plays on without cutting the
+-- current source in either case, so the two need not be distinguished.
+type BreakResponse = [PlayoutTrack]
 
 --------------------------------------------------------------------------------
 
@@ -90,7 +108,10 @@ data PlayedRequest = PlayedRequest
     prArtist :: Maybe Text,
     prSourceType :: Text,
     prSourceUrl :: Text,
-    prStartedAt :: UTCTime
+    prStartedAt :: UTCTime,
+    -- | The break item id from the track's annotations. Liquidsoap sends an
+    -- empty string for a track that is not a break item.
+    prBreakItemId :: Maybe Text
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (FromJSON)

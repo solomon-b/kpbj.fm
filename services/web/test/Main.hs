@@ -74,7 +74,9 @@ import API.Events.Event.Get.HandlerSpec qualified as EventHandler
 import API.Events.Get.HandlerSpec qualified as EventsHandler
 import API.Get.HandlerSpec qualified as HomeHandler
 import API.Newsletter.Subscribe.Post.HandlerSpec qualified as NewsletterSubscribeHandler
+import API.Playout.Break.Get.HandlerSpec qualified as PlayoutBreakGetHandler
 import API.Playout.Fallback.Get.HandlerSpec qualified as PlayoutFallbackGetHandler
+import API.Playout.Played.Post.HandlerSpec qualified as PlayoutPlayedPostHandler
 import API.Schedule.Get.HandlerSpec qualified as ScheduleHandler
 import API.Shows.Get.HandlerSpec qualified as ShowsHandler
 import API.Shows.Slug.Blog.Get.HandlerSpec qualified as ShowBlogHandler
@@ -152,6 +154,8 @@ main = do
     ErrorHandler.spec
     HomeHandler.spec
     PlayoutFallbackGetHandler.spec
+    PlayoutBreakGetHandler.spec
+    PlayoutPlayedPostHandler.spec
     UnderwritersTable.spec
     BreakPlanEffects.spec
     EventsHandler.spec
