@@ -161,6 +161,8 @@ data FieldType
     ImagesField
   | -- | Date and time picker
     DateTimeField
+  | -- | Calendar date, with no time of day
+    DateField
   | -- | Numeric input
     NumberField
       { nfMin :: Maybe Int,
