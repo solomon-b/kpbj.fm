@@ -13,6 +13,7 @@ import API.Dashboard.Blogs.Slug.Delete.HandlerSpec qualified as DashboardBlogsDe
 import API.Dashboard.Blogs.Slug.Edit.Get.HandlerSpec qualified as DashboardBlogsEditGetHandler
 import API.Dashboard.Blogs.Slug.Edit.Post.HandlerSpec qualified as DashboardBlogsEditPostHandler
 import API.Dashboard.Blogs.Slug.Get.HandlerSpec qualified as DashboardBlogsSlugGetHandler
+import API.Dashboard.BreakItems.SharedSpec qualified as DashboardBreakItemsShared
 import API.Dashboard.EphemeralUploads.Get.HandlerSpec qualified as DashboardEphemeralUploadsGetHandler
 import API.Dashboard.EphemeralUploads.Id.Delete.HandlerSpec qualified as DashboardEphemeralUploadsDeleteHandler
 import API.Dashboard.EphemeralUploads.Id.Edit.Get.HandlerSpec qualified as DashboardEphemeralUploadsEditGetHandler
@@ -62,6 +63,9 @@ import API.Dashboard.StationIds.Get.HandlerSpec qualified as DashboardStationIds
 import API.Dashboard.StationIds.Id.Delete.HandlerSpec qualified as DashboardStationIdsDeleteHandler
 import API.Dashboard.StationIds.New.Get.HandlerSpec qualified as DashboardStationIdsNewGetHandler
 import API.Dashboard.StreamSettings.Episodes.Search.Get.HandlerSpec qualified as DashboardStreamSettingsEpisodeSearchHandler
+import API.Dashboard.Underwriters.New.Post.HandlerSpec qualified as DashboardUnderwritersNewPostHandler
+import API.Dashboard.Underwriting.Delivery.Get.HandlerSpec qualified as DashboardUnderwritingDeliveryHandler
+import API.Dashboard.Underwriting.Plan.Get.HandlerSpec qualified as DashboardUnderwritingPlanHandler
 import API.Dashboard.Users.Delete.HandlerSpec qualified as DashboardUsersDeleteHandler
 import API.Dashboard.Users.Detail.Get.HandlerSpec qualified as DashboardUsersDetailGetHandler
 import API.Dashboard.Users.Edit.Get.HandlerSpec qualified as DashboardUsersEditGetHandler
@@ -158,6 +162,10 @@ main = do
     PlayoutPlayedPostHandler.spec
     UnderwritersTable.spec
     BreakPlanEffects.spec
+    DashboardBreakItemsShared.spec
+    DashboardUnderwritersNewPostHandler.spec
+    DashboardUnderwritingDeliveryHandler.spec
+    DashboardUnderwritingPlanHandler.spec
     EventsHandler.spec
     EventHandler.spec
     ShowsHandler.spec
