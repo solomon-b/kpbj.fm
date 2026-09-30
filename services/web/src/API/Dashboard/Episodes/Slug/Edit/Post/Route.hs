@@ -31,7 +31,6 @@ data EpisodeEditForm = EpisodeEditForm
     eefTags :: Maybe Text, -- Comma-separated list of tags
     eefScheduledDate :: Maybe Text, -- Format: "template_id|air_date"
     eefTracksJson :: Maybe Text, -- JSON array of tracks
-    eefDurationSeconds :: Maybe Text, -- Duration from browser audio detection
     -- File uploads
     eefArtworkFile :: Maybe (FileData Mem), -- Direct upload only (small files)
     eefAudioClear :: Bool, -- True if user explicitly removed the audio
@@ -59,8 +58,6 @@ instance FromMultipart Mem EpisodeEditForm where
     let scheduledDate = either (const Nothing) Just (lookupInput "scheduled_date" multipartData)
     -- Parse tracks JSON (optional) - JSON array of {tiTitle, tiArtist} objects
     let tracksJson = either (const Nothing) Just (lookupInput "tracks_json" multipartData)
-    -- Parse duration seconds (optional) - extracted from audio metadata in browser
-    let durationSeconds = either (const Nothing) Just (lookupInput "duration_seconds" multipartData)
     -- File lookups - artwork only (audio uses staged uploads)
     let artworkFile = either (const Nothing) (fileDataToNothing . Just) (lookupFile "episode_artwork" multipartData)
         audioClear = parseClearFlag "episode_audio_clear" multipartData
@@ -74,7 +71,6 @@ instance FromMultipart Mem EpisodeEditForm where
           eefTags = emptyToNothing tags,
           eefScheduledDate = emptyToNothing scheduledDate,
           eefTracksJson = emptyToNothing tracksJson,
-          eefDurationSeconds = emptyToNothing durationSeconds,
           eefArtworkFile = artworkFile,
           eefAudioClear = audioClear,
           eefArtworkClear = artworkClear,

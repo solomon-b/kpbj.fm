@@ -45,7 +45,7 @@ import Effects.Database.Tables.StagedUploads qualified as StagedUploads
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload qualified as FileUpload
-import Effects.StagedUploads (claimAndRelocateUpload)
+import Effects.StagedUploads (ClaimError (..), claimAndRelocateUpload, claimErrorToText)
 import Log qualified
 import OrphanInstances.OneRow ()
 import Servant qualified
@@ -133,8 +133,6 @@ processEpisodeUpload _userMetadata user showModel form = do
   -- Get storage configuration from context
   backend <- asks (Has.getter @StorageBackend)
   mAwsEnv <- asks (Has.getter @(Maybe AWS.Env))
-  -- Debug logging for duration
-  Log.logInfo "Duration from form" (Text.pack $ show $ eufDurationSeconds form)
 
   -- Parse remaining form data
   case parseFormDataWithShow ((.id) showModel) showModel.slug form of
@@ -170,7 +168,7 @@ processEpisodeUpload _userMetadata user showModel form = do
 
               case uploadResults of
                 Left uploadErr -> pure $ Left uploadErr
-                Right (audioPath, artworkPath) -> do
+                Right (audioPath, mDurationSeconds, artworkPath) -> do
                   -- Create episode insert
                   let episodeInsert =
                         Episodes.Insert
@@ -179,7 +177,7 @@ processEpisodeUpload _userMetadata user showModel form = do
                             Episodes.eiAudioFilePath = audioPath,
                             Episodes.eiAudioFileSize = Nothing, -- TODO: Get from upload
                             Episodes.eiAudioMimeType = Nothing, -- TODO: Get from upload
-                            Episodes.eiDurationSeconds = episodeData.durationSeconds,
+                            Episodes.eiDurationSeconds = mDurationSeconds,
                             Episodes.eiArtworkUrl = artworkPath,
                             Episodes.eiScheduleTemplateId = Just episodeData.scheduleTemplateId,
                             Episodes.eiAirDate = Just episodeData.airDate,
@@ -226,12 +224,6 @@ parseFormDataWithShow (Shows.Id showId) showSlug form = do
       Left err -> Left $ Sanitize.ContentInvalid $ "Invalid tracks JSON: " <> Text.pack err
       Right trackList -> Right $ sanitizeTrackList trackList
 
-  -- Parse duration seconds (with debugging)
-  let durationSeconds = case eufDurationSeconds form of
-        Nothing -> Nothing
-        Just "" -> Nothing
-        Just durStr -> readMaybe (Text.unpack durStr)
-
   Right $
     ParsedEpisodeData
       { showId = showId,
@@ -239,8 +231,7 @@ parseFormDataWithShow (Shows.Id showId) showSlug form = do
         description = Just validDescription,
         scheduleTemplateId = scheduleTemplateId,
         airDate = airDate,
-        tracks = tracks,
-        durationSeconds = durationSeconds
+        tracks = tracks
       }
 
 -- | Parse the schedule value from the form (format: "template_id|air_date").
@@ -277,8 +268,7 @@ data ParsedEpisodeData = ParsedEpisodeData
     description :: Maybe Text,
     scheduleTemplateId :: ShowSchedule.TemplateId,
     airDate :: Day,
-    tracks :: [TrackInfo],
-    durationSeconds :: Maybe Int64
+    tracks :: [TrackInfo]
   }
   deriving stock (Show, Eq)
 
@@ -290,7 +280,9 @@ data ParsedEpisodeData = ParsedEpisodeData
 --
 -- Artwork uses direct form submission (small files don't benefit from staged uploads).
 --
--- Audio is always required for episode creation.
+-- Audio is always required for episode creation. The upload handler measured
+-- the audio length and stored it on the staged row. This function reads the
+-- row before the claim, because the claim moves the file and spends the token.
 processFileUploads ::
   -- | Storage backend
   StorageBackend ->
@@ -306,8 +298,8 @@ processFileUploads ::
   Maybe (FileData Mem) ->
   -- | Audio token (staged upload)
   Maybe Text ->
-  -- | (audioPath, artworkPath)
-  AppM (Either Text (Maybe Text, Maybe Text))
+  -- | (audioPath, audio length in seconds, artworkPath)
+  AppM (Either Text (Maybe Text, Maybe Int64, Maybe Text))
 processFileUploads backend mAwsEnv userId showSlug mScheduledDate mArtworkFile mAudioToken = do
   -- Get the air date for file organization (use current time as fallback).
   -- NOTE: File paths are set at upload time and never relocated on reschedule.
@@ -319,19 +311,28 @@ processFileUploads backend mAwsEnv userId showSlug mScheduledDate mArtworkFile m
   -- Audio is uploaded via staged upload, then moved to final location with air date
   audioResult <- case mAudioToken of
     Just token | not (T.null token) -> do
-      -- Claim and relocate to audio/{air_date}/episodes/{show-slug}-{random}.ext
-      result <-
-        claimAndRelocateUpload
-          userId
-          token
-          StagedUploads.EpisodeAudio
-          AudioBucket
-          EpisodeAudio
-          airDate
-          (display showSlug)
-      pure $ case result of
-        Left err -> Left err
-        Right path -> Right (Just path)
+      stagedResult <- execQuery (StagedUploads.getByToken (StagedUploads.Token token))
+      case stagedResult of
+        Left err -> do
+          Log.logAttention "Failed to read staged audio upload" (Text.pack $ show err)
+          pure $ Left "Failed to read uploaded file"
+        Right Nothing -> do
+          Log.logInfo "Staged audio upload not found" token
+          pure $ Left $ claimErrorToText ClaimNotFound
+        Right (Just stagedUpload) -> do
+          -- Claim and relocate to audio/{air_date}/episodes/{show-slug}-{random}.ext
+          result <-
+            claimAndRelocateUpload
+              userId
+              token
+              StagedUploads.EpisodeAudio
+              AudioBucket
+              EpisodeAudio
+              airDate
+              (display showSlug)
+          pure $ case result of
+            Left err -> Left err
+            Right path -> Right (Just path, StagedUploads.durationSeconds stagedUpload)
     _ -> pure $ Left "Audio file is required"
 
   -- Process artwork file (optional, direct upload only)
@@ -349,8 +350,8 @@ processFileUploads backend mAwsEnv userId showSlug mScheduledDate mArtworkFile m
 
   case (audioResult, artworkResult) of
     (Left audioErr, _) -> pure $ Left audioErr
-    (Right audioPath, Left _artworkErr) -> pure $ Right (audioPath, Nothing)
-    (Right audioPath, Right artworkPath) -> pure $ Right (audioPath, artworkPath)
+    (Right (audioPath, mDurationSeconds), Left _artworkErr) -> pure $ Right (audioPath, mDurationSeconds, Nothing)
+    (Right (audioPath, mDurationSeconds), Right artworkPath) -> pure $ Right (audioPath, mDurationSeconds, artworkPath)
 
 -- | Insert track listings for episode
 insertTracks ::

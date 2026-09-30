@@ -140,9 +140,11 @@ processStagedUpload ::
   Text ->
   -- | Path to temp file (from Servant Tmp backend)
   FilePath ->
+  -- | Audio length in seconds. 'Nothing' for an upload that is not audio.
+  Maybe Int64 ->
   AppM (Either StagedUploadError (StagedUploads.Token, Text, Text, Int64))
 -- Returns: (token, originalName, mimeType, fileSize)
-processStagedUpload config backend mAwsEnv userId originalName browserMimeType tempFilePath = do
+processStagedUpload config backend mAwsEnv userId originalName browserMimeType tempFilePath mDurationSeconds = do
   result <- runExceptT $ do
     fileSize <- getFileSizeE tempFilePath
     when (fileSize == 0) $ throwE EmptyFile
@@ -160,6 +162,7 @@ processStagedUpload config backend mAwsEnv userId originalName browserMimeType t
           StagedUploads.siStoragePath = storagePath,
           StagedUploads.siMimeType = mimeType,
           StagedUploads.siFileSize = fileSize,
+          StagedUploads.siDurationSeconds = mDurationSeconds,
           StagedUploads.siUploadType = pcUploadType config
         }
 

@@ -18,5 +18,9 @@ stationIdInsertGen userId = do
   siiAudioFilePath <- genUrl
   siiMimeType <- Gen.element ["audio/mpeg", "audio/ogg", "audio/wav"]
   siiFileSize <- Gen.integral (Range.linear 1000 10000000 :: Range.Range Int64)
+  -- A station ID is a short clip. Nothing stands for a row uploaded before the
+  -- column existed, which the break window still has to cope with.
+  siiDurationSeconds <-
+    Gen.maybe (Gen.integral (Range.linear 5 30 :: Range.Range Int64))
   let siiCreatorId = userId
   pure StationIds.Insert {..}

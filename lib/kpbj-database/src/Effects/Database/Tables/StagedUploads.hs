@@ -214,6 +214,9 @@ data StagedUpload f = StagedUpload
     storagePath :: Column f Text,
     mimeType :: Column f Text,
     fileSize :: Column f Int64,
+    -- | Audio length in seconds, measured by ffprobe at upload. 'Nothing'
+    -- for an upload that is not audio.
+    durationSeconds :: Column f (Maybe Int64),
     uploadType :: Column f UploadType,
     status :: Column f Status,
     createdAt :: Column f UTCTime,
@@ -249,6 +252,7 @@ stagedUploadSchema =
             storagePath = "storage_path",
             mimeType = "mime_type",
             fileSize = "file_size",
+            durationSeconds = "duration_seconds",
             uploadType = "upload_type",
             status = "status",
             createdAt = "created_at",
@@ -268,6 +272,8 @@ data Insert = Insert
     siStoragePath :: Text,
     siMimeType :: Text,
     siFileSize :: Int64,
+    -- | Audio length in seconds. 'Nothing' for an upload that is not audio.
+    siDurationSeconds :: Maybe Int64,
     siUploadType :: UploadType
   }
   deriving stock (Generic, Show, Eq)
@@ -283,8 +289,8 @@ insert Insert {..} =
   interp
     False
     [sql|
-    INSERT INTO staged_uploads (token, user_id, original_name, storage_path, mime_type, file_size, upload_type)
-    VALUES (#{siToken}, #{siUserId}, #{siOriginalName}, #{siStoragePath}, #{siMimeType}, #{siFileSize}, #{siUploadType})
+    INSERT INTO staged_uploads (token, user_id, original_name, storage_path, mime_type, file_size, duration_seconds, upload_type)
+    VALUES (#{siToken}, #{siUserId}, #{siOriginalName}, #{siStoragePath}, #{siMimeType}, #{siFileSize}, #{siDurationSeconds}, #{siUploadType})
     RETURNING id
   |]
 

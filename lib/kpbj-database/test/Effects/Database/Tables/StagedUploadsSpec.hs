@@ -7,7 +7,6 @@ module Effects.Database.Tables.StagedUploadsSpec where
 import Control.Monad.IO.Class (liftIO)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.StagedUploads qualified as UUT
-import Test.Gen.Tables.StagedUploads (generateSecureToken)
 import Hasql.Interpolate (interp, sql)
 import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
@@ -17,7 +16,7 @@ import Test.Database.Helpers (insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertJust, assertNothing, assertRight)
-import Test.Gen.Tables.StagedUploads (completeInsert, partialStagedUploadInsertGen)
+import Test.Gen.Tables.StagedUploads (completeInsert, generateSecureToken, partialStagedUploadInsertGen)
 import Test.Gen.Tables.UserMetadata (userWithMetadataInsertGen)
 import Test.Hspec (Spec, describe, it)
 import Test.Hspec.Hedgehog (hedgehog)
@@ -72,6 +71,7 @@ prop_insertGetByToken cfg = do
         UUT.storagePath selected === UUT.siStoragePath insertData
         UUT.mimeType selected === UUT.siMimeType insertData
         UUT.fileSize selected === UUT.siFileSize insertData
+        UUT.durationSeconds selected === UUT.siDurationSeconds insertData
         UUT.uploadType selected === UUT.siUploadType insertData
         UUT.status selected === UUT.Pending
 
