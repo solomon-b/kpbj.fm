@@ -1501,6 +1501,12 @@ renderStagedAudioField field uploadUrl uploadType = do
             this.mimeType = response.data.mimeType;
             this.currentCleared = false;
             this.uploadError = '';
+            // Forms that budget on length carry a duration_seconds field. The
+            // server measured it, so the client only copies it across.
+            const durationField = document.querySelector('input[name="duration_seconds"]');
+            if (durationField) {
+              durationField.value = response.data.durationSeconds;
+            }
           } else {
             console.log('[Upload] Server returned error:', response.error);
             const err = response.error || 'Upload failed';
