@@ -595,7 +595,9 @@ library
     Design.Tokens
     Design.FormStyles
     Domain.Types.VariantsPayload
+    Domain.BreakPlanner
     Effects.AudioDuration
+    Effects.BreakPlan
     Effects.AWS
     Effects.ContentSanitization
     Effects.Diff
@@ -784,6 +786,8 @@ test-suite kpbj-web-test
        API.User.Register.Post.HandlerSpec
        App.CustomContextSpec
        App.DomainsSpec
+       Domain.BreakPlannerSpec
+       Effects.BreakPlanSpec
        Effects.ContentSanitizationSpec
        Effects.Database.UnderwritersSpec
        Effects.DiffSpec
