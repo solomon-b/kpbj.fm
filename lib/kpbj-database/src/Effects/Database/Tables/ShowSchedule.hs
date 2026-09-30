@@ -41,6 +41,10 @@ module Effects.Database.Tables.ShowSchedule
     ScheduledShowWithDetails (..),
     getScheduledShowsForDate,
 
+    -- * Break Windows
+    BreakKind (..),
+    breakKindsBetween,
+
     -- * Upcoming Show Dates
     UpcomingShowDate (..),
     getUpcomingShowDates,
@@ -703,6 +707,149 @@ getScheduledShowsForDate targetDate =
 
     ORDER BY start_time
   |]
+
+--------------------------------------------------------------------------------
+-- Break Windows
+
+-- | The kind of break at a boundary.
+--
+-- A show break is at a boundary where a slot ends, first airing or replay. An
+-- automation break is at the top of an hour that no slot spans.
+data BreakKind = ShowBreak | AutomationBreak
+  deriving stock (Show, Eq, Ord)
+
+instance Display BreakKind where
+  displayBuilder ShowBreak = "show"
+  displayBuilder AutomationBreak = "automation"
+
+-- | Every boundary with a break, from the first instant to the second, both
+-- inclusive, in time order, with the kind of each break.
+--
+-- A break is the two minutes before a boundary. A boundary has a break when it
+-- is either:
+--
+-- * the end of a scheduled slot, which gives a 'ShowBreak', or
+-- * the top of an hour that no slot spans, which gives an 'AutomationBreak'
+--
+-- So a 30 minute show breaks at its own @:28@ and again at @:58@ once the hour
+-- has fallen back to automation, a 1 hour show breaks at @:58@, and a 2 hour
+-- show breaks only at the @:58@ of its second hour. Hosts deliver audio two
+-- minutes short of the slot, so a break at the midpoint of a long show would
+-- cut the file mid sentence.
+--
+-- The boundaries are UTC half-hours. Pacific differs from UTC by whole hours,
+-- so each is also a Pacific half-hour, and a daylight saving change day gets 46
+-- or 50 of them with none skipped or repeated.
+--
+-- == What it reads
+--
+-- Slots, not episodes. A slot whose host uploaded nothing still gets its show
+-- break, because the boundary is a property of the schedule rather than of the
+-- audio.
+--
+-- == Time arithmetic
+--
+-- The window CTE is the one in 'Effects.Database.Tables.Episodes.getCurrentlyAiringEpisodes',
+-- minus the episode join. It keeps all four of that query's parts: the
+-- @slot_length@ interval that wraps midnight, the @VALUES@ lateral that fans a
+-- template into a primary window and a replay window, the @LEAST@ correction
+-- that resolves an ambiguous fall-back clock reading to the earlier instant,
+-- and the hardcoded zone. Read the Haddock there before changing any of it.
+--
+-- Air dates are scanned from the day before the first boundary to the day of
+-- the last, in Pacific, so an overnight slot that closes after midnight is
+-- still found.
+--
+-- A slot that opens inside the spring-forward gap yields an empty or inverted
+-- window, which matches neither branch, so no break comes from it. That is the
+-- same way the airing query treats such a slot.
+--
+-- The equality against @window_end@ is exact. Both sides carry whole seconds:
+-- a window end is a date plus a @TIME@, and every boundary is a half-hour.
+breakKindsBetween :: UTCTime -> UTCTime -> Hasql.Statement () [(UTCTime, BreakKind)]
+breakKindsBetween fromBoundary toBoundary =
+  map toKind
+    <$> interp
+      True
+      [sql|
+      WITH boundaries AS (
+        SELECT generate_series(
+          #{fromBoundary}::TIMESTAMPTZ,
+          #{toBoundary}::TIMESTAMPTZ,
+          INTERVAL '30 minutes'
+        ) AS b
+      ),
+      air_dates AS (
+        SELECT generate_series(
+          (#{fromBoundary}::TIMESTAMPTZ AT TIME ZONE 'America/Los_Angeles')::DATE - 1,
+          (#{toBoundary}::TIMESTAMPTZ AT TIME ZONE 'America/Los_Angeles')::DATE,
+          INTERVAL '1 day'
+        )::DATE AS air_date
+      ),
+      slot_windows AS (
+        SELECT w.window_start, w.window_end
+        FROM schedule_templates st
+        JOIN schedule_template_validity stv ON stv.template_id = st.id
+        JOIN shows s ON s.id = st.show_id
+        CROSS JOIN air_dates d
+        CROSS JOIN LATERAL (
+          SELECT
+            CASE WHEN st.end_time > st.start_time
+              THEN st.end_time - st.start_time
+              ELSE INTERVAL '24 hours' - (st.start_time - st.end_time)
+            END AS slot_length
+        ) sl
+        CROSS JOIN LATERAL (
+          VALUES
+            (st.start_time, st.end_time),
+            (st.replay_start_time, (st.replay_start_time + sl.slot_length)::TIME)
+        ) AS v(start_time, end_time)
+        CROSS JOIN LATERAL (
+          SELECT
+            d.air_date + v.start_time AS local_start,
+            (d.air_date + CASE WHEN v.end_time <= v.start_time THEN 1 ELSE 0 END) + v.end_time
+              AS local_end
+        ) l
+        CROSS JOIN LATERAL (
+          SELECT
+            LEAST(
+              l.local_start AT TIME ZONE 'America/Los_Angeles',
+              (l.local_start - INTERVAL '1 hour') AT TIME ZONE 'America/Los_Angeles'
+                + INTERVAL '1 hour'
+            ) AS window_start,
+            LEAST(
+              l.local_end AT TIME ZONE 'America/Los_Angeles',
+              (l.local_end - INTERVAL '1 hour') AT TIME ZONE 'America/Los_Angeles'
+                + INTERVAL '1 hour'
+            ) AS window_end
+        ) w
+        WHERE
+          v.start_time IS NOT NULL
+          AND s.status = 'active'
+          AND s.deleted_at IS NULL
+          AND stv.effective_from <= d.air_date
+          AND (stv.effective_until IS NULL OR stv.effective_until > d.air_date)
+          AND recurrence_airs_on(day_of_week_num(st.day_of_week), st.weeks_of_month, d.air_date)
+      ),
+      kinds AS (
+        SELECT
+          bd.b,
+          CASE
+            WHEN EXISTS (SELECT 1 FROM slot_windows sw WHERE sw.window_end = bd.b) THEN 'show'
+            WHEN EXTRACT(MINUTE FROM (bd.b AT TIME ZONE 'America/Los_Angeles')) = 0
+                 AND NOT EXISTS (
+                   SELECT 1 FROM slot_windows sw
+                   WHERE sw.window_start < bd.b AND sw.window_end > bd.b
+                 )
+              THEN 'automation'
+          END AS kind
+        FROM boundaries bd
+      )
+      SELECT b, kind FROM kinds WHERE kind IS NOT NULL ORDER BY b
+    |]
+  where
+    toKind :: (UTCTime, Text) -> (UTCTime, BreakKind)
+    toKind (b, k) = (b, if k == "show" then ShowBreak else AutomationBreak)
 
 --------------------------------------------------------------------------------
 -- Upcoming Show Dates (for episode scheduling)

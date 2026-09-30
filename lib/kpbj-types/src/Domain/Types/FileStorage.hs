@@ -40,6 +40,7 @@ data ResourceType
   | UserAvatar
   | StationIdAudio
   | EphemeralAudio
+  | BreakItemAudio
   | TempUpload
   deriving (Show, Eq)
 
@@ -72,6 +73,7 @@ resourceTypePath = \case
   UserAvatar -> "avatars"
   StationIdAudio -> "station-ids"
   EphemeralAudio -> "ephemeral"
+  BreakItemAudio -> "break-items"
   TempUpload -> "uploads"
 
 -- | Create date hierarchy from UTCTime.

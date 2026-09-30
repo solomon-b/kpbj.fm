@@ -30,6 +30,7 @@ module Effects.Database.Tables.StationIds
     getAllStationIds,
     getStationIdById,
     getRandomStationId,
+    getAllForPlan,
     insertStationId,
     deleteStationId,
   )
@@ -204,6 +205,20 @@ getRandomStationId =
     FROM station_ids
     ORDER BY RANDOM()
     LIMIT 1
+  |]
+
+-- | Every station ID, in id order.
+--
+-- The daily planner rotates through all of them, so it needs the whole set.
+getAllForPlan :: Hasql.Statement () [Model]
+getAllForPlan =
+  interp
+    False
+    [sql|
+    SELECT id, title, audio_file_path, mime_type, file_size, duration_seconds,
+           creator_id, created_at
+    FROM station_ids
+    ORDER BY id
   |]
 
 -- | Insert a new station ID and return its ID.

@@ -1,10 +1,14 @@
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
 -- | Database table definition and queries for @playback_history@.
 --
 -- Stores a log of what has been played on the stream. Populated by Liquidsoap
 -- via POST /api/playout/played when tracks start playing.
+--
+-- It is also the record of delivery. A break item's airings are counted here,
+-- through @break_item_id@, not from what the break endpoint handed out.
 module Effects.Database.Tables.PlaybackHistory
   ( -- * Table Definition
     PlaybackEntry (..),
@@ -19,6 +23,8 @@ module Effects.Database.Tables.PlaybackHistory
     -- * Queries
     insertPlayback,
     getRecentPlayback,
+    deliveredCounts,
+    airingsBetween,
   )
 where
 
@@ -30,7 +36,7 @@ import Data.Text (Text)
 import Data.Text.Display (Display (..))
 import Data.Time (UTCTime)
 import GHC.Generics (Generic)
-import Hasql.Interpolate (DecodeRow)
+import Hasql.Interpolate (DecodeRow, interp, sql)
 import Hasql.Statement qualified as Hasql
 import OrphanInstances.UTCTime ()
 import Rel8 hiding (Insert)
@@ -47,6 +53,8 @@ data PlaybackEntry f = PlaybackEntry
     phSourceType :: Column f Text,
     phSourceUrl :: Column f Text,
     phEpisodeId :: Column f (Maybe Int64),
+    -- | The break item that aired. Nothing for any track that is not one.
+    phBreakItemId :: Column f (Maybe Int64),
     phStartedAt :: Column f UTCTime
   }
   deriving stock (Generic)
@@ -82,6 +90,7 @@ playbackHistorySchema =
             phSourceType = "source_type",
             phSourceUrl = "source_url",
             phEpisodeId = "episode_id",
+            phBreakItemId = "break_item_id",
             phStartedAt = "started_at"
           }
     }
@@ -96,6 +105,7 @@ data Insert = Insert
     piSourceType :: Text,
     piSourceUrl :: Text,
     piEpisodeId :: Maybe Int64,
+    piBreakItemId :: Maybe Int64,
     piStartedAt :: UTCTime
   }
   deriving stock (Generic, Show, Eq)
@@ -119,6 +129,7 @@ insertPlayback Insert {..} =
                     phSourceType = lit piSourceType,
                     phSourceUrl = lit piSourceUrl,
                     phEpisodeId = lit piEpisodeId,
+                    phBreakItemId = lit piBreakItemId,
                     phStartedAt = lit piStartedAt
                   }
               ],
@@ -136,3 +147,34 @@ getRecentPlayback lim =
       Rel8.limit (fromIntegral lim) $
         orderBy (phStartedAt >$< desc) do
           each playbackHistorySchema
+
+-- | Airings per break item with @started_at@ in the half-open range.
+--
+-- The planner calls this with the start of the Pacific month and the start of
+-- the day it plans, so airings during that day do not count.
+deliveredCounts :: UTCTime -> UTCTime -> Hasql.Statement () [(Int64, Int64)]
+deliveredCounts fromTime untilTime =
+  interp
+    False
+    [sql|
+    SELECT break_item_id, COUNT(*)::BIGINT
+    FROM playback_history
+    WHERE break_item_id IS NOT NULL
+      AND started_at >= #{fromTime}
+      AND started_at < #{untilTime}
+    GROUP BY break_item_id
+  |]
+
+-- | Each break item airing in the half-open range, in time order.
+airingsBetween :: UTCTime -> UTCTime -> Hasql.Statement () [(Int64, UTCTime)]
+airingsBetween fromTime untilTime =
+  interp
+    False
+    [sql|
+    SELECT break_item_id, started_at
+    FROM playback_history
+    WHERE break_item_id IS NOT NULL
+      AND started_at >= #{fromTime}
+      AND started_at < #{untilTime}
+    ORDER BY started_at
+  |]

@@ -17,5 +17,7 @@ playbackInsertGen = do
   piSourceType <- Gen.element ["episode", "ephemeral"] -- Free-form Text in schema; these are the known valid values
   piSourceUrl <- genUrl
   let piEpisodeId = Nothing
+      -- Episode and ephemeral rows never carry a break item.
+      piBreakItemId = Nothing
   piStartedAt <- genUTCTime
   pure PlaybackHistory.Insert {..}
