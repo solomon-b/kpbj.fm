@@ -45,7 +45,6 @@ descriptionEditForm desc =
       eefTags = Nothing,
       eefScheduledDate = Nothing,
       eefTracksJson = Nothing,
-      eefDurationSeconds = Nothing,
       eefArtworkFile = Nothing,
       eefAudioClear = False,
       eefArtworkClear = False,

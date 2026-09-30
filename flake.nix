@@ -64,7 +64,18 @@
 
               mailchimp-http = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "mailchimp-http" ./lib/mailchimp-http { });
 
-              kpbj-web = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-web" ./services/web { });
+              # The audio upload runs ffprobe to measure each file and refuses one
+              # it cannot measure. The wrapper puts ffprobe on the binary's PATH,
+              # so the server finds it wherever it runs: the NixOS service, CI,
+              # or a local `nix build`.
+              kpbj-web = pkgs.haskell.lib.overrideCabal
+                (pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-web" ./services/web { }))
+                (old: {
+                  buildTools = (old.buildTools or [ ]) ++ [ pkgs.makeWrapper ];
+                  postInstall = (old.postInstall or "") + ''
+                    wrapProgram $out/bin/kpbj-web --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.ffmpeg ]}
+                  '';
+                });
 
               sync-host-emails = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "sync-host-emails" ./jobs/sync-host-emails { });
 

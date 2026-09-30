@@ -52,7 +52,6 @@ minimalForm showId mScheduledDate mAudioToken =
       eufScheduledDate = mScheduledDate,
       eufDescription = "Test episode description.",
       eufTags = Nothing,
-      eufDurationSeconds = Just "3600",
       eufTracksJson = Nothing,
       eufArtworkFile = Nothing,
       eufAudioToken = mAudioToken
@@ -193,6 +192,7 @@ test_staffCreatesEpisode cfg = do
                 StagedUploads.siStoragePath = "temp/staging/test-audio-ep-create.mp3",
                 StagedUploads.siMimeType = "audio/mpeg",
                 StagedUploads.siFileSize = 1024,
+                StagedUploads.siDurationSeconds = Just 3600,
                 StagedUploads.siUploadType = StagedUploads.EpisodeAudio
               }
       _uploadId <- TRX.statement () (StagedUploads.insert stagedInsert)
@@ -226,4 +226,5 @@ test_staffCreatesEpisode cfg = do
           mEpisode <- expectSetupRight episodeResult
           mEpisode `shouldSatisfy` \case
             Nothing -> False
-            Just ep -> ep.description == Just "Test episode description."
+            -- The length comes from the staged upload row, not the form.
+            Just ep -> ep.description == Just "Test episode description." && ep.durationSeconds == Just 3600

@@ -43,7 +43,6 @@ data EpisodeUploadForm = EpisodeUploadForm
     -- Episode metadata
     eufDescription :: Text,
     eufTags :: Maybe Text,
-    eufDurationSeconds :: Maybe Text, -- Duration from browser audio detection
     -- Track data (JSON encoded)
     eufTracksJson :: Maybe Text,
     -- File uploads
@@ -60,7 +59,6 @@ instance FromMultipart Mem EpisodeUploadForm where
       <*> pure (either (const Nothing) Just (lookupInput "scheduled_date" multipartData))
       <*> lookupInput "description" multipartData
       <*> pure (either (const Nothing) Just (lookupInput "tags" multipartData))
-      <*> pure (either (const Nothing) Just (lookupInput "duration_seconds" multipartData))
       <*> pure (either (const Nothing) Just (lookupInput "tracks_json" multipartData))
       <*> pure (either (const Nothing) (fileDataToNothing . Just) (lookupFile "artwork_file" multipartData))
       <*> pure (either (const Nothing) nonEmptyText (lookupInput "audio_file_token" multipartData))

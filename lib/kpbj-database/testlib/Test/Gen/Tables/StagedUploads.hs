@@ -22,6 +22,7 @@ data PartialStagedUploadInsert = PartialStagedUploadInsert
     psiStoragePath :: Text,
     psiMimeType :: Text,
     psiFileSize :: Int64,
+    psiDurationSeconds :: Maybe Int64,
     psiUploadType :: StagedUploads.UploadType
   }
   deriving stock (Show, Eq)
@@ -33,6 +34,7 @@ partialStagedUploadInsertGen = do
   psiStoragePath <- genStoragePath
   psiMimeType <- genMimeType
   psiFileSize <- genFileSize
+  psiDurationSeconds <- genDurationSeconds psiMimeType
   psiUploadType <- genUploadType
   pure PartialStagedUploadInsert {..}
 
@@ -46,6 +48,7 @@ completeInsert userId token partial =
       siStoragePath = psiStoragePath partial,
       siMimeType = psiMimeType partial,
       siFileSize = psiFileSize partial,
+      siDurationSeconds = psiDurationSeconds partial,
       siUploadType = psiUploadType partial
     }
 
@@ -83,6 +86,16 @@ genMimeType =
 -- | Generate a realistic file size (between 1KB and 100MB)
 genFileSize :: (MonadGen m) => m Int64
 genFileSize = Gen.int64 (Range.linear 1024 (100 * 1024 * 1024))
+
+-- | Generate an audio length that matches the MIME type.
+--
+-- The upload handler measures every audio file, so an audio upload gets a
+-- length between a short station ID and a long show. Other files get
+-- 'Nothing'.
+genDurationSeconds :: (MonadGen m) => Text -> m (Maybe Int64)
+genDurationSeconds mimeType
+  | "audio/" `Text.isPrefixOf` mimeType = Just <$> Gen.int64 (Range.linear 10 (4 * 60 * 60))
+  | otherwise = pure Nothing
 
 -- | Generate an upload type
 genUploadType :: (MonadGen m) => m StagedUploads.UploadType

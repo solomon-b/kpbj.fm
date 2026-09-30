@@ -86,12 +86,17 @@ action user form = do
     Right path -> pure path
 
   -- 5. Create the station ID record
+  --
+  -- The upload handler measured the length and stored it on the staged row.
+  -- The length only budgets the break window, so a missing value is stored as
+  -- NULL. The planner then assumes a length for this row.
   let insert =
         StationIds.Insert
           { StationIds.siiTitle = title,
             StationIds.siiAudioFilePath = storagePath,
             StationIds.siiMimeType = StagedUploads.mimeType stagedUpload,
             StationIds.siiFileSize = StagedUploads.fileSize stagedUpload,
+            StationIds.siiDurationSeconds = StagedUploads.durationSeconds stagedUpload,
             StationIds.siiCreatorId = User.mId user
           }
   _ <-

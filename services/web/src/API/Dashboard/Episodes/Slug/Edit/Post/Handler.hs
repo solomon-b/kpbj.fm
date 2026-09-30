@@ -21,6 +21,7 @@ import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
 import Data.Either (partitionEithers)
 import Data.Has (getter)
+import Data.Int (Int64)
 import Data.Maybe (isJust, isNothing)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -46,7 +47,7 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (isEmptyUpload)
 import Effects.FileUpload qualified as FileUpload
-import Effects.StagedUploads (claimAndRelocateUpload)
+import Effects.StagedUploads (ClaimError (..), claimAndRelocateUpload, claimErrorToText)
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Servant qualified
@@ -279,15 +280,13 @@ processFileUploadsWithWarning userId allowFileUpload showModel episode editForm 
             Left fileErr -> do
               Log.logInfo "Failed to upload files" (episode.id, fileErr)
               pure ["File upload failed: " <> fileErr]
-            Right (mAudioPath, mArtworkPath) -> do
-              -- Determine final paths: new upload > explicit clear > keep existing
+            Right (mAudioPath, mDuration, mArtworkPath) -> do
+              -- Determine final paths: new upload > explicit clear > keep existing.
+              -- 'mDuration' is 'Nothing' unless new audio arrived. 'Nothing'
+              -- keeps the episode's existing duration.
               let audioClear = eefAudioClear editForm
                   artworkClear = eefArtworkClear editForm
                   shouldUpdateFiles = isJust mAudioPath || isJust mArtworkPath || audioClear || artworkClear
-                  -- Parse duration from form (only when new audio is uploaded)
-                  mDuration = case (mAudioPath, eefDurationSeconds editForm) of
-                    (Just _, Just durStr) -> readMaybe (Text.unpack durStr)
-                    _ -> Nothing
               when shouldUpdateFiles $ do
                 let fileUpdate =
                       Episodes.FileUpdate
@@ -418,12 +417,17 @@ makeSuccessFlash warnings =
 -- the staging area to its final location based on the episode's air date.
 --
 -- Artwork uses direct form submission (small files don't benefit from staged uploads).
+--
+-- The upload handler measured the audio length and stored it on the staged
+-- row. This function reads the row before the claim, because the claim moves
+-- the file and spends the token. It returns
+-- @(audioPath, audio length in seconds, artworkPath)@.
 processFileUploads ::
   User.Id ->
   Shows.Model ->
   Episodes.Model ->
   EpisodeEditForm ->
-  AppM (Either Text (Maybe Text, Maybe Text))
+  AppM (Either Text (Maybe Text, Maybe Int64, Maybe Text))
 processFileUploads userId showModel episode editForm = do
   storageBackend <- asks getter
   mAwsEnv <- asks getter
@@ -438,20 +442,29 @@ processFileUploads userId showModel episode editForm = do
   -- Process audio: staged upload, then move to final location with air date
   audioResult <- case eefAudioToken editForm of
     Just token -> do
-      -- Claim and relocate to audio/{air_date}/episodes/{show-slug}-{random}.ext
-      result <-
-        claimAndRelocateUpload
-          userId
-          token
-          StagedUploads.EpisodeAudio
-          AudioBucket
-          EpisodeAudio
-          airDate
-          (display showModel.slug)
-      pure $ case result of
-        Left err -> Left err
-        Right path -> Right (Just path)
-    Nothing -> pure $ Right Nothing
+      stagedResult <- execQuery (StagedUploads.getByToken (StagedUploads.Token token))
+      case stagedResult of
+        Left err -> do
+          Log.logAttention "Failed to read staged audio upload" (Text.pack $ show err)
+          pure $ Left "Failed to read uploaded file"
+        Right Nothing -> do
+          Log.logInfo "Staged audio upload not found" token
+          pure $ Left $ claimErrorToText ClaimNotFound
+        Right (Just stagedUpload) -> do
+          -- Claim and relocate to audio/{air_date}/episodes/{show-slug}-{random}.ext
+          result <-
+            claimAndRelocateUpload
+              userId
+              token
+              StagedUploads.EpisodeAudio
+              AudioBucket
+              EpisodeAudio
+              airDate
+              (display showModel.slug)
+          pure $ case result of
+            Left err -> Left err
+            Right path -> Right (Just path, StagedUploads.durationSeconds stagedUpload)
+    Nothing -> pure $ Right (Nothing, Nothing)
 
   -- Process artwork: direct upload only (no staged upload for images)
   artworkResult <- case eefArtworkFile editForm of
@@ -471,7 +484,7 @@ processFileUploads userId showModel episode editForm = do
   case (audioResult, artworkResult) of
     (Left audioErr, _) -> pure $ Left audioErr
     (Right _audioPath, Left artworkErr) -> pure $ Left artworkErr
-    (Right audioPath, Right artworkPath) -> pure $ Right (audioPath, artworkPath)
+    (Right (audioPath, mDurationSeconds), Right artworkPath) -> pure $ Right (audioPath, mDurationSeconds, artworkPath)
 
 --------------------------------------------------------------------------------
 -- Track Update Logic
