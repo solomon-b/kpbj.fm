@@ -39,6 +39,7 @@ mkStationIdInsert title creatorId =
       siiAudioFilePath = "/test/station-id.mp3",
       siiMimeType = "audio/mpeg",
       siiFileSize = 512 :: Int64,
+      siiDurationSeconds = Just (10 :: Int64),
       siiCreatorId = creatorId
     }
 

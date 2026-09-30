@@ -1,6 +1,9 @@
 -- | Handler for GET /api/playout/now.
 module API.Playout.Now.Get.Handler
   ( handler,
+
+    -- * Exported for testing
+    actionAt,
   )
 where
 
@@ -11,14 +14,14 @@ import App.BaseUrl (baseUrl)
 import App.Monad (AppM)
 import App.Storage (StorageBackend (..), buildMediaUrl)
 import Control.Monad (unless)
-import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Either (fromRight)
 import Data.Has qualified as Has
 import Data.Text (Text)
-import Data.Time (getCurrentTime)
+import Data.Time (NominalDiffTime, UTCTime, addUTCTime)
+import Effects.Clock (currentSystemTime)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
@@ -26,16 +29,28 @@ import Log qualified
 
 --------------------------------------------------------------------------------
 
+-- | How far ahead @/now@ looks.
+--
+-- Liquidsoap polls at @:29:55@ and @:59:55@. Looking 10 seconds ahead finds the
+-- show that starts at the boundary, so it downloads and buffers during the
+-- break. In the middle of a slot it still finds the current show, so the poll at
+-- startup works the same way.
+lookAhead :: NominalDiffTime
+lookAhead = 10
+
 -- | Handler for GET /api/playout/now.
 --
--- Returns the audio URL for the currently airing episode based on the schedule.
--- Returns null (NothingPlaying) if no episode is currently scheduled,
+-- Returns the audio URL for the episode airing 10 seconds from now, based on
+-- the schedule. Returns null (NothingPlaying) if no episode is scheduled then,
 -- if the scheduled episode has no audio uploaded, or on any database error.
 -- Graceful degradation: any error returns null rather than failing.
 handler :: AppM NowPlayingResponse
-handler = do
-  currentTime <- liftIO getCurrentTime
-  result <- execQuery $ Episodes.getCurrentlyAiringEpisodes currentTime
+handler = currentSystemTime >>= actionAt . addUTCTime lookAhead
+
+-- | 'handler' for a given instant.
+actionAt :: UTCTime -> AppM NowPlayingResponse
+actionAt lookupTime = do
+  result <- execQuery $ Episodes.getCurrentlyAiringEpisodes lookupTime
 
   mEpisode <- case result of
     Left _err -> pure Nothing -- Graceful degradation on DB error

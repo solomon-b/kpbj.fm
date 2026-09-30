@@ -27,6 +27,9 @@ module API.Types
     DashboardUsersRoutes (..),
     DashboardInvitationsRoutes (..),
     DashboardNewsletterSubscribersRoutes (..),
+    DashboardPsasRoutes (..),
+    DashboardUnderwritingRoutes (..),
+    DashboardUnderwritersRoutes (..),
     DashboardSitePagesRoutes (..),
     DashboardStreamSettingsRoutes (..),
     DashboardAnalyticsRoutes (..),
@@ -99,6 +102,12 @@ import API.Dashboard.NewsletterSubscribers.Delete.Route qualified as Dashboard.N
 import API.Dashboard.NewsletterSubscribers.Get.Route qualified as Dashboard.NewsletterSubscribers.Get
 import API.Dashboard.Profile.Edit.Get.Route qualified as Dashboard.Profile.Edit.Get
 import API.Dashboard.Profile.Edit.Post.Route qualified as Dashboard.Profile.Edit.Post
+import API.Dashboard.Psas.Get.Route qualified as Dashboard.Psas.Get
+import API.Dashboard.Psas.Id.Delete.Route qualified as Dashboard.Psas.Id.Delete
+import API.Dashboard.Psas.Id.Edit.Get.Route qualified as Dashboard.Psas.Id.Edit.Get
+import API.Dashboard.Psas.Id.Edit.Post.Route qualified as Dashboard.Psas.Id.Edit.Post
+import API.Dashboard.Psas.New.Get.Route qualified as Dashboard.Psas.New.Get
+import API.Dashboard.Psas.New.Post.Route qualified as Dashboard.Psas.New.Post
 import API.Dashboard.Shows.Get.Route qualified as Dashboard.Shows.Get
 import API.Dashboard.Shows.New.Get.Route qualified as Dashboard.Shows.New.Get
 import API.Dashboard.Shows.New.Post.Route qualified as Dashboard.Shows.New.Post
@@ -147,6 +156,18 @@ import API.Dashboard.StreamSettings.Restart.Liquidsoap.Post.Route qualified as D
 import API.Dashboard.StreamSettings.SkipTrack.Post.Route qualified as Dashboard.StreamSettings.SkipTrack.Post
 import API.Dashboard.StreamSettings.StartStream.Post.Route qualified as Dashboard.StreamSettings.StartStream.Post
 import API.Dashboard.StreamSettings.StopStream.Post.Route qualified as Dashboard.StreamSettings.StopStream.Post
+import API.Dashboard.Underwriters.Get.Route qualified as Dashboard.Underwriters.Get
+import API.Dashboard.Underwriters.Id.Edit.Post.Route qualified as Dashboard.Underwriters.Id.Edit.Post
+import API.Dashboard.Underwriters.New.Post.Route qualified as Dashboard.Underwriters.New.Post
+import API.Dashboard.Underwriting.Delivery.Get.Route qualified as Dashboard.Underwriting.Delivery.Get
+import API.Dashboard.Underwriting.Get.Route qualified as Dashboard.Underwriting.Get
+import API.Dashboard.Underwriting.Id.Delete.Route qualified as Dashboard.Underwriting.Id.Delete
+import API.Dashboard.Underwriting.Id.Edit.Get.Route qualified as Dashboard.Underwriting.Id.Edit.Get
+import API.Dashboard.Underwriting.Id.Edit.Post.Route qualified as Dashboard.Underwriting.Id.Edit.Post
+import API.Dashboard.Underwriting.New.Get.Route qualified as Dashboard.Underwriting.New.Get
+import API.Dashboard.Underwriting.New.Post.Route qualified as Dashboard.Underwriting.New.Post
+import API.Dashboard.Underwriting.Plan.Get.Route qualified as Dashboard.Underwriting.Plan.Get
+import API.Dashboard.Underwriting.Plan.Rebuild.Post.Route qualified as Dashboard.Underwriting.Plan.Rebuild.Post
 import API.Dashboard.Users.Delete.Route qualified as Dashboard.Users.Delete
 import API.Dashboard.Users.Detail.Get.Route qualified as Dashboard.Users.Detail.Get
 import API.Dashboard.Users.Edit.Get.Route qualified as Dashboard.Users.Edit.Get
@@ -165,6 +186,7 @@ import API.Invite.Token.Get.Route qualified as Invite.Token.Get
 import API.Invite.Token.Post.Route qualified as Invite.Token.Post
 import API.Media.Get.Route qualified as Media.Get
 import API.Newsletter.Subscribe.Post.Route qualified as Newsletter.Subscribe.Post
+import API.Playout.Break.Get.Route qualified as Playout.Break.Get
 import API.Playout.Fallback.Get.Route qualified as Playout.Fallback.Get
 import API.Playout.Now.Get.Route qualified as Playout.Now.Get
 import API.Playout.Played.Post.Route qualified as Playout.Played.Post
@@ -436,7 +458,67 @@ data DashboardAdminRoutes mode = DashboardAdminRoutes
     -- | @/dashboard/store/...@ - Store management routes
     store :: mode :- NamedRoutes DashboardStoreRoutes,
     -- | @/dashboard/newsletter-subscribers/...@ - Newsletter subscriber management routes
-    newsletterSubscribers :: mode :- NamedRoutes DashboardNewsletterSubscribersRoutes
+    newsletterSubscribers :: mode :- NamedRoutes DashboardNewsletterSubscribersRoutes,
+    -- | @/dashboard/psas/...@ - PSA management routes
+    psas :: mode :- NamedRoutes DashboardPsasRoutes,
+    -- | @/dashboard/underwriting/...@ - Underwriting announcement management routes
+    underwriting :: mode :- NamedRoutes DashboardUnderwritingRoutes,
+    -- | @/dashboard/underwriters/...@ - Underwriter management routes
+    underwriters :: mode :- NamedRoutes DashboardUnderwritersRoutes
+  }
+  deriving stock (Generic)
+
+-- | Dashboard underwriter routes under @/dashboard/underwriters@.
+data DashboardUnderwritersRoutes mode = DashboardUnderwritersRoutes
+  { -- | @GET /dashboard/underwriters@ - Underwriter list
+    list :: mode :- Dashboard.Underwriters.Get.Route,
+    -- | @POST /dashboard/underwriters/new@ - Add an underwriter
+    newPost :: mode :- Dashboard.Underwriters.New.Post.Route,
+    -- | @POST /dashboard/underwriters/:underwriter_id/edit@ - Rename an underwriter
+    editPost :: mode :- Dashboard.Underwriters.Id.Edit.Post.Route
+  }
+  deriving stock (Generic)
+
+-- | Dashboard PSA management routes under @/dashboard/psas@.
+--
+-- PSAs and underwriting announcements share one table and one playout rotation. They
+-- are two route groups so each can carry its own permission gate.
+data DashboardPsasRoutes mode = DashboardPsasRoutes
+  { -- | @GET /dashboard/psas@ - PSA list
+    list :: mode :- Dashboard.Psas.Get.Route,
+    -- | @GET /dashboard/psas/new@ - New PSA form
+    newGet :: mode :- Dashboard.Psas.New.Get.Route,
+    -- | @POST /dashboard/psas/new@ - Create PSA
+    newPost :: mode :- Dashboard.Psas.New.Post.Route,
+    -- | @GET /dashboard/psas/:psa_id/edit@ - Edit PSA form
+    editGet :: mode :- Dashboard.Psas.Id.Edit.Get.Route,
+    -- | @POST /dashboard/psas/:psa_id/edit@ - Update PSA
+    editPost :: mode :- Dashboard.Psas.Id.Edit.Post.Route,
+    -- | @DELETE /dashboard/psas/:psa_id@ - Delete PSA
+    delete :: mode :- Dashboard.Psas.Id.Delete.Route
+  }
+  deriving stock (Generic)
+
+-- | Dashboard underwriting announcement routes under @/dashboard/underwriting@.
+data DashboardUnderwritingRoutes mode = DashboardUnderwritingRoutes
+  { -- | @GET /dashboard/underwriting/delivery@ - Delivery report
+    delivery :: mode :- Dashboard.Underwriting.Delivery.Get.Route,
+    -- | @GET /dashboard/underwriting/plan@ - Break plan view
+    plan :: mode :- Dashboard.Underwriting.Plan.Get.Route,
+    -- | @POST /dashboard/underwriting/plan/rebuild@ - Rebuild today's plan
+    planRebuild :: mode :- Dashboard.Underwriting.Plan.Rebuild.Post.Route,
+    -- | @GET /dashboard/underwriting@ - Underwriting list
+    list :: mode :- Dashboard.Underwriting.Get.Route,
+    -- | @GET /dashboard/underwriting/new@ - New underwriting form
+    newGet :: mode :- Dashboard.Underwriting.New.Get.Route,
+    -- | @POST /dashboard/underwriting/new@ - Create underwriting
+    newPost :: mode :- Dashboard.Underwriting.New.Post.Route,
+    -- | @GET /dashboard/underwriting/:underwriting_id/edit@ - Edit underwriting form
+    editGet :: mode :- Dashboard.Underwriting.Id.Edit.Get.Route,
+    -- | @POST /dashboard/underwriting/:underwriting_id/edit@ - Update underwriting
+    editPost :: mode :- Dashboard.Underwriting.Id.Edit.Post.Route,
+    -- | @DELETE /dashboard/underwriting/:underwriting_id@ - Delete underwriting
+    delete :: mode :- Dashboard.Underwriting.Id.Delete.Route
   }
   deriving stock (Generic)
 
@@ -783,6 +865,8 @@ data PlayoutRoutes mode = PlayoutRoutes
     now :: mode :- Playout.Now.Get.Route,
     -- | @GET /api/playout/fallback@ - Get random ephemeral track for fallback
     fallback :: mode :- Playout.Fallback.Get.Route,
+    -- | @GET /api/playout/break@ - Get the tracks for one break window
+    breakWindow :: mode :- Playout.Break.Get.Route,
     -- | @POST /api/playout/played@ - Log a track that started playing
     played :: mode :- Playout.Played.Post.Route
   }

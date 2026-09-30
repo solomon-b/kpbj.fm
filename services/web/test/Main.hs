@@ -13,6 +13,7 @@ import API.Dashboard.Blogs.Slug.Delete.HandlerSpec qualified as DashboardBlogsDe
 import API.Dashboard.Blogs.Slug.Edit.Get.HandlerSpec qualified as DashboardBlogsEditGetHandler
 import API.Dashboard.Blogs.Slug.Edit.Post.HandlerSpec qualified as DashboardBlogsEditPostHandler
 import API.Dashboard.Blogs.Slug.Get.HandlerSpec qualified as DashboardBlogsSlugGetHandler
+import API.Dashboard.BreakItems.SharedSpec qualified as DashboardBreakItemsShared
 import API.Dashboard.EphemeralUploads.Get.HandlerSpec qualified as DashboardEphemeralUploadsGetHandler
 import API.Dashboard.EphemeralUploads.Id.Delete.HandlerSpec qualified as DashboardEphemeralUploadsDeleteHandler
 import API.Dashboard.EphemeralUploads.Id.Edit.Get.HandlerSpec qualified as DashboardEphemeralUploadsEditGetHandler
@@ -62,6 +63,9 @@ import API.Dashboard.StationIds.Get.HandlerSpec qualified as DashboardStationIds
 import API.Dashboard.StationIds.Id.Delete.HandlerSpec qualified as DashboardStationIdsDeleteHandler
 import API.Dashboard.StationIds.New.Get.HandlerSpec qualified as DashboardStationIdsNewGetHandler
 import API.Dashboard.StreamSettings.Episodes.Search.Get.HandlerSpec qualified as DashboardStreamSettingsEpisodeSearchHandler
+import API.Dashboard.Underwriters.New.Post.HandlerSpec qualified as DashboardUnderwritersNewPostHandler
+import API.Dashboard.Underwriting.Delivery.Get.HandlerSpec qualified as DashboardUnderwritingDeliveryHandler
+import API.Dashboard.Underwriting.Plan.Get.HandlerSpec qualified as DashboardUnderwritingPlanHandler
 import API.Dashboard.Users.Delete.HandlerSpec qualified as DashboardUsersDeleteHandler
 import API.Dashboard.Users.Detail.Get.HandlerSpec qualified as DashboardUsersDetailGetHandler
 import API.Dashboard.Users.Edit.Get.HandlerSpec qualified as DashboardUsersEditGetHandler
@@ -74,7 +78,9 @@ import API.Events.Event.Get.HandlerSpec qualified as EventHandler
 import API.Events.Get.HandlerSpec qualified as EventsHandler
 import API.Get.HandlerSpec qualified as HomeHandler
 import API.Newsletter.Subscribe.Post.HandlerSpec qualified as NewsletterSubscribeHandler
+import API.Playout.Break.Get.HandlerSpec qualified as PlayoutBreakGetHandler
 import API.Playout.Fallback.Get.HandlerSpec qualified as PlayoutFallbackGetHandler
+import API.Playout.Played.Post.HandlerSpec qualified as PlayoutPlayedPostHandler
 import API.Schedule.Get.HandlerSpec qualified as ScheduleHandler
 import API.Shows.Get.HandlerSpec qualified as ShowsHandler
 import API.Shows.Slug.Blog.Get.HandlerSpec qualified as ShowBlogHandler
@@ -93,8 +99,11 @@ import App.Handler.CombinatorsSpec qualified as Combinators
 import App.Handler.ErrorSpec qualified as ErrorHandler
 import Component.ScheduleEditorSpec qualified as ScheduleEditor
 import Data.Maybe (fromMaybe)
+import Domain.BreakPlannerSpec qualified as BreakPlanner
 import Domain.Icecast.StatusSpec qualified as IcecastStatus
+import Effects.BreakPlanSpec qualified as BreakPlanEffects
 import Effects.ContentSanitizationSpec qualified as ContentSanitization
+import Effects.Database.UnderwritersSpec qualified as UnderwritersTable
 import Effects.DiffSpec qualified as Diff
 import Effects.MarkdownSpec qualified as Markdown
 import Effects.MimeTypeValidationSpec qualified as MimeTypeValidation
@@ -137,6 +146,7 @@ main = do
     Markdown.spec
     MimeTypeValidation.spec
     StagedUploadsEffects.spec
+    BreakPlanner.spec
     StoreCheckoutEmails.spec
     StoreCheckoutLogic.spec
     StoreCheckoutShippingErrors.spec
@@ -148,6 +158,14 @@ main = do
     ErrorHandler.spec
     HomeHandler.spec
     PlayoutFallbackGetHandler.spec
+    PlayoutBreakGetHandler.spec
+    PlayoutPlayedPostHandler.spec
+    UnderwritersTable.spec
+    BreakPlanEffects.spec
+    DashboardBreakItemsShared.spec
+    DashboardUnderwritersNewPostHandler.spec
+    DashboardUnderwritingDeliveryHandler.spec
+    DashboardUnderwritingPlanHandler.spec
     EventsHandler.spec
     EventHandler.spec
     ShowsHandler.spec

@@ -111,6 +111,7 @@ library
                   , time
                   , tz
                   , transformers
+                  , typed-process
                   , unliftio
                   , unliftio-core
                   , unordered-containers
@@ -294,6 +295,37 @@ library
     API.Dashboard.StationBlog.Slug.Get.Handler
     API.Dashboard.StationBlog.Slug.Get.Route
     API.Dashboard.StationBlog.Slug.Get.Templates.Page
+    API.Dashboard.BreakItems.Form
+    API.Dashboard.BreakItems.Shared
+    API.Dashboard.Psas.Get.Route
+    API.Dashboard.Psas.New.Get.Route
+    API.Dashboard.Psas.New.Post.Route
+    API.Dashboard.Psas.Id.Edit.Get.Route
+    API.Dashboard.Psas.Id.Edit.Post.Route
+    API.Dashboard.Psas.Id.Delete.Route
+    API.Dashboard.Underwriting.Get.Route
+    API.Dashboard.Underwriting.New.Get.Route
+    API.Dashboard.Underwriting.New.Post.Route
+    API.Dashboard.Underwriting.Id.Edit.Get.Route
+    API.Dashboard.Underwriting.Id.Edit.Post.Route
+    API.Dashboard.Underwriting.Id.Delete.Route
+    API.Dashboard.Underwriting.Delivery.Get.Route
+    API.Dashboard.Underwriting.Delivery.Get.Handler
+    API.Dashboard.Underwriting.Delivery.Get.Templates.Page
+    API.Dashboard.Underwriting.Plan.Get.Route
+    API.Dashboard.Underwriting.Plan.Get.Handler
+    API.Dashboard.Underwriting.Plan.Get.Templates.Page
+    API.Dashboard.Underwriting.Plan.Rebuild.Post.Route
+    API.Dashboard.Underwriting.Plan.Rebuild.Post.Handler
+    Component.SourceTypeBadge
+    API.Dashboard.Underwriters.Form
+    API.Dashboard.Underwriters.Get.Route
+    API.Dashboard.Underwriters.Get.Handler
+    API.Dashboard.Underwriters.Get.Templates.Page
+    API.Dashboard.Underwriters.New.Post.Route
+    API.Dashboard.Underwriters.New.Post.Handler
+    API.Dashboard.Underwriters.Id.Edit.Post.Route
+    API.Dashboard.Underwriters.Id.Edit.Post.Handler
     API.Dashboard.StationIds.Get.Handler
     API.Dashboard.StationIds.Get.Route
     API.Dashboard.StationIds.Get.Templates.ItemsFragment
@@ -509,6 +541,8 @@ library
     API.Playout.Now.Get.Handler
     API.Playout.Fallback.Get.Route
     API.Playout.Fallback.Get.Handler
+    API.Playout.Break.Get.Route
+    API.Playout.Break.Get.Handler
     API.Playout.Played.Post.Route
     API.Playout.Played.Post.Handler
     API.Analytics.EpisodePlay.Post.Route
@@ -568,8 +602,8 @@ library
     App.Storage
     App.Handler.Error
     Component.ActionsDropdown
-    Component.AudioDurationScript
     Component.AudioPlayer.Waveform
+    Component.BreakItems
     Component.InfiniteScroll
     Component.TrackListingEditor
     Component.ScheduleEditor
@@ -595,6 +629,9 @@ library
     Design.Tokens
     Design.FormStyles
     Domain.Types.VariantsPayload
+    Domain.BreakPlanner
+    Effects.AudioDuration
+    Effects.BreakPlan
     Effects.AWS
     Effects.ContentSanitization
     Effects.Diff
@@ -697,6 +734,10 @@ test-suite kpbj-web-test
        Domain.Icecast.StatusSpec
        API.Blog.Post.Get.HandlerSpec
        API.Dashboard.Blogs.Get.HandlerSpec
+       API.Dashboard.BreakItems.SharedSpec
+       API.Dashboard.Underwriters.New.Post.HandlerSpec
+       API.Dashboard.Underwriting.Delivery.Get.HandlerSpec
+       API.Dashboard.Underwriting.Plan.Get.HandlerSpec
        API.Dashboard.Blogs.New.Get.HandlerSpec
        API.Dashboard.Blogs.New.Post.HandlerSpec
        API.Dashboard.Blogs.Slug.Delete.HandlerSpec
@@ -765,6 +806,8 @@ test-suite kpbj-web-test
        API.Events.Get.HandlerSpec
        API.Get.HandlerSpec
        API.Playout.Fallback.Get.HandlerSpec
+       API.Playout.Break.Get.HandlerSpec
+       API.Playout.Played.Post.HandlerSpec
        API.Schedule.Get.HandlerSpec
        API.Shows.Get.HandlerSpec
        API.Shows.Slug.Blog.Get.HandlerSpec
@@ -783,7 +826,10 @@ test-suite kpbj-web-test
        API.User.Register.Post.HandlerSpec
        App.CustomContextSpec
        App.DomainsSpec
+       Domain.BreakPlannerSpec
+       Effects.BreakPlanSpec
        Effects.ContentSanitizationSpec
+       Effects.Database.UnderwritersSpec
        Effects.DiffSpec
        Effects.MarkdownSpec
        Effects.MimeTypeValidationSpec

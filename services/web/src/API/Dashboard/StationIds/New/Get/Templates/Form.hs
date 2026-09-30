@@ -44,6 +44,8 @@ stationIdUploadForm uploadUrl = do
 
     form :: FormBuilder
     form = do
+      hidden "duration_seconds" ""
+
       -- Station ID Details Section
       section "STATION ID DETAILS" $ do
         textField "title" $ do

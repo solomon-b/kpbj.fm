@@ -2,8 +2,10 @@
 
 # KPBJ 95.9 FM - Liquidsoap Radio Automation
 #
-# Polls the web API at :00 and :30 for scheduled shows.
+# Polls the web API at :29:55 and :59:55 for the show that starts next.
+# Asks the web API at :28 and :58 for a break of PSAs and underwriting.
 # Uses request.queue() with manual push to avoid prefetch bugs.
+# Breaks use a playlist, loaded in one call; see the note above break_source.
 # Tracks last_scheduled to prevent replaying the same show.
 
 settings.init.allow_root.set(true)
@@ -29,6 +31,26 @@ def rewrite_url(url)
   end
 end
 
+# Build a request from an API track, carrying its metadata as annotations.
+#
+# The fallback pool and the break window both answer with the same track shape,
+# so both build their requests here. The annotate values reach Icecast as ICY
+# metadata and come back to us on the source.on_track callback, which posts them
+# to /played.
+#
+# break_item_id is empty for a track that is not a break item. The web service
+# reads an empty value as no id.
+def track_to_request(track)
+  title = track.title ?? "KPBJ 95.9 FM"
+  artist = track.artist ?? "Community Radio"
+  source_type = track.source_type ?? "unknown"
+  bid = track.break_item_id ?? 0
+  break_item_id = if bid == 0 then "" else string.of_int(bid) end
+  url = rewrite_url(track.url)
+  annotated = "annotate:title=\"#{title}\",artist=\"#{artist}\",source_type=\"#{source_type}\",source_url=\"#{url}\",break_item_id=\"#{break_item_id}\":#{url}"
+  request.create(annotated)
+end
+
 # State: URL of the last scheduled show we played (to avoid duplicates)
 last_scheduled = ref("")
 
@@ -46,15 +68,8 @@ def get_fallback()
   response = http.get(timeout=5., "#{api_base}/fallback")
   if response.status_code == 200 then
     try
-      let json.parse (tracks : [{url: string, title: string?, artist: string?, source_type: string?}]) = response
-      list.map(fun(track) -> begin
-        title = track.title ?? "KPBJ 95.9 FM"
-        artist = track.artist ?? "Community Radio"
-        source_type = track.source_type ?? "unknown"
-        url = rewrite_url(track.url)
-        annotated = "annotate:title=\"#{title}\",artist=\"#{artist}\",source_type=\"#{source_type}\",source_url=\"#{url}\":#{url}"
-        request.create(annotated)
-      end, tracks)
+      let json.parse (tracks : [{url: string, title: string?, artist: string?, source_type: string?, break_item_id: int?}]) = response
+      list.map(track_to_request, tracks)
     catch _ do
       log.info("[KPBJ] Failed to parse fallback response")
       []
@@ -77,6 +92,25 @@ scheduled_queue = request.queue(id="scheduled")
 
 # Buffered version for playback (keeps queue reference for .push)
 scheduled_source = buffer(buffer=5., max=10., scheduled_queue)
+
+# Break source - outranks both other sources so a break can cut a show.
+#
+# A playlist, loaded in one set_queue call. set_queue fetches every file of the
+# break before it adds any, so no transition inside a break waits on storage. A
+# queue that fetched each file as the previous one ended ran short mid-break,
+# and fallback() then let a filler track into the middle of the break.
+#
+# There is no buffer wrapper. With the whole break already local, there is no
+# fetch time left for a buffer to cover.
+#
+# loop=false plays the list once and then goes quiet, which is what a break is.
+break_source =
+  playlist.list(
+    id="break",
+    loop=false,
+    on_done=fun() -> log.important("[KPBJ] Break window finished"),
+    []
+  )
 
 # Poll the API for the current scheduled show
 def poll()
@@ -119,6 +153,53 @@ def poll()
   end
 end
 
+# Fetch one break window from the API and put it on the air.
+#
+# The API answers with a station ID followed by the PSAs and ad spots that fit
+# in the two minutes before the boundary. An empty array means no break is due
+# at this boundary, or that nothing was available for one. Both cases leave the
+# current source untouched, so a failure here never cuts a show for silence.
+#
+# The call carries the playout secret. A blank secret answers 401 and logs,
+# which is the same path a wrong secret takes.
+def do_break()
+  response = http.get(
+    timeout=5.,
+    headers=[("X-Playout-Secret", playout_secret)],
+    "#{api_base}/break"
+  )
+
+  if response.status_code != 200 then
+    log.important("[KPBJ] Break API returned status #{response.status_code}")
+  else
+    try
+      let json.parse (tracks : [{url: string, title: string?, artist: string?, source_type: string?, break_item_id: int?}]) = response
+
+      if list.length(tracks) == 0 then
+        log.info("[KPBJ] No break due at this boundary")
+      else
+        log.important("[KPBJ] Break window: #{list.length(tracks)} tracks")
+
+        # Drop the show. fallback() does not pull from an unselected source, so
+        # without this the cut episode would resume when the break drains, and
+        # the next show would sit behind it in the queue.
+        #
+        # last_scheduled is deliberately left alone. Clearing it would let a
+        # boundary poll that fires a fraction early re-push the show that just
+        # ended and restart it from the top.
+        source.skip(scheduled_queue)
+
+        # One call, and it blocks until every file is local. That is the point:
+        # set_queue resolves before adding, so the break never waits on storage
+        # once it is on the air.
+        break_source.set_queue(list.map(track_to_request, tracks))
+      end
+    catch _ do
+      log.info("[KPBJ] Failed to parse break response")
+    end
+  end
+end
+
 # Force-play: accepts JSON {"url":..,"title":..,"artist":..}, pushes to queue.
 # Mirrors the poll path: rewrites only the URL, builds annotate string internally.
 # The fallback(track_sensitive=false) switch picks it up automatically.
@@ -144,21 +225,29 @@ end)
 server.register("skip_track", fun(_) -> begin
   log.important("[KPBJ] Skip track: dropping to fallback")
   last_scheduled := ""
+  source.skip(break_source)
   source.skip(scheduled_queue)
   source.skip(fallback_queue)
   "OK"
 end)
 
-# Poll at :00 and :30 each hour
-thread.when({0m0s}, poll)
-thread.when({30m0s}, poll)
+# Poll five seconds before each boundary. /now looks ten seconds ahead, so it
+# returns the show that starts at the boundary. The show then downloads and
+# buffers while the break plays, and starts as soon as the break ends.
+thread.when({29m55s}, poll)
+thread.when({59m55s}, poll)
+
+# Ask for a break two minutes before each boundary. The API decides whether one
+# is actually due: a slot ends there, or the hour turns with no slot spanning it.
+thread.when({28m0s}, do_break)
+thread.when({58m0s}, do_break)
 
 # Poll at startup after a short delay to let fallback stabilize
 thread.run(delay=3., poll)
 
-# Main output - scheduled takes priority, fallback fills gaps
-# track_sensitive=false means switch immediately when scheduled content arrives
-radio = fallback(track_sensitive=false, [scheduled_source, fallback_source])
+# Main output - a break outranks a show, a show outranks filler
+# track_sensitive=false means switch immediately when higher content arrives
+radio = fallback(track_sensitive=false, [break_source, scheduled_source, fallback_source])
 
 # Log track changes and POST to web service
 # NOTE: Before crossfade so metadata is present. ~1s timing offset from crossfade is acceptable.
@@ -167,6 +256,7 @@ radio = source.on_track(radio, fun(m) -> begin
   artist = m["artist"] ?? ""
   source_type = m["source_type"] ?? "unknown"
   source_url = m["source_url"] ?? (m["filename"] ?? "")
+  break_item_id = m["break_item_id"]
 
   last_metadata := m
 
@@ -183,7 +273,8 @@ radio = source.on_track(radio, fun(m) -> begin
       prArtist = artist,
       prSourceType = source_type,
       prSourceUrl = source_url,
-      prStartedAt = started_at
+      prStartedAt = started_at,
+      prBreakItemId = break_item_id
     })
 
     response = http.post(

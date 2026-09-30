@@ -34,7 +34,9 @@ data UploadResponse = UploadResponse
   { urToken :: StagedUploads.Token,
     urOriginalName :: Text,
     urMimeType :: Text,
-    urFileSize :: Int64
+    urFileSize :: Int64,
+    -- | Audio length in seconds, measured by @ffprobe@.
+    urDurationSeconds :: Int64
   }
   deriving stock (Generic, Show, Eq)
 
@@ -44,7 +46,8 @@ instance ToJSON UploadResponse where
       [ "token" Aeson..= StagedUploads.unToken (urToken resp),
         "originalName" Aeson..= urOriginalName resp,
         "mimeType" Aeson..= urMimeType resp,
-        "fileSize" Aeson..= urFileSize resp
+        "fileSize" Aeson..= urFileSize resp,
+        "durationSeconds" Aeson..= urDurationSeconds resp
       ]
 
 --------------------------------------------------------------------------------
@@ -74,4 +77,5 @@ parseUploadType multipartData =
     Right "episode_audio" -> Right StagedUploads.EpisodeAudio
     Right "station_id_audio" -> Right StagedUploads.StationIdAudio
     Right "ephemeral_audio" -> Right StagedUploads.EphemeralAudio
+    Right "break_item_audio" -> Right StagedUploads.BreakItemAudio
     Right other -> Left $ "Invalid upload_type: " <> Text.unpack other
