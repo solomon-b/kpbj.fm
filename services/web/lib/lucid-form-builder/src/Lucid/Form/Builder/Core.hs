@@ -49,6 +49,7 @@ module Lucid.Form.Builder.Core
     stagedAudioField,
     stagedImageField,
     dateTimeField,
+    dateField,
     numberField,
     checkboxField,
     toggleField,
@@ -279,6 +280,17 @@ stagedImageField name uploadUrl uploadType builder =
 dateTimeField :: Text -> FieldBuilder -> FormBuilder
 dateTimeField name builder =
   tellField $ buildField name DateTimeField builder
+
+-- | Add a calendar date field, with no time of day.
+--
+-- Submits and accepts @YYYY-MM-DD@.
+--
+-- > dateField "starts_on" do
+-- >   label "First Air Date"
+-- >   required
+dateField :: Text -> FieldBuilder -> FormBuilder
+dateField name builder =
+  tellField $ buildField name DateField builder
 
 -- | Add a numeric input field.
 --
