@@ -5,6 +5,9 @@
 --
 -- Stores a log of what has been played on the stream. Populated by Liquidsoap
 -- via POST /api/playout/played when tracks start playing.
+--
+-- It is also the record of delivery. A break item's airings are counted here,
+-- through @break_item_id@, not from what the break endpoint handed out.
 module Effects.Database.Tables.PlaybackHistory
   ( -- * Table Definition
     PlaybackEntry (..),
@@ -19,6 +22,7 @@ module Effects.Database.Tables.PlaybackHistory
     -- * Queries
     insertPlayback,
     getRecentPlayback,
+    airingsBetween,
   )
 where
 
@@ -47,6 +51,8 @@ data PlaybackEntry f = PlaybackEntry
     phSourceType :: Column f Text,
     phSourceUrl :: Column f Text,
     phEpisodeId :: Column f (Maybe Int64),
+    -- | The break item that aired. Nothing for any track that is not one.
+    phBreakItemId :: Column f (Maybe Int64),
     phStartedAt :: Column f UTCTime
   }
   deriving stock (Generic)
@@ -82,6 +88,7 @@ playbackHistorySchema =
             phSourceType = "source_type",
             phSourceUrl = "source_url",
             phEpisodeId = "episode_id",
+            phBreakItemId = "break_item_id",
             phStartedAt = "started_at"
           }
     }
@@ -96,6 +103,7 @@ data Insert = Insert
     piSourceType :: Text,
     piSourceUrl :: Text,
     piEpisodeId :: Maybe Int64,
+    piBreakItemId :: Maybe Int64,
     piStartedAt :: UTCTime
   }
   deriving stock (Generic, Show, Eq)
@@ -119,6 +127,7 @@ insertPlayback Insert {..} =
                     phSourceType = lit piSourceType,
                     phSourceUrl = lit piSourceUrl,
                     phEpisodeId = lit piEpisodeId,
+                    phBreakItemId = lit piBreakItemId,
                     phStartedAt = lit piStartedAt
                   }
               ],
@@ -136,3 +145,16 @@ getRecentPlayback lim =
       Rel8.limit (fromIntegral lim) $
         orderBy (phStartedAt >$< desc) do
           each playbackHistorySchema
+
+-- | Each break item airing in the half-open range, in time order.
+airingsBetween :: UTCTime -> UTCTime -> Hasql.Statement () [(Int64, UTCTime)]
+airingsBetween fromTime untilTime =
+  run $
+    select $
+      orderBy (snd >$< asc) do
+        entry <- each playbackHistorySchema
+        breakItemId <- catNull (phBreakItemId entry)
+        where_ $
+          phStartedAt entry >=. lit fromTime
+            &&. phStartedAt entry <. lit untilTime
+        pure (breakItemId, phStartedAt entry)

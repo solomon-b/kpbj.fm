@@ -95,6 +95,7 @@ import Component.ScheduleEditorSpec qualified as ScheduleEditor
 import Data.Maybe (fromMaybe)
 import Domain.Icecast.StatusSpec qualified as IcecastStatus
 import Effects.ContentSanitizationSpec qualified as ContentSanitization
+import Effects.Database.UnderwritersSpec qualified as UnderwritersTable
 import Effects.DiffSpec qualified as Diff
 import Effects.MarkdownSpec qualified as Markdown
 import Effects.MimeTypeValidationSpec qualified as MimeTypeValidation
@@ -148,6 +149,7 @@ main = do
     ErrorHandler.spec
     HomeHandler.spec
     PlayoutFallbackGetHandler.spec
+    UnderwritersTable.spec
     EventsHandler.spec
     EventHandler.spec
     ShowsHandler.spec

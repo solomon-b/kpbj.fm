@@ -81,6 +81,7 @@ action mSecret request = do
             piSourceType = request.prSourceType,
             piSourceUrl = request.prSourceUrl,
             piEpisodeId = mEpisodeId,
+            piBreakItemId = Nothing,
             piStartedAt = request.prStartedAt
           }
 

@@ -98,6 +98,7 @@ data UploadType
   = EpisodeAudio
   | StationIdAudio
   | EphemeralAudio
+  | BreakItemAudio
   deriving stock (Generic, Show, Eq, Ord, Enum, Bounded, Read)
   deriving anyclass (FromJSON, ToJSON)
 
@@ -108,12 +109,14 @@ instance DBType UploadType where
           "episode_audio" -> Right EpisodeAudio
           "station_id_audio" -> Right StationIdAudio
           "ephemeral_audio" -> Right EphemeralAudio
+          "break_item_audio" -> Right BreakItemAudio
           other -> Left $ "Invalid UploadType: " <> Text.unpack other
       )
       ( \case
           EpisodeAudio -> "episode_audio"
           StationIdAudio -> "station_id_audio"
           EphemeralAudio -> "ephemeral_audio"
+          BreakItemAudio -> "break_item_audio"
       )
       typeInformation
 
@@ -123,6 +126,7 @@ instance Display UploadType where
   displayBuilder EpisodeAudio = "episode_audio"
   displayBuilder StationIdAudio = "station_id_audio"
   displayBuilder EphemeralAudio = "ephemeral_audio"
+  displayBuilder BreakItemAudio = "break_item_audio"
 
 instance DecodeValue UploadType where
   decodeValue = Decoders.enum decodeUploadType
@@ -132,6 +136,7 @@ decodeUploadType = \case
   "episode_audio" -> Just EpisodeAudio
   "station_id_audio" -> Just StationIdAudio
   "ephemeral_audio" -> Just EphemeralAudio
+  "break_item_audio" -> Just BreakItemAudio
   _ -> Nothing
 
 instance EncodeValue UploadType where
@@ -139,11 +144,13 @@ instance EncodeValue UploadType where
     EpisodeAudio -> "episode_audio"
     StationIdAudio -> "station_id_audio"
     EphemeralAudio -> "ephemeral_audio"
+    BreakItemAudio -> "break_item_audio"
 
 instance Servant.FromHttpApiData UploadType where
   parseUrlPiece "episode_audio" = Right EpisodeAudio
   parseUrlPiece "station_id_audio" = Right StationIdAudio
   parseUrlPiece "ephemeral_audio" = Right EphemeralAudio
+  parseUrlPiece "break_item_audio" = Right BreakItemAudio
   parseUrlPiece invalid = Left $ "Invalid UploadType: " <> invalid
 
 instance Servant.ToHttpApiData UploadType where
