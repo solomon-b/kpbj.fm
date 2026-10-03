@@ -93,7 +93,9 @@ import App.Handler.CombinatorsSpec qualified as Combinators
 import App.Handler.ErrorSpec qualified as ErrorHandler
 import Component.ScheduleEditorSpec qualified as ScheduleEditor
 import Data.Maybe (fromMaybe)
+import Domain.BreakPlannerSpec qualified as BreakPlanner
 import Domain.Icecast.StatusSpec qualified as IcecastStatus
+import Effects.BreakPlanSpec qualified as BreakPlanEffects
 import Effects.ContentSanitizationSpec qualified as ContentSanitization
 import Effects.Database.UnderwritersSpec qualified as UnderwritersTable
 import Effects.DiffSpec qualified as Diff
@@ -138,6 +140,7 @@ main = do
     Markdown.spec
     MimeTypeValidation.spec
     StagedUploadsEffects.spec
+    BreakPlanner.spec
     StoreCheckoutEmails.spec
     StoreCheckoutLogic.spec
     StoreCheckoutShippingErrors.spec
@@ -150,6 +153,7 @@ main = do
     HomeHandler.spec
     PlayoutFallbackGetHandler.spec
     UnderwritersTable.spec
+    BreakPlanEffects.spec
     EventsHandler.spec
     EventHandler.spec
     ShowsHandler.spec
