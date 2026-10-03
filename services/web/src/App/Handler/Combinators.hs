@@ -7,6 +7,7 @@
 module App.Handler.Combinators
   ( -- * Authentication
     requireAuth,
+    requirePlayoutSecret,
 
     -- * Authorization
     requireHostNotSuspended,
@@ -23,11 +24,14 @@ where
 --------------------------------------------------------------------------------
 
 import App.Common (getUserInfo)
+import App.CustomContext (PlayoutSecret (..), secretsMatch)
 import App.Handler.Error (HandlerError, throwDatabaseError, throwNotAuthenticated, throwNotAuthorized, throwValidationError)
 import App.Monad (AppM)
 import Control.Monad (unless, when)
+import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
+import Data.Has qualified as Has
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
@@ -35,6 +39,7 @@ import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Log qualified
 import Utils (fromRightM)
 
 --------------------------------------------------------------------------------
@@ -53,6 +58,40 @@ requireAuth cookie =
   lift (getUserInfo cookie) >>= \case
     Nothing -> throwNotAuthenticated
     Just userInfo -> pure userInfo
+
+-- | Require a valid @X-Playout-Secret@ header, for the endpoints Liquidsoap calls.
+--
+-- These endpoints carry no session cookie, so the shared secret is the only
+-- thing that separates Liquidsoap from the open internet. Nginx proxies every
+-- path to the web service, so an ungated playout route answers any caller.
+--
+-- An unset @PLAYOUT_SECRET@ rejects every request. Accepting one instead would
+-- open the endpoint whenever the environment loses the variable.
+--
+-- Usage:
+--
+-- @
+-- handler mSecret = do
+--   result <- runExceptT $ requirePlayoutSecret mSecret
+--   case result of
+--     Left _ -> throwM err401
+--     Right () -> -- ... rest of handler
+-- @
+requirePlayoutSecret :: Maybe Text -> ExceptT HandlerError AppM ()
+requirePlayoutSecret mSecret = do
+  mExpectedSecret <- asks (Has.getter @PlayoutSecret)
+  case mExpectedSecret.unPlayoutSecret of
+    Nothing -> do
+      Log.logAttention "PLAYOUT_SECRET not configured, rejecting request" ()
+      throwNotAuthenticated
+    Just expected -> case mSecret of
+      Nothing -> do
+        Log.logAttention "Missing X-Playout-Secret header" ()
+        throwNotAuthenticated
+      Just given ->
+        unless (secretsMatch given expected) $ do
+          Log.logAttention "Invalid X-Playout-Secret header" ()
+          throwNotAuthenticated
 
 --------------------------------------------------------------------------------
 

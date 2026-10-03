@@ -169,6 +169,7 @@ import API.Invite.Token.Post.Handler qualified as Invite.Token.Post
 import API.Links
 import API.Media.Get.Handler qualified as Media.Get
 import API.Newsletter.Subscribe.Post.Handler qualified as Newsletter.Subscribe.Post
+import API.Playout.Break.Get.Handler qualified as Playout.Break.Get
 import API.Playout.Fallback.Get.Handler qualified as Playout.Fallback.Get
 import API.Playout.Now.Get.Handler qualified as Playout.Now.Get
 import API.Playout.Played.Post.Handler qualified as Playout.Played.Post
@@ -562,6 +563,7 @@ server =
       PlayoutRoutes
         { now = Playout.Now.Get.handler,
           fallback = Playout.Fallback.Get.handler,
+          breakWindow = Playout.Break.Get.handler,
           played = Playout.Played.Post.handler
         }
 
