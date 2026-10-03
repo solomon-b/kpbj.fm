@@ -11,6 +11,7 @@ import API.Links (dashboardStationIdsLinks)
 import API.Types
 import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Domain.BreakPlanner (stationIdMaxSeconds)
 import Lucid qualified
 import Lucid.Form.Builder
 import Servant.Links qualified as Links
@@ -57,7 +58,7 @@ stationIdUploadForm uploadUrl = do
       section "AUDIO FILE" $ do
         stagedAudioField "audio_file" uploadUrl "station_id_audio" $ do
           label "Station ID Audio"
-          hint "Upload an MP3, WAV, or other audio file. Maximum 50MB."
+          hint [i|Upload an MP3, WAV, or other audio file. Maximum 50MB and #{stationIdMaxSeconds} seconds.|]
           maxSize 50
 
       -- Form Actions

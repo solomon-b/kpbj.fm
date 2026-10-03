@@ -70,13 +70,16 @@ Streaming server behind NixOS-managed Nginx (automatic Let's Encrypt via ACME). 
 
 ## Playout API
 
-Liquidsoap communicates with the web service via three endpoints, authenticated with a shared secret (`X-Playout-Secret` header):
+Liquidsoap communicates with the web service via four endpoints. `POST /api/playout/played` is authenticated with a shared secret (`X-Playout-Secret` header); the three GETs are not.
 
-| Endpoint                | Method | Purpose                         |
-|-------------------------|--------|---------------------------------|
-| `/api/playout/now`      | GET    | Get currently scheduled episode |
-| `/api/playout/fallback` | GET    | Get random fallback track       |
-| `/api/playout/played`   | POST   | Report what's playing           |
+| Endpoint                | Method | Purpose                            |
+|-------------------------|--------|------------------------------------|
+| `/api/playout/now`      | GET    | Get currently scheduled episode    |
+| `/api/playout/fallback` | GET    | Get random fallback track          |
+| `/api/playout/break`    | GET    | Get the tracks for a break window  |
+| `/api/playout/played`   | POST   | Report what's playing              |
+
+Liquidsoap polls `/now` at `:00` and `:30`, and asks `/break` at `:28` and `:58`. A break window is the last two minutes before a slot boundary. The API decides whether one is due: either a scheduled slot ends there, or the hour turns with no slot spanning it. An empty answer means play on, so a failure never cuts a show for silence.
 
 ## Environments
 
