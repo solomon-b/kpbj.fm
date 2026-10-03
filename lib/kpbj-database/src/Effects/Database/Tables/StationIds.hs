@@ -30,6 +30,7 @@ module Effects.Database.Tables.StationIds
     getAllStationIds,
     getStationIdById,
     getRandomStationId,
+    getAllForPlan,
     insertStationId,
     deleteStationId,
   )
@@ -38,6 +39,7 @@ where
 --------------------------------------------------------------------------------
 
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Functor.Contravariant ((>$<))
 import Data.Int (Int64)
 import Data.Maybe (listToMaybe)
 import Data.Text (Text)
@@ -65,7 +67,7 @@ import Servant qualified
 newtype Id = Id {unId :: Int64}
   deriving stock (Generic)
   deriving anyclass (DecodeRow)
-  deriving newtype (Show, Eq, Ord, Num, DBType, DBEq)
+  deriving newtype (Show, Eq, Ord, Num, DBType, DBEq, DBOrd)
   deriving newtype (DecodeValue, EncodeValue)
   deriving newtype (Servant.FromHttpApiData, Servant.ToHttpApiData)
   deriving newtype (ToJSON, FromJSON, Display)
@@ -205,6 +207,16 @@ getRandomStationId =
     ORDER BY RANDOM()
     LIMIT 1
   |]
+
+-- | Every station ID, in id order.
+--
+-- The daily planner rotates through all of them, so it needs the whole set.
+getAllForPlan :: Hasql.Statement () [Model]
+getAllForPlan =
+  run $
+    select $
+      orderBy (simId >$< asc) $
+        each stationIdSchema
 
 -- | Insert a new station ID and return its ID.
 insertStationId :: Insert -> Hasql.Statement () (Maybe Id)

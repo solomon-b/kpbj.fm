@@ -785,6 +785,7 @@ test-suite kpbj-web-test
        App.CustomContextSpec
        App.DomainsSpec
        Effects.ContentSanitizationSpec
+       Effects.Database.UnderwritersSpec
        Effects.DiffSpec
        Effects.MarkdownSpec
        Effects.MimeTypeValidationSpec

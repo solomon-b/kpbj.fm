@@ -114,6 +114,7 @@ encodeUploadType = \case
   EpisodeAudio -> "episode_audio"
   StationIdAudio -> "station_id_audio"
   EphemeralAudio -> "ephemeral_audio"
+  BreakItemAudio -> "break_item_audio"
 
 -- | Decode UploadType from database string (matches DecodeValue instance)
 decodeUploadType :: Text -> Maybe UploadType
@@ -121,6 +122,7 @@ decodeUploadType = \case
   "episode_audio" -> Just EpisodeAudio
   "station_id_audio" -> Just StationIdAudio
   "ephemeral_audio" -> Just EphemeralAudio
+  "break_item_audio" -> Just BreakItemAudio
   _ -> Nothing
 
 -- | Encode Status to database string
