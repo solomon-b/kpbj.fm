@@ -6,6 +6,9 @@
 module API.Uploads.Audio.Post.Handler
   ( handler,
     optionsHandler,
+
+    -- * Exported for testing
+    checkUploadLength,
   )
 where
 
@@ -24,12 +27,16 @@ import Control.Monad.Trans.Except (runExceptT)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Has qualified as Has
+import Data.Int (Int64)
 import Data.Text (Text)
+import Data.Text qualified as Text
 import Data.Text.Display (display)
+import Domain.BreakPlanner (psaMaxSeconds, stationIdMaxSeconds, underwritingMaxSeconds)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Origin (Origin (..))
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.AudioDuration (probeDurationSeconds)
+import Effects.Database.Tables.StagedUploads qualified as StagedUploads
 import Effects.Database.Tables.User qualified as User
 import Effects.MimeTypeValidation qualified as MimeValidation
 import Log qualified
@@ -168,6 +175,9 @@ processAudioUpload user form = do
 
   case mDuration of
     Nothing -> pure $ UploadError "Could not read the length of this audio. The file may be damaged. Re-encode it and upload again."
+    Just durationSeconds
+      | Left message <- checkUploadLength uploadType durationSeconds ->
+          pure $ UploadError message
     Just durationSeconds -> do
       result <- processStagedUpload config backend mAwsEnv user.mId originalName browserMimeType tempFilePath (Just durationSeconds)
 
@@ -182,6 +192,36 @@ processAudioUpload user form = do
                   urMimeType = mimeType,
                   urFileSize = fileSize
                 }
+
+-- | Refuse a file that is too long for what it is uploaded as.
+--
+-- The upload field shows the message at once, so the user does not fill in
+-- the rest of the form first. The save handlers check the same limits again.
+-- An episode has no check here, because its limit depends on the slot, and
+-- the slot can still change after the upload.
+--
+-- PSAs and underwriting announcements share one upload type. The check uses
+-- the larger of their two limits, so it never refuses a file that one of them
+-- accepts. The save handler applies the exact limit of the category.
+checkUploadLength :: StagedUploads.UploadType -> Int64 -> Either Text ()
+checkUploadLength uploadType durationSeconds =
+  case uploadType of
+    StagedUploads.StationIdAudio -> withinLimit "Station IDs" stationIdMaxSeconds
+    StagedUploads.BreakItemAudio ->
+      withinLimit "PSAs and underwriting announcements" (max psaMaxSeconds underwritingMaxSeconds)
+    StagedUploads.EpisodeAudio -> Right ()
+    StagedUploads.EphemeralAudio -> Right ()
+  where
+    withinLimit plural limit
+      | durationSeconds <= limit = Right ()
+      | otherwise =
+          Left $
+            plural
+              <> " can run at most "
+              <> Text.pack (show limit)
+              <> " seconds. This file runs "
+              <> Text.pack (show durationSeconds)
+              <> "."
 
 --------------------------------------------------------------------------------
 -- Audio-specific configuration

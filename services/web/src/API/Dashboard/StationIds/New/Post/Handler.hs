@@ -17,6 +17,7 @@ import Control.Monad.Trans.Except (ExceptT)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (getCurrentTime)
+import Domain.BreakPlanner (stationIdMaxSeconds)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileStorage (BucketType (..), ResourceType (..))
 import Effects.ContentSanitization qualified as Sanitize
@@ -67,6 +68,20 @@ action user form = do
       fromRightM throwDatabaseError $
         execQuery (StagedUploads.getByToken (StagedUploads.Token audioToken))
 
+  -- The upload handler measured the length and stored it on the staged row.
+  -- The break template only fits when every station ID stays within the
+  -- limit. This check runs before the claim, because the claim moves the file.
+  durationSeconds <-
+    fromMaybeM (throwValidationError "Could not read the audio length. Upload the file again.") $
+      pure (StagedUploads.durationSeconds stagedUpload)
+  when (durationSeconds > stationIdMaxSeconds) $
+    throwValidationError $
+      "Station IDs can run at most "
+        <> Text.pack (show stationIdMaxSeconds)
+        <> " seconds. This file runs "
+        <> Text.pack (show durationSeconds)
+        <> "."
+
   -- 4. Claim and relocate the staged upload to final location
   now <- liftIO getCurrentTime
   claimResult <-
@@ -86,17 +101,13 @@ action user form = do
     Right path -> pure path
 
   -- 5. Create the station ID record
-  --
-  -- The upload handler measured the length and stored it on the staged row.
-  -- The length only budgets the break window, so a missing value is stored as
-  -- NULL. The planner then assumes a length for this row.
   let insert =
         StationIds.Insert
           { StationIds.siiTitle = title,
             StationIds.siiAudioFilePath = storagePath,
             StationIds.siiMimeType = StagedUploads.mimeType stagedUpload,
             StationIds.siiFileSize = StagedUploads.fileSize stagedUpload,
-            StationIds.siiDurationSeconds = StagedUploads.durationSeconds stagedUpload,
+            StationIds.siiDurationSeconds = Just durationSeconds,
             StationIds.siiCreatorId = User.mId user
           }
   _ <-

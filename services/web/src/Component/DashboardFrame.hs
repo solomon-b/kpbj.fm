@@ -21,6 +21,7 @@ import API.Links
     dashboardLinks,
     dashboardMissingEpisodesLink,
     dashboardNewsletterSubscribersLinks,
+    dashboardPsasLinks,
     dashboardShowsLinks,
     dashboardSitePagesLinks,
     dashboardStationBlogLinks,
@@ -29,6 +30,8 @@ import API.Links
     dashboardStoreProductsLinks,
     dashboardStoreSettingsLinks,
     dashboardStreamSettingsLinks,
+    dashboardUnderwritersLinks,
+    dashboardUnderwritingLinks,
     dashboardUsersLinks,
     rootLink,
     staticAssetLink,
@@ -37,7 +40,7 @@ import API.Links
 import API.Types
 import Component.Banner (bannerContainerId)
 import Component.Frame (bannerFromUrlScript, darkModeScript, googleAnalyticsScript, htmxIndicatorStyles)
-import Control.Monad (when)
+import Control.Monad (unless, when)
 import Control.Monad.Catch (MonadThrow)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
@@ -116,6 +119,21 @@ dashboardNewsletterSubscribersGetUrl :: Links.URI
 dashboardNewsletterSubscribersGetUrl =
   Links.linkURI $ dashboardNewsletterSubscribersLinks.list Nothing Nothing
 
+dashboardPsasGetUrl :: Links.URI
+dashboardPsasGetUrl = Links.linkURI $ dashboardPsasLinks.list Nothing
+
+dashboardUnderwritingGetUrl :: Links.URI
+dashboardUnderwritingGetUrl = Links.linkURI $ dashboardUnderwritingLinks.list Nothing
+
+dashboardUnderwritersGetUrl :: Links.URI
+dashboardUnderwritersGetUrl = Links.linkURI dashboardUnderwritersLinks.list
+
+dashboardUnderwritingDeliveryUrl :: Links.URI
+dashboardUnderwritingDeliveryUrl = Links.linkURI $ dashboardUnderwritingLinks.delivery Nothing
+
+dashboardBreakPlanUrl :: Links.URI
+dashboardBreakPlanUrl = Links.linkURI $ dashboardUnderwritingLinks.plan Nothing
+
 dashboardStoreProductsGetUrl :: Links.URI
 dashboardStoreProductsGetUrl = Links.linkURI dashboardStoreProductsLinks.list
 
@@ -145,6 +163,11 @@ data DashboardNav
   | NavAnalytics
   | NavInvitations
   | NavNewsletterSubscribers
+  | NavPsas
+  | NavUnderwriting
+  | NavUnderwriters
+  | NavUnderwritingDelivery
+  | NavBreakPlan
   | NavStoreProducts
   | NavStoreOrders
   | NavStoreSettings
@@ -169,6 +192,11 @@ isShowScoped = \case
   NavAnalytics -> False
   NavInvitations -> False
   NavNewsletterSubscribers -> False
+  NavPsas -> False
+  NavUnderwriting -> False
+  NavUnderwriters -> False
+  NavUnderwritingDelivery -> False
+  NavBreakPlan -> False
   NavStoreProducts -> False
   NavStoreOrders -> False
   NavStoreSettings -> False
@@ -246,7 +274,9 @@ sidebar userMeta activeNav selectedShow =
           navItem "EPISODES" NavEpisodes activeNav selectedShow
           -- navItem "BLOG" NavBlog activeNav selectedShow
           navItem "SHOW SETTINGS" NavSettings activeNav selectedShow
-          staffNavItem "STATION IDS" NavStationIds activeNav
+          -- Staff find station IDs under AIR BREAKS, so each user sees it once.
+          unless (UserMetadata.isStaffOrHigher userMeta.mUserRole) $
+            staffNavItem "STATION IDS" NavStationIds activeNav
           staffNavItem "EPHEMERAL" NavEphemeralUploads activeNav
 
       -- Staff/Admin section - shown only for Staff or higher roles
@@ -266,6 +296,15 @@ sidebar userMeta activeNav selectedShow =
             when (UserMetadata.isAdmin userMeta.mUserRole) $ do
               staffNavItem "STREAM" NavStreamSettings activeNav
               staffNavItem "ANALYTICS" NavAnalytics activeNav
+        Lucid.div_ [class_ $ base ["border-t", Theme.borderMuted, "mt-4", "pt-4"]] $ do
+          Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "block", Tokens.px4, Tokens.mb2]] "AIR BREAKS"
+          Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
+            staffNavItem "PLAN" NavBreakPlan activeNav
+            staffNavItem "STATION IDS" NavStationIds activeNav
+            staffNavItem "PSAS" NavPsas activeNav
+            staffNavItem "UNDERWRITING" NavUnderwriting activeNav
+            staffNavItem "UNDERWRITERS" NavUnderwriters activeNav
+            staffNavItem "DELIVERY" NavUnderwritingDelivery activeNav
         Lucid.div_ [class_ $ base ["border-t", Theme.borderMuted, "mt-4", "pt-4"]] $ do
           Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "block", Tokens.px4, Tokens.mb2]] "STORE"
           Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
@@ -381,6 +420,11 @@ staffNavUrl = \case
   NavAnalytics -> Just dashboardAnalyticsGetUrl
   NavInvitations -> Just dashboardInvitationsGetUrl
   NavNewsletterSubscribers -> Just dashboardNewsletterSubscribersGetUrl
+  NavPsas -> Just dashboardPsasGetUrl
+  NavUnderwriting -> Just dashboardUnderwritingGetUrl
+  NavUnderwriters -> Just dashboardUnderwritersGetUrl
+  NavUnderwritingDelivery -> Just dashboardUnderwritingDeliveryUrl
+  NavBreakPlan -> Just dashboardBreakPlanUrl
   NavStoreProducts -> Just dashboardStoreProductsGetUrl
   NavStoreOrders -> Just dashboardStoreOrdersGetUrl
   NavStoreSettings -> Just dashboardStoreSettingsGetUrl
@@ -409,6 +453,11 @@ navUrl nav mShow =
         NavAnalytics -> Just dashboardAnalyticsGetUrl
         NavInvitations -> Just dashboardInvitationsGetUrl
         NavNewsletterSubscribers -> Just dashboardNewsletterSubscribersGetUrl
+        NavPsas -> Just dashboardPsasGetUrl
+        NavUnderwriting -> Just dashboardUnderwritingGetUrl
+        NavUnderwriters -> Just dashboardUnderwritersGetUrl
+        NavUnderwritingDelivery -> Just dashboardUnderwritingDeliveryUrl
+        NavBreakPlan -> Just dashboardBreakPlanUrl
         NavStoreProducts -> Just dashboardStoreProductsGetUrl
         NavStoreOrders -> Just dashboardStoreOrdersGetUrl
         NavStoreSettings -> Just dashboardStoreSettingsGetUrl

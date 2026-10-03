@@ -180,7 +180,7 @@ handler cookie (foldHxReq -> hxRequest) = do
 - **Events**: `events`
 - **Uploads**: `staged_uploads`, `ephemeral_uploads`
 - **Content**: `site_pages`, `site_page_revisions`, `station_ids`
-- **Streaming**: `playback_history`
+- **Streaming**: `playback_history`, `break_items`
 - **Store**: `products`, `product_images`, `product_option_types`, `product_option_values`, `product_variants`, `product_variant_options`, `orders`, `order_items`, `store_settings`
 
 The `products_with_inventory` view replaces product-level inventory with the sum of active variant inventories when variants exist. All product read queries use this view.

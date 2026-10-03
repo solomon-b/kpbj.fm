@@ -13,6 +13,7 @@ import API.Dashboard.Blogs.Slug.Delete.HandlerSpec qualified as DashboardBlogsDe
 import API.Dashboard.Blogs.Slug.Edit.Get.HandlerSpec qualified as DashboardBlogsEditGetHandler
 import API.Dashboard.Blogs.Slug.Edit.Post.HandlerSpec qualified as DashboardBlogsEditPostHandler
 import API.Dashboard.Blogs.Slug.Get.HandlerSpec qualified as DashboardBlogsSlugGetHandler
+import API.Dashboard.BreakItems.SharedSpec qualified as DashboardBreakItemsShared
 import API.Dashboard.EphemeralUploads.Get.HandlerSpec qualified as DashboardEphemeralUploadsGetHandler
 import API.Dashboard.EphemeralUploads.Id.Delete.HandlerSpec qualified as DashboardEphemeralUploadsDeleteHandler
 import API.Dashboard.EphemeralUploads.Id.Edit.Get.HandlerSpec qualified as DashboardEphemeralUploadsEditGetHandler
@@ -61,7 +62,11 @@ import API.Dashboard.StationBlog.Slug.Get.HandlerSpec qualified as DashboardStat
 import API.Dashboard.StationIds.Get.HandlerSpec qualified as DashboardStationIdsGetHandler
 import API.Dashboard.StationIds.Id.Delete.HandlerSpec qualified as DashboardStationIdsDeleteHandler
 import API.Dashboard.StationIds.New.Get.HandlerSpec qualified as DashboardStationIdsNewGetHandler
+import API.Dashboard.StationIds.New.Post.HandlerSpec qualified as DashboardStationIdsNewPostHandler
 import API.Dashboard.StreamSettings.Episodes.Search.Get.HandlerSpec qualified as DashboardStreamSettingsEpisodeSearchHandler
+import API.Dashboard.Underwriters.New.Post.HandlerSpec qualified as DashboardUnderwritersNewPostHandler
+import API.Dashboard.Underwriting.Delivery.Get.HandlerSpec qualified as DashboardUnderwritingDeliveryHandler
+import API.Dashboard.Underwriting.Plan.Get.HandlerSpec qualified as DashboardUnderwritingPlanHandler
 import API.Dashboard.Users.Delete.HandlerSpec qualified as DashboardUsersDeleteHandler
 import API.Dashboard.Users.Detail.Get.HandlerSpec qualified as DashboardUsersDetailGetHandler
 import API.Dashboard.Users.Edit.Get.HandlerSpec qualified as DashboardUsersEditGetHandler
@@ -86,6 +91,7 @@ import API.Shows.Slug.Get.HandlerSpec qualified as ShowDetailHandler
 import API.Store.Cart.Validate.Post.HandlerSpec qualified as StoreCartValidateHandler
 import API.Store.List.Get.HandlerSpec qualified as StoreListHandler
 import API.Store.Products.Slug.Get.HandlerSpec qualified as StoreProductHandler
+import API.Uploads.Audio.Post.HandlerSpec qualified as AudioUploadHandler
 import API.User.ForgotPassword.Post.HandlerSpec qualified as UserForgotPasswordHandler
 import API.User.Login.Post.HandlerSpec qualified as UserLoginHandler
 import API.User.Register.Post.HandlerSpec qualified as UserRegisterHandler
@@ -142,6 +148,7 @@ main = do
     Markdown.spec
     MimeTypeValidation.spec
     StagedUploadsEffects.spec
+    AudioUploadHandler.spec
     BreakPlanner.spec
     StoreCheckoutEmails.spec
     StoreCheckoutLogic.spec
@@ -158,6 +165,10 @@ main = do
     PlayoutPlayedPostHandler.spec
     UnderwritersTable.spec
     BreakPlanEffects.spec
+    DashboardBreakItemsShared.spec
+    DashboardUnderwritersNewPostHandler.spec
+    DashboardUnderwritingDeliveryHandler.spec
+    DashboardUnderwritingPlanHandler.spec
     EventsHandler.spec
     EventHandler.spec
     ShowsHandler.spec
@@ -229,6 +240,7 @@ main = do
     DashboardEphemeralUploadsUnflagHandler.spec
     DashboardStationIdsGetHandler.spec
     DashboardStationIdsNewGetHandler.spec
+    DashboardStationIdsNewPostHandler.spec
     DashboardStationIdsDeleteHandler.spec
     DashboardStreamSettingsEpisodeSearchHandler.spec
     DashboardMissingEpisodesGetHandler.spec

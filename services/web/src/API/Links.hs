@@ -47,6 +47,9 @@ module API.Links
     dashboardAnalyticsLinks,
     dashboardInvitationsLinks,
     dashboardNewsletterSubscribersLinks,
+    dashboardPsasLinks,
+    dashboardUnderwritingLinks,
+    dashboardUnderwritersLinks,
     dashboardStoreLinks,
     dashboardStoreProductsLinks,
     dashboardStoreSettingsLinks,
@@ -188,6 +191,18 @@ dashboardInvitationsLinks = dashboardAdminLinks.invitations
 -- | Dashboard newsletter subscribers route links.
 dashboardNewsletterSubscribersLinks :: DashboardNewsletterSubscribersRoutes (AsLink Link)
 dashboardNewsletterSubscribersLinks = dashboardAdminLinks.newsletterSubscribers
+
+-- | Dashboard PSA route links.
+dashboardPsasLinks :: DashboardPsasRoutes (AsLink Link)
+dashboardPsasLinks = dashboardAdminLinks.psas
+
+-- | Dashboard underwriting announcement route links.
+dashboardUnderwritingLinks :: DashboardUnderwritingRoutes (AsLink Link)
+dashboardUnderwritingLinks = dashboardAdminLinks.underwriting
+
+-- | Dashboard underwriter route links.
+dashboardUnderwritersLinks :: DashboardUnderwritersRoutes (AsLink Link)
+dashboardUnderwritersLinks = dashboardAdminLinks.underwriters
 
 -- | Invite onboarding route links.
 inviteLinks :: InviteRoutes (AsLink Link)
