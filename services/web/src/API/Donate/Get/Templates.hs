@@ -21,16 +21,16 @@ template mPage = do
   let title = maybe "Support KPBJ" SitePages.spmTitle mPage
       content = maybe fallbackContent SitePages.spmContent mPage
   pageHeader title
+  paypalWidget
   Lucid.div_ [class_ $ base ["prose", "prose-lg", fgPrimary, "max-w-none"]] $ do
     case renderMarkdownPure defaultMarkdownConfig content of
       Left _ -> Lucid.p_ "Content could not be rendered."
       Right html -> html
-  paypalWidget
 
--- | PayPal donation button widget.
+-- | PayPal donation button widget. It sits above the page text.
 paypalWidget :: Lucid.Html ()
 paypalWidget = do
-  Lucid.div_ [Lucid.id_ "paypal-container-YBRDJJA6AGBL6", Lucid.class_ "w-full max-w-96 mt-8"] ""
+  Lucid.div_ [Lucid.id_ "paypal-container-YBRDJJA6AGBL6", Lucid.class_ "w-full max-w-96 mb-8"] ""
   Lucid.script_ [] paypalScript
 
 -- | PayPal SDK loader script.
