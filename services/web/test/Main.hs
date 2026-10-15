@@ -102,6 +102,7 @@ import App.Handler.ErrorSpec qualified as ErrorHandler
 import Component.ScheduleEditorSpec qualified as ScheduleEditor
 import Data.Maybe (fromMaybe)
 import Domain.BreakPlannerSpec qualified as BreakPlanner
+import Domain.EpisodeLengthSpec qualified as EpisodeLength
 import Domain.Icecast.StatusSpec qualified as IcecastStatus
 import Effects.BreakPlanSpec qualified as BreakPlanEffects
 import Effects.ContentSanitizationSpec qualified as ContentSanitization
@@ -150,6 +151,7 @@ main = do
     StagedUploadsEffects.spec
     AudioUploadHandler.spec
     BreakPlanner.spec
+    EpisodeLength.spec
     StoreCheckoutEmails.spec
     StoreCheckoutLogic.spec
     StoreCheckoutShippingErrors.spec

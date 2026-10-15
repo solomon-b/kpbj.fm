@@ -22,13 +22,14 @@ import Data.Aeson qualified as Aeson
 import Data.Either (partitionEithers)
 import Data.Has (getter)
 import Data.Int (Int64)
-import Data.Maybe (isJust, isNothing)
+import Data.Maybe (fromMaybe, isJust, isNothing)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
 import Data.Time (Day)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
+import Domain.EpisodeLength (checkEpisodeFitsSlot)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileStorage (BucketType (..), ResourceType (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
@@ -198,6 +199,7 @@ updateEpisode _showSlug _episodeNumber _user userMetadata episode showModel edit
 
   -- 1. Validation phase (throws on error)
   validDescription <- validateDescription (eefDescription editForm)
+  checkLengthFitsSlot isPast isStaffOrAdmin episode editForm
 
   -- 2. Core update (throws on error)
   let updateData =
@@ -225,6 +227,68 @@ validateDescription mDescription = do
   case Sanitize.validateContentLength 10000 sanitized of
     Left err -> throwValidationError (Sanitize.displayContentValidationError err)
     Right valid -> pure valid
+
+-- | Refuse an edit that leaves the episode too long for its slot.
+--
+-- The station break starts two minutes before the slot ends and cuts the
+-- episode. The check runs when the audio or the slot changes, and the result
+-- has both a length and a slot. It runs before any write, so a refused edit
+-- claims no upload and changes nothing.
+--
+-- The two permission rules repeat the ones in 'execOptionalUpdates' and
+-- 'processScheduleUpdate'. A change those functions skip is not a change here.
+checkLengthFitsSlot ::
+  Bool -> -- isPast
+  Bool -> -- isStaffOrAdmin
+  Episodes.Model ->
+  EpisodeEditForm ->
+  ExceptT HandlerError AppM ()
+checkLengthFitsSlot isPast isStaffOrAdmin episode editForm = do
+  mNewAudio <- readNewAudioLength
+  let audioChanged = isJust mNewAudio
+      slotChanged = resultingTemplateId /= episode.scheduleTemplateId
+      -- New audio replaces the kept audio.
+      mResultingSeconds = fromMaybe keptAudioSeconds mNewAudio
+  when (audioChanged || slotChanged) $
+    case (mResultingSeconds, resultingTemplateId) of
+      (Just audioSeconds, Just templateId) -> checkAgainstTemplate audioSeconds templateId
+      _ -> pure ()
+  where
+    allowFileUpload = not isPast || isStaffOrAdmin
+    allowScheduleChange = not isPast || isStaffOrAdmin
+
+    -- 'Just' when new audio arrives. The inner value is its length, and it is
+    -- 'Nothing' only for a row staged before the length column existed.
+    readNewAudioLength = case eefAudioToken editForm of
+      Just token | allowFileUpload -> do
+        mStaged <- fromRightM throwDatabaseError (execQuery (StagedUploads.getByToken (StagedUploads.Token token)))
+        -- A missing row is not a length problem. The upload step reports it.
+        pure $ fmap StagedUploads.durationSeconds mStaged
+      _ -> pure Nothing
+
+    -- The stored length stays only while the stored audio stays. A cleared
+    -- file leaves its old length in the row, so that length does not count.
+    keptAudioSeconds
+      | eefAudioClear editForm && allowFileUpload = Nothing
+      | isNothing episode.audioFilePath = Nothing
+      | otherwise = episode.durationSeconds
+
+    resultingTemplateId = case parseSlotChange (eefScheduledDate editForm) of
+      Right (Assign newTemplateId _newAirDate) | allowScheduleChange -> Just newTemplateId
+      Right Unschedule | allowScheduleChange -> Nothing
+      _ -> episode.scheduleTemplateId
+
+    checkAgainstTemplate audioSeconds templateId = do
+      mTemplate <- fromRightM throwDatabaseError (execQuery (ShowSchedule.getScheduleTemplateById templateId))
+      case mTemplate of
+        -- An unknown template is not a length problem. The schedule step reports it.
+        Nothing -> pure ()
+        Just template ->
+          case checkEpisodeFitsSlot template.stStartTime template.stEndTime audioSeconds of
+            Right () -> pure ()
+            Left lengthErr -> do
+              Log.logInfo "Rejected episode edit: too long for its slot" (episode.id, audioSeconds, templateId)
+              throwValidationError lengthErr
 
 --------------------------------------------------------------------------------
 -- Optional Updates (accumulate warnings)

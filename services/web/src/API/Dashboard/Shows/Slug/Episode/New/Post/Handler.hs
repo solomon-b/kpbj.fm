@@ -27,6 +27,7 @@ import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
 import Data.Time (Day, UTCTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
+import Domain.EpisodeLength (checkEpisodeFitsSlot)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileStorage (BucketType (..), ResourceType (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
@@ -48,6 +49,7 @@ import Effects.FileUpload qualified as FileUpload
 import Effects.StagedUploads (ClaimError (..), claimAndRelocateUpload, claimErrorToText)
 import Log qualified
 import OrphanInstances.OneRow ()
+import Rel8 (Result)
 import Servant qualified
 import Servant.Links qualified as Links
 import Servant.Multipart (FileData, Mem)
@@ -150,57 +152,81 @@ processEpisodeUpload _userMetadata user showModel form = do
       -- check runs before the upload, so a refused request writes no files.
       airsOnDate <- execQuery (ShowSchedule.templateAirsOn episodeData.scheduleTemplateId (Shows.Id episodeData.showId) episodeData.airDate)
 
-      case (isAuthorized, airsOnDate) of
-        (Left _err, _) -> pure $ Left "Database error checking host permissions"
-        (_, Left _err) -> pure $ Left "Database error checking time slot"
-        (Right isHost, Right airs)
+      -- The slot's start and end times give the longest episode it can hold.
+      templateResult <- execQuery (ShowSchedule.getScheduleTemplateById episodeData.scheduleTemplateId)
+
+      case (isAuthorized, airsOnDate, templateResult) of
+        (Left _err, _, _) -> pure $ Left "Database error checking host permissions"
+        (_, Left _err, _) -> pure $ Left "Database error checking time slot"
+        (_, _, Left _err) -> pure $ Left "Database error checking time slot"
+        (Right isHost, Right airs, Right mTemplate)
           | not isHost -> pure $ Left "You are not authorized to create episodes for this show"
-          | not airs -> do
-              Log.logAttention "Rejected episode upload: the template does not air on that date" (episodeData.showId, episodeData.scheduleTemplateId, episodeData.airDate)
-              pure $ Left "That show does not air in that time slot on that date"
-          | otherwise -> do
-              -- Handle file uploads (pass the air date for file organization)
-              -- Audio: Claimed from staged upload via token (uploaded via XHR before form submission)
-              -- Artwork: Direct upload only (small files don't benefit from staged uploads)
-              -- The storage path reads only the Pacific date back out of this
-              -- instant, so the first instant of the air date gives the right path.
-              uploadResults <- processFileUploads backend mAwsEnv (User.mId user) episodeData.showSlug (Just (startOfPacificDay episodeData.airDate)) (eufArtworkFile form) (eufAudioToken form)
+          | not airs -> rejectSlot episodeData
+          | otherwise -> case mTemplate of
+              -- 'templateAirsOn' found the template, so this branch needs a
+              -- delete between the two reads.
+              Nothing -> rejectSlot episodeData
+              Just slotTemplate -> createEpisode backend mAwsEnv user slotTemplate episodeData form
+  where
+    rejectSlot episodeData = do
+      Log.logAttention "Rejected episode upload: the template does not air on that date" (episodeData.showId, episodeData.scheduleTemplateId, episodeData.airDate)
+      pure $ Left "That show does not air in that time slot on that date"
 
-              case uploadResults of
-                Left uploadErr -> pure $ Left uploadErr
-                Right (audioPath, mDurationSeconds, artworkPath) -> do
-                  -- Create episode insert
-                  let episodeInsert =
-                        Episodes.Insert
-                          { Episodes.eiId = Shows.Id episodeData.showId,
-                            Episodes.eiDescription = episodeData.description,
-                            Episodes.eiAudioFilePath = audioPath,
-                            Episodes.eiAudioFileSize = Nothing, -- TODO: Get from upload
-                            Episodes.eiAudioMimeType = Nothing, -- TODO: Get from upload
-                            Episodes.eiDurationSeconds = mDurationSeconds,
-                            Episodes.eiArtworkUrl = artworkPath,
-                            Episodes.eiScheduleTemplateId = Just episodeData.scheduleTemplateId,
-                            Episodes.eiAirDate = Just episodeData.airDate,
-                            Episodes.eiCreatedBy = User.mId user
-                          }
+-- | Upload the files and insert the episode, its tracks, and its tags.
+--
+-- The caller has checked the host and the slot.
+createEpisode ::
+  StorageBackend ->
+  Maybe AWS.Env ->
+  User.Model ->
+  -- | The slot the episode airs in
+  ShowSchedule.ScheduleTemplate Result ->
+  ParsedEpisodeData ->
+  EpisodeUploadForm ->
+  AppM (Either Text Episodes.Id)
+createEpisode backend mAwsEnv user slotTemplate episodeData form = do
+  -- Handle file uploads (pass the air date for file organization)
+  -- Audio: Claimed from staged upload via token (uploaded via XHR before form submission)
+  -- Artwork: Direct upload only (small files don't benefit from staged uploads)
+  -- The storage path reads only the Pacific date back out of this
+  -- instant, so the first instant of the air date gives the right path.
+  uploadResults <- processFileUploads backend mAwsEnv (User.mId user) episodeData.showSlug slotTemplate (Just (startOfPacificDay episodeData.airDate)) (eufArtworkFile form) (eufAudioToken form)
 
-                  -- Insert episode
-                  episodeResult <- execQuery (Episodes.insertEpisode episodeInsert)
+  case uploadResults of
+    Left uploadErr -> pure $ Left uploadErr
+    Right (audioPath, mDurationSeconds, artworkPath) -> do
+      -- Create episode insert
+      let episodeInsert =
+            Episodes.Insert
+              { Episodes.eiId = Shows.Id episodeData.showId,
+                Episodes.eiDescription = episodeData.description,
+                Episodes.eiAudioFilePath = audioPath,
+                Episodes.eiAudioFileSize = Nothing, -- TODO: Get from upload
+                Episodes.eiAudioMimeType = Nothing, -- TODO: Get from upload
+                Episodes.eiDurationSeconds = mDurationSeconds,
+                Episodes.eiArtworkUrl = artworkPath,
+                Episodes.eiScheduleTemplateId = Just episodeData.scheduleTemplateId,
+                Episodes.eiAirDate = Just episodeData.airDate,
+                Episodes.eiCreatedBy = User.mId user
+              }
 
-                  case episodeResult of
-                    Left err -> do
-                      Log.logInfo "Failed to insert episode" (Text.pack $ show err)
-                      pure $ Left "Failed to create episode"
-                    Right Nothing -> do
-                      Log.logInfo_ "Episode insert returned Nothing"
-                      pure $ Left "Failed to create episode"
-                    Right (Just episodeId) -> do
-                      -- Insert tracks if provided
-                      _ <- insertTracks episodeId episodeData.tracks
-                      -- Replace tags with provided ones (single atomic query)
-                      let tagNames = maybe [] parseTagList (eufTags form)
-                      _ <- execQuery (Episodes.replaceEpisodeTags episodeId tagNames)
-                      pure $ Right episodeId
+      -- Insert episode
+      episodeResult <- execQuery (Episodes.insertEpisode episodeInsert)
+
+      case episodeResult of
+        Left err -> do
+          Log.logInfo "Failed to insert episode" (Text.pack $ show err)
+          pure $ Left "Failed to create episode"
+        Right Nothing -> do
+          Log.logInfo_ "Episode insert returned Nothing"
+          pure $ Left "Failed to create episode"
+        Right (Just episodeId) -> do
+          -- Insert tracks if provided
+          _ <- insertTracks episodeId episodeData.tracks
+          -- Replace tags with provided ones (single atomic query)
+          let tagNames = maybe [] parseTagList (eufTags form)
+          _ <- execQuery (Episodes.replaceEpisodeTags episodeId tagNames)
+          pure $ Right episodeId
 
 -- | Parse form data into structured format with show info
 parseFormDataWithShow :: Shows.Id -> Slug -> EpisodeUploadForm -> Either Sanitize.ContentValidationError ParsedEpisodeData
@@ -283,6 +309,8 @@ data ParsedEpisodeData = ParsedEpisodeData
 -- Audio is always required for episode creation. The upload handler measured
 -- the audio length and stored it on the staged row. This function reads the
 -- row before the claim, because the claim moves the file and spends the token.
+-- Audio too long for the slot is refused before the claim, so the staged row
+-- stays pending and the host can upload a shorter file.
 processFileUploads ::
   -- | Storage backend
   StorageBackend ->
@@ -292,6 +320,8 @@ processFileUploads ::
   User.Id ->
   -- | Show slug (for file organization)
   Slug ->
+  -- | The slot the episode airs in
+  ShowSchedule.ScheduleTemplate Result ->
   -- | Scheduled date (air date for file organization)
   Maybe UTCTime ->
   -- | Artwork file (direct upload)
@@ -300,7 +330,7 @@ processFileUploads ::
   Maybe Text ->
   -- | (audioPath, audio length in seconds, artworkPath)
   AppM (Either Text (Maybe Text, Maybe Int64, Maybe Text))
-processFileUploads backend mAwsEnv userId showSlug mScheduledDate mArtworkFile mAudioToken = do
+processFileUploads backend mAwsEnv userId showSlug slotTemplate mScheduledDate mArtworkFile mAudioToken = do
   -- Get the air date for file organization (use current time as fallback).
   -- NOTE: File paths are set at upload time and never relocated on reschedule.
   -- If downloads are added later, generate user-facing filenames from episode
@@ -319,20 +349,25 @@ processFileUploads backend mAwsEnv userId showSlug mScheduledDate mArtworkFile m
         Right Nothing -> do
           Log.logInfo "Staged audio upload not found" token
           pure $ Left $ claimErrorToText ClaimNotFound
-        Right (Just stagedUpload) -> do
-          -- Claim and relocate to audio/{air_date}/episodes/{show-slug}-{random}.ext
-          result <-
-            claimAndRelocateUpload
-              userId
-              token
-              StagedUploads.EpisodeAudio
-              AudioBucket
-              EpisodeAudio
-              airDate
-              (display showSlug)
-          pure $ case result of
-            Left err -> Left err
-            Right path -> Right (Just path, StagedUploads.durationSeconds stagedUpload)
+        Right (Just stagedUpload) ->
+          case stagedAudioFitsSlot slotTemplate stagedUpload of
+            Left lengthErr -> do
+              Log.logInfo "Rejected episode audio: too long for its slot" (StagedUploads.durationSeconds stagedUpload)
+              pure $ Left lengthErr
+            Right () -> do
+              -- Claim and relocate to audio/{air_date}/episodes/{show-slug}-{random}.ext
+              result <-
+                claimAndRelocateUpload
+                  userId
+                  token
+                  StagedUploads.EpisodeAudio
+                  AudioBucket
+                  EpisodeAudio
+                  airDate
+                  (display showSlug)
+              pure $ case result of
+                Left err -> Left err
+                Right path -> Right (Just path, StagedUploads.durationSeconds stagedUpload)
     _ -> pure $ Left "Audio file is required"
 
   -- Process artwork file (optional, direct upload only)
@@ -352,6 +387,20 @@ processFileUploads backend mAwsEnv userId showSlug mScheduledDate mArtworkFile m
     (Left audioErr, _) -> pure $ Left audioErr
     (Right (audioPath, mDurationSeconds), Left _artworkErr) -> pure $ Right (audioPath, mDurationSeconds, Nothing)
     (Right (audioPath, mDurationSeconds), Right artworkPath) -> pure $ Right (audioPath, mDurationSeconds, artworkPath)
+
+-- | Check that staged audio ends before the station break of its slot.
+--
+-- A staged row with no length passes. Only rows staged before the length
+-- column existed have none, and staged rows expire after an hour.
+stagedAudioFitsSlot ::
+  ShowSchedule.ScheduleTemplate Result ->
+  StagedUploads.Model ->
+  Either Text ()
+stagedAudioFitsSlot slotTemplate stagedUpload =
+  case StagedUploads.durationSeconds stagedUpload of
+    Nothing -> Right ()
+    Just audioSeconds ->
+      checkEpisodeFitsSlot slotTemplate.stStartTime slotTemplate.stEndTime audioSeconds
 
 -- | Insert track listings for episode
 insertTracks ::
