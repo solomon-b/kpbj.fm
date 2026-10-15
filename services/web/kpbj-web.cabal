@@ -628,6 +628,7 @@ library
     Design.FormStyles
     Domain.Types.VariantsPayload
     Domain.BreakPlanner
+    Domain.EpisodeLength
     Effects.AudioDuration
     Effects.BreakPlan
     Effects.AWS
@@ -827,6 +828,7 @@ test-suite kpbj-web-test
        App.CustomContextSpec
        App.DomainsSpec
        Domain.BreakPlannerSpec
+       Domain.EpisodeLengthSpec
        Effects.BreakPlanSpec
        Effects.ContentSanitizationSpec
        Effects.Database.UnderwritersSpec

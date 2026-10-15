@@ -28,7 +28,7 @@ import Test.Database.Helpers (addTestShowHost, insertTestShowWithSchedule, unwra
 import Test.Database.Monad (TestDBConfig, withTestDB)
 import Test.Handler.Fixtures (defaultScheduleInsert, expectSetupRight, mkUserInsert, setupUserModels)
 import Test.Handler.Monad (bracketAppM)
-import Test.Hspec (Spec, describe, expectationFailure, it, shouldSatisfy)
+import Test.Hspec (Spec, describe, expectationFailure, it, shouldBe, shouldSatisfy)
 
 --------------------------------------------------------------------------------
 
@@ -40,7 +40,8 @@ spec =
         it "returns NotFound for non-existent show" test_notFoundForMissingShow
         it "returns ValidationError for missing scheduled date" test_validationErrorForMissingSchedule
         it "returns ValidationError for missing audio token" test_validationErrorForMissingAudio
-        it "staff user creates episode with staged audio" test_staffCreatesEpisode
+        it "staff user creates episode with staged audio at the 58:00 limit of a 1 hour slot" test_staffCreatesEpisode
+        it "rejects staged audio too long for the slot and leaves the upload pending" test_rejectsOverLengthAudio
 
 --------------------------------------------------------------------------------
 
@@ -162,6 +163,8 @@ test_validationErrorForMissingAudio cfg = do
       Right _ -> expectationFailure "Expected Left ValidationError but got Right"
 
 -- | Staff user creates an episode with a pre-staged audio upload.
+--
+-- The default slot runs one hour, so 58:00 is the longest audio it accepts.
 test_staffCreatesEpisode :: TestDBConfig -> IO ()
 test_staffCreatesEpisode cfg = do
   userInsert <- mkUserInsert "ep-new-post-create" UserMetadata.Staff
@@ -192,7 +195,7 @@ test_staffCreatesEpisode cfg = do
                 StagedUploads.siStoragePath = "temp/staging/test-audio-ep-create.mp3",
                 StagedUploads.siMimeType = "audio/mpeg",
                 StagedUploads.siFileSize = 1024,
-                StagedUploads.siDurationSeconds = Just 3600,
+                StagedUploads.siDurationSeconds = Just 3480,
                 StagedUploads.siUploadType = StagedUploads.EpisodeAudio
               }
       _uploadId <- TRX.statement () (StagedUploads.insert stagedInsert)
@@ -227,4 +230,60 @@ test_staffCreatesEpisode cfg = do
           mEpisode `shouldSatisfy` \case
             Nothing -> False
             -- The length comes from the staged upload row, not the form.
-            Just ep -> ep.description == Just "Test episode description." && ep.durationSeconds == Just 3600
+            Just ep -> ep.description == Just "Test episode description." && ep.durationSeconds == Just 3480
+
+-- | Audio one second over 58:00 does not fit a 1 hour slot.
+--
+-- The refusal comes before the claim, so the staged row stays pending and the
+-- host can still use the token after a fix.
+test_rejectsOverLengthAudio :: TestDBConfig -> IO ()
+test_rejectsOverLengthAudio cfg = do
+  userInsert <- mkUserInsert "ep-new-post-too-long" UserMetadata.Staff
+
+  let showInsert =
+        Shows.Insert
+          { Shows.siTitle = "Show For Over Length Audio",
+            Shows.siSlug = Slug "show-for-over-length-audio",
+            Shows.siDescription = Nothing,
+            Shows.siLogoUrl = Nothing,
+            Shows.siStatus = Shows.Active
+          }
+      token = StagedUploads.Token "test-audio-token-ep-too-long"
+
+  bracketAppM cfg $ do
+    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+      (userModel, userMeta) <- setupUserModels userInsert
+      (showId, templateId) <- setupShowWithOpenSchedule showInsert
+      addTestShowHost showId userModel.mId
+      let stagedInsert =
+            StagedUploads.Insert
+              { StagedUploads.siToken = token,
+                StagedUploads.siUserId = userModel.mId,
+                StagedUploads.siOriginalName = "episode-too-long.mp3",
+                StagedUploads.siStoragePath = "temp/staging/test-audio-ep-too-long.mp3",
+                StagedUploads.siMimeType = "audio/mpeg",
+                StagedUploads.siFileSize = 55680000,
+                StagedUploads.siDurationSeconds = Just 3481,
+                StagedUploads.siUploadType = StagedUploads.EpisodeAudio
+              }
+      _uploadId <- TRX.statement () (StagedUploads.insert stagedInsert)
+      pure (userModel, userMeta, templateId)
+    (userModel, userMeta, templateId) <- liftIO $ expectSetupRight dbResult
+
+    let scheduleVal = Text.pack (show (ShowSchedule.unTemplateId templateId)) <> "|" <> testAirDate
+        form = minimalForm "0" (Just scheduleVal) (Just "test-audio-token-ep-too-long")
+    result <- runExceptT $ action userModel userMeta (Slug "show-for-over-length-audio") form
+
+    liftIO $ case result of
+      Left (ValidationError message) ->
+        message `shouldBe` "This episode runs 58:01. Episodes in this 1 hour slot can run at most 58:00, so the station break fits. Trim the audio and upload it again."
+      Left err -> expectationFailure $ "Expected ValidationError but got: " <> show err
+      Right _ -> expectationFailure "Expected Left ValidationError but got Right"
+
+    stagedResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Read $
+          TRX.statement () (StagedUploads.getByToken token)
+    liftIO $ do
+      mStaged <- expectSetupRight stagedResult
+      fmap (.status) mStaged `shouldBe` Just StagedUploads.Pending

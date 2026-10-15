@@ -95,7 +95,7 @@ episodeUploadForm uploadUrl showModel upcomingDates _userMeta = do
       section "MEDIA FILES" $ do
         stagedAudioField "audio_file" uploadUrl "episode_audio" $ do
           label "Episode Audio"
-          hint "Upload an MP3. Maximum 500MB."
+          hint "Upload an MP3. Maximum 500MB. The episode must end at least two minutes before the slot ends, so the station break fits."
           maxSize 500
 
         imageField "artwork_file" $ do
