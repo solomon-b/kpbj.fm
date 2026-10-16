@@ -99,23 +99,17 @@ mkInput day breaks items stationIds stationIdUsed itemUsed =
             (Map.lookup s.simId stationIdUsed)
         | s <- stationIds
         ],
-      piPsas =
-        [ PsaCandidate i.bimId i.bimDurationSeconds (Map.lookup i.bimId itemUsed)
-        | i <- items,
-          i.bimCategory == BreakItems.Psa
-        ],
-      piCreatives = mapMaybe toCreative items
+      piBreakItems =
+        [ BreakItemCandidate
+            { bicId = i.bimId,
+              bicCategory = i.bimCategory,
+              bicUnderwriterId = i.bimUnderwriterId,
+              bicSeconds = i.bimDurationSeconds,
+              bicLastUsed = Map.lookup i.bimId itemUsed
+            }
+        | i <- items
+        ]
     }
-  where
-    toCreative i = do
-      uw <- i.bimUnderwriterId
-      pure
-        Creative
-          { crId = i.bimId,
-            crUnderwriterId = uw,
-            crSeconds = i.bimDurationSeconds,
-            crLastUsed = Map.lookup i.bimId itemUsed
-          }
 
 -- | Forecast the tracks of a future day, without storing anything.
 --

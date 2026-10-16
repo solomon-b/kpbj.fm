@@ -39,20 +39,22 @@ creative ::
   Int64 ->
   -- | Underwriter id
   Int64 ->
-  Creative
+  BreakItemCandidate
 creative itemId uw =
-  Creative (BreakItems.Id itemId) (Underwriters.Id uw) 20 Nothing
+  BreakItemCandidate (BreakItems.Id itemId) BreakItems.Underwriting (Just (Underwriters.Id uw)) 20 Nothing
 
 -- | An announcement last used at the given hour of the test day.
-usedAt :: Int -> Creative -> Creative
-usedAt hour c = c {crLastUsed = Just (UTCTime day (fromIntegral (hour * 3600)))}
+usedAt :: Int -> BreakItemCandidate -> BreakItemCandidate
+usedAt hour c = c {bicLastUsed = Just (UTCTime day (fromIntegral (hour * 3600)))}
 
 -- | A PSA that has never aired. Ids from 100 up are PSAs.
-psa :: Int64 -> Int64 -> PsaCandidate
-psa itemId secs = PsaCandidate (BreakItems.Id itemId) secs Nothing
+psa :: Int64 -> Int64 -> BreakItemCandidate
+psa itemId secs = BreakItemCandidate (BreakItems.Id itemId) BreakItems.Psa Nothing secs Nothing
 
-input :: [PlanBreak] -> [PsaCandidate] -> [Creative] -> PlanInput
-input bs = PlanInput day bs [stationId]
+-- | A day with one 10 second station ID, the given PSAs, and the given
+-- announcements.
+input :: [PlanBreak] -> [BreakItemCandidate] -> [BreakItemCandidate] -> PlanInput
+input bs psas creatives = PlanInput day bs [stationId] (psas <> creatives)
 
 -- | The break items in each break, in break order and play order.
 itemsPerBreak :: [PlanEntry] -> [[BreakItems.Id]]
@@ -75,13 +77,13 @@ spec = describe "Domain.BreakPlanner.planDay" $ do
       [peRef e | e <- entries, pePosition e == 0]
         `shouldBe` replicate 3 (StationIdRef (StationIds.Id 1))
 
-    it "plays the station ID, then the PSAs, then the underwriting" $ do
+    it "plays the station ID, then the underwriting, then the PSAs" $ do
       let entries = planDay (input (showBreaks 1) [psa 100 30, psa 101 30] [creative 5 1])
       map peRef (sortOn pePosition entries)
         `shouldBe` [ StationIdRef (StationIds.Id 1),
+                     BreakItemRef (BreakItems.Id 5),
                      BreakItemRef (BreakItems.Id 100),
-                     BreakItemRef (BreakItems.Id 101),
-                     BreakItemRef (BreakItems.Id 5)
+                     BreakItemRef (BreakItems.Id 101)
                    ]
 
     it "places at most two PSAs in a break" $ do
@@ -96,6 +98,25 @@ spec = describe "Domain.BreakPlanner.planDay" $ do
     it "gives each break a station ID on a 46 break day" $ do
       let entries = planDay (input (showBreaks 46) [] [])
       length [() | PlanEntry _ 0 (StationIdRef _) <- entries] `shouldBe` 46
+
+    it "places at most one station ID in a break" $ do
+      let ids = [StationIdCandidate (StationIds.Id 1) 10 Nothing, StationIdCandidate (StationIds.Id 2) 8 Nothing]
+          i = (input (showBreaks 1) [] []) {piStationIds = ids}
+      map peRef (planDay i) `shouldBe` [StationIdRef (StationIds.Id 1)]
+
+    it "rotates the station IDs, least recently used first" $ do
+      let old = StationIdCandidate (StationIds.Id 1) 10 (Just (UTCTime day 0))
+          new = StationIdCandidate (StationIds.Id 2) 10 Nothing
+          i = (input (showBreaks 3) [] []) {piStationIds = [old, new]}
+      [sid | PlanEntry _ _ (StationIdRef sid) <- planDay i]
+        `shouldBe` map StationIds.Id [2, 1, 2]
+
+    it "plays a station ID longer than the break, and nothing after it" $ do
+      -- An old upload can be longer than the whole break. It still plays, and
+      -- it leaves no time for the announcement or the PSAs.
+      let longId = StationIdCandidate (StationIds.Id 1) 130 Nothing
+          i = (input (showBreaks 1) [psa 100 30] [creative 5 1]) {piStationIds = [longId]}
+      map peRef (planDay i) `shouldBe` [StationIdRef (StationIds.Id 1)]
 
   describe "underwriting" $ do
     it "places at most one announcement in a show break" $ do
@@ -134,9 +155,21 @@ spec = describe "Domain.BreakPlanner.planDay" $ do
           i = (input (showBreaks 1) [psa 100 30] [creative 5 1]) {piStationIds = [longId]}
       itemsPerBreak (planDay i) `shouldBe` [[BreakItems.Id 5]]
 
+    it "leaves out an announcement where the first step gave no spot" $ do
+      -- One underwriter with two recordings gets two spots, in the first two
+      -- of three show breaks. The third break has room, but gets no spot.
+      let entries = planDay (input (showBreaks 3) [] [creative 5 1, creative 6 1])
+      spotsPerBreak entries `shouldBe` [[BreakItems.Id 5], [BreakItems.Id 6], []]
+
+    it "skips the automation break and gives the spot to the show break" $ do
+      let automation = PlanBreak (UTCTime day 32400) AutomationBreak
+          bs = automation : showBreaks 1
+          entries = planDay (input bs [] [creative 5 1])
+      spotsPerBreak entries `shouldBe` [[], [BreakItems.Id 5]]
+
   describe "PSAs" $ do
     it "takes the least recently used first" $ do
-      let old = PsaCandidate (BreakItems.Id 100) 30 (Just (UTCTime day 0))
+      let old = (psa 100 30) {bicLastUsed = Just (UTCTime day 0)}
           new = psa 101 30
           entries = planDay (input (showBreaks 1) [old, new] [])
       itemsPerBreak entries `shouldBe` [[BreakItems.Id 101, BreakItems.Id 100]]
@@ -145,6 +178,25 @@ spec = describe "Domain.BreakPlanner.planDay" $ do
       -- Each PSA is 60 seconds, so only one fits after the station ID.
       let entries = planDay (input (showBreaks 2) [psa 100 60, psa 101 60] [])
       itemsPerBreak entries `shouldBe` [[BreakItems.Id 100], [BreakItems.Id 101]]
+
+    it "skips a PSA that does not fit and takes a shorter one after it" $ do
+      -- A 73 second station ID and the first 30 second PSA leave 17 seconds.
+      -- The second 30 second PSA does not fit, so the 15 second PSA goes in.
+      let longId = StationIdCandidate (StationIds.Id 1) 73 Nothing
+          psas = [psa 100 30, psa 101 30, psa 102 15]
+          i = (input (showBreaks 1) psas []) {piStationIds = [longId]}
+      itemsPerBreak (planDay i) `shouldBe` [[BreakItems.Id 100, BreakItems.Id 102]]
+
+    it "moves only the placed PSAs to the back of the rotation" $ do
+      -- In break 1, PSA 101 does not fit and stays at the front. So break 2
+      -- starts with it. Then PSA 100 does not fit, and PSA 102 goes in.
+      let longId = StationIdCandidate (StationIds.Id 1) 73 Nothing
+          psas = [psa 100 30, psa 101 30, psa 102 15]
+          i = (input (showBreaks 2) psas []) {piStationIds = [longId]}
+      itemsPerBreak (planDay i)
+        `shouldBe` [ [BreakItems.Id 100, BreakItems.Id 102],
+                     [BreakItems.Id 101, BreakItems.Id 102]
+                   ]
 
     it "keeps each break within 120 seconds" $ do
       let psas = [psa i 30 | i <- [100 .. 110]]
