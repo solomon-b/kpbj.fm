@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- | WAI middleware that rate-limits specific public store API endpoints.
+-- | WAI middleware that rate-limits specific API endpoints.
 --
 -- Uses @wai-rate-limit@ with a 'TVar'-backed in-memory store.
 -- Limits are per-client-IP using the @CF-Connecting-IP@ header
@@ -10,6 +10,14 @@
 --
 --   * @POST \/api\/store\/shipping-rates@ — 10 req/min (hits EasyPost)
 --   * @POST \/api\/store\/checkout\/create-session@ — 5 req/min (creates orders)
+--   * @GET \/api\/playout\/now@ — 60 req/min
+--   * @GET \/api\/playout\/fallback@ — 60 req/min
+--   * @GET \/api\/playout\/break@ — 60 req/min
+--   * @POST \/api\/playout\/played@ — 60 req/min
+--
+-- Liquidsoap calls the playout endpoints a few times a minute at most.
+-- The playout limits stop a loop in Liquidsoap from flooding the API.
+-- Each endpoint has its own count.
 --
 -- All other requests pass through untouched.
 module Middleware.RateLimit
@@ -38,7 +46,7 @@ import Network.Wai.RateLimit.Strategy (Strategy (..), fixedWindow)
 
 --------------------------------------------------------------------------------
 
--- | Create rate limiting middleware for public store API endpoints.
+-- | Create rate limiting middleware for the store and playout API endpoints.
 --
 -- Must be called once at startup (allocates in-memory state).
 -- The returned 'Wai.Middleware' is safe to use across threads.
@@ -46,8 +54,16 @@ rateLimitMiddleware :: IO Wai.Middleware
 rateLimitMiddleware = do
   shippingBackend <- newInMemoryBackend
   sessionBackend <- newInMemoryBackend
+  playoutNowBackend <- newInMemoryBackend
+  playoutFallbackBackend <- newInMemoryBackend
+  playoutBreakBackend <- newInMemoryBackend
+  playoutPlayedBackend <- newInMemoryBackend
   let shippingLimiter = fixedWindow shippingBackend 60 10 getClientIP
       sessionLimiter = fixedWindow sessionBackend 60 5 getClientIP
+      playoutNowLimiter = fixedWindow playoutNowBackend 60 60 getClientIP
+      playoutFallbackLimiter = fixedWindow playoutFallbackBackend 60 60 getClientIP
+      playoutBreakLimiter = fixedWindow playoutBreakBackend 60 60 getClientIP
+      playoutPlayedLimiter = fixedWindow playoutPlayedBackend 60 60 getClientIP
       combinedStrategy =
         MkStrategy $ \req ->
           case (Wai.requestMethod req, Wai.pathInfo req) of
@@ -55,6 +71,14 @@ rateLimitMiddleware = do
               strategyOnRequest shippingLimiter req
             ("POST", ["api", "store", "checkout", "create-session"]) ->
               strategyOnRequest sessionLimiter req
+            ("GET", ["api", "playout", "now"]) ->
+              strategyOnRequest playoutNowLimiter req
+            ("GET", ["api", "playout", "fallback"]) ->
+              strategyOnRequest playoutFallbackLimiter req
+            ("GET", ["api", "playout", "break"]) ->
+              strategyOnRequest playoutBreakLimiter req
+            ("POST", ["api", "playout", "played"]) ->
+              strategyOnRequest playoutPlayedLimiter req
             _ -> pure True
   pure $ rateLimiting combinedStrategy
 
