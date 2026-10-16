@@ -1,0 +1,5 @@
+# Most PRs add a CHANGELOG entry under the same heading, so every merge
+# conflicts with every other open PR. The union driver keeps the lines from
+# both sides instead of stopping the rebase. Check the entry order after a
+# rebase. GitHub's web conflict editor ignores this driver.
+CHANGELOG.md merge=union
