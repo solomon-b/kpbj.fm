@@ -11,6 +11,7 @@ where
 
 import API.Links (dashboardEpisodesLinks, rootLink)
 import API.Types
+import Component.Form.Hints (markdownHint)
 import Component.TrackListingEditor qualified as TrackListingEditor
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
@@ -164,7 +165,7 @@ template ctx = do
         textareaField "description" 6 $ do
           label "Description"
           placeholder "Describe this episode. What tracks did you play? Any special guests or themes?"
-          hint "Up to 5000 characters"
+          hint (markdownHint <> " Up to 5000 characters.")
           value descriptionValue
           maxLength 5000
 

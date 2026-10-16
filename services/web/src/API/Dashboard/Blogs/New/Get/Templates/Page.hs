@@ -9,6 +9,7 @@ where
 
 import API.Links (dashboardBlogsLinks, showsLinks)
 import API.Types
+import Component.Form.Hints (markdownHint, plainTextHint)
 import Data.String.Interpolate (i)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
@@ -63,6 +64,7 @@ newBlogPostForm showModel = do
         textareaField "content" 12 $ do
           label "Post Content"
           placeholder "Write your blog post content here..."
+          hint markdownHint
           required
           minLength 10
           maxLength 50000
@@ -76,6 +78,7 @@ newBlogPostForm showModel = do
         textareaField "excerpt" 3 $ do
           label "Excerpt (Optional)"
           placeholder "Short preview of your post (optional - will auto-generate if left blank)"
+          hint plainTextHint
           maxLength 500
 
       footerToggle "status" $ do

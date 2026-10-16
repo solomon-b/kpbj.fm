@@ -11,8 +11,8 @@ import API.Links (showsLinks)
 import API.Types
 import Component.Card.Episode (renderEpisodeCard)
 import Component.Tags qualified as Tags
-import Control.Monad (unless, when)
-import Data.Maybe (fromMaybe, isJust)
+import Control.Monad (unless)
+import Data.Text qualified as Text
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.StorageBackend (StorageBackend)
@@ -20,6 +20,7 @@ import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Markdown (renderContent)
 import Lucid qualified
 import Servant.Links qualified as Links
 
@@ -45,11 +46,13 @@ template backend showModel episode tracks tags = do
     -- Episode card (reuses the same component from show page)
     renderEpisodeCard backend False showModel episode
 
-    -- Description section
-    when (isJust episode.description) $ do
-      Lucid.div_ [class_ $ base ["mt-6"]] $ do
-        Lucid.p_ [class_ $ base [Tokens.textBase, Tokens.fgPrimary]] $
-          Lucid.toHtml (fromMaybe "" episode.description)
+    -- Description section (only if present and not empty)
+    case episode.description of
+      Just description
+        | not (Text.null description) ->
+            Lucid.div_ [class_ $ base ["mt-6"]] $
+              renderContent description
+      _ -> mempty
 
     -- Tags section
     unless (null tags) $ do

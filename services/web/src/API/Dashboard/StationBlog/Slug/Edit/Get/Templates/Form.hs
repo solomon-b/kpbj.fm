@@ -10,6 +10,7 @@ where
 
 import API.Links (dashboardStationBlogLinks)
 import API.Types (DashboardStationBlogRoutes (..))
+import Component.Form.Hints (markdownHint, plainTextHint)
 import Data.Foldable (for_)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
@@ -78,6 +79,7 @@ template backend blogPost tags userMeta = do
           label "Post Content"
           placeholder "Write your blog post content here..."
           value blogPost.bpmContent
+          hint markdownHint
           required
           minLength 10
           maxLength 50000
@@ -92,6 +94,7 @@ template backend blogPost tags userMeta = do
           label "Excerpt (Optional)"
           placeholder "Short preview of your post (optional - will auto-generate if left blank)"
           for_ blogPost.bpmExcerpt value
+          hint plainTextHint
           maxLength 500
 
         textField "tags" $ do

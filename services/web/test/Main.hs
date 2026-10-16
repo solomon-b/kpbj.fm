@@ -116,6 +116,7 @@ import Store.Checkout.EmailsSpec qualified as StoreCheckoutEmails
 import Store.Checkout.LogicSpec qualified as StoreCheckoutLogic
 import Store.Checkout.ShippingErrorsSpec qualified as StoreCheckoutShippingErrors
 import System.Environment (lookupEnv)
+import Templates.MarkdownFieldsSpec qualified as MarkdownFields
 import Test.Database.Setup (withTmpPG)
 import Test.Hspec
 import Test.Hspec.Api.Formatters.V3 (specdoc, useFormatter)
@@ -147,6 +148,7 @@ main = do
     ContentSanitization.spec
     Diff.spec
     Markdown.spec
+    MarkdownFields.spec
     MimeTypeValidation.spec
     StagedUploadsEffects.spec
     AudioUploadHandler.spec

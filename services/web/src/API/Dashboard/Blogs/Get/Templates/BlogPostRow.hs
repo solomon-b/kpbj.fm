@@ -10,6 +10,7 @@ where
 
 import API.Links (dashboardBlogsLinks)
 import API.Types
+import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -19,6 +20,7 @@ import Domain.Types.PostStatus (BlogPostStatus (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Markdown (markdownToPlainText)
 import Lucid qualified
 import Lucid.Alpine
 import Lucid.Base qualified as LucidBase
@@ -57,15 +59,12 @@ renderBlogPostTableRow showModel post = do
     Lucid.td_ cellLinkAttrs $ do
       Lucid.span_ [class_ $ base [Tokens.fontBold]] $
         Lucid.toHtml post.title
-      case post.excerpt of
-        Just excerpt ->
-          Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, "mt-1"]] $ do
-            Lucid.toHtml $ Text.take 100 excerpt
-            if Text.length excerpt > 100 then "..." else ""
-        Nothing ->
-          Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, "mt-1"]] $ do
-            Lucid.toHtml $ Text.take 100 post.content
-            if Text.length post.content > 100 then "..." else ""
+      -- Strip Markdown before the truncation, so the snippet is plain text.
+      let snippetSource = fromMaybe post.content post.excerpt
+          plainSnippet = markdownToPlainText snippetSource
+      Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, "mt-1"]] $ do
+        Lucid.toHtml $ Text.take 100 plainSnippet
+        if Text.length plainSnippet > 100 then "..." else ""
 
     -- Published date
     Lucid.td_ cellLinkAttrs $

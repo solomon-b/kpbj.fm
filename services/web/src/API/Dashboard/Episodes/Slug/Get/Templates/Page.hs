@@ -25,6 +25,7 @@ import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Effects.Markdown (renderContent)
 import Lucid qualified
 
 --------------------------------------------------------------------------------
@@ -99,9 +100,7 @@ template backend _userMeta showModel episode tracks tags = do
               Nothing -> mempty
 
           -- Episode description
-          case episode.description of
-            Just desc -> Lucid.p_ [class_ $ base [Tokens.fgMuted, "leading-relaxed"]] $ Lucid.toHtml desc
-            Nothing -> mempty
+          maybe mempty renderContent episode.description
 
           -- Episode tags
           unless (null tags) $ do

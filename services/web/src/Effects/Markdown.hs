@@ -26,7 +26,11 @@ module Effects.Markdown
     renderMarkdownPure,
 
     -- * Content Rendering
+    renderContent,
     renderContentM,
+
+    -- * Plain Text
+    markdownToPlainText,
 
     -- * Error Types
     MarkdownError (..),
@@ -50,6 +54,7 @@ import Data.Text qualified as Text
 import Data.Text.Encoding qualified as TE
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
+import Effects.ContentSanitization (sanitizeUserContent)
 import Log qualified
 import Lucid qualified
 import Text.HTML (renderNodes)
@@ -61,8 +66,11 @@ import Text.Pandoc
     readerExtensions,
     runPure,
     writeHtml5String,
+    writePlain,
     writerExtensions,
   )
+import Text.Pandoc.Definition (Block (..), nullAttr)
+import Text.Pandoc.Walk (walk)
 import Text.XmlHtml qualified as Xml
 import Text.XmlHtml.Optics
 
@@ -157,6 +165,11 @@ renderMarkdownPure config markdown = do
 -- Low-level API
 
 -- | Parse markdown to HTML string using Pandoc (pure).
+--
+-- The HTML that Pandoc writes goes through 'sanitizeUserContent'. Pandoc
+-- copies link and image targets as the author typed them, so
+-- @[x](javascript:alert(1))@ becomes a live @javascript:@ link. The input
+-- sanitizer does not see it, because the Markdown source contains no HTML.
 parseMarkdownToHtml ::
   MarkdownConfig ->
   Text ->
@@ -164,7 +177,7 @@ parseMarkdownToHtml ::
 parseMarkdownToHtml config md =
   case runPure pandocAction of
     Left err -> Left $ PandocParseError $ Text.pack $ show err
-    Right html -> Right html
+    Right html -> Right $ sanitizeUserContent html
   where
     extensions = configToExtensions config
     readerConfig = def {readerExtensions = extensionsFromList extensions}
@@ -247,6 +260,16 @@ applyTailwindStyles nodes =
 --------------------------------------------------------------------------------
 -- Content Rendering
 
+-- | Render content as markdown with Tailwind CSS styling (pure).
+--
+-- Templates are pure, so they use this function. On error, it shows the
+-- error block to the user. Use 'renderContentM' when you can log the error.
+renderContent :: Text -> Lucid.Html ()
+renderContent content =
+  case renderMarkdownPure defaultMarkdownConfig content of
+    Left err -> wrapContent (renderMarkdownError err)
+    Right html -> wrapContent html
+
 -- | Render content as markdown with Tailwind CSS styling and error logging.
 --
 -- Parses markdown content, applies Tailwind classes, and logs any parsing
@@ -254,7 +277,42 @@ applyTailwindStyles nodes =
 renderContentM :: (Log.MonadLog m) => Text -> m (Lucid.Html ())
 renderContentM content = do
   html <- renderMarkdown defaultMarkdownConfig content
-  pure $ Lucid.div_ [Lucid.class_ "prose max-w-none"] html
+  pure $ wrapContent html
+
+-- | Put rendered markdown in the prose wrapper.
+wrapContent :: Lucid.Html () -> Lucid.Html ()
+wrapContent = Lucid.div_ [Lucid.class_ "prose max-w-none"]
+
+--------------------------------------------------------------------------------
+-- Plain Text
+
+-- | Remove markdown formatting and return plain text on one line.
+--
+-- Summaries and row snippets use this before they truncate the text. Links
+-- keep their text and lose their URL. All runs of whitespace become one
+-- space. On a Pandoc error, the function returns the input unchanged.
+markdownToPlainText :: Text -> Text
+markdownToPlainText markdown =
+  case runPure pandocAction of
+    Left _ -> markdown
+    Right plainText -> collapseWhitespace plainText
+  where
+    extensions = extensionsFromList (configToExtensions defaultMarkdownConfig)
+    readerConfig = def {readerExtensions = extensions}
+    writerConfig = def {writerExtensions = extensions}
+    pandocAction = do
+      pandocAst <- readMarkdown readerConfig markdown
+      writePlain writerConfig (walk removeListMarkers pandocAst)
+    collapseWhitespace = Text.unwords . Text.words
+
+-- | Replace a list with its items, so the plain writer adds no @-@ or @1.@
+-- markers.
+removeListMarkers :: Block -> Block
+removeListMarkers block =
+  case block of
+    BulletList items -> Div nullAttr (concat items)
+    OrderedList _ items -> Div nullAttr (concat items)
+    _ -> block
 
 --------------------------------------------------------------------------------
 -- Error Display

@@ -10,6 +10,7 @@ where
 
 import API.Links (apiLinks)
 import API.Types
+import Component.Form.Hints (markdownHint)
 import Component.ScheduleEditor (ScheduleEditorData (..), renderScheduleEditor)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -68,6 +69,7 @@ template eligibleHosts = do
         textareaField "description" 6 $ do
           label "Description"
           placeholder "Describe your show. What kind of music do you play? What's your show's vibe?"
+          hint markdownHint
           maxLength 5000
 
         textField "tags" $ do

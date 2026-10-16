@@ -1,11 +1,7 @@
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module API.Dashboard.StationBlog.Slug.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
-import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
 import Design (base, class_)
@@ -14,6 +10,7 @@ import Domain.Types.PostStatus (BlogPostStatus (..))
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Effects.Markdown (markdownToPlainText, renderContent)
 import Lucid qualified
 
 -- | Station blog post detail template
@@ -63,16 +60,15 @@ template post tags mAuthor = do
       Just excerpt | not (Text.null excerpt) ->
         Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p6, Tokens.mb6]] $ do
           Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Excerpt"
+          -- Blog cards show the excerpt as plain text, so the preview does too.
           Lucid.p_ [class_ $ base [Tokens.fgMuted]] $
-            Lucid.toHtml excerpt
+            Lucid.toHtml (markdownToPlainText excerpt)
       _ -> mempty
 
     -- Content preview
     Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p6]] $ do
       Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Content"
-      Lucid.div_ [class_ $ base ["prose", "prose-sm", "max-w-none", Tokens.fgMuted, "whitespace-pre-wrap"]] $
-        Lucid.toHtml $
-          truncateContent 2000 post.bpmContent
+      renderContent post.bpmContent
 
 renderStatusBadge :: BlogPostStatus -> Lucid.Html ()
 renderStatusBadge status = case status of
@@ -97,8 +93,3 @@ renderTag tag =
 
 formatDateTime :: UTCTime -> String
 formatDateTime = formatTime defaultTimeLocale "%b %d, %Y at %l:%M %p"
-
-truncateContent :: Int -> Text -> Text
-truncateContent maxLen content
-  | Text.length content <= maxLen = content
-  | otherwise = Text.take maxLen content <> "..."

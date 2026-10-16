@@ -12,6 +12,7 @@ where
 import API.Dashboard.Invitations.Get.Templates.Page (renderScheduleSummary)
 import API.Links (apiLinks, inviteLinks, rootLink, userLinks)
 import API.Types (InviteRoutes (..), Routes (..), UserRoutes (..))
+import Component.Form.Hints (markdownHint)
 import Data.Aeson (Value)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -190,7 +191,7 @@ step2 scheduleData =
           class_ $ base inputClasses
         ]
 
-    formField "Description" $ do
+    formFieldWithHint "Description" markdownHint $ do
       Lucid.textarea_
         [ Lucid.name_ "show_description",
           Lucid.placeholder_ "What's your show about?",
