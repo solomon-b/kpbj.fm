@@ -290,7 +290,7 @@ data Insert = Insert
 
 -- | Insert a new staged upload and return the ID.
 --
--- Uses raw SQL because expires_at relies on the DB default (NOW() + INTERVAL '1 hour').
+-- Uses raw SQL because expires_at relies on the DB default (NOW() + INTERVAL '24 hours').
 insert :: Insert -> Hasql.Statement () (Maybe Id)
 insert Insert {..} =
   interp

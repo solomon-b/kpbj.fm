@@ -16,6 +16,7 @@
     ./ga-poller.nix
     ./mailchimp-reconcile.nix
     ./order-cleanup.nix
+    ./staged-upload-cleanup.nix
     ./monitoring.nix
     ./nginx.nix
     ./sops.nix
@@ -67,6 +68,11 @@
   kpbj.orderCleanup = {
     enable = true;
     dryRun = false;
+  };
+
+  kpbj.stagedUploadCleanup = {
+    enable = true;
+    dryRun = true;
   };
 
   kpbj.nginx = {

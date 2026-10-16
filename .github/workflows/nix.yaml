@@ -140,6 +140,7 @@ jobs:
         run: |
           nix build -L --keep-going --no-link \
             .#checks.x86_64-linux.kpbj-database \
+            .#checks.x86_64-linux.kpbj-storage \
             .#checks.x86_64-linux.kpbj-web \
             .#checks.x86_64-linux.stripe-http \
             .#checks.x86_64-linux.easypost-http \

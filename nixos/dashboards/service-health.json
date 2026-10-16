@@ -48,7 +48,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "node_systemd_unit_state{name=~\"kpbj-token-cleanup.timer|kpbj-sync-host-emails.timer|kpbj-episode-check.timer|kpbj-listener-snapshots.timer|kpbj-order-cleanup.timer|friendly-ghost.timer\", state=\"active\"}",
+          "expr": "node_systemd_unit_state{name=~\"kpbj-token-cleanup.timer|kpbj-sync-host-emails.timer|kpbj-episode-check.timer|kpbj-listener-snapshots.timer|kpbj-order-cleanup.timer|kpbj-staged-upload-cleanup.timer|friendly-ghost.timer\", state=\"active\"}",
           "legendFormat": "{{name}}"
         }
       ],

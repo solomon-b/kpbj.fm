@@ -3,7 +3,7 @@
 #
 # Run this through `just weeder`, which calls scripts/weeder.sh. That script
 # reads the cabal build plan and points weeder at every local component, so
-# one analysis covers all 17 packages at once. A symbol that any package in
+# one analysis covers all 19 packages at once. A symbol that any package in
 # the monorepo uses counts as live. An export reported here is reachable from
 # nothing that ships.
 #

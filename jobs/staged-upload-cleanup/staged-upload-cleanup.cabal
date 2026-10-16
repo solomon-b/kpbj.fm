@@ -1,0 +1,32 @@
+cabal-version:      3.0
+name:               staged-upload-cleanup
+version:            0.1.0
+license:            Apache-2.0
+author:             Solomon Bothwell
+maintainer:         ssbothwell@gmail.com
+build-type:         Simple
+
+executable staged-upload-cleanup
+  main-is:          Main.hs
+  build-depends:    base
+                  , aeson
+                  , amazonka
+                  , hasql
+                  , kpbj-database
+                  , kpbj-storage
+                  , kpbj-types
+                  , log-base
+                  , optparse-applicative
+                  , text
+                  , web-server-core
+  hs-source-dirs:   .
+  default-language: Haskell2010
+  default-extensions:
+      ImportQualifiedPost
+      LambdaCase
+      OverloadedStrings
+      QuasiQuotes
+      RecordWildCards
+      ScopedTypeVariables
+      StrictData
+  ghc-options:      -Wall -threaded -fwrite-ide-info

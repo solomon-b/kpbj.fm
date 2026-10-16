@@ -13,7 +13,7 @@ import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Flash (FlashMessage (..), flashCookie)
-import Control.Monad (unless, when)
+import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
@@ -33,8 +33,8 @@ import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
 import Effects.Database.Tables.StagedUploads qualified as StagedUploads
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.StagedUploadCleanup (deleteFile)
 import Effects.StagedUploads (claimAndRelocateUpload)
+import Effects.Storage (deleteFile)
 import Log qualified
 import Servant qualified
 import Utils (fromMaybeM, fromRightM)
@@ -150,8 +150,9 @@ processNewAudio user ephemeralUpload title audioToken = do
   -- Delete old audio file (best effort)
   backend <- asks (Has.getter @StorageBackend)
   mAwsEnv <- asks (Has.getter @(Maybe AWS.Env))
-  fileDeleted <- deleteFile backend mAwsEnv ephemeralUpload.eumAudioFilePath
-  unless fileDeleted $
-    Log.logInfo "Failed to delete old ephemeral upload file" ephemeralUpload.eumAudioFilePath
+  deleteResult <- deleteFile backend mAwsEnv ephemeralUpload.eumAudioFilePath
+  case deleteResult of
+    Left err -> Log.logInfo "Failed to delete old ephemeral upload file" (ephemeralUpload.eumAudioFilePath <> ": " <> err)
+    Right () -> pure ()
 
   pure (newStoragePath, StagedUploads.mimeType stagedUpload, StagedUploads.fileSize stagedUpload)

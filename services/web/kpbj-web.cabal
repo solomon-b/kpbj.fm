@@ -76,6 +76,7 @@ library
                   , kpbj-types
                   , kpbj-database
                   , kpbj-email
+                  , kpbj-storage
                   , mailchimp-http
                   , rel8
                   , hs-opentelemetry-sdk
@@ -632,7 +633,6 @@ library
     Domain.EpisodeLength
     Effects.AudioDuration
     Effects.BreakPlan
-    Effects.AWS
     Effects.ContentSanitization
     Effects.Diff
     Effects.EmailVerification
@@ -643,11 +643,8 @@ library
     Effects.Mailchimp.Sync
     Effects.Markdown
     Effects.MimeTypeValidation
-    Effects.StagedUploadCleanup
     Effects.StagedUploads
-    Effects.Storage.Local
     Effects.Webhook
-    Effects.Storage.S3
     Helpers.RelativeTime
     Middleware.NotFound
     Middleware.RateLimit

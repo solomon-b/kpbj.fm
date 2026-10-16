@@ -67,6 +67,8 @@
 
               kpbj-types = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-types" ./lib/kpbj-types { });
 
+              kpbj-storage = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-storage" ./lib/kpbj-storage { });
+
               kpbj-database = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-database" ./lib/kpbj-database { });
 
               kpbj-email = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-email" ./lib/kpbj-email { });
@@ -103,6 +105,8 @@
               mailchimp-reconcile = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "mailchimp-reconcile" ./jobs/mailchimp-reconcile { });
 
               order-cleanup = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "order-cleanup" ./jobs/order-cleanup { });
+
+              staged-upload-cleanup = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "staged-upload-cleanup" ./jobs/staged-upload-cleanup { });
 
               lucid-form-builder = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-form-builder" ./services/web/lib/lucid-form-builder { });
 
@@ -155,7 +159,7 @@
         in
         rec {
           devShell = hsPkgs.shellFor {
-            packages = p: map pkgs.haskell.lib.doCheck [ p.kpbj-types p.kpbj-database p.kpbj-email p.kpbj-web p.sync-host-emails p.token-cleanup p.episode-check p.listener-snapshots p.ga-poller p.mailchimp-reconcile ];
+            packages = p: map pkgs.haskell.lib.doCheck [ p.kpbj-types p.kpbj-storage p.kpbj-database p.kpbj-email p.kpbj-web p.sync-host-emails p.token-cleanup p.episode-check p.listener-snapshots p.ga-poller p.mailchimp-reconcile ];
             withHoogle = false;
             buildInputs = [
               pkgs.cabal-install
@@ -194,6 +198,7 @@
             ga-poller = hsPkgs.ga-poller;
             mailchimp-reconcile = hsPkgs.mailchimp-reconcile;
             order-cleanup = hsPkgs.order-cleanup;
+            staged-upload-cleanup = hsPkgs.staged-upload-cleanup;
           };
 
           defaultPackage = packages.kpbj-web;
@@ -227,6 +232,7 @@
             {
               kpbj-web = runTests hsPkgs.kpbj-web;
               kpbj-database = runTests hsPkgs.kpbj-database;
+              kpbj-storage = runTests hsPkgs.kpbj-storage;
               stripe-http = runTests hsPkgs.stripe-http;
               easypost-http = runTests hsPkgs.easypost-http;
               mailchimp-http = runTests hsPkgs.mailchimp-http;
@@ -253,12 +259,13 @@
           ga-poller = self.packages.x86_64-linux.ga-poller;
           mailchimp-reconcile = self.packages.x86_64-linux.mailchimp-reconcile;
           order-cleanup = self.packages.x86_64-linux.order-cleanup;
+          staged-upload-cleanup = self.packages.x86_64-linux.staged-upload-cleanup;
           kpbj-web = self.packages.x86_64-linux.kpbj-web;
         in
         {
           kpbj-prod = nixpkgs.lib.nixosSystem {
             system = "x86_64-linux";
-            specialArgs = { inherit sync-host-emails token-cleanup episode-check listener-snapshots ga-poller mailchimp-reconcile order-cleanup kpbj-web; };
+            specialArgs = { inherit sync-host-emails token-cleanup episode-check listener-snapshots ga-poller mailchimp-reconcile order-cleanup staged-upload-cleanup kpbj-web; };
             modules = [
               sops-nix.nixosModules.sops
               friendly-ghost.nixosModules.default
@@ -267,7 +274,7 @@
           };
           kpbj-staging = nixpkgs.lib.nixosSystem {
             system = "x86_64-linux";
-            specialArgs = { inherit sync-host-emails token-cleanup episode-check listener-snapshots ga-poller mailchimp-reconcile order-cleanup kpbj-web; };
+            specialArgs = { inherit sync-host-emails token-cleanup episode-check listener-snapshots ga-poller mailchimp-reconcile order-cleanup staged-upload-cleanup kpbj-web; };
             modules = [
               sops-nix.nixosModules.sops
               friendly-ghost.nixosModules.default
