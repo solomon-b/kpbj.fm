@@ -4,11 +4,21 @@
 -- plan. The break endpoint reads the plan and chooses nothing, so a repeated
 -- request for a break returns the same tracks.
 --
--- Every break follows one template:
+-- One list of rules, 'rules', controls every break. Each rule names a
+-- category, the most items of that category in one break, the longest upload
+-- for it, and a test that allows or refuses an item in a break. The order of
+-- the list is the priority, and it is also the play order in a break:
 --
--- 1. A station ID, always
--- 2. Up to 'psasPerBreak' PSAs
--- 3. One underwriting announcement, at a show break only
+-- 1. One station ID, in every break
+-- 2. One underwriting announcement, in a show break only
+-- 3. Up to 'psasPerBreak' PSAs, in every break
+--
+-- The plan is made in two steps:
+--
+-- 1. 'placeUnderwriting' gives the day's underwriting spots to show breaks.
+--    It works on the whole day, because the spots must spread evenly.
+-- 2. 'fillBreaks' fills each break in time order. It walks the rules in
+--    priority order and takes the items each rule allows.
 --
 -- Ephemeral filler covers any time left over. Liquidsoap plays it after the
 -- break's tracks end.
@@ -16,8 +26,7 @@ module Domain.BreakPlanner
   ( -- * Input
     PlanBreak (..),
     StationIdCandidate (..),
-    PsaCandidate (..),
-    Creative (..),
+    BreakItemCandidate (..),
     PlanInput (..),
 
     -- * Output
@@ -41,6 +50,7 @@ where
 
 import Data.Int (Int64)
 import Data.List (sortOn)
+import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (isJust)
 import Data.Time (Day, UTCTime)
@@ -68,22 +78,16 @@ data StationIdCandidate = StationIdCandidate
   }
   deriving stock (Show, Eq)
 
--- | A PSA the planner can fill a break with.
-data PsaCandidate = PsaCandidate
-  { pcId :: BreakItems.Id,
-    pcSeconds :: Int64,
+-- | A break item active on the day being planned.
+data BreakItemCandidate = BreakItemCandidate
+  { bicId :: BreakItems.Id,
+    bicCategory :: BreakItems.Category,
+    -- | The underwriter an underwriting announcement acknowledges. Nothing for
+    -- every other category.
+    bicUnderwriterId :: Maybe Underwriters.Id,
+    bicSeconds :: Int64,
     -- | The last planned boundary that used it. Nothing if never used.
-    pcLastUsed :: Maybe UTCTime
-  }
-  deriving stock (Show, Eq)
-
--- | An underwriting announcement active on the day being planned.
-data Creative = Creative
-  { crId :: BreakItems.Id,
-    crUnderwriterId :: Underwriters.Id,
-    crSeconds :: Int64,
-    -- | The last planned boundary that used it. Nothing if never used.
-    crLastUsed :: Maybe UTCTime
+    bicLastUsed :: Maybe UTCTime
   }
   deriving stock (Show, Eq)
 
@@ -93,8 +97,7 @@ data PlanInput = PlanInput
     -- | In time order.
     piBreaks :: [PlanBreak],
     piStationIds :: [StationIdCandidate],
-    piPsas :: [PsaCandidate],
-    piCreatives :: [Creative]
+    piBreakItems :: [BreakItemCandidate]
   }
   deriving stock (Show, Eq)
 
@@ -116,6 +119,106 @@ data PlanEntry = PlanEntry
   deriving stock (Show, Eq)
 
 --------------------------------------------------------------------------------
+-- The rules
+
+-- | The kind of item a rule places.
+--
+-- Station IDs come from their own table, so they get their own category. Each
+-- break item category gets one rotation.
+data Category
+  = StationIdCategory
+  | BreakItemCategory BreakItems.Category
+  deriving stock (Show, Eq, Ord)
+
+-- | One item that a rule can place, as the fill loop sees it.
+data Candidate = Candidate
+  { cdRef :: EntryRef,
+    cdSeconds :: Int64
+  }
+  deriving stock (Show, Eq)
+
+-- | A break as the eligibility tests see it.
+data RuleBreak = RuleBreak
+  { rbBreak :: PlanBreak,
+    -- | The underwriting spot that step 1 gave to this break, if any.
+    rbSpot :: Maybe BreakItems.Id
+  }
+
+-- | How the fill loop places one category in a break.
+data Rule = Rule
+  { ruleCategory :: Category,
+    -- | The most items of this category in one break.
+    ruleMaxCount :: Int,
+    -- | The longest item an upload may carry.
+    --
+    -- The fill loop does not use this value. Items saved before the limit
+    -- can be longer, and the time left in the break limits them.
+    ruleMaxSeconds :: Int64,
+    -- | True when an allowed item goes in even if the break has too little
+    -- time left for it.
+    ruleAlwaysFits :: Bool,
+    -- | True when the item may play in the break.
+    ruleAllows :: RuleBreak -> Candidate -> Bool
+  }
+
+-- | Every rule, in priority order. This is also the play order in a break.
+rules :: [Rule]
+rules = [stationIdRule, underwritingRule, psaRule]
+
+-- | One station ID opens every break.
+--
+-- An old station ID can be longer than 'breakSeconds'. It still plays, and the
+-- rules after it get the time that is left, if any.
+stationIdRule :: Rule
+stationIdRule =
+  Rule
+    { ruleCategory = StationIdCategory,
+      ruleMaxCount = 1,
+      ruleMaxSeconds = 10,
+      ruleAlwaysFits = True,
+      ruleAllows = allowEverywhere
+    }
+
+-- | One underwriting announcement, in a show break only.
+--
+-- Only the spot that 'placeUnderwriting' gave to the break can play. The rule
+-- comes before the PSAs, so a long station ID costs a PSA and never the
+-- announcement.
+underwritingRule :: Rule
+underwritingRule =
+  Rule
+    { ruleCategory = BreakItemCategory BreakItems.Underwriting,
+      ruleMaxCount = 1,
+      ruleMaxSeconds = 30,
+      ruleAlwaysFits = False,
+      ruleAllows = allowAssignedSpot
+    }
+
+-- | Up to two PSAs, in every break.
+psaRule :: Rule
+psaRule =
+  Rule
+    { ruleCategory = BreakItemCategory BreakItems.Psa,
+      ruleMaxCount = 2,
+      ruleMaxSeconds = 30,
+      ruleAlwaysFits = False,
+      ruleAllows = allowEverywhere
+    }
+
+-- | Allow every item in every break.
+allowEverywhere :: RuleBreak -> Candidate -> Bool
+allowEverywhere _ _ = True
+
+-- | Allow only the underwriting spot that step 1 gave to this show break.
+allowAssignedSpot :: RuleBreak -> Candidate -> Bool
+allowAssignedSpot ruleBreak candidate =
+  case rbSpot ruleBreak of
+    Nothing -> False
+    Just spotId ->
+      pbKind (rbBreak ruleBreak) == ShowBreak
+        && cdRef candidate == BreakItemRef spotId
+
+--------------------------------------------------------------------------------
 -- The break template
 
 -- | How long a break runs, in seconds.
@@ -124,7 +227,7 @@ breakSeconds = 120
 
 -- | The most PSAs one break carries.
 psasPerBreak :: Int
-psasPerBreak = 2
+psasPerBreak = ruleMaxCount psaRule
 
 -- | The most announcements one underwriter airs in a day, across all of its
 -- recordings.
@@ -139,123 +242,163 @@ underwritingDailyCap = 2
 -- With 'psaMaxSeconds' and 'underwritingMaxSeconds' this leaves 20 seconds for
 -- a show promo, so a full break always fits in 'breakSeconds'.
 stationIdMaxSeconds :: Int64
-stationIdMaxSeconds = 10
+stationIdMaxSeconds = ruleMaxSeconds stationIdRule
 
 -- | The longest PSA an upload may carry.
 psaMaxSeconds :: Int64
-psaMaxSeconds = 30
+psaMaxSeconds = ruleMaxSeconds psaRule
 
 -- | The longest underwriting announcement an upload may carry.
 underwritingMaxSeconds :: Int64
-underwritingMaxSeconds = 30
+underwritingMaxSeconds = ruleMaxSeconds underwritingRule
 
 --------------------------------------------------------------------------------
 -- Planning
 
--- | One break while the planner fills it.
-data Slot = Slot
-  { slBreak :: PlanBreak,
-    slStationId :: Maybe StationIdCandidate,
-    slUsed :: Int64,
-    slPsas :: [BreakItems.Id],
-    slSpot :: Maybe BreakItems.Id
-  }
-
 -- | Plan every break of one day.
 --
--- The underwriting spot is placed before the PSAs, so the PSAs fill the time
--- it leaves. A station ID longer than the template allows then costs a PSA,
--- never the announcement.
+-- Step 1 gives the underwriting spots to show breaks. Step 2 fills each break
+-- from the rules.
 planDay :: PlanInput -> [PlanEntry]
 planDay input =
-  concatMap toEntries $
-    fillPsas (piPsas input) $
-      placeUnderwriting (piCreatives input) $
-        assignStationIds (piStationIds input) (piBreaks input)
-
--- | Give each break the least recently used station ID, rotating through them.
---
--- A station ID never used goes first. Ties go to the lower id.
-assignStationIds :: [StationIdCandidate] -> [PlanBreak] -> [Slot]
-assignStationIds candidates = go (sortOn key candidates)
+  fillBreaks spots startRotations (piBreaks input)
   where
-    key c = (isJust (sicLastUsed c), sicLastUsed c, sicId c)
-    go _ [] = []
-    go [] (b : bs) = Slot b Nothing 0 [] Nothing : go [] bs
-    go (c : cs) (b : bs) = Slot b (Just c) (sicSeconds c) [] Nothing : go (cs <> [c]) bs
+    spots = placeUnderwriting (piBreakItems input) (piBreaks input)
+    startRotations = initialRotations (piStationIds input) (piBreakItems input)
 
--- | Place the day's underwriting, one spot per show break at most.
+-- | The first rotation of each category, least recently used first.
+--
+-- An item never used goes first. Ties go to the lower id.
+initialRotations :: [StationIdCandidate] -> [BreakItemCandidate] -> Map Category [Candidate]
+initialRotations stationIds items =
+  Map.fromList (stationIdRotation : breakItemRotations)
+  where
+    stationIdRotation =
+      (StationIdCategory, map stationIdToCandidate (sortOn stationIdKey stationIds))
+
+    breakItemRotations =
+      [ (BreakItemCategory category, map breakItemToCandidate (sortOn breakItemKey inCategory))
+      | category <- [minBound .. maxBound],
+        let inCategory = filter (\item -> bicCategory item == category) items
+      ]
+
+    stationIdToCandidate s = Candidate (StationIdRef (sicId s)) (sicSeconds s)
+    breakItemToCandidate item = Candidate (BreakItemRef (bicId item)) (bicSeconds item)
+
+-- | Sort key that puts a never-used station ID first, then the oldest use.
+stationIdKey :: StationIdCandidate -> (Bool, Maybe UTCTime, StationIds.Id)
+stationIdKey s = (isJust (sicLastUsed s), sicLastUsed s, sicId s)
+
+-- | Sort key that puts a never-used break item first, then the oldest use.
+breakItemKey :: BreakItemCandidate -> (Bool, Maybe UTCTime, BreakItems.Id)
+breakItemKey item = (isJust (bicLastUsed item), bicLastUsed item, bicId item)
+
+-- | Step 1. Give the day's underwriting spots to show breaks, one per break at
+-- most.
 --
 -- Underwriters take turns, least recently used first, up to
 -- 'underwritingDailyCap' rounds. When the turns outnumber the show breaks, the
 -- underwriters used least recently keep their turns, so the share evens out
 -- over the days. The spots spread evenly over the day's show breaks. Each
 -- underwriter's recordings alternate, least recently used first.
-placeUnderwriting :: [Creative] -> [Slot] -> [Slot]
-placeUnderwriting creatives slots =
-  foldl place slots (zip positions turns)
+--
+-- The result maps a break boundary to its spot. The fill loop checks that the
+-- spot fits.
+placeUnderwriting :: [BreakItemCandidate] -> [PlanBreak] -> Map UTCTime BreakItems.Id
+placeUnderwriting items breaks =
+  Map.fromList (zip positions (map bicId turns))
   where
-    showIdx = [ix | (ix, s) <- zip [0 :: Int ..] slots, pbKind (slBreak s) == ShowBreak]
-    breaks = length showIdx
+    showBoundaries = [pbBoundary b | b <- breaks, pbKind b == ShowBreak]
+    showBreakCount = length showBoundaries
 
     -- Each underwriter's recordings, least recently used first.
     byUnderwriter =
-      Map.map (sortOn lastUsedKey) $
-        Map.fromListWith (<>) [(crUnderwriterId c, [c]) | c <- creatives]
-    underwriterKey (uw, cs) = (lastAired cs, uw)
-    lastAired cs = maximum (map crLastUsed cs)
+      Map.map (sortOn breakItemKey) $
+        Map.fromListWith (<>) (concatMap withUnderwriter items)
+    withUnderwriter item =
+      case (bicCategory item, bicUnderwriterId item) of
+        (BreakItems.Underwriting, Just underwriterId) -> [(underwriterId, [item])]
+        _ -> []
+    underwriterKey (underwriterId, recordings) = (lastAired recordings, underwriterId)
+    lastAired recordings = maximum (map bicLastUsed recordings)
     ordered = sortOn underwriterKey (Map.toList byUnderwriter)
 
     -- Round r gives each underwriter its r-th recording, cycling.
     allTurns =
-      [ cs !! (r `mod` length cs)
+      [ recordings !! (r `mod` length recordings)
       | r <- [0 .. underwritingDailyCap - 1],
-        (_, cs) <- ordered
+        (_, recordings) <- ordered
       ]
-    turns = take breaks allTurns
-    spots = length turns
+    turns = take showBreakCount allTurns
+    spotCount = length turns
     positions =
-      [showIdx !! ((i * breaks) `div` spots) | i <- [0 .. spots - 1]]
+      [ showBoundaries !! ((i * showBreakCount) `div` spotCount)
+      | i <- [0 .. spotCount - 1]
+      ]
 
-    place ss (ix, c) = updateAt ix (addSpot c) ss
-    addSpot c s
-      | slUsed s + crSeconds c <= breakSeconds =
-          s {slUsed = slUsed s + crSeconds c, slSpot = Just (crId c)}
-      | otherwise = s
-
--- | Sort key that puts never-used first, then the oldest use.
-lastUsedKey :: Creative -> (Bool, Maybe UTCTime, BreakItems.Id)
-lastUsedKey c = (isJust (crLastUsed c), crLastUsed c, crId c)
-
--- | Fill each break with up to 'psasPerBreak' PSAs, least recently used first.
+-- | Step 2. Fill each break in time order.
 --
--- A PSA that does not fit in the time left is skipped, and the walk continues.
--- A PSA placed in a break moves to the back of the rotation.
-fillPsas :: [PsaCandidate] -> [Slot] -> [Slot]
-fillPsas candidates = go (sortOn key candidates)
+-- Each category keeps its own rotation from one break to the next.
+fillBreaks :: Map UTCTime BreakItems.Id -> Map Category [Candidate] -> [PlanBreak] -> [PlanEntry]
+fillBreaks _ _ [] = []
+fillBreaks spots rotations (planBreak : laterBreaks) =
+  toEntries planBreak placed <> fillBreaks spots nextRotations laterBreaks
   where
-    key p = (isJust (pcLastUsed p), pcLastUsed p, pcId p)
-    go _ [] = []
-    go rotation (s : ss) =
-      let s' = foldl step s rotation
-          placed = slPsas s'
-          rotation' =
-            [p | p <- rotation, pcId p `notElem` placed]
-              <> [p | p <- rotation, pcId p `elem` placed]
-       in s' : go rotation' ss
-    step s p
-      | length (slPsas s) < psasPerBreak && slUsed s + pcSeconds p <= breakSeconds =
-          s {slUsed = slUsed s + pcSeconds p, slPsas = slPsas s <> [pcId p]}
-      | otherwise = s
+    ruleBreak = RuleBreak planBreak (Map.lookup (pbBoundary planBreak) spots)
+    filled = foldl (applyRule ruleBreak) (Filling 0 [] rotations) rules
+    placed = flPlaced filled
+    nextRotations = flRotations filled
 
--- | Turn a filled break into its entries: station ID, PSAs, then the spot.
-toEntries :: Slot -> [PlanEntry]
-toEntries s =
-  zipWith (PlanEntry (pbBoundary (slBreak s))) [0 ..] $
-    maybe [] (\sid -> [StationIdRef (sicId sid)]) (slStationId s)
-      <> map BreakItemRef (slPsas s)
-      <> maybe [] (\c -> [BreakItemRef c]) (slSpot s)
+-- | One break while the fill loop fills it.
+data Filling = Filling
+  { -- | The seconds that the placed items take.
+    flUsed :: Int64,
+    -- | The placed items, in play order.
+    flPlaced :: [Candidate],
+    flRotations :: Map Category [Candidate]
+  }
 
--- | Replace the element at an index.
-updateAt :: Int -> (a -> a) -> [a] -> [a]
-updateAt ix f xs = [if j == ix then f x else x | (j, x) <- zip [0 ..] xs]
+-- | Place the items that one rule takes, and move them to the back of their
+-- rotation.
+applyRule :: RuleBreak -> Filling -> Rule -> Filling
+applyRule ruleBreak filling rule =
+  Filling
+    { flUsed = flUsed filling + sum (map cdSeconds taken),
+      flPlaced = flPlaced filling <> taken,
+      flRotations = Map.insert category nextRotation (flRotations filling)
+    }
+  where
+    category = ruleCategory rule
+    rotation = Map.findWithDefault [] category (flRotations filling)
+    taken = takeByRule ruleBreak rule (flUsed filling) rotation
+    takenRefs = map cdRef taken
+    nextRotation =
+      [c | c <- rotation, cdRef c `notElem` takenRefs] <> taken
+
+-- | Walk a rotation in order and take each item the rule allows and that fits,
+-- up to the rule's max count.
+--
+-- An item that does not fit in the time left is skipped, and the walk
+-- continues.
+takeByRule ::
+  RuleBreak ->
+  Rule ->
+  -- | Seconds already used in the break
+  Int64 ->
+  [Candidate] ->
+  [Candidate]
+takeByRule ruleBreak rule startUsed = go startUsed 0
+  where
+    go _ _ [] = []
+    go used count (candidate : rest)
+      | count >= ruleMaxCount rule = []
+      | allowed && fits = candidate : go (used + cdSeconds candidate) (count + 1) rest
+      | otherwise = go used count rest
+      where
+        allowed = ruleAllows rule ruleBreak candidate
+        fits = ruleAlwaysFits rule || used + cdSeconds candidate <= breakSeconds
+
+-- | Turn a filled break into its entries, in play order.
+toEntries :: PlanBreak -> [Candidate] -> [PlanEntry]
+toEntries planBreak placed =
+  zipWith (PlanEntry (pbBoundary planBreak)) [0 ..] (map cdRef placed)
