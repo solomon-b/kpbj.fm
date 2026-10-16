@@ -5,6 +5,7 @@ module Effects.Storage.Local
     storeFileLocal,
     storeFileStagingLocalFromFile,
     moveFileLocal,
+    deleteFileLocal,
     buildLocalPath,
     buildLocalStagingPath,
   )
@@ -19,8 +20,9 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.FileStorage (BucketType, DateHierarchy, ResourceType, buildStagingKey, buildStorageKey)
 import Domain.Types.StorageBackend (LocalStorageConfig (..))
-import System.Directory (copyFile, createDirectoryIfMissing, renameFile)
+import System.Directory (copyFile, createDirectoryIfMissing, removeFile, renameFile)
 import System.FilePath (takeDirectory, (</>))
+import System.IO.Error (isDoesNotExistError)
 
 --------------------------------------------------------------------------------
 
@@ -151,3 +153,20 @@ moveFileLocal config sourceKey destBucketType destResourceType destDateHier dest
       pure $ Left $ "Failed to move file: " <> Text.pack (show err)
     Right () ->
       pure $ Right destKey
+
+-- | Delete a file from local storage.
+--
+-- A file that does not exist counts as success, the same as an S3 delete.
+deleteFileLocal ::
+  (MonadIO m) =>
+  LocalStorageConfig ->
+  -- | Object key (relative path)
+  Text ->
+  m (Either Text ())
+deleteFileLocal config key = liftIO $ do
+  result <- Exception.try $ removeFile (localStorageRoot config </> Text.unpack key)
+  pure $ case result of
+    Right () -> Right ()
+    Left (err :: Exception.IOException)
+      | isDoesNotExistError err -> Right ()
+      | otherwise -> Left $ "Failed to delete file: " <> Text.pack (show err)

@@ -45,8 +45,8 @@ import Domain.Types.StorageBackend (StorageBackend (..))
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.StagedUploads qualified as StagedUploads
 import Effects.Database.Tables.User qualified as User
-import Effects.StagedUploadCleanup (deleteFile)
 import Effects.StagedUploads (generateSecureToken)
+import Effects.Storage (deleteFile)
 import Effects.Storage.Local qualified as Local (storeFileStagingLocalFromFile)
 import Effects.Storage.S3 qualified as S3 (storeFileStagingS3)
 import Log qualified

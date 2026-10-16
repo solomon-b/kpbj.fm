@@ -19,7 +19,7 @@ import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Effects.StagedUploadCleanup (deleteFile)
+import Effects.Storage (deleteFile)
 import Log qualified
 import Lucid qualified
 import Utils (fromMaybeM, fromRightM)
@@ -81,9 +81,10 @@ deleteEphemeralUpload ephemeralUpload = do
   mAwsEnv <- asks (Has.getter @(Maybe AWS.Env))
 
   -- 2. Delete file from storage (best effort - continue even if file deletion fails)
-  fileDeleted <- deleteFile backend mAwsEnv ephemeralUpload.eumAudioFilePath
-  unless fileDeleted $
-    Log.logInfo "Failed to delete ephemeral upload file from storage" ephemeralUpload.eumAudioFilePath
+  deleteResult <- deleteFile backend mAwsEnv ephemeralUpload.eumAudioFilePath
+  case deleteResult of
+    Left err -> Log.logInfo "Failed to delete ephemeral upload file from storage" (ephemeralUpload.eumAudioFilePath <> ": " <> err)
+    Right () -> pure ()
 
   -- 3. Delete database record
   execQuery (EphemeralUploads.deleteEphemeralUpload ephemeralUpload.eumId) >>= \case

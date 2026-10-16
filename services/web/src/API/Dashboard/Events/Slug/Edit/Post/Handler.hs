@@ -36,7 +36,7 @@ import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (uploadEventGalleryImage, uploadEventPosterImage)
-import Effects.StagedUploadCleanup (deleteFile)
+import Effects.Storage (deleteFile)
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Servant qualified
@@ -183,10 +183,10 @@ updateEvent eventId event editForm = do
       forM_ imagesToDelete $ \(_imageId, imagePath) -> do
         storageBackend <- lift $ asks getter
         mAwsEnv <- lift $ asks getter
-        deleted <- lift $ deleteFile storageBackend mAwsEnv imagePath
-        if deleted
-          then Log.logInfo "Deleted event gallery image file" imagePath
-          else Log.logInfo "Failed to delete event gallery image file (may not exist)" imagePath
+        deleteResult <- lift $ deleteFile storageBackend mAwsEnv imagePath
+        case deleteResult of
+          Right () -> Log.logInfo "Deleted event gallery image file" imagePath
+          Left err -> Log.logInfo "Failed to delete event gallery image file" (imagePath <> ": " <> err)
 
       let detailUrl = rootLink $ dashboardEventsLinks.detail eventId newSlug
           flash

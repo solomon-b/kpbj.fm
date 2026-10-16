@@ -21,19 +21,16 @@ where
 --------------------------------------------------------------------------------
 
 import Amazonka qualified as AWS
-import App.Config (Environment (..))
 import App.Context (AppContext (..))
-import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Has qualified as Has
 import Data.Text (Text)
-import Data.Text qualified as Text
 import Data.Time (getCurrentTime)
 import Domain.Types.StorageBackend
 import Effects.AWS qualified as AWS
+import Effects.Storage.Config (S3ConfigResult (..), StorageConfigError (..), loadStorageConfig, selectStorageBackend)
 import Log qualified
-import System.Environment (lookupEnv)
 
 --------------------------------------------------------------------------------
 
@@ -55,64 +52,10 @@ instance Has.Has (Maybe AWS.Env) StorageContext where
 
 --------------------------------------------------------------------------------
 
--- | S3 configuration result.
-data S3ConfigResult
-  = -- | No S3 env vars set (fatal in Production/Staging, ignored in Development)
-    NoS3Config
-  | -- | All required S3 env vars set
-    ValidS3Config S3StorageConfig
-  | -- | Some but not all S3 env vars set - configuration error
-    PartialS3Config
-      [Text]
-      -- | (missing vars, present vars)
-      [Text]
-
--- | Load storage configuration from environment (Phase 1).
---
--- Reads: BUCKET_NAME, AWS_REGION, AWS_ENDPOINT_URL_S3, S3_BASE_URL
--- Does NOT determine backend - that requires Environment from AppContext.
-loadStorageConfig :: (MonadIO m) => m S3ConfigResult
-loadStorageConfig = liftIO $ do
-  mBucket <- lookupEnvText "BUCKET_NAME"
-  mRegion <- lookupEnvText "AWS_REGION"
-  mEndpoint <- lookupEnvText "AWS_ENDPOINT_URL_S3"
-  mBaseUrl <- lookupEnvText "S3_BASE_URL"
-
-  case (mBucket, mRegion) of
-    -- All required vars set - valid configuration
-    (Just bucket, Just region) -> do
-      let baseUrl = case mBaseUrl of
-            -- Explicit base URL override (for custom domains, CDNs, etc.)
-            Just url -> Text.dropWhileEnd (== '/') url
-            Nothing -> case mEndpoint of
-              -- S3-compatible: derive base URL from endpoint (bucket subdomain)
-              Just endpoint -> "https://" <> bucket <> "." <> stripScheme endpoint
-              -- Standard AWS S3: use standard URL format
-              Nothing -> "https://" <> bucket <> ".s3." <> region <> ".amazonaws.com"
-      pure $
-        ValidS3Config
-          S3StorageConfig
-            { s3BucketName = bucket,
-              s3Region = region,
-              s3BaseUrl = baseUrl,
-              s3EndpointUrl = mEndpoint
-            }
-    -- No vars set - no S3 configured
-    (Nothing, Nothing) ->
-      pure NoS3Config
-    -- Partial configuration - error
-    _ -> do
-      let envVars =
-            [ ("BUCKET_NAME", mBucket),
-              ("AWS_REGION", mRegion)
-            ]
-          missing = [name | (name, Nothing) <- envVars]
-          present = [name | (name, Just _) <- envVars]
-      pure $ PartialS3Config missing present
-
 -- | Build storage context with AppContext (Phase 2).
 --
--- Uses appEnvironment to decide Local vs S3, appLoggerEnv for logging.
+-- 'selectStorageBackend' chooses the backend from appEnvironment and the
+-- S3 configuration. appLoggerEnv receives the log messages.
 --
 -- Logic:
 --   - Development + any config → LocalStorage (always)
@@ -128,9 +71,9 @@ withStorageContext appCtx s3ConfigResult action = do
   let logEnv = appLoggerEnv appCtx
       env = appEnvironment appCtx
 
-  case (env, s3ConfigResult) of
+  case selectStorageBackend env s3ConfigResult of
     -- Partial config is always an error, regardless of environment
-    (_, PartialS3Config missing present) -> do
+    Left (PartialS3ConfigError missing present) -> do
       logStorageError logEnv "Partial S3 configuration detected" $
         Aeson.object
           [ "missing_vars" .= missing,
@@ -138,17 +81,26 @@ withStorageContext appCtx s3ConfigResult action = do
             "hint" .= ("Set all required env vars: BUCKET_NAME, AWS_REGION" :: Text)
           ]
       error "Fatal: Partial S3 configuration"
+    -- Staging/Production without S3 config
+    Left (MissingS3ConfigError _) -> do
+      logStorageError logEnv "S3 configuration required" $
+        Aeson.object
+          [ "environment" .= show env,
+            "required_vars" .= (["BUCKET_NAME", "AWS_REGION"] :: [Text]),
+            "hint" .= ("For S3-compatible services (DigitalOcean Spaces, MinIO), also set AWS_ENDPOINT_URL_S3" :: Text)
+          ]
+      error $ "Fatal: S3 configuration required for " <> show env
     -- Development always uses local storage
-    (Development, _) -> do
+    Right (LocalStorage localConfig) -> do
       logStorageInit logEnv "local" $
-        Aeson.object ["environment" .= ("Development" :: Text)]
+        Aeson.object ["environment" .= show env]
       action
         StorageContext
-          { storageBackend = LocalStorage defaultLocalConfig,
+          { storageBackend = LocalStorage localConfig,
             awsEnv = Nothing
           }
     -- Staging/Production with valid S3 config
-    (_, ValidS3Config s3Config) -> do
+    Right (S3Storage s3Config) -> do
       awsEnv' <- AWS.initAWSEnv (s3Region s3Config) (s3EndpointUrl s3Config)
       logStorageInit logEnv "s3" $
         Aeson.object
@@ -162,15 +114,6 @@ withStorageContext appCtx s3ConfigResult action = do
           { storageBackend = S3Storage s3Config,
             awsEnv = Just awsEnv'
           }
-    -- Staging/Production without S3 config
-    (_, NoS3Config) -> do
-      logStorageError logEnv "S3 configuration required" $
-        Aeson.object
-          [ "environment" .= show env,
-            "required_vars" .= (["BUCKET_NAME", "AWS_REGION"] :: [Text]),
-            "hint" .= ("For S3-compatible services (DigitalOcean Spaces, MinIO), also set AWS_ENDPOINT_URL_S3" :: Text)
-          ]
-      error $ "Fatal: S3 configuration required for " <> show env
 
 -- | Log storage initialization with structured logging.
 logStorageInit :: Log.LoggerEnv -> Text -> Aeson.Value -> IO ()
@@ -184,16 +127,3 @@ logStorageError :: Log.LoggerEnv -> Text -> Aeson.Value -> IO ()
 logStorageError logEnv message details = do
   time <- getCurrentTime
   Log.logMessageIO logEnv time Log.LogAttention message details
-
--- | Look up an environment variable and convert to Text.
-lookupEnvText :: String -> IO (Maybe Text)
-lookupEnvText name = do
-  mVal <- lookupEnv name
-  pure $ Text.pack <$> mVal
-
--- | Strip the scheme (https:// or http://) from a URL.
-stripScheme :: Text -> Text
-stripScheme url
-  | "https://" `Text.isPrefixOf` url = Text.drop 8 url
-  | "http://" `Text.isPrefixOf` url = Text.drop 7 url
-  | otherwise = url
