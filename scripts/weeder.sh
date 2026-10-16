@@ -15,6 +15,10 @@
 # local ones carry the dist-dir that holds their .hie files. The list follows
 # a GHC upgrade, a version bump, and a new package with no edit here.
 #
+# A current build tree can also hold the .hie file of a module that was
+# deleted or renamed. The script removes each .hie file that has no source
+# module before weeder runs, and it names each file that it removes.
+#
 # Every local component needs -fwrite-ide-info in its ghc-options, or weeder
 # cannot see it. The script names the components that produced no .hie files,
 # and it separates the two reasons a component has none. Either the stanza does
@@ -93,6 +97,76 @@ mapfile -t PLAN_ROWS < <(
 if [ "${#PLAN_ROWS[@]}" -eq 0 ]; then
   echo "error: no local components in $PLAN." >&2
   exit 1
+fi
+
+# The hs-source-dirs of a package, as paths from the repo root. This is the
+# union over all stanzas of the .cabal file.
+source_dirs_of() {
+  local cabal_file="$1" pkg_dir dir
+  pkg_dir=$(dirname "$cabal_file")
+  grep -oP '^\s*hs-source-dirs:\s*\K.*' "$cabal_file" | tr ',' ' ' |
+    while read -r -a dirs; do
+      for dir in "${dirs[@]}"; do
+        echo "$pkg_dir/${dir//\"/}"
+      done
+    done
+}
+
+# Does module path $2 (Foo/Bar) have a source file in one of the dirs?
+has_source() {
+  local mod_path="$1" dir ext
+  shift
+  for dir in "$@"; do
+    for ext in hs lhs hsc chs x y; do
+      [ -f "$dir/$mod_path.$ext" ] && return 0
+    done
+  done
+  return 1
+}
+
+# GHC does not delete the .hie file of a module that no longer exists. Weeder
+# then reads it, so a deleted module counts as live code and its findings
+# name files that are gone. Remove each .hie file that has no source module.
+# Cabal never needs it again, because the module is gone.
+#
+# A .hie file sits at <build>/extra-compilation-artifacts/hie/Foo/Bar.hie for
+# module Foo.Bar. Two kinds of module have no file in hs-source-dirs:
+#
+#   1. Main, because main-is can name any file.
+#   2. Autogen modules such as Paths_*, which cabal writes under the build tree.
+#
+# This check does not catch a module whose source file still exists but that
+# its stanza no longer lists. Run 'just weeder-fresh' for that case.
+declare -A SEEN_HIE
+STALE_HIE=()
+for row in "${PLAN_ROWS[@]}"; do
+  IFS=$'\t' read -r pkg_name _component dir <<<"$row"
+  [ -d "$dir" ] || continue
+  cabal_file="${CABAL_OF[$pkg_name]:-}"
+  [ -n "$cabal_file" ] || continue
+  mapfile -t SOURCE_DIRS < <(source_dirs_of "$cabal_file")
+
+  while IFS= read -r hie; do
+    [ -n "${SEEN_HIE[$hie]:-}" ] && continue
+    SEEN_HIE["$hie"]=1
+
+    mod_path="${hie#*/extra-compilation-artifacts/hie/}"
+    mod_path="${mod_path%.hie}"
+    [ "$mod_path" = "Main" ] && continue
+    has_source "$mod_path" "${SOURCE_DIRS[@]}" && continue
+    [ -n "$(find "$dir" -path "*autogen/$mod_path.hs" -print -quit)" ] && continue
+
+    STALE_HIE+=("$hie")
+  done < <(find "$dir" -path '*/extra-compilation-artifacts/hie/*' -name '*.hie')
+done
+
+if [ "${#STALE_HIE[@]}" -gt 0 ]; then
+  echo "note: removed ${#STALE_HIE[@]} .hie file(s) that have no source module."
+  for hie in "${STALE_HIE[@]}"; do
+    rm -f -- "$hie"
+    echo "      ${hie#"$REPO_ROOT"/}"
+  done
+  echo
 fi
 
 ARGS=()

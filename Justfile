@@ -251,9 +251,11 @@ weeder-strict: build
 # Run weeder against a build tree with no stale HIE files.
 # Cabal keeps the HIE file of a module that its component no longer compiles,
 # and weeder then reports code that the component does not hold any more.
-# Deleting the HIE files does not help, because cabal does not rebuild for a
-# missing HIE file. Only a real recompile writes them again.
-# Run this after you move, rename, or delete modules.
+# scripts/weeder.sh removes the HIE file of a module whose source file is gone,
+# so a moved, renamed, or deleted module needs no clean build.
+# Run this when a module leaves other-modules but its source file stays.
+# Deleting the HIE files of a live module does not help, because cabal does
+# not rebuild for a missing HIE file. Only a real recompile writes them again.
 # WARNING: this cleans the build tree and takes a long time.
 weeder-fresh:
   @echo "cleaning the build tree, which forces a full rebuild"
