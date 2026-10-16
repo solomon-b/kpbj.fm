@@ -108,11 +108,11 @@
 
               staged-upload-cleanup = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "staged-upload-cleanup" ./jobs/staged-upload-cleanup { });
 
-              lucid-form-builder = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-form-builder" ./services/web/lib/lucid-form-builder { });
+              lucid-form-builder = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-form-builder" ./lib/lucid-form-builder { });
 
-              lucid-htmx-alpine = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-htmx-alpine" ./services/web/lib/lucid-htmx-alpine { });
+              lucid-htmx-alpine = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-htmx-alpine" ./lib/lucid-htmx-alpine { });
 
-              lucid-tailwind = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-tailwind" ./services/web/lib/lucid-tailwind { });
+              lucid-tailwind = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-tailwind" ./lib/lucid-tailwind { });
 
               # rel8 1.7.0.0 for hasql 1.9 compatibility
               rel8 = pkgs.haskell.lib.dontCheck (hfinal.callHackageDirect
