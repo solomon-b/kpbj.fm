@@ -69,7 +69,9 @@ instance FromMultipart Mem EpisodeEditForm where
       EpisodeEditForm
         { eefDescription = emptyToNothing description,
           eefTags = emptyToNothing tags,
-          eefScheduledDate = emptyToNothing scheduledDate,
+          -- An empty value means "Unscheduled". Keep it, so that the handler
+          -- can tell it apart from a missing field.
+          eefScheduledDate = scheduledDate,
           eefTracksJson = emptyToNothing tracksJson,
           eefArtworkFile = artworkFile,
           eefAudioClear = audioClear,

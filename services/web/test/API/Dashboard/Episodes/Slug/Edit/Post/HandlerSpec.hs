@@ -22,6 +22,7 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
+import Servant.Multipart (Input (..), Mem, MultipartData (..), fromMultipart)
 import Test.Database.Helpers (addTestShowHost, insertTestEpisode, insertTestShowWithSchedule, insertTestUser)
 import Test.Database.Monad (TestDBConfig, withTestDB)
 import Test.Handler.Fixtures (defaultScheduleInsert, expectSetupRight, mkUserInsert, setupUserModels)
@@ -40,6 +41,7 @@ spec =
         it "returns NotAuthorized for unrelated regular user" test_notAuthorizedForUnrelatedUser
         it "rejects new audio too long for the slot and leaves the upload pending" test_rejectsOverLengthNewAudio
         it "rejects a move into a slot too short for the stored audio" test_rejectsMoveIntoShorterSlot
+        it "clears the slot when the submitted form picks Unscheduled" test_unscheduleThroughMultipart
 
 --------------------------------------------------------------------------------
 
@@ -354,3 +356,53 @@ test_rejectsMoveIntoShorterSlot cfg = do
     liftIO $ do
       mEpisode <- expectSetupRight afterResult
       fmap (.scheduleTemplateId) mEpisode `shouldBe` Just (Just templateId)
+
+-- | The "Unscheduled" option sends an empty @scheduled_date@.
+--
+-- The form goes through the multipart parser, as a real submission does. The
+-- episode loses its slot and its air date.
+test_unscheduleThroughMultipart :: TestDBConfig -> IO ()
+test_unscheduleThroughMultipart cfg = do
+  userInsert <- mkUserInsert "ep-edit-post-unschedule" UserMetadata.Staff
+
+  let showSlug = Slug "ep-edit-post-unschedule-show"
+      showInsert =
+        Shows.Insert
+          { Shows.siTitle = "Edit Post Unschedule Show",
+            Shows.siSlug = showSlug,
+            Shows.siDescription = Nothing,
+            Shows.siLogoUrl = Nothing,
+            Shows.siStatus = Shows.Active
+          }
+      multipartData =
+        MultipartData
+          { inputs =
+              [ Input "description" "Original description",
+                Input "scheduled_date" ""
+              ],
+            files = []
+          } ::
+          MultipartData Mem
+
+  bracketAppM cfg $ do
+    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+      (userModel, userMetaModel, _showId, _templateId, episodeModel) <- setupEpisodeWithAudio userInsert showInsert
+      pure (userModel, userMetaModel, episodeModel)
+
+    (userModel, userMetaModel, episodeModel) <- liftIO $ expectSetupRight dbResult
+
+    form <- liftIO $ either (\err -> error ("multipart parse failed: " <> err)) pure (fromMultipart multipartData)
+    result <- runExceptT $ action userModel userMetaModel showSlug episodeModel.episodeNumber form
+
+    liftIO $ case result of
+      Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
+      Right _ -> pure ()
+
+    afterResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Read $
+          TRX.statement () (Episodes.getEpisodeById episodeModel.id)
+    liftIO $ do
+      mEpisode <- expectSetupRight afterResult
+      fmap (.scheduleTemplateId) mEpisode `shouldBe` Just Nothing
+      fmap (.airDate) mEpisode `shouldBe` Just Nothing
