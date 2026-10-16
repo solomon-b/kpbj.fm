@@ -10,8 +10,8 @@ STAGING_PROXY_PORT := "15432"
 PROD_PROXY_PORT := "15433"
 
 HOME := "$HOME"
-HS_FILES := "$(git ls-files 'services/web/*.hs' 'services/web/*.hs-boot')"
-CHANGED_HS_FILES := '$(git diff --diff-filter=d --name-only `git merge-base HEAD origin/main` | grep "services/web/.*\.hs$")'
+HS_FILES := "$(git ls-files 'services/web/*.hs' 'services/web/*.hs-boot' 'lib/*.hs' 'lib/*.hs-boot')"
+CHANGED_HS_FILES := '$(git diff --diff-filter=d --name-only `git merge-base HEAD origin/main` | grep -E "^(services/web|lib)/.*\.hs$")'
 NIX_FILES := "$(git ls-files '*.nix' 'nix/*.nix')"
 SHELL_FILES := "$(git ls-files '*.sh')"
 CHANGED_SHELL_FILES := '$(git diff --diff-filter=d --name-only `git merge-base HEAD origin/main` | grep ".*\.sh$$")'
