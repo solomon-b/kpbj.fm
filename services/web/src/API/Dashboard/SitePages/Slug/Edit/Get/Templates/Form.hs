@@ -10,6 +10,7 @@ where
 
 import API.Links (dashboardSitePagesLinks)
 import API.Types (DashboardSitePagesRoutes (..))
+import Component.Form.Hints (markdownHint)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Design (base, class_)
@@ -66,9 +67,10 @@ template page mError = do
           maxLength 200
 
         textareaField "content" 20 $ do
-          label "Page Content (Markdown)"
+          label "Page Content"
           placeholder "Write your page content using markdown..."
           value page.spmContent
+          hint markdownHint
           required
           minLength 10
           maxLength 100000

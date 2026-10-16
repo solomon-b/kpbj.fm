@@ -607,6 +607,7 @@ library
     Component.ScheduleEditor
     Component.Banner
     Component.Flash
+    Component.Form.Hints
     Component.Card.BlogPost
     Component.Card.Episode
     Component.Card.Event
@@ -820,6 +821,7 @@ test-suite kpbj-web-test
        Store.Checkout.EmailsSpec
        Store.Checkout.LogicSpec
        Store.Checkout.ShippingErrorsSpec
+       Templates.MarkdownFieldsSpec
        API.Newsletter.Subscribe.Post.HandlerSpec
        API.User.ForgotPassword.Post.HandlerSpec
        API.User.Login.Post.HandlerSpec

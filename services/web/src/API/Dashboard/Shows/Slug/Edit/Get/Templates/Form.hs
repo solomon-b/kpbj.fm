@@ -10,6 +10,7 @@ where
 
 import API.Links (apiLinks)
 import API.Types
+import Component.Form.Hints (markdownHint)
 import Component.ScheduleEditor (ScheduleEditorData (..), renderScheduleEditor)
 import Data.Set (Set)
 import Data.Set qualified as Set
@@ -79,6 +80,7 @@ template backend showModel userMeta isStaff schedulesJson eligibleHosts currentH
           label "Description"
           placeholder "Describe your show. What kind of music do you play? What's your show's vibe?"
           maybe (pure ()) value showModel.description
+          hint markdownHint
           maxLength 5000
 
         textField "tags" $ do

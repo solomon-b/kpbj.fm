@@ -9,6 +9,7 @@ where
 
 import API.Links (dashboardEventsLinks)
 import API.Types (DashboardEventsRoutes (..))
+import Component.Form.Hints (markdownHint)
 import Data.String.Interpolate (i)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
@@ -72,6 +73,7 @@ template userMeta = do
         textareaField "description" 8 $ do
           label "Event Description"
           placeholder "Describe your event. Include any special details, what attendees should expect, what to bring, etc."
+          hint markdownHint
           required
           minLength 10
           maxLength 5000

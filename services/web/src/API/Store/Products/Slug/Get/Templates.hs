@@ -31,6 +31,7 @@ import Effects.Database.Tables.ProductOptionValues qualified as ProductOptionVal
 import Effects.Database.Tables.ProductVariantOptions qualified as ProductVariantOptions
 import Effects.Database.Tables.ProductVariants qualified as ProductVariants
 import Effects.Database.Tables.Products qualified as Products
+import Effects.Markdown (renderContent)
 import Lucid qualified
 import Lucid.Alpine
 import Lucid.HTMX
@@ -157,8 +158,8 @@ renderProductInfo product' = do
 
   -- Description
   when (product'.pDescription /= "") $
-    Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb6, "whitespace-pre-wrap"]] $
-      Lucid.toHtml product'.pDescription
+    Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb6]] $
+      renderContent product'.pDescription
 
   -- Inventory status
   Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.mb6]] $ do

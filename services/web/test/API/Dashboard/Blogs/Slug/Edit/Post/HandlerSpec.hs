@@ -9,6 +9,7 @@ import API.Dashboard.Blogs.Slug.Edit.Post.Route (ShowBlogEditForm (..))
 import App.Handler.Error (HandlerError (..))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
+import Data.Text qualified as Text
 import Domain.Types.PostStatus (BlogPostStatus (..))
 import Domain.Types.Slug (Slug (..))
 import Domain.Types.Slug qualified as Slug
@@ -17,12 +18,13 @@ import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import Test.Database.Helpers (addTestShowHost, insertTestShowBlogPost, insertTestShowWithSchedule)
 import Test.Database.Monad (TestDBConfig, withTestDB)
 import Test.Handler.Fixtures (defaultScheduleInsert, expectSetupRight, mkUserInsert, setupUserModels)
 import Test.Handler.Monad (bracketAppM)
-import Test.Hspec (Spec, describe, expectationFailure, it, shouldBe)
+import Test.Hspec (Spec, describe, expectationFailure, it, shouldBe, shouldNotSatisfy, shouldSatisfy)
 
 --------------------------------------------------------------------------------
 
@@ -33,6 +35,7 @@ spec =
       describe "action" $ do
         it "returns NotFound for a nonexistent post" test_notFoundForMissingPost
         it "admin updates a show blog post successfully" test_updatesShowBlogPost
+        it "sanitizes the title, content, and excerpt before it stores them" test_sanitizesShowBlogPost
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -111,3 +114,65 @@ test_updatesShowBlogPost cfg = do
       Right (_showModel, returnedPostId) ->
         -- The returned post ID matches the original post
         returnedPostId `shouldBe` postId
+
+-- | The edit handler sanitizes the title, content, and excerpt before it
+-- stores them.
+test_sanitizesShowBlogPost :: TestDBConfig -> IO ()
+test_sanitizesShowBlogPost cfg = do
+  userInsert <- mkUserInsert "blog-edit-post-xss" UserMetadata.Admin
+
+  bracketAppM cfg $ do
+    dbResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Write $ do
+          (userModel, userMetaModel) <- setupUserModels userInsert
+          let showInsert = Shows.Insert "Blog Edit Post XSS Show" (Slug "blog-edit-post-xss-show") Nothing Nothing Shows.Active
+          (showId, _) <- insertTestShowWithSchedule showInsert defaultScheduleInsert
+          addTestShowHost showId userModel.mId
+          let postInsert =
+                ShowBlogPosts.Insert
+                  { ShowBlogPosts.sbpiId = showId,
+                    ShowBlogPosts.sbpiTitle = "Original Title",
+                    ShowBlogPosts.sbpiSlug = Slug.mkSlug "Original Title",
+                    ShowBlogPosts.sbpiContent = "Original content.",
+                    ShowBlogPosts.sbpiExcerpt = Nothing,
+                    ShowBlogPosts.sbpiAuthorId = userModel.mId,
+                    ShowBlogPosts.sbpiStatus = Draft
+                  }
+          postId <- insertTestShowBlogPost postInsert
+          pure (userModel, userMetaModel, postId)
+    (userModel, userMetaModel, postId) <- liftIO $ expectSetupRight dbResult
+
+    let editForm =
+          ShowBlogEditForm
+            { sbefTitle = "<script>x</script>Safe Title",
+              sbefContent = "<script>x</script>Safe content.",
+              sbefExcerpt = Just "<script>x</script>Safe excerpt.",
+              sbefStatus = "published",
+              sbefTags = []
+            }
+
+    result <- runExceptT $ action userModel userMetaModel (Slug "blog-edit-post-xss-show") postId editForm
+
+    liftIO $ case result of
+      Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
+      Right _ -> pure ()
+
+    storedResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Read $
+          TRX.statement () (ShowBlogPosts.getShowBlogPostById postId)
+
+    liftIO $ do
+      mStoredPost <- expectSetupRight storedResult
+      case mStoredPost of
+        Nothing -> expectationFailure "Expected the updated post to exist in DB but got Nothing"
+        Just storedPost -> do
+          storedPost.title `shouldBe` "Safe Title"
+          storedPost.content `shouldNotSatisfy` Text.isInfixOf "<script"
+          storedPost.content `shouldSatisfy` Text.isInfixOf "Safe content."
+          case storedPost.excerpt of
+            Nothing -> expectationFailure "Expected the updated post to have an excerpt"
+            Just excerpt -> do
+              excerpt `shouldNotSatisfy` Text.isInfixOf "<script"
+              excerpt `shouldSatisfy` Text.isInfixOf "Safe excerpt."

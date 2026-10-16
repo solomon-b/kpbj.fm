@@ -10,6 +10,7 @@ where
 
 import API.Links (dashboardStoreProductsLinks, rootLink)
 import API.Types (DashboardStoreProductsRoutes (..))
+import Component.Form.Hints (markdownHint)
 import Data.Int (Int64)
 import Data.Scientific (FPFormat (..), formatScientific)
 import Data.String.Interpolate (i)
@@ -114,6 +115,7 @@ renderProductForm productModel existingImages hasVariants optionsVariantsJson =
           label "Description"
           placeholder "Describe the product..."
           value productModel.pDescription
+          hint markdownHint
           maxLength 5000
 
       section "PRICING & SHIPPING" $ do

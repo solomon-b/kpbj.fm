@@ -29,6 +29,7 @@ import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Effects.Markdown (markdownToPlainText)
 import Helpers.RelativeTime (formatRelativeTime)
 import Lucid qualified
 import Lucid.HTMX
@@ -79,13 +80,8 @@ renderBlogPostCard backend card = do
           Nothing -> pure ()
 
         -- Excerpt
-        let excerptText = case card.cardExcerpt of
-              Just exc -> exc
-              Nothing ->
-                let truncated = Text.take 200 card.cardContent
-                 in truncated <> if Text.length card.cardContent > 200 then "..." else ""
         Lucid.p_ [class_ $ base [Tokens.fgMuted, "leading-relaxed"]] $
-          Lucid.toHtml excerptText
+          Lucid.toHtml (cardSummary card)
 
         -- Author row: name + relative time
         Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between", Tokens.mt4]] $ do
@@ -99,6 +95,22 @@ renderBlogPostCard backend card = do
               (Just now, Just publishedAt) -> formatRelativeTime now publishedAt
               (Nothing, Just _) -> "" -- No relative time without current time
               _ -> "Draft"
+
+-- | The plain text summary for a card.
+--
+-- The card uses the excerpt if there is one. Otherwise it uses the first 200
+-- characters of the content. Markdown is removed before the truncation, so
+-- the cut does not split a link or a formatting marker.
+cardSummary :: BlogPostCardData -> Text
+cardSummary card =
+  case card.cardExcerpt of
+    Just excerpt -> markdownToPlainText excerpt
+    Nothing ->
+      if Text.length plainContent > 200
+        then Text.take 200 plainContent <> "..."
+        else plainContent
+  where
+    plainContent = markdownToPlainText card.cardContent
 
 --------------------------------------------------------------------------------
 -- Station blog wrapper

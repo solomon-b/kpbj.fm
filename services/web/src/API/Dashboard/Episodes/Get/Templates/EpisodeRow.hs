@@ -20,6 +20,7 @@ import Domain.Types.Timezone (formatDate)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Effects.Markdown (markdownToPlainText)
 import Lucid qualified
 import Lucid.Alpine
 import Lucid.Base qualified as LucidBase
@@ -71,10 +72,12 @@ renderEpisodeTableRow userMeta showModel episode = do
         Lucid.toHtml ("#" <> show epNum)
       case episode.description of
         Nothing -> mempty
-        Just desc ->
+        Just desc -> do
+          -- Strip Markdown before the truncation, so the snippet is plain text.
+          let plainDesc = markdownToPlainText desc
           Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, "mt-1"]] $ do
-            Lucid.toHtml $ Text.take 100 desc
-            if Text.length desc > 100 then "..." else ""
+            Lucid.toHtml $ Text.take 100 plainDesc
+            if Text.length plainDesc > 100 then "..." else ""
 
     -- The date the episode airs on
     Lucid.td_ cellLinkAttrs $

@@ -49,7 +49,7 @@ import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
 import Domain.Types.Timezone (addMinutesToTimeOfDay, minutesFromMidnight, pacificDay, parseDateYMD, parseTimeHHMM, slotDurationMins)
 import Effects.Clock (currentSystemTime)
-import Effects.ContentSanitization (sanitizeTitle)
+import Effects.ContentSanitization (sanitizeTitle, sanitizeUserContent)
 import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowHost qualified as ShowHost
@@ -174,8 +174,9 @@ action userMetadata slug editForm = do
         (Nothing, True) -> Nothing
         (Nothing, False) -> showModel.logoUrl
 
+      -- Sanitize the description like the create handler does.
       mDescription =
-        let desc = sefDescription editForm
+        let desc = sanitizeUserContent (sefDescription editForm)
          in if Text.null (Text.strip desc) then Nothing else Just desc
 
       updateData =

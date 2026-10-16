@@ -9,6 +9,7 @@ where
 
 import API.Links (dashboardShowsLinks)
 import API.Types
+import Component.Form.Hints (markdownHint)
 import Component.TrackListingEditor qualified as TrackListingEditor
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -81,7 +82,7 @@ episodeUploadForm uploadUrl showModel upcomingDates _userMeta = do
         textareaField "description" 6 $ do
           label "Episode Description"
           placeholder "Describe what listeners can expect from this episode..."
-          hint "Up to 5000 characters"
+          hint (markdownHint <> " Up to 5000 characters.")
           required
           maxLength 5000
 

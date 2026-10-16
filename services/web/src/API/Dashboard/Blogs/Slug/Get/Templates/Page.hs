@@ -12,7 +12,6 @@ import API.Links (dashboardBlogsLinks)
 import API.Types
 import Control.Monad (unless)
 import Data.String.Interpolate (i)
-import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (base, class_)
@@ -23,6 +22,7 @@ import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowBlogTags qualified as ShowBlogTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Effects.Markdown (markdownToPlainText, renderContent)
 import Lucid qualified
 import Lucid.HTMX
 import Servant.Links qualified as Links
@@ -130,15 +130,14 @@ template _userMeta showModel blogPost tags = do
       Just excerpt -> do
         Lucid.div_ [class_ $ base ["border-b", Tokens.borderDefault, Tokens.p6, Tokens.bgAlt]] $ do
           Lucid.h2_ [class_ $ base [Tokens.textSm, Tokens.fontBold, "uppercase", Tokens.fgMuted, Tokens.mb2]] "Excerpt"
-          Lucid.p_ [class_ $ base [Tokens.fgMuted, "italic"]] $ Lucid.toHtml excerpt
+          -- Blog cards show the excerpt as plain text, so the preview does too.
+          Lucid.p_ [class_ $ base [Tokens.fgMuted, "italic"]] $ Lucid.toHtml (markdownToPlainText excerpt)
       Nothing -> mempty
 
     -- Content section
     Lucid.div_ [class_ $ base [Tokens.p6]] $ do
       Lucid.h2_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", Tokens.borderDefault, "pb-2", Tokens.fgPrimary]] "Content"
-      Lucid.div_ [class_ $ base ["prose", "prose-gray", "max-w-none"]] $ do
-        -- Render content as paragraphs split by double newlines
-        mapM_ renderParagraph $ Text.splitOn "\n\n" blogPost.content
+      renderContent blogPost.content
 
 --------------------------------------------------------------------------------
 
@@ -147,13 +146,6 @@ renderTag :: ShowBlogTags.Model -> Lucid.Html ()
 renderTag tag =
   Lucid.span_ [class_ $ base ["inline-block", Tokens.infoBg, Tokens.infoText, "px-2", "py-1", "rounded", "text-xs", "font-medium"]] $
     Lucid.toHtml tag.sbtmName
-
--- | Render a paragraph of content
-renderParagraph :: Text -> Lucid.Html ()
-renderParagraph para =
-  unless (Text.null (Text.strip para)) $
-    Lucid.p_ [class_ $ base [Tokens.mb4, "leading-relaxed"]] $
-      Lucid.toHtml para
 
 -- | Render status badge with appropriate styling
 renderStatusBadge :: BlogPostStatus -> Lucid.Html ()

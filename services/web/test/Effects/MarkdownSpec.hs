@@ -204,10 +204,52 @@ spec = do
           html `shouldSatisfy` Text.isInfixOf "&lt;div"
         Left _ -> pure ()
 
+    it "removes javascript: link targets" $ do
+      let result = parseMarkdownToHtml defaultMarkdownConfig "[click](javascript:alert(1))"
+      case result of
+        Right html -> do
+          html `shouldNotSatisfy` Text.isInfixOf "javascript:"
+          html `shouldSatisfy` Text.isInfixOf "click"
+        Left _ -> expectationFailure "Should have parsed"
+
+    it "removes javascript: image sources" $ do
+      let result = parseMarkdownToHtml defaultMarkdownConfig "![pic](javascript:alert(1))"
+      case result of
+        Right html -> html `shouldNotSatisfy` Text.isInfixOf "javascript:"
+        Left _ -> expectationFailure "Should have parsed"
+
+    it "keeps https link targets" $ do
+      let result = parseMarkdownToHtml defaultMarkdownConfig "[site](https://kpbj.fm)"
+      case result of
+        Right html -> html `shouldSatisfy` Text.isInfixOf "href=\"https://kpbj.fm\""
+        Left _ -> expectationFailure "Should have parsed"
+
     it "preserves safe markdown formatting" $ do
       let safeMarkdown = "**Bold** and *italic* and [link](https://example.com)"
       let result = renderMarkdownPure defaultMarkdownConfig safeMarkdown
       result `shouldSatisfy` isRight
+
+  describe "renderContent" $ do
+    it "renders bold markdown as a strong element" $ do
+      let rendered = Lucid.renderText (renderContent "**bold**")
+      rendered `shouldSatisfy` LText.isInfixOf "<strong"
+      rendered `shouldSatisfy` LText.isInfixOf "prose max-w-none"
+
+  describe "markdownToPlainText" $ do
+    it "removes bold and italic markers" $ do
+      markdownToPlainText "Some **bold** and *italic* text" `shouldBe` "Some bold and italic text"
+
+    it "keeps link text and drops the URL" $ do
+      markdownToPlainText "Visit [our site](https://kpbj.fm) today" `shouldBe` "Visit our site today"
+
+    it "removes list markers and joins items with spaces" $ do
+      markdownToPlainText "- first\n- second" `shouldBe` "first second"
+
+    it "removes heading markers" $ do
+      markdownToPlainText "# Title\n\nBody text" `shouldBe` "Title Body text"
+
+    it "returns empty text for empty input" $ do
+      markdownToPlainText "" `shouldBe` ""
 
   describe "displayMarkdownError" $ do
     it "formats PandocParseError clearly" $ do

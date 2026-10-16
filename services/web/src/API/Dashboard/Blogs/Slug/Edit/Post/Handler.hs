@@ -22,6 +22,7 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.PostStatus (BlogPostStatus (..))
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
+import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Execute (execTransaction)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowBlogTags qualified as ShowBlogTags
@@ -83,15 +84,15 @@ action user userMetadata showSlug postId editForm = do
       -- 3. Validate status
       parsedStatus <- requireJust "Invalid blog post status value." (parseStatus (sbefStatus editForm))
 
-      -- 4. Build update data
+      -- 4. Build update data. Sanitize user input like the create handler does.
       let newSlug = Slug.mkSlug (sbefTitle editForm)
           updateData =
             ShowBlogPosts.Insert
               { ShowBlogPosts.sbpiId = blogPost.showId,
-                ShowBlogPosts.sbpiTitle = sbefTitle editForm,
+                ShowBlogPosts.sbpiTitle = Sanitize.sanitizeTitle (sbefTitle editForm),
                 ShowBlogPosts.sbpiSlug = newSlug,
-                ShowBlogPosts.sbpiContent = sbefContent editForm,
-                ShowBlogPosts.sbpiExcerpt = sbefExcerpt editForm,
+                ShowBlogPosts.sbpiContent = Sanitize.sanitizeUserContent (sbefContent editForm),
+                ShowBlogPosts.sbpiExcerpt = Sanitize.sanitizeDescription <$> sbefExcerpt editForm,
                 ShowBlogPosts.sbpiAuthorId = blogPost.authorId,
                 ShowBlogPosts.sbpiStatus = parsedStatus
               }

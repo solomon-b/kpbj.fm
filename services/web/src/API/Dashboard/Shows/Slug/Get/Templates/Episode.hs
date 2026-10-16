@@ -22,6 +22,7 @@ import Domain.Types.Timezone (formatDateLong)
 import Effects.Database.Tables.EpisodeTrack qualified as EpisodeTrack
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Markdown (markdownToPlainText, renderContent)
 import Lucid qualified
 import Lucid.Alpine
 import Lucid.HTMX
@@ -74,7 +75,7 @@ renderLatestEpisode backend showModel episode tracks = do
             Nothing -> mempty
 
         case episode.description of
-          Just desc -> Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.mb4]] $ Lucid.toHtml desc
+          Just desc -> Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.mb4]] $ renderContent desc
           Nothing -> mempty
 
     -- Audio player (if audio file path exists)
@@ -219,10 +220,12 @@ renderEpisodeCard backend showModel episode = do
       -- Episode description
       case episode.description of
         Just desc -> do
-          let truncatedDesc = Text.take 200 desc
+          -- Strip Markdown first, so the cut does not split a link or a marker.
+          let plainDesc = markdownToPlainText desc
+              truncatedDesc = Text.take 200 plainDesc
           Lucid.p_ [Lucid.class_ "text-sm mb-4"] $
             Lucid.toHtml $
-              truncatedDesc <> if Text.length desc > 200 then "..." else ""
+              truncatedDesc <> if Text.length plainDesc > 200 then "..." else ""
         Nothing -> mempty
 
       -- Audio player (if audio file path exists)

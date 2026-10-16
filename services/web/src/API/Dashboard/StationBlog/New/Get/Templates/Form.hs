@@ -9,6 +9,7 @@ where
 
 import API.Links (dashboardStationBlogLinks)
 import API.Types (DashboardStationBlogRoutes (..))
+import Component.Form.Hints (markdownHint, plainTextHint)
 import Data.String.Interpolate (i)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
@@ -59,6 +60,7 @@ template userMeta = do
         textareaField "content" 12 $ do
           label "Post Content"
           placeholder "Write your blog post content here..."
+          hint markdownHint
           required
           minLength 10
           maxLength 50000
@@ -71,6 +73,7 @@ template userMeta = do
         textareaField "excerpt" 3 $ do
           label "Excerpt (Optional)"
           placeholder "Short preview of your post (optional - will auto-generate if left blank)"
+          hint plainTextHint
           maxLength 500
 
         textField "tags" $ do

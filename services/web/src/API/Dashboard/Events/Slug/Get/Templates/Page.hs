@@ -3,13 +3,13 @@ module API.Dashboard.Events.Slug.Get.Templates.Page where
 --------------------------------------------------------------------------------
 
 import Data.Text (Text)
-import Data.Text qualified as Text
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Timezone (utcToPacific)
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import Effects.Markdown (renderContent)
 import Lucid qualified
 
 -- | Event detail template
@@ -63,9 +63,7 @@ template event mAuthor = do
     -- Description
     Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p6]] $ do
       Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Description"
-      Lucid.div_ [class_ $ base ["prose", "prose-sm", "max-w-none", Tokens.fgMuted, "whitespace-pre-wrap"]] $
-        Lucid.toHtml $
-          truncateContent 2000 event.emDescription
+      renderContent event.emDescription
 
 renderStatusBadge :: Events.Status -> Lucid.Html ()
 renderStatusBadge status = do
@@ -82,8 +80,3 @@ formatDateTime = formatTime defaultTimeLocale "%b %d, %Y"
 
 formatDateTimeFull :: UTCTime -> String
 formatDateTimeFull = formatTime defaultTimeLocale "%b %d, %Y at %l:%M %p" . utcToPacific
-
-truncateContent :: Int -> Text -> Text
-truncateContent maxLen content
-  | Text.length content <= maxLen = content
-  | otherwise = Text.take maxLen content <> "..."

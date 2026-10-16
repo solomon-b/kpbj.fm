@@ -10,6 +10,7 @@ where
 
 import API.Links (dashboardEventsLinks)
 import API.Types (DashboardEventsRoutes (..))
+import Component.Form.Hints (markdownHint)
 import Component.Gallery.EventGalleryEditor (GalleryImageView (..), renderEventGalleryEditor)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
@@ -88,6 +89,7 @@ template backend event galleryImages userMeta = do
           label "Event Description"
           placeholder "Describe your event. Include any special details, what attendees should expect, what to bring, etc."
           value event.emDescription
+          hint markdownHint
           required
           minLength 10
           maxLength 5000

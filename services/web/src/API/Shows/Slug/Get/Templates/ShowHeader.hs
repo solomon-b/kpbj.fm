@@ -24,6 +24,7 @@ import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Markdown (renderContent)
 import Lucid qualified
 import OrphanInstances.TimeOfDay (formatScheduleDual)
 import Rel8 (Result)
@@ -73,7 +74,7 @@ renderShowHeader backend showModel hosts schedules tags = do
         -- Show Description (only if present)
         forM_ showModel.description $ \description ->
           Lucid.div_ [class_ $ do { base [Tokens.mb6, "pb-4", "border-b", Theme.borderDefault]; desktop ["border-b-0", "pb-0"] }] $ do
-            Lucid.p_ [class_ $ base ["leading-relaxed"]] $ Lucid.toHtml description
+            renderContent description
 
         -- Tags
         unless (null tags) $

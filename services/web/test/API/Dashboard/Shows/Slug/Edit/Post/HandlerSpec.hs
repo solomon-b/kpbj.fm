@@ -26,7 +26,7 @@ import Test.Database.Helpers (insertTestEpisode, insertTestShowWithSchedule, ins
 import Test.Database.Monad (TestDBConfig, withTestDB)
 import Test.Handler.Fixtures (defaultScheduleInsert, expectSetupRight, mkUserInsert)
 import Test.Handler.Monad (bracketAppM)
-import Test.Hspec (Spec, describe, expectationFailure, it, shouldBe)
+import Test.Hspec (Spec, describe, expectationFailure, it, shouldBe, shouldNotSatisfy, shouldSatisfy)
 
 --------------------------------------------------------------------------------
 
@@ -38,6 +38,7 @@ spec =
         it "returns NotFound for a nonexistent slug" test_notFoundForMissingSlug
         it "updates show title when valid form submitted" test_updatesShowTitle
         it "updates show description when valid form submitted" test_updatesShowDescription
+        it "sanitizes the show description before it stores it" test_sanitizesShowDescription
         it "preserves existing logo when sefLogoClear is False and no new file" test_preservesLogoUrl
         it "allows an unrelated edit when another show holds the same slot from a future date" test_unchangedScheduleSkipsConflictCheck
         it "leaves a pending schedule intact when only the title changes" test_titleEditPreservesPendingSchedule
@@ -190,6 +191,58 @@ test_updatesShowDescription cfg = do
       case updatedShowResult' of
         Nothing -> expectationFailure "Expected updated show to exist in DB but got Nothing"
         Just s -> Shows.description s `shouldBe` Just "Updated description text."
+
+-- | The edit handler sanitizes the description before it stores it.
+test_sanitizesShowDescription :: TestDBConfig -> IO ()
+test_sanitizesShowDescription cfg = do
+  userInsert <- mkUserInsert "edit-desc-xss" UserMetadata.Staff
+
+  let showSlug = Slug "edit-desc-xss-show"
+  let showInsert =
+        Shows.Insert
+          { Shows.siTitle = "Edit Desc XSS Show",
+            Shows.siSlug = showSlug,
+            Shows.siDescription = Nothing,
+            Shows.siLogoUrl = Nothing,
+            Shows.siStatus = Shows.Active
+          }
+  let form =
+        (editForm "Edit Desc XSS Show" "active")
+          { sefDescription = "<script>x</script>Safe description."
+          }
+
+  bracketAppM cfg $ do
+    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+      userId <- insertTestUser userInsert
+      userMetaModel <-
+        TRX.statement () (UserMetadata.getUserMetadata userId)
+          >>= maybe (error "metadata not found") pure
+      (showId, _templateId) <- insertTestShowWithSchedule showInsert defaultScheduleInsert
+      showModel <-
+        TRX.statement () (Shows.getShowById showId)
+          >>= maybe (error "show not found") pure
+      pure (userMetaModel, showModel)
+
+    (userMetaModel, showModel) <- liftIO $ expectSetupRight dbResult
+
+    result <- runExceptT $ action userMetaModel showModel.slug form
+
+    liftIO $ case result of
+      Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
+      Right _ -> pure ()
+
+    updatedShowResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Read $
+          TRX.statement () (Shows.getShowBySlug showSlug)
+
+    liftIO $ do
+      updatedShowResult' <- expectSetupRight updatedShowResult
+      case updatedShowResult' >>= Shows.description of
+        Nothing -> expectationFailure "Expected the updated show to have a description"
+        Just description -> do
+          description `shouldNotSatisfy` Text.isInfixOf "<script"
+          description `shouldSatisfy` Text.isInfixOf "Safe description."
 
 -- | When sefLogoClear is False and no new file is uploaded, the existing logo
 -- URL is preserved on the show.
