@@ -33,7 +33,7 @@ roots = [
 # kpbj-types, and kpbj-email are consumed only by this repo, so weeder's
 # question is exactly the right one for them.
 root-modules = [
-  # The three Lucid libraries under services/web/lib are written to stand
+  # The three Lucid libraries under lib/ are written to stand
   # alone and are meant to leave this repo.
   "^Lucid\\.HTMX$",
   "^Lucid\\.Alpine$",

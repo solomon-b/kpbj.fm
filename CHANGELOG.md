@@ -26,6 +26,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Changed
 - **A local rebase no longer stops on a `CHANGELOG.md` conflict.** A new `.gitattributes` sets the built-in `union` merge driver for the file. Git keeps the lines from both sides, so two entries under the same heading both stay. The order of the entries can be wrong after a rebase, so check it. GitHub's web conflict editor does not use this driver.
+- **The Lucid libraries moved from `services/web/lib/` to `lib/`.** `lucid-form-builder`, `lucid-htmx-alpine`, and `lucid-tailwind` now live beside the other shared libraries. The package names and module names did not change.
 - **The production backup recipes use one naming scheme, `prod-backup-<what>-<verb>`.** `<what>` is `db` for the database or `media` for the S3 bucket. Before, "s3" named both the media bucket and the off-site pgBackRest repo, and `pg` stood beside `remote` for two pg_dump recipes. The renames are:
   - `prod-backup-info` to `prod-backup-db-info`
   - `prod-backup-info-full` to `prod-backup-db-info-full`
