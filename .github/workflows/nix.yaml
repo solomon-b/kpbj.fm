@@ -36,7 +36,6 @@ jobs:
       with:
         name: kpbj-fm
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-        pushFilter: '(-kpbj-web|-sync-host-emails|-token-cleanup|-lucid-|-web-server-core)'
 
     - name: Build 🔨
       run: nix build
@@ -133,7 +132,6 @@ jobs:
         with:
           name: kpbj-fm
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-          pushFilter: '(-kpbj-web|-sync-host-emails|-token-cleanup|-lucid-|-web-server-core)'
 
       # The flake's packages are built with dontCheck, so the suites do not run
       # during `nix build`. The checks outputs turn them back on. Each suite
@@ -182,7 +180,6 @@ jobs:
         with:
           name: kpbj-fm
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-          pushFilter: '(-kpbj-web|-sync-host-emails|-token-cleanup|-lucid-|-web-server-core)'
 
       - name: Build web server
         run: nix build
