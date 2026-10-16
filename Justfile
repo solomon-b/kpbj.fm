@@ -596,22 +596,15 @@ prod-deploy tag="": _require-gh
 prod-secrets: _require-sops
   sops secrets/prod-web.yaml
 
-# Backup production database to local file
 # Credentials loaded from SOPS-encrypted secrets/backup.yaml
-prod-backup-pg: _require-sops
-  ./scripts/prod-backup-pg.sh
+# Dump the production database to a local file with pg_dump
+prod-backup-db-dump: _require-sops
+  ./scripts/prod-backup-db-dump.sh
 
-# Backup production database from remote server via SSH tunnel
 # Credentials loaded from SOPS-encrypted secrets/backup.yaml
-# Optional: BACKUP_DIR (default: ./backups/postgres), RETENTION_DAYS (default: 14)
-prod-backup-remote: _require-sops
-  ./scripts/prod-backup-remote.sh
-
-# Backup production S3 bucket using rclone with date-based snapshots
-# Credentials loaded from SOPS-encrypted secrets/backup.yaml
-# Optional: BACKUP_DIR (default: ./backups/s3), RETENTION_DAYS (default: 14)
-prod-backup-s3: _require-sops
-  ./scripts/prod-backup-s3.sh
+# Compare the production media bucket with its TrueNAS backup copy
+prod-backup-media-info: _require-sops
+  ./scripts/prod-backup-media-info.sh
 
 # =============================================================================
 # Data Sync (Production to Staging)
@@ -840,24 +833,25 @@ staging-nixos-build:
 # =============================================================================
 # pgBackRest (Database Backup & Recovery)
 # =============================================================================
-# Manage PostgreSQL backups via pgBackRest on staging and production.
+# Manage PostgreSQL backups via pgBackRest on production.
+# Staging has pgBackRest turned off (nixos/staging.nix).
 # Backups use two repositories: repo1 (local VPS disk) and repo2 (S3).
 # Prerequisites: SSH access to target VPS
 
-# Show staging pgBackRest backup summary
-staging-backup-info:
-  @just _backup-info "{{STAGING_VPS_TARGET}}"
+# Show production database and media backup summaries
+prod-backup-info:
+  @echo "== Database (pgBackRest) =="
+  @just prod-backup-db-info
+  @echo
+  @echo "== Media (TrueNAS) =="
+  @just prod-backup-media-info
 
 # Show production pgBackRest backup summary
-prod-backup-info:
+prod-backup-db-info:
   @just _backup-info "{{PROD_VPS_TARGET}}"
 
-# Show raw pgBackRest info (full detail) for staging
-staging-backup-info-full:
-  ssh {{STAGING_VPS_TARGET}} 'sudo -u postgres bash -c "set -a; source /run/secrets/rendered/kpbj-pgbackrest-s3.env; pgbackrest info --stanza=kpbj"'
-
 # Show raw pgBackRest info (full detail) for production
-prod-backup-info-full:
+prod-backup-db-info-full:
   ssh {{PROD_VPS_TARGET}} 'sudo -u postgres bash -c "set -a; source /run/secrets/rendered/kpbj-pgbackrest-s3.env; pgbackrest info --stanza=kpbj"'
 
 [private]
@@ -883,12 +877,8 @@ _backup-info target:
       "  repo\(.repo) (\($label)):\($pad)\(.min // "none") → \(.max // "none")"
     )'
 
-# Trigger a manual full backup on staging (both repos)
-staging-backup-run:
-  ssh {{STAGING_VPS_TARGET}} systemctl start kpbj-backup-full.service
-
 # Trigger a manual full backup on production (both repos)
-prod-backup-run:
+prod-backup-db-run:
   ssh {{PROD_VPS_TARGET}} systemctl start kpbj-backup-full.service
 
 # Helper: run pgbackrest restore, complete WAL recovery, then start services.
@@ -923,18 +913,8 @@ _backup-restore TARGET RESTORE_CMD:
   echo "Starting PostgreSQL via systemd..."
   ssh {{TARGET}} 'systemctl start postgresql kpbj-web'
 
-# Restore staging database from local backup (repo1)
-staging-backup-restore-local:
-  #!/usr/bin/env bash
-  set -euo pipefail
-  echo "WARNING: This will stop the staging web service and restore the database from the latest local backup."
-  read -rp "Type 'yes' to confirm: " CONFIRM
-  if [ "$CONFIRM" != "yes" ]; then echo "Aborted."; exit 1; fi
-  just _backup-restore "{{STAGING_VPS_TARGET}}" "pgbackrest restore --stanza=kpbj --repo=1 --delta"
-  echo "Restore complete."
-
 # Restore production database from local backup (repo1)
-prod-backup-restore-local:
+prod-backup-db-restore-local:
   #!/usr/bin/env bash
   set -euo pipefail
   echo "WARNING: This will stop the production web service and restore the database from the latest local backup."
@@ -943,18 +923,8 @@ prod-backup-restore-local:
   just _backup-restore "{{PROD_VPS_TARGET}}" "pgbackrest restore --stanza=kpbj --repo=1 --delta"
   echo "Restore complete."
 
-# Restore staging database from S3 backup (repo2, disaster recovery)
-staging-backup-restore-s3:
-  #!/usr/bin/env bash
-  set -euo pipefail
-  echo "WARNING: This will stop the staging web service and restore the database from the S3 backup."
-  read -rp "Type 'yes' to confirm: " CONFIRM
-  if [ "$CONFIRM" != "yes" ]; then echo "Aborted."; exit 1; fi
-  just _backup-restore "{{STAGING_VPS_TARGET}}" "pgbackrest restore --stanza=kpbj --repo=2 --delta"
-  echo "Restore complete."
-
-# Restore production database from S3 backup (repo2, disaster recovery)
-prod-backup-restore-s3:
+# Restore production database from off-site backup (repo2 on S3, disaster recovery)
+prod-backup-db-restore-offsite:
   #!/usr/bin/env bash
   set -euo pipefail
   echo "WARNING: This will stop the production web service and restore the database from the S3 backup."
@@ -963,25 +933,13 @@ prod-backup-restore-s3:
   just _backup-restore "{{PROD_VPS_TARGET}}" "pgbackrest restore --stanza=kpbj --repo=2 --delta"
   echo "Restore complete."
 
-# Point-in-time recovery on staging
-# Usage: just staging-backup-restore-pitr "2026-02-28 03:00:00+00"
-staging-backup-restore-pitr TARGET:
-  #!/usr/bin/env bash
-  set -euo pipefail
-  echo "WARNING: This will stop the staging web service and restore the database to: {{TARGET}}"
-  echo "Check available WAL range first with: just staging-backup-info"
-  read -rp "Type 'yes' to confirm: " CONFIRM
-  if [ "$CONFIRM" != "yes" ]; then echo "Aborted."; exit 1; fi
-  just _backup-restore "{{STAGING_VPS_TARGET}}" "pgbackrest restore --stanza=kpbj --repo=1 --delta --type=time --target-action=promote --target='{{TARGET}}'"
-  echo "PITR complete."
-
 # Point-in-time recovery on production
-# Usage: just prod-backup-restore-pitr "2026-02-28 03:00:00+00"
-prod-backup-restore-pitr TARGET:
+# Usage: just prod-backup-db-restore-pitr "2026-02-28 03:00:00+00"
+prod-backup-db-restore-pitr TARGET:
   #!/usr/bin/env bash
   set -euo pipefail
   echo "WARNING: This will stop the production web service and restore the database to: {{TARGET}}"
-  echo "Check available WAL range first with: just prod-backup-info"
+  echo "Check available WAL range first with: just prod-backup-db-info"
   read -rp "Type 'yes' to confirm: " CONFIRM
   if [ "$CONFIRM" != "yes" ]; then echo "Aborted."; exit 1; fi
   just _backup-restore "{{PROD_VPS_TARGET}}" "pgbackrest restore --stanza=kpbj --repo=1 --delta --type=time --target-action=promote --target='{{TARGET}}'"

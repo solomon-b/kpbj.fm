@@ -70,3 +70,9 @@ export STAGING_ENDPOINT="https://sfo3.digitaloceanspaces.com"
 # Buckets
 export PROD_BUCKET="production-kpbj-storage"
 export STAGING_BUCKET="staging-kpbj-storage"
+
+# TrueNAS (backs up the production bucket with a Cloud Sync Task)
+export NAS_HOST="sandra-voi.home.arpa"
+# The NAS uses its default self-signed certificate, so curl pins its public key.
+export NAS_TLS_PIN="sha256//sHDD1yOrdE9XCIZMfVJi3iALVNCdgrjjw8FK7sBdp4s="
+export NAS_BACKUP_PATH="/mnt/tank/kpbj/s3/production-kpbj-storage"

@@ -5,7 +5,7 @@
 #
 # Credentials are loaded from SOPS-encrypted secrets.
 #
-# Usage: ./scripts/prod-backup-db.sh
+# Usage: ./scripts/prod-backup-db-dump.sh
 #
 
 set -euo pipefail
