@@ -1,11 +1,12 @@
 {-# LANGUAGE QuasiQuotes #-}
 
--- | Shared rendering for the two break item dashboard sections.
+-- | Shared rendering for the staff break item dashboard sections.
 --
--- PSAs and underwriting announcements are one table and one playout rotation. They are
--- two dashboard sections so each can carry its own permission gate. Everything
--- they draw is identical apart from the URLs they point at and the noun they
--- call a row, so both sections render through here.
+-- PSAs, underwriting announcements, and station announcements are one table.
+-- They are separate dashboard sections so each can carry its own permission
+-- gate. Everything they draw is the same apart from the URLs they point at,
+-- the noun they call a row, and the audio limit, so every section renders
+-- through here.
 --
 -- A section supplies a 'SectionUrls' and gets the list page, the infinite
 -- scroll fragment, the upload form, and the edit form.
@@ -20,6 +21,12 @@ module Component.BreakItems
     renderUploadForm,
     renderEditForm,
     renderActionButton,
+    audioHint,
+
+    -- * Formatting
+    formatDuration,
+    formatRange,
+    formatDay,
 
     -- * Shared Constants
     audioMaxSizeMb,
@@ -31,6 +38,7 @@ where
 import API.Links (dashboardUnderwritersLinks, rootLink)
 import API.Types (DashboardUnderwritersRoutes (..))
 import Component.ActionsDropdown qualified as ActionsDropdown
+import Component.InlineAudioPlayer (renderInlineAudioPlayer)
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -52,8 +60,9 @@ import Data.Time (Day, defaultTimeLocale, formatTime)
 import Design (base, class_)
 import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
-import Domain.BreakPlanner (psaMaxSeconds, underwritingDailyCap, underwritingMaxSeconds)
+import Domain.BreakPlanner (categoryMaxSeconds, underwritingDailyCap)
 import Domain.Types.PageNumber (PageNumber (..))
+import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Domain.Types.Timezone (formatDate)
 import Effects.Database.Tables.BreakItems qualified as BreakItems
 import Effects.Database.Tables.Underwriters qualified as Underwriters
@@ -65,9 +74,12 @@ import Servant.Links qualified as Links
 
 -- | Everything one break item section needs in order to draw itself.
 --
--- The two sections differ only in these values.
+-- The sections differ only in these values.
 data SectionUrls = SectionUrls
-  { -- | What one row is called, singular. For example @\"PSA\"@.
+  { -- | Which rows this section owns. The upload form reads its length limit
+    -- and its copy rules from this.
+    suCategory :: BreakItems.Category,
+    -- | What one row is called, singular. For example @\"PSA\"@.
     suNoun :: Text,
     -- | What many rows are called. For example @\"PSAs\"@.
     suNounPlural :: Text,
@@ -114,6 +126,8 @@ audioMaxSizeMb = 50
 
 -- | The list page for one section.
 renderListPage ::
+  -- | Builds the audio URL of each row
+  StorageBackend ->
   SectionUrls ->
   -- | Underwriter names by id. Present for the underwriting section, which
   -- adds the underwriter column.
@@ -123,7 +137,7 @@ renderListPage ::
   -- | Whether a further page exists
   Bool ->
   Lucid.Html ()
-renderListPage urls mNames items (PageNumber pageNum) hasMore =
+renderListPage backend urls mNames items (PageNumber pageNum) hasMore =
   Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden", Tokens.mb8]] $
     if null items
       then renderEmptyState urls
@@ -142,10 +156,12 @@ renderListPage urls mNames items (PageNumber pageNum) hasMore =
                       pcCurrentPage = pageNum
                     }
             }
-          (mapM_ (renderRow urls mNames) items)
+          (mapM_ (renderRow backend urls mNames) items)
 
 -- | The new rows alone, for an infinite scroll append.
 renderItemsFragment ::
+  -- | Builds the audio URL of each row
+  StorageBackend ->
   SectionUrls ->
   -- | Underwriter names by id, as for 'renderListPage'
   Maybe (Map Underwriters.Id Text) ->
@@ -154,12 +170,12 @@ renderItemsFragment ::
   -- | Whether a further page exists
   Bool ->
   Lucid.Html ()
-renderItemsFragment urls mNames items (PageNumber pageNum) hasMore =
+renderItemsFragment backend urls mNames items (PageNumber pageNum) hasMore =
   renderTableFragment
     (length (columnHeaders mNames))
     ("#" <> urls.suTableBodyId)
     (if hasMore then Just (nextPageUrl urls pageNum) else Nothing)
-    (mapM_ (renderRow urls mNames) items)
+    (mapM_ (renderRow backend urls mNames) items)
 
 -- | The table columns. The underwriting section adds the underwriter.
 columnHeaders :: Maybe (Map Underwriters.Id Text) -> [ColumnHeader]
@@ -168,6 +184,7 @@ columnHeaders mNames =
     <> maybe [] (const [ColumnHeader "Underwriter" AlignLeft]) mNames
     <> [ ColumnHeader "Length" AlignLeft,
          ColumnHeader "On Air" AlignLeft,
+         ColumnHeader "Play" AlignCenter,
          ColumnHeader "" AlignCenter
        ]
 
@@ -186,10 +203,11 @@ nextPageUrl urls pageNum = pageUrl urls (pageNum + 1)
 prevPageUrl :: SectionUrls -> Int64 -> Text
 prevPageUrl urls pageNum = pageUrl urls (pageNum - 1)
 
--- | One table row.
-renderRow :: SectionUrls -> Maybe (Map Underwriters.Id Text) -> BreakItems.Model -> Lucid.Html ()
-renderRow urls mNames item =
+-- | One table row, with a play button and a download link.
+renderRow :: StorageBackend -> SectionUrls -> Maybe (Map Underwriters.Id Text) -> BreakItems.Model -> Lucid.Html ()
+renderRow backend urls mNames item =
   let itemId = item.bimId
+      audioUrl = buildMediaUrl backend item.bimAudioFilePath
       itemIdText = display itemId
       rowId = [i|break-item-row-#{itemIdText}|]
       -- Built outside the quasiquote: the interpolation splice does not parse
@@ -223,6 +241,16 @@ renderRow urls mNames item =
             Lucid.toHtml (formatRange item.bimStartsOn item.bimEndsOn)
 
         Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
+          renderInlineAudioPlayer audioUrl
+
+        Lucid.td_ [class_ $ base [Tokens.p4, "text-center", "flex", "items-center", "justify-center", Tokens.gap2]] $ do
+          Lucid.a_
+            [ Lucid.href_ audioUrl,
+              Lucid.download_ "",
+              class_ $ base ["p-2", "rounded", Tokens.hoverBg, "transition-colors"],
+              Lucid.title_ "Download"
+            ]
+            $ Lucid.i_ [Lucid.class_ [i|fa-solid fa-download #{Tokens.fgMuted}|]] mempty
           ActionsDropdown.render
             [ ActionsDropdown.navigateAction "edit" "Edit" editUrl,
               ActionsDropdown.htmxDeleteAction
@@ -384,15 +412,7 @@ renderBreakItemForm urls postUrl submitLabel mUploadUrl startsOn endsOn title mU
         Just uploadUrl -> section "AUDIO FILE" $ do
           stagedAudioField "audio_file" uploadUrl urls.suUploadType $ do
             label "Audio"
-            let maxRunSeconds = case mUf of
-                  Nothing -> psaMaxSeconds
-                  Just _ -> underwritingMaxSeconds
-                fileHint = [i|Upload an MP3, WAV, or other audio file. Maximum #{audioMaxSizeMb}MB and #{maxRunSeconds} seconds.|] :: Text
-            hint $ case mUf of
-              Nothing -> fileHint
-              Just _ ->
-                fileHint
-                  <> " Noncommercial rules apply. No call to action, no price or discount, no quality or comparison claim, and no inducement to buy. A staff member reviews the copy before it airs."
+            hint (audioHint urls.suCategory)
             maxSize audioMaxSizeMb
 
       section "SCHEDULING" $ do
@@ -409,6 +429,26 @@ renderBreakItemForm urls postUrl submitLabel mUploadUrl startsOn endsOn title mU
 
       cancelButton cancelUrl "CANCEL"
       submitButton submitLabel
+
+-- | The hint under the audio field of an upload form.
+--
+-- Each category shows its own length limit. Only underwriting adds the
+-- noncommercial copy rules.
+audioHint :: BreakItems.Category -> Text
+audioHint category =
+  case category of
+    BreakItems.Underwriting -> fileHint <> " " <> noncommercialRules
+    BreakItems.ShowPromo -> fileHint <> " A staff member reviews each promo before it airs."
+    BreakItems.Psa -> fileHint
+    BreakItems.Announcement -> fileHint
+  where
+    maxRunSeconds = categoryMaxSeconds category
+
+    fileHint =
+      [i|Upload an MP3, WAV, or other audio file. Maximum #{audioMaxSizeMb}MB and #{maxRunSeconds} seconds.|]
+
+    noncommercialRules =
+      "Noncommercial rules apply. No call to action, no price or discount, no quality or comparison claim, and no inducement to buy. A staff member reviews the copy before it airs."
 
 --------------------------------------------------------------------------------
 -- Formatting

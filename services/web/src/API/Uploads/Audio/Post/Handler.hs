@@ -31,7 +31,7 @@ import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
-import Domain.BreakPlanner (psaMaxSeconds, stationIdMaxSeconds, underwritingMaxSeconds)
+import Domain.BreakPlanner (announcementMaxSeconds, psaMaxSeconds, showPromoMaxSeconds, stationIdMaxSeconds, underwritingMaxSeconds)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Origin (Origin (..))
 import Domain.Types.StorageBackend (StorageBackend)
@@ -200,18 +200,26 @@ processAudioUpload user form = do
 -- An episode has no check here, because its limit depends on the slot, and
 -- the slot can still change after the upload.
 --
--- PSAs and underwriting announcements share one upload type. The check uses
--- the larger of their two limits, so it never refuses a file that one of them
+-- Every break item category shares one upload type. The check uses the
+-- largest of their limits, so it never refuses a file that one of them
 -- accepts. The save handler applies the exact limit of the category.
 checkUploadLength :: StagedUploads.UploadType -> Int64 -> Either Text ()
 checkUploadLength uploadType durationSeconds =
   case uploadType of
     StagedUploads.StationIdAudio -> withinLimit "Station IDs" stationIdMaxSeconds
     StagedUploads.BreakItemAudio ->
-      withinLimit "PSAs and underwriting announcements" (max psaMaxSeconds underwritingMaxSeconds)
+      withinLimit "Break items" breakItemMaxSeconds
     StagedUploads.EpisodeAudio -> Right ()
     StagedUploads.EphemeralAudio -> Right ()
   where
+    breakItemMaxSeconds =
+      maximum
+        [ psaMaxSeconds,
+          underwritingMaxSeconds,
+          announcementMaxSeconds,
+          showPromoMaxSeconds
+        ]
+
     withinLimit plural limit
       | durationSeconds <= limit = Right ()
       | otherwise =

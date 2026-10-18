@@ -17,6 +17,7 @@ module API.Types
     DashboardRoutes (..),
     DashboardHostRoutes (..),
     DashboardAdminRoutes (..),
+    DashboardAirBreaksRoutes (..),
     DashboardEpisodesRoutes (..),
     DashboardBlogsRoutes (..),
     DashboardEventsRoutes (..),
@@ -28,6 +29,8 @@ module API.Types
     DashboardInvitationsRoutes (..),
     DashboardNewsletterSubscribersRoutes (..),
     DashboardPsasRoutes (..),
+    DashboardAnnouncementsRoutes (..),
+    DashboardPromosRoutes (..),
     DashboardUnderwritingRoutes (..),
     DashboardUnderwritersRoutes (..),
     DashboardSitePagesRoutes (..),
@@ -53,6 +56,37 @@ import API.Analytics.EpisodePlay.Post.Route qualified as Analytics.EpisodePlay.P
 import API.Archive.Get.Route qualified as Archive.Get
 import API.Blog.Get.Route qualified as Blog.Get
 import API.Blog.Post.Get.Route qualified as Blog.Post.Get
+import API.Dashboard.AirBreaks.Announcements.Get.Route qualified as Dashboard.AirBreaks.Announcements.Get
+import API.Dashboard.AirBreaks.Announcements.Id.Delete.Route qualified as Dashboard.AirBreaks.Announcements.Id.Delete
+import API.Dashboard.AirBreaks.Announcements.Id.Edit.Get.Route qualified as Dashboard.AirBreaks.Announcements.Id.Edit.Get
+import API.Dashboard.AirBreaks.Announcements.Id.Edit.Post.Route qualified as Dashboard.AirBreaks.Announcements.Id.Edit.Post
+import API.Dashboard.AirBreaks.Announcements.New.Get.Route qualified as Dashboard.AirBreaks.Announcements.New.Get
+import API.Dashboard.AirBreaks.Announcements.New.Post.Route qualified as Dashboard.AirBreaks.Announcements.New.Post
+import API.Dashboard.AirBreaks.Plan.Get.Route qualified as Dashboard.AirBreaks.Plan.Get
+import API.Dashboard.AirBreaks.Promos.Get.Route qualified as Dashboard.AirBreaks.Promos.Get
+import API.Dashboard.AirBreaks.Promos.Id.Approve.Post.Route qualified as Dashboard.AirBreaks.Promos.Id.Approve.Post
+import API.Dashboard.AirBreaks.Promos.Id.Delete.Route qualified as Dashboard.AirBreaks.Promos.Id.Delete
+import API.Dashboard.AirBreaks.Promos.Id.Reject.Post.Route qualified as Dashboard.AirBreaks.Promos.Id.Reject.Post
+import API.Dashboard.AirBreaks.Psas.Get.Route qualified as Dashboard.AirBreaks.Psas.Get
+import API.Dashboard.AirBreaks.Psas.Id.Delete.Route qualified as Dashboard.AirBreaks.Psas.Id.Delete
+import API.Dashboard.AirBreaks.Psas.Id.Edit.Get.Route qualified as Dashboard.AirBreaks.Psas.Id.Edit.Get
+import API.Dashboard.AirBreaks.Psas.Id.Edit.Post.Route qualified as Dashboard.AirBreaks.Psas.Id.Edit.Post
+import API.Dashboard.AirBreaks.Psas.New.Get.Route qualified as Dashboard.AirBreaks.Psas.New.Get
+import API.Dashboard.AirBreaks.Psas.New.Post.Route qualified as Dashboard.AirBreaks.Psas.New.Post
+import API.Dashboard.AirBreaks.StationIds.Get.Route qualified as Dashboard.AirBreaks.StationIds.Get
+import API.Dashboard.AirBreaks.StationIds.Id.Delete.Route qualified as Dashboard.AirBreaks.StationIds.Id.Delete
+import API.Dashboard.AirBreaks.StationIds.New.Get.Route qualified as Dashboard.AirBreaks.StationIds.New.Get
+import API.Dashboard.AirBreaks.StationIds.New.Post.Route qualified as Dashboard.AirBreaks.StationIds.New.Post
+import API.Dashboard.AirBreaks.Underwriters.Get.Route qualified as Dashboard.AirBreaks.Underwriters.Get
+import API.Dashboard.AirBreaks.Underwriters.Id.Edit.Post.Route qualified as Dashboard.AirBreaks.Underwriters.Id.Edit.Post
+import API.Dashboard.AirBreaks.Underwriters.New.Post.Route qualified as Dashboard.AirBreaks.Underwriters.New.Post
+import API.Dashboard.AirBreaks.Underwriting.Delivery.Get.Route qualified as Dashboard.AirBreaks.Underwriting.Delivery.Get
+import API.Dashboard.AirBreaks.Underwriting.Get.Route qualified as Dashboard.AirBreaks.Underwriting.Get
+import API.Dashboard.AirBreaks.Underwriting.Id.Delete.Route qualified as Dashboard.AirBreaks.Underwriting.Id.Delete
+import API.Dashboard.AirBreaks.Underwriting.Id.Edit.Get.Route qualified as Dashboard.AirBreaks.Underwriting.Id.Edit.Get
+import API.Dashboard.AirBreaks.Underwriting.Id.Edit.Post.Route qualified as Dashboard.AirBreaks.Underwriting.Id.Edit.Post
+import API.Dashboard.AirBreaks.Underwriting.New.Get.Route qualified as Dashboard.AirBreaks.Underwriting.New.Get
+import API.Dashboard.AirBreaks.Underwriting.New.Post.Route qualified as Dashboard.AirBreaks.Underwriting.New.Post
 import API.Dashboard.Analytics.Data.Get.Route qualified as Dashboard.Analytics.Data.Get
 import API.Dashboard.Analytics.Get.Route qualified as Dashboard.Analytics.Get
 import API.Dashboard.Blogs.Get.Route qualified as Dashboard.Blogs.Get
@@ -102,12 +136,6 @@ import API.Dashboard.NewsletterSubscribers.Delete.Route qualified as Dashboard.N
 import API.Dashboard.NewsletterSubscribers.Get.Route qualified as Dashboard.NewsletterSubscribers.Get
 import API.Dashboard.Profile.Edit.Get.Route qualified as Dashboard.Profile.Edit.Get
 import API.Dashboard.Profile.Edit.Post.Route qualified as Dashboard.Profile.Edit.Post
-import API.Dashboard.Psas.Get.Route qualified as Dashboard.Psas.Get
-import API.Dashboard.Psas.Id.Delete.Route qualified as Dashboard.Psas.Id.Delete
-import API.Dashboard.Psas.Id.Edit.Get.Route qualified as Dashboard.Psas.Id.Edit.Get
-import API.Dashboard.Psas.Id.Edit.Post.Route qualified as Dashboard.Psas.Id.Edit.Post
-import API.Dashboard.Psas.New.Get.Route qualified as Dashboard.Psas.New.Get
-import API.Dashboard.Psas.New.Post.Route qualified as Dashboard.Psas.New.Post
 import API.Dashboard.Shows.Get.Route qualified as Dashboard.Shows.Get
 import API.Dashboard.Shows.New.Get.Route qualified as Dashboard.Shows.New.Get
 import API.Dashboard.Shows.New.Post.Route qualified as Dashboard.Shows.New.Post
@@ -117,6 +145,9 @@ import API.Dashboard.Shows.Slug.Edit.Post.Route qualified as Dashboard.Shows.Slu
 import API.Dashboard.Shows.Slug.Episode.New.Get.Route qualified as Dashboard.Shows.Slug.Episode.New.Get
 import API.Dashboard.Shows.Slug.Episode.New.Post.Route qualified as Dashboard.Shows.Slug.Episode.New.Post
 import API.Dashboard.Shows.Slug.Get.Route qualified as Dashboard.Shows.Slug.Get
+import API.Dashboard.Shows.Slug.Promos.Get.Route qualified as Dashboard.Shows.Slug.Promos.Get
+import API.Dashboard.Shows.Slug.Promos.Id.Delete.Route qualified as Dashboard.Shows.Slug.Promos.Id.Delete
+import API.Dashboard.Shows.Slug.Promos.New.Post.Route qualified as Dashboard.Shows.Slug.Promos.New.Post
 import API.Dashboard.Shows.Slug.Restore.Post.Route qualified as Dashboard.Shows.Slug.Restore.Post
 import API.Dashboard.SitePages.Get.Route qualified as Dashboard.SitePages.Get
 import API.Dashboard.SitePages.Slug.Edit.Get.Route qualified as Dashboard.SitePages.Slug.Edit.Get
@@ -131,10 +162,6 @@ import API.Dashboard.StationBlog.Slug.Delete.Route qualified as Dashboard.Statio
 import API.Dashboard.StationBlog.Slug.Edit.Get.Route qualified as Dashboard.StationBlog.Slug.Edit.Get
 import API.Dashboard.StationBlog.Slug.Edit.Post.Route qualified as Dashboard.StationBlog.Slug.Edit.Post
 import API.Dashboard.StationBlog.Slug.Get.Route qualified as Dashboard.StationBlog.Slug.Get
-import API.Dashboard.StationIds.Get.Route qualified as Dashboard.StationIds.Get
-import API.Dashboard.StationIds.Id.Delete.Route qualified as Dashboard.StationIds.Id.Delete
-import API.Dashboard.StationIds.New.Get.Route qualified as Dashboard.StationIds.New.Get
-import API.Dashboard.StationIds.New.Post.Route qualified as Dashboard.StationIds.New.Post
 import API.Dashboard.Store.Orders.Get.Route qualified as Dashboard.Store.Orders.Get
 import API.Dashboard.Store.Orders.Id.Get.Route qualified as Dashboard.Store.Orders.Id.Get
 import API.Dashboard.Store.Orders.Id.Label.Post.Route qualified as Dashboard.Store.Orders.Id.Label.Post
@@ -156,17 +183,6 @@ import API.Dashboard.StreamSettings.Restart.Liquidsoap.Post.Route qualified as D
 import API.Dashboard.StreamSettings.SkipTrack.Post.Route qualified as Dashboard.StreamSettings.SkipTrack.Post
 import API.Dashboard.StreamSettings.StartStream.Post.Route qualified as Dashboard.StreamSettings.StartStream.Post
 import API.Dashboard.StreamSettings.StopStream.Post.Route qualified as Dashboard.StreamSettings.StopStream.Post
-import API.Dashboard.Underwriters.Get.Route qualified as Dashboard.Underwriters.Get
-import API.Dashboard.Underwriters.Id.Edit.Post.Route qualified as Dashboard.Underwriters.Id.Edit.Post
-import API.Dashboard.Underwriters.New.Post.Route qualified as Dashboard.Underwriters.New.Post
-import API.Dashboard.Underwriting.Delivery.Get.Route qualified as Dashboard.Underwriting.Delivery.Get
-import API.Dashboard.Underwriting.Get.Route qualified as Dashboard.Underwriting.Get
-import API.Dashboard.Underwriting.Id.Delete.Route qualified as Dashboard.Underwriting.Id.Delete
-import API.Dashboard.Underwriting.Id.Edit.Get.Route qualified as Dashboard.Underwriting.Id.Edit.Get
-import API.Dashboard.Underwriting.Id.Edit.Post.Route qualified as Dashboard.Underwriting.Id.Edit.Post
-import API.Dashboard.Underwriting.New.Get.Route qualified as Dashboard.Underwriting.New.Get
-import API.Dashboard.Underwriting.New.Post.Route qualified as Dashboard.Underwriting.New.Post
-import API.Dashboard.Underwriting.Plan.Get.Route qualified as Dashboard.Underwriting.Plan.Get
 import API.Dashboard.Users.Delete.Route qualified as Dashboard.Users.Delete
 import API.Dashboard.Users.Detail.Get.Route qualified as Dashboard.Users.Detail.Get
 import API.Dashboard.Users.Edit.Get.Route qualified as Dashboard.Users.Edit.Get
@@ -413,7 +429,33 @@ data DashboardRoutes mode = DashboardRoutes
     -- | Host-accessible dashboard routes (episodes, blogs, events)
     host :: mode :- NamedRoutes DashboardHostRoutes,
     -- | Admin-only dashboard routes (station blog, shows, users)
-    admin :: mode :- NamedRoutes DashboardAdminRoutes
+    admin :: mode :- NamedRoutes DashboardAdminRoutes,
+    -- | Air break routes under @/dashboard/air-breaks@
+    airBreaks :: mode :- NamedRoutes DashboardAirBreaksRoutes
+  }
+  deriving stock (Generic)
+
+-- | Air break dashboard routes under @/dashboard/air-breaks@.
+--
+-- This record only groups the routes. Each Route.hs spells out its full
+-- path, like every other dashboard route. Each handler does its own
+-- permission check. Hosts can use the station ID pages. The other pages
+-- are for staff.
+data DashboardAirBreaksRoutes mode = DashboardAirBreaksRoutes
+  { -- | @GET /dashboard/air-breaks/plan@ - Break plan view
+    plan :: mode :- Dashboard.AirBreaks.Plan.Get.Route,
+    -- | @/dashboard/air-breaks/station-ids/...@ - Station ID management routes
+    stationIds :: mode :- NamedRoutes DashboardStationIdsRoutes,
+    -- | @/dashboard/air-breaks/psas/...@ - PSA management routes
+    psas :: mode :- NamedRoutes DashboardPsasRoutes,
+    -- | @/dashboard/air-breaks/announcements/...@ - Station announcement management routes
+    announcements :: mode :- NamedRoutes DashboardAnnouncementsRoutes,
+    -- | @/dashboard/air-breaks/promos/...@ - Show promo review routes
+    promos :: mode :- NamedRoutes DashboardPromosRoutes,
+    -- | @/dashboard/air-breaks/underwriting/...@ - Underwriting announcement management routes
+    underwriting :: mode :- NamedRoutes DashboardUnderwritingRoutes,
+    -- | @/dashboard/air-breaks/underwriters/...@ - Underwriter management routes
+    underwriters :: mode :- NamedRoutes DashboardUnderwritersRoutes
   }
   deriving stock (Generic)
 
@@ -425,8 +467,6 @@ data DashboardHostRoutes mode = DashboardHostRoutes
     episodes :: mode :- NamedRoutes DashboardEpisodesRoutes,
     -- | @/dashboard/blogs/...@ - Show blog management routes
     blogs :: mode :- NamedRoutes DashboardBlogsRoutes,
-    -- | @/dashboard/station-ids/...@ - Station ID management routes
-    stationIds :: mode :- NamedRoutes DashboardStationIdsRoutes,
     -- | @/dashboard/ephemeral-uploads/...@ - Ephemeral upload management routes
     ephemeralUploads :: mode :- NamedRoutes DashboardEphemeralUploadsRoutes
   }
@@ -457,65 +497,91 @@ data DashboardAdminRoutes mode = DashboardAdminRoutes
     -- | @/dashboard/store/...@ - Store management routes
     store :: mode :- NamedRoutes DashboardStoreRoutes,
     -- | @/dashboard/newsletter-subscribers/...@ - Newsletter subscriber management routes
-    newsletterSubscribers :: mode :- NamedRoutes DashboardNewsletterSubscribersRoutes,
-    -- | @/dashboard/psas/...@ - PSA management routes
-    psas :: mode :- NamedRoutes DashboardPsasRoutes,
-    -- | @/dashboard/underwriting/...@ - Underwriting announcement management routes
-    underwriting :: mode :- NamedRoutes DashboardUnderwritingRoutes,
-    -- | @/dashboard/underwriters/...@ - Underwriter management routes
-    underwriters :: mode :- NamedRoutes DashboardUnderwritersRoutes
+    newsletterSubscribers :: mode :- NamedRoutes DashboardNewsletterSubscribersRoutes
   }
   deriving stock (Generic)
 
--- | Dashboard underwriter routes under @/dashboard/underwriters@.
+-- | Dashboard underwriter routes under @/dashboard/air-breaks/underwriters@.
 data DashboardUnderwritersRoutes mode = DashboardUnderwritersRoutes
-  { -- | @GET /dashboard/underwriters@ - Underwriter list
-    list :: mode :- Dashboard.Underwriters.Get.Route,
-    -- | @POST /dashboard/underwriters/new@ - Add an underwriter
-    newPost :: mode :- Dashboard.Underwriters.New.Post.Route,
-    -- | @POST /dashboard/underwriters/:underwriter_id/edit@ - Rename an underwriter
-    editPost :: mode :- Dashboard.Underwriters.Id.Edit.Post.Route
+  { -- | @GET /dashboard/air-breaks/underwriters@ - Underwriter list
+    list :: mode :- Dashboard.AirBreaks.Underwriters.Get.Route,
+    -- | @POST /dashboard/air-breaks/underwriters/new@ - Add an underwriter
+    newPost :: mode :- Dashboard.AirBreaks.Underwriters.New.Post.Route,
+    -- | @POST /dashboard/air-breaks/underwriters/:underwriter_id/edit@ - Rename an underwriter
+    editPost :: mode :- Dashboard.AirBreaks.Underwriters.Id.Edit.Post.Route
   }
   deriving stock (Generic)
 
--- | Dashboard PSA management routes under @/dashboard/psas@.
+-- | Dashboard PSA management routes under @/dashboard/air-breaks/psas@.
 --
 -- PSAs and underwriting announcements share one table and one playout rotation. They
 -- are two route groups so each can carry its own permission gate.
 data DashboardPsasRoutes mode = DashboardPsasRoutes
-  { -- | @GET /dashboard/psas@ - PSA list
-    list :: mode :- Dashboard.Psas.Get.Route,
-    -- | @GET /dashboard/psas/new@ - New PSA form
-    newGet :: mode :- Dashboard.Psas.New.Get.Route,
-    -- | @POST /dashboard/psas/new@ - Create PSA
-    newPost :: mode :- Dashboard.Psas.New.Post.Route,
-    -- | @GET /dashboard/psas/:psa_id/edit@ - Edit PSA form
-    editGet :: mode :- Dashboard.Psas.Id.Edit.Get.Route,
-    -- | @POST /dashboard/psas/:psa_id/edit@ - Update PSA
-    editPost :: mode :- Dashboard.Psas.Id.Edit.Post.Route,
-    -- | @DELETE /dashboard/psas/:psa_id@ - Delete PSA
-    delete :: mode :- Dashboard.Psas.Id.Delete.Route
+  { -- | @GET /dashboard/air-breaks/psas@ - PSA list
+    list :: mode :- Dashboard.AirBreaks.Psas.Get.Route,
+    -- | @GET /dashboard/air-breaks/psas/new@ - New PSA form
+    newGet :: mode :- Dashboard.AirBreaks.Psas.New.Get.Route,
+    -- | @POST /dashboard/air-breaks/psas/new@ - Create PSA
+    newPost :: mode :- Dashboard.AirBreaks.Psas.New.Post.Route,
+    -- | @GET /dashboard/air-breaks/psas/:psa_id/edit@ - Edit PSA form
+    editGet :: mode :- Dashboard.AirBreaks.Psas.Id.Edit.Get.Route,
+    -- | @POST /dashboard/air-breaks/psas/:psa_id/edit@ - Update PSA
+    editPost :: mode :- Dashboard.AirBreaks.Psas.Id.Edit.Post.Route,
+    -- | @DELETE /dashboard/air-breaks/psas/:psa_id@ - Delete PSA
+    delete :: mode :- Dashboard.AirBreaks.Psas.Id.Delete.Route
   }
   deriving stock (Generic)
 
--- | Dashboard underwriting announcement routes under @/dashboard/underwriting@.
+-- | Dashboard station announcement routes under @/dashboard/air-breaks/announcements@.
+--
+-- Announcements share the PSA handlers. Only the section value differs.
+data DashboardAnnouncementsRoutes mode = DashboardAnnouncementsRoutes
+  { -- | @GET /dashboard/air-breaks/announcements@ - Announcement list
+    list :: mode :- Dashboard.AirBreaks.Announcements.Get.Route,
+    -- | @GET /dashboard/air-breaks/announcements/new@ - New announcement form
+    newGet :: mode :- Dashboard.AirBreaks.Announcements.New.Get.Route,
+    -- | @POST /dashboard/air-breaks/announcements/new@ - Create announcement
+    newPost :: mode :- Dashboard.AirBreaks.Announcements.New.Post.Route,
+    -- | @GET /dashboard/air-breaks/announcements/:announcement_id/edit@ - Edit announcement form
+    editGet :: mode :- Dashboard.AirBreaks.Announcements.Id.Edit.Get.Route,
+    -- | @POST /dashboard/air-breaks/announcements/:announcement_id/edit@ - Update announcement
+    editPost :: mode :- Dashboard.AirBreaks.Announcements.Id.Edit.Post.Route,
+    -- | @DELETE /dashboard/air-breaks/announcements/:announcement_id@ - Delete announcement
+    delete :: mode :- Dashboard.AirBreaks.Announcements.Id.Delete.Route
+  }
+  deriving stock (Generic)
+
+-- | Dashboard show promo review routes under @/dashboard/air-breaks/promos@.
+--
+-- Staff approve or reject the promos that hosts submit.
+data DashboardPromosRoutes mode = DashboardPromosRoutes
+  { -- | @GET /dashboard/air-breaks/promos@ - Promos from every show, pending first
+    list :: mode :- Dashboard.AirBreaks.Promos.Get.Route,
+    -- | @POST /dashboard/air-breaks/promos/:promo_id/approve@ - Approve a pending promo
+    approvePost :: mode :- Dashboard.AirBreaks.Promos.Id.Approve.Post.Route,
+    -- | @POST /dashboard/air-breaks/promos/:promo_id/reject@ - Reject a pending promo with a note
+    rejectPost :: mode :- Dashboard.AirBreaks.Promos.Id.Reject.Post.Route,
+    -- | @DELETE /dashboard/air-breaks/promos/:promo_id@ - Delete a promo
+    delete :: mode :- Dashboard.AirBreaks.Promos.Id.Delete.Route
+  }
+  deriving stock (Generic)
+
+-- | Dashboard underwriting announcement routes under @/dashboard/air-breaks/underwriting@.
 data DashboardUnderwritingRoutes mode = DashboardUnderwritingRoutes
-  { -- | @GET /dashboard/underwriting/delivery@ - Delivery report
-    delivery :: mode :- Dashboard.Underwriting.Delivery.Get.Route,
-    -- | @GET /dashboard/underwriting/plan@ - Break plan view
-    plan :: mode :- Dashboard.Underwriting.Plan.Get.Route,
-    -- | @GET /dashboard/underwriting@ - Underwriting list
-    list :: mode :- Dashboard.Underwriting.Get.Route,
-    -- | @GET /dashboard/underwriting/new@ - New underwriting form
-    newGet :: mode :- Dashboard.Underwriting.New.Get.Route,
-    -- | @POST /dashboard/underwriting/new@ - Create underwriting
-    newPost :: mode :- Dashboard.Underwriting.New.Post.Route,
-    -- | @GET /dashboard/underwriting/:underwriting_id/edit@ - Edit underwriting form
-    editGet :: mode :- Dashboard.Underwriting.Id.Edit.Get.Route,
-    -- | @POST /dashboard/underwriting/:underwriting_id/edit@ - Update underwriting
-    editPost :: mode :- Dashboard.Underwriting.Id.Edit.Post.Route,
-    -- | @DELETE /dashboard/underwriting/:underwriting_id@ - Delete underwriting
-    delete :: mode :- Dashboard.Underwriting.Id.Delete.Route
+  { -- | @GET /dashboard/air-breaks/underwriting/delivery@ - Delivery report
+    delivery :: mode :- Dashboard.AirBreaks.Underwriting.Delivery.Get.Route,
+    -- | @GET /dashboard/air-breaks/underwriting@ - Underwriting list
+    list :: mode :- Dashboard.AirBreaks.Underwriting.Get.Route,
+    -- | @GET /dashboard/air-breaks/underwriting/new@ - New underwriting form
+    newGet :: mode :- Dashboard.AirBreaks.Underwriting.New.Get.Route,
+    -- | @POST /dashboard/air-breaks/underwriting/new@ - Create underwriting
+    newPost :: mode :- Dashboard.AirBreaks.Underwriting.New.Post.Route,
+    -- | @GET /dashboard/air-breaks/underwriting/:underwriting_id/edit@ - Edit underwriting form
+    editGet :: mode :- Dashboard.AirBreaks.Underwriting.Id.Edit.Get.Route,
+    -- | @POST /dashboard/air-breaks/underwriting/:underwriting_id/edit@ - Update underwriting
+    editPost :: mode :- Dashboard.AirBreaks.Underwriting.Id.Edit.Post.Route,
+    -- | @DELETE /dashboard/air-breaks/underwriting/:underwriting_id@ - Delete underwriting
+    delete :: mode :- Dashboard.AirBreaks.Underwriting.Id.Delete.Route
   }
   deriving stock (Generic)
 
@@ -622,7 +688,13 @@ data DashboardShowsRoutes mode = DashboardShowsRoutes
     -- | @GET /dashboard/shows/:slug/episodes/new@ - New episode upload form
     episodeNewGet :: mode :- Dashboard.Shows.Slug.Episode.New.Get.Route,
     -- | @POST /dashboard/shows/:slug/episodes/new@ - Create new episode
-    episodeNewPost :: mode :- Dashboard.Shows.Slug.Episode.New.Post.Route
+    episodeNewPost :: mode :- Dashboard.Shows.Slug.Episode.New.Post.Route,
+    -- | @GET /dashboard/shows/:show_slug/promos@ - The show's promos and the submit form
+    promosGet :: mode :- Dashboard.Shows.Slug.Promos.Get.Route,
+    -- | @POST /dashboard/shows/:show_slug/promos/new@ - Submit a promo for staff review
+    promoNewPost :: mode :- Dashboard.Shows.Slug.Promos.New.Post.Route,
+    -- | @DELETE /dashboard/shows/:show_slug/promos/:promo_id@ - Withdraw a promo
+    promoDelete :: mode :- Dashboard.Shows.Slug.Promos.Id.Delete.Route
   }
   deriving stock (Generic)
 
@@ -651,18 +723,18 @@ data DashboardUsersRoutes mode = DashboardUsersRoutes
   }
   deriving stock (Generic)
 
--- | Dashboard station ID management routes under @/dashboard/station-ids@.
+-- | Dashboard station ID management routes under @/dashboard/air-breaks/station-ids@.
 --
 -- Allows hosts to upload, view, play, and download station identification audio clips.
 data DashboardStationIdsRoutes mode = DashboardStationIdsRoutes
-  { -- | @GET /dashboard/station-ids@ - Station ID list
-    list :: mode :- Dashboard.StationIds.Get.Route,
-    -- | @GET /dashboard/station-ids/new@ - New station ID form
-    newGet :: mode :- Dashboard.StationIds.New.Get.Route,
-    -- | @POST /dashboard/station-ids/new@ - Create station ID
-    newPost :: mode :- Dashboard.StationIds.New.Post.Route,
-    -- | @DELETE /dashboard/station-ids/:id@ - Delete station ID
-    delete :: mode :- Dashboard.StationIds.Id.Delete.Route
+  { -- | @GET /dashboard/air-breaks/station-ids@ - Station ID list
+    list :: mode :- Dashboard.AirBreaks.StationIds.Get.Route,
+    -- | @GET /dashboard/air-breaks/station-ids/new@ - New station ID form
+    newGet :: mode :- Dashboard.AirBreaks.StationIds.New.Get.Route,
+    -- | @POST /dashboard/air-breaks/station-ids/new@ - Create station ID
+    newPost :: mode :- Dashboard.AirBreaks.StationIds.New.Post.Route,
+    -- | @DELETE /dashboard/air-breaks/station-ids/:id@ - Delete station ID
+    delete :: mode :- Dashboard.AirBreaks.StationIds.Id.Delete.Route
   }
   deriving stock (Generic)
 

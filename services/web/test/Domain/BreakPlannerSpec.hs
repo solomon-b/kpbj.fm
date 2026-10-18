@@ -58,10 +58,26 @@ usedAt hour c = c {bicLastUsed = Just (UTCTime day (fromIntegral (hour * 3600)))
 psa :: Int64 -> Int64 -> BreakItemCandidate
 psa itemId secs = BreakItemCandidate (BreakItems.Id itemId) BreakItems.Psa Nothing secs Nothing
 
+-- | A station announcement that has never aired. Ids from 200 up are station
+-- announcements.
+stationAnnouncement :: Int64 -> Int64 -> BreakItemCandidate
+stationAnnouncement itemId secs =
+  BreakItemCandidate (BreakItems.Id itemId) BreakItems.Announcement Nothing secs Nothing
+
+-- | A show promo that has never aired. Ids from 300 up are show promos.
+showPromo :: Int64 -> Int64 -> BreakItemCandidate
+showPromo itemId secs =
+  BreakItemCandidate (BreakItems.Id itemId) BreakItems.ShowPromo Nothing secs Nothing
+
 -- | A day with one 10 second station ID, the given PSAs, and the given
 -- announcements.
 input :: [PlanBreak] -> [BreakItemCandidate] -> [BreakItemCandidate] -> PlanInput
 input bs psas creatives = PlanInput day bs [stationId] (psas <> creatives)
+
+-- | A day with one 10 second station ID and the given break items, of any
+-- category.
+inputWithItems :: [PlanBreak] -> [BreakItemCandidate] -> PlanInput
+inputWithItems bs = PlanInput day bs [stationId]
 
 -- | The break items in each break, in break order and play order.
 itemsPerBreak :: [PlanEntry] -> [[BreakItems.Id]]
@@ -83,8 +99,10 @@ genPlanInput = do
   breaks <- genBreaks
   stationIds <- genStationIds
   underwriting <- genUnderwriting
+  announcements <- genStationAnnouncements
+  promos <- genShowPromos
   psas <- genPsas
-  pure (PlanInput day breaks stationIds (underwriting <> psas))
+  pure (PlanInput day breaks stationIds (underwriting <> announcements <> promos <> psas))
 
 -- | Up to 48 breaks, 30 minutes apart, in time order. Each break is a show
 -- break or an automation break.
@@ -170,6 +188,41 @@ genPsas = do
             bicLastUsed = lastUsed
           }
 
+-- | Up to 4 station announcements, with ids from 200 up. Each is 10 to 30
+-- seconds, because the upload refuses a longer file.
+genStationAnnouncements :: Gen [BreakItemCandidate]
+genStationAnnouncements = do
+  announcementCount <- Gen.int64 (Range.linear 0 4)
+  traverse (genShortItem BreakItems.Announcement 10 30) [200 .. 199 + announcementCount]
+
+-- | Up to 4 show promos, with ids from 300 up. Each is 3 to 10 seconds,
+-- because the upload refuses a longer file.
+genShowPromos :: Gen [BreakItemCandidate]
+genShowPromos = do
+  promoCount <- Gen.int64 (Range.linear 0 4)
+  traverse (genShortItem BreakItems.ShowPromo 3 10) [300 .. 299 + promoCount]
+
+-- | One break item with no underwriter, between the given lengths.
+genShortItem ::
+  BreakItems.Category ->
+  -- | Shortest length in seconds
+  Int64 ->
+  -- | Longest length in seconds
+  Int64 ->
+  Int64 ->
+  Gen BreakItemCandidate
+genShortItem category shortest longest itemId = do
+  seconds <- Gen.int64 (Range.linear shortest longest)
+  lastUsed <- genLastUsed
+  pure
+    BreakItemCandidate
+      { bicId = BreakItems.Id itemId,
+        bicCategory = category,
+        bicUnderwriterId = Nothing,
+        bicSeconds = seconds,
+        bicLastUsed = lastUsed
+      }
+
 -- | Nothing, or a minute on the day before the test day.
 genLastUsed :: Gen (Maybe UTCTime)
 genLastUsed =
@@ -186,6 +239,8 @@ genLastUsed =
 data EntryKind
   = StationIdKind
   | UnderwritingKind
+  | AnnouncementKind
+  | ShowPromoKind
   | PsaKind
   deriving stock (Show, Eq, Ord)
 
@@ -216,6 +271,8 @@ lookupEntry planInput ref =
     kindOf item =
       case bicCategory item of
         BreakItems.Underwriting -> UnderwritingKind
+        BreakItems.Announcement -> AnnouncementKind
+        BreakItems.ShowPromo -> ShowPromoKind
         BreakItems.Psa -> PsaKind
 
 -- | Find a planned entry in the input. Fail the property if it is not there.
@@ -391,6 +448,67 @@ spec = describe "Domain.BreakPlanner.planDay" $ do
             ]
       perBreak `shouldSatisfy` all (<= breakSeconds)
 
+  describe "station announcements and show promos" $ do
+    it "plays the station ID, underwriting, announcement, promo, then the PSAs" $ do
+      -- 10 + 20 + 20 + 10 + 15 + 15 = 90 seconds, so every item fits.
+      let items =
+            [ psa 100 15,
+              psa 101 15,
+              stationAnnouncement 200 20,
+              showPromo 300 10,
+              creative 5 1
+            ]
+          entries = planDay (inputWithItems (showBreaks 1) items)
+      map peRef (sortOn pePosition entries)
+        `shouldBe` [ StationIdRef (StationIds.Id 1),
+                     BreakItemRef (BreakItems.Id 5),
+                     BreakItemRef (BreakItems.Id 200),
+                     BreakItemRef (BreakItems.Id 300),
+                     BreakItemRef (BreakItems.Id 100),
+                     BreakItemRef (BreakItems.Id 101)
+                   ]
+
+    it "takes its time before the PSAs" $ do
+      -- 10 + 30 + 30 + 10 = 80 seconds leave 40. The first 30 second PSA fits.
+      -- The second does not, so the 10 second PSA goes in.
+      let fullSpot = (creative 5 1) {bicSeconds = 30}
+          items =
+            [ psa 100 30,
+              psa 101 30,
+              psa 102 10,
+              stationAnnouncement 200 30,
+              showPromo 300 10,
+              fullSpot
+            ]
+          entries = planDay (inputWithItems (showBreaks 1) items)
+      itemsPerBreak entries
+        `shouldBe` [map BreakItems.Id [5, 200, 300, 100, 102]]
+
+    it "places at most one announcement and one promo in a break" $ do
+      let announcements = [stationAnnouncement i 10 | i <- [200 .. 202]]
+          promos = [showPromo i 10 | i <- [300 .. 302]]
+          entries = planDay (inputWithItems (showBreaks 1) (announcements <> promos))
+      itemsPerBreak entries `shouldBe` [map BreakItems.Id [200, 300]]
+
+    it "airs an announcement and a promo in an automation break" $ do
+      let bs = [PlanBreak (UTCTime day 0) AutomationBreak]
+          items = [stationAnnouncement 200 30, showPromo 300 10]
+          entries = planDay (inputWithItems bs items)
+      itemsPerBreak entries `shouldBe` [map BreakItems.Id [200, 300]]
+
+    it "rotates the announcements and the promos from break to break" $ do
+      let items =
+            [ stationAnnouncement 200 20,
+              stationAnnouncement 201 20,
+              showPromo 300 10,
+              showPromo 301 10
+            ]
+          entries = planDay (inputWithItems (showBreaks 2) items)
+      itemsPerBreak entries
+        `shouldBe` [ map BreakItems.Id [200, 300],
+                     map BreakItems.Id [201, 301]
+                   ]
+
   it "gives the same plan every time" $ do
     let i = input (showBreaks 9) [psa 100 30] [creative 5 1, creative 7 2]
     planDay i `shouldBe` planDay i
@@ -411,6 +529,8 @@ spec = describe "Domain.BreakPlanner.planDay" $ do
 
         assert (countOf StationIdKind <= 1)
         assert (countOf UnderwritingKind <= 1)
+        assert (countOf AnnouncementKind <= 1)
+        assert (countOf ShowPromoKind <= 1)
         assert (countOf PsaKind <= psasPerBreak)
 
         -- The play order is the rule order.

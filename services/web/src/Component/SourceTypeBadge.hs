@@ -27,5 +27,9 @@ sourceTypeBadge "psa" =
   Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.px3, Tokens.py2, "rounded", Tokens.warningBg, Tokens.warningText]] "psa"
 sourceTypeBadge "underwriting" =
   Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.px3, Tokens.py2, "rounded", Tokens.warningBg, Tokens.warningText]] "underwriting"
+sourceTypeBadge "announcement" =
+  Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.px3, Tokens.py2, "rounded", Tokens.warningBg, Tokens.warningText]] "announcement"
+sourceTypeBadge "show_promo" =
+  Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.px3, Tokens.py2, "rounded", Tokens.warningBg, Tokens.warningText]] "show_promo"
 sourceTypeBadge other =
   Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.px3, Tokens.py2, "rounded", Tokens.bgInverse, Tokens.fgInverse]] $ Lucid.toHtml other

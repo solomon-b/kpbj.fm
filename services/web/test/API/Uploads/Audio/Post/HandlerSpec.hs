@@ -18,12 +18,12 @@ spec =
         checkUploadLength StagedUploads.StationIdAudio 11
           `shouldBe` Left "Station IDs can run at most 10 seconds. This file runs 11."
 
-    describe "PSAs and underwriting announcements" $ do
+    describe "break items" $ do
       it "accepts a file at the 30 second limit" $
         checkUploadLength StagedUploads.BreakItemAudio 30 `shouldBe` Right ()
       it "refuses a 42 second file" $
         checkUploadLength StagedUploads.BreakItemAudio 42
-          `shouldBe` Left "PSAs and underwriting announcements can run at most 30 seconds. This file runs 42."
+          `shouldBe` Left "Break items can run at most 30 seconds. This file runs 42."
 
     describe "uploads with no limit here" $ do
       it "accepts a long episode, because its limit depends on the slot" $

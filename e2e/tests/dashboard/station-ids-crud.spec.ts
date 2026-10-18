@@ -23,14 +23,14 @@ test.describe("Station IDs CRUD", () => {
   // -------------------------------------------------------------------------
 
   test("list page loads with empty state", async ({ page }) => {
-    await page.goto("/dashboard/station-ids");
+    await page.goto("/dashboard/air-breaks/station-ids");
     await expect(
       page.getByText("No station IDs uploaded yet.")
     ).toBeVisible();
   });
 
   test("list page has Upload Station ID button", async ({ page }) => {
-    await page.goto("/dashboard/station-ids");
+    await page.goto("/dashboard/air-breaks/station-ids");
     await expect(
       page.getByRole("link", { name: "Upload Station ID" })
     ).toBeVisible();
@@ -41,7 +41,7 @@ test.describe("Station IDs CRUD", () => {
   // -------------------------------------------------------------------------
 
   test("upload form loads with expected fields", async ({ page }) => {
-    await page.goto("/dashboard/station-ids/new");
+    await page.goto("/dashboard/air-breaks/station-ids/new");
     await expect(page.locator('input[name="title"]')).toBeVisible();
     await expect(
       page.getByRole("button", { name: "CHOOSE AUDIO FILE" })
@@ -52,13 +52,13 @@ test.describe("Station IDs CRUD", () => {
   });
 
   test("submit with empty title shows validation error", async ({ page }) => {
-    await page.goto("/dashboard/station-ids/new");
+    await page.goto("/dashboard/air-breaks/station-ids/new");
     await page.getByRole("button", { name: "UPLOAD" }).click();
     await expect(page.locator(".fb-error").first()).toBeVisible();
   });
 
   test("submit without audio file shows server error", async ({ page }) => {
-    await page.goto("/dashboard/station-ids/new");
+    await page.goto("/dashboard/air-breaks/station-ids/new");
     await page.locator('input[name="title"]').fill("Missing Audio Test");
     // Bypass client-side validation by removing the required attribute.
     await page.locator('input[name="title"]').evaluate((el) => {
@@ -71,7 +71,7 @@ test.describe("Station IDs CRUD", () => {
   });
 
   test("server error with a file chosen keeps the form", async ({ page }) => {
-    await page.goto("/dashboard/station-ids/new");
+    await page.goto("/dashboard/air-breaks/station-ids/new");
 
     // The client accepts "<>" as a title. The server strips angle brackets,
     // gets an empty title, and returns an OOB banner with HX-Reswap: none.
@@ -100,7 +100,7 @@ test.describe("Station IDs CRUD", () => {
     const stationIdTitle = `E2E Station ID ${Date.now()}`;
 
     test("create station ID via upload form", async ({ page }) => {
-      await page.goto("/dashboard/station-ids/new");
+      await page.goto("/dashboard/air-breaks/station-ids/new");
 
       // Fill title.
       await page.locator('input[name="title"]').fill(stationIdTitle);
@@ -122,21 +122,21 @@ test.describe("Station IDs CRUD", () => {
 
       // Submit the form.
       await page.getByRole("button", { name: "UPLOAD" }).click();
-      await page.waitForURL(/\/dashboard\/station-ids/);
+      await page.waitForURL(/\/dashboard\/air-breaks\/station-ids/);
       await expect(page.locator("#banner-container")).toContainText(
         /uploaded/i
       );
     });
 
     test("created station ID appears in list", async ({ page }) => {
-      await page.goto("/dashboard/station-ids");
+      await page.goto("/dashboard/air-breaks/station-ids");
       await expect(
         page.locator("#station-ids-table-body")
       ).toContainText(stationIdTitle);
     });
 
     test("delete created station ID", async ({ page }) => {
-      await page.goto("/dashboard/station-ids");
+      await page.goto("/dashboard/air-breaks/station-ids");
       const row = page.locator("#station-ids-table-body tr", {
         hasText: stationIdTitle,
       });

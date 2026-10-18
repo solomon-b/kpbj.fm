@@ -1,0 +1,26 @@
+module API.Dashboard.AirBreaks.Underwriters.Id.Edit.Post.Route where
+
+--------------------------------------------------------------------------------
+
+import API.Dashboard.AirBreaks.Underwriters.Form (UnderwriterForm)
+import Domain.Types.Cookie (Cookie)
+import Effects.Database.Tables.Underwriters qualified as Underwriters
+import Lucid qualified
+import Servant ((:>))
+import Servant qualified
+import Text.HTML (HTML)
+
+--------------------------------------------------------------------------------
+
+-- | "POST /dashboard/air-breaks/underwriters/:underwriter_id/edit"
+--
+-- Returns the table body and an OOB success banner.
+type Route =
+  "dashboard"
+    :> "air-breaks"
+    :> "underwriters"
+    :> Servant.Capture "underwriter_id" Underwriters.Id
+    :> "edit"
+    :> Servant.Header "Cookie" Cookie
+    :> Servant.ReqBody '[Servant.FormUrlEncoded] UnderwriterForm
+    :> Servant.Post '[HTML] (Lucid.Html ())

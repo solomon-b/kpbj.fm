@@ -5,6 +5,17 @@ module Main where
 import API.Archive.Get.HandlerSpec qualified as ArchiveGetHandler
 import API.Blog.Get.HandlerSpec qualified as BlogGetHandler
 import API.Blog.Post.Get.HandlerSpec qualified as BlogPostGetHandler
+import API.Dashboard.AirBreaks.BreakItems.SharedSpec qualified as DashboardBreakItemsShared
+import API.Dashboard.AirBreaks.Plan.Get.HandlerSpec qualified as DashboardAirBreaksPlanHandler
+import API.Dashboard.AirBreaks.Promos.Get.HandlerSpec qualified as DashboardPromosGetHandler
+import API.Dashboard.AirBreaks.Promos.Id.Approve.Post.HandlerSpec qualified as DashboardPromosApproveHandler
+import API.Dashboard.AirBreaks.Promos.Id.Reject.Post.HandlerSpec qualified as DashboardPromosRejectHandler
+import API.Dashboard.AirBreaks.StationIds.Get.HandlerSpec qualified as DashboardStationIdsGetHandler
+import API.Dashboard.AirBreaks.StationIds.Id.Delete.HandlerSpec qualified as DashboardStationIdsDeleteHandler
+import API.Dashboard.AirBreaks.StationIds.New.Get.HandlerSpec qualified as DashboardStationIdsNewGetHandler
+import API.Dashboard.AirBreaks.StationIds.New.Post.HandlerSpec qualified as DashboardStationIdsNewPostHandler
+import API.Dashboard.AirBreaks.Underwriters.New.Post.HandlerSpec qualified as DashboardUnderwritersNewPostHandler
+import API.Dashboard.AirBreaks.Underwriting.Delivery.Get.HandlerSpec qualified as DashboardUnderwritingDeliveryHandler
 import API.Dashboard.Analytics.Data.Get.HandlerSpec qualified as AnalyticsDataHandler
 import API.Dashboard.Blogs.Get.HandlerSpec qualified as DashboardBlogsGetHandler
 import API.Dashboard.Blogs.New.Get.HandlerSpec qualified as DashboardBlogsNewGetHandler
@@ -13,7 +24,6 @@ import API.Dashboard.Blogs.Slug.Delete.HandlerSpec qualified as DashboardBlogsDe
 import API.Dashboard.Blogs.Slug.Edit.Get.HandlerSpec qualified as DashboardBlogsEditGetHandler
 import API.Dashboard.Blogs.Slug.Edit.Post.HandlerSpec qualified as DashboardBlogsEditPostHandler
 import API.Dashboard.Blogs.Slug.Get.HandlerSpec qualified as DashboardBlogsSlugGetHandler
-import API.Dashboard.BreakItems.SharedSpec qualified as DashboardBreakItemsShared
 import API.Dashboard.EphemeralUploads.Get.HandlerSpec qualified as DashboardEphemeralUploadsGetHandler
 import API.Dashboard.EphemeralUploads.Id.Delete.HandlerSpec qualified as DashboardEphemeralUploadsDeleteHandler
 import API.Dashboard.EphemeralUploads.Id.Edit.Get.HandlerSpec qualified as DashboardEphemeralUploadsEditGetHandler
@@ -46,6 +56,8 @@ import API.Dashboard.Shows.Slug.Edit.Post.HandlerSpec qualified as DashboardShow
 import API.Dashboard.Shows.Slug.Edit.Post.ScheduleDiffSpec qualified as ScheduleDiff
 import API.Dashboard.Shows.Slug.Episode.New.Post.HandlerSpec qualified as DashboardShowsEpisodeNewPostHandler
 import API.Dashboard.Shows.Slug.Get.HandlerSpec qualified as DashboardShowsSlugGetHandler
+import API.Dashboard.Shows.Slug.Promos.Id.Delete.HandlerSpec qualified as DashboardShowPromosDeleteHandler
+import API.Dashboard.Shows.Slug.Promos.New.Post.HandlerSpec qualified as DashboardShowPromosNewPostHandler
 import API.Dashboard.SitePages.Get.HandlerSpec qualified as DashboardSitePagesGetHandler
 import API.Dashboard.SitePages.Slug.Edit.Get.HandlerSpec qualified as DashboardSitePagesEditGetHandler
 import API.Dashboard.SitePages.Slug.Edit.Post.HandlerSpec qualified as DashboardSitePagesEditPostHandler
@@ -59,14 +71,7 @@ import API.Dashboard.StationBlog.Slug.Delete.HandlerSpec qualified as DashboardS
 import API.Dashboard.StationBlog.Slug.Edit.Get.HandlerSpec qualified as DashboardStationBlogEditGetHandler
 import API.Dashboard.StationBlog.Slug.Edit.Post.HandlerSpec qualified as DashboardStationBlogEditPostHandler
 import API.Dashboard.StationBlog.Slug.Get.HandlerSpec qualified as DashboardStationBlogSlugGetHandler
-import API.Dashboard.StationIds.Get.HandlerSpec qualified as DashboardStationIdsGetHandler
-import API.Dashboard.StationIds.Id.Delete.HandlerSpec qualified as DashboardStationIdsDeleteHandler
-import API.Dashboard.StationIds.New.Get.HandlerSpec qualified as DashboardStationIdsNewGetHandler
-import API.Dashboard.StationIds.New.Post.HandlerSpec qualified as DashboardStationIdsNewPostHandler
 import API.Dashboard.StreamSettings.Episodes.Search.Get.HandlerSpec qualified as DashboardStreamSettingsEpisodeSearchHandler
-import API.Dashboard.Underwriters.New.Post.HandlerSpec qualified as DashboardUnderwritersNewPostHandler
-import API.Dashboard.Underwriting.Delivery.Get.HandlerSpec qualified as DashboardUnderwritingDeliveryHandler
-import API.Dashboard.Underwriting.Plan.Get.HandlerSpec qualified as DashboardUnderwritingPlanHandler
 import API.Dashboard.Users.Delete.HandlerSpec qualified as DashboardUsersDeleteHandler
 import API.Dashboard.Users.Detail.Get.HandlerSpec qualified as DashboardUsersDetailGetHandler
 import API.Dashboard.Users.Edit.Get.HandlerSpec qualified as DashboardUsersEditGetHandler
@@ -170,9 +175,14 @@ main = do
     UnderwritersTable.spec
     BreakPlanEffects.spec
     DashboardBreakItemsShared.spec
+    DashboardPromosGetHandler.spec
+    DashboardPromosApproveHandler.spec
+    DashboardPromosRejectHandler.spec
+    DashboardShowPromosNewPostHandler.spec
+    DashboardShowPromosDeleteHandler.spec
     DashboardUnderwritersNewPostHandler.spec
     DashboardUnderwritingDeliveryHandler.spec
-    DashboardUnderwritingPlanHandler.spec
+    DashboardAirBreaksPlanHandler.spec
     EventsHandler.spec
     EventHandler.spec
     ShowsHandler.spec
