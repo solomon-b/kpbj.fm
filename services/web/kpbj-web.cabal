@@ -296,46 +296,61 @@ library
     API.Dashboard.StationBlog.Slug.Get.Handler
     API.Dashboard.StationBlog.Slug.Get.Route
     API.Dashboard.StationBlog.Slug.Get.Templates.Page
-    API.Dashboard.BreakItems.Form
-    API.Dashboard.BreakItems.Shared
-    API.Dashboard.Psas.Get.Route
-    API.Dashboard.Psas.New.Get.Route
-    API.Dashboard.Psas.New.Post.Route
-    API.Dashboard.Psas.Id.Edit.Get.Route
-    API.Dashboard.Psas.Id.Edit.Post.Route
-    API.Dashboard.Psas.Id.Delete.Route
-    API.Dashboard.Underwriting.Get.Route
-    API.Dashboard.Underwriting.New.Get.Route
-    API.Dashboard.Underwriting.New.Post.Route
-    API.Dashboard.Underwriting.Id.Edit.Get.Route
-    API.Dashboard.Underwriting.Id.Edit.Post.Route
-    API.Dashboard.Underwriting.Id.Delete.Route
-    API.Dashboard.Underwriting.Delivery.Get.Route
-    API.Dashboard.Underwriting.Delivery.Get.Handler
-    API.Dashboard.Underwriting.Delivery.Get.Templates.Page
-    API.Dashboard.Underwriting.Plan.Get.Route
-    API.Dashboard.Underwriting.Plan.Get.Handler
-    API.Dashboard.Underwriting.Plan.Get.Templates.Page
+    API.Dashboard.AirBreaks.BreakItems.Form
+    API.Dashboard.AirBreaks.BreakItems.Shared
+    API.Dashboard.AirBreaks.Psas.Get.Route
+    API.Dashboard.AirBreaks.Psas.New.Get.Route
+    API.Dashboard.AirBreaks.Psas.New.Post.Route
+    API.Dashboard.AirBreaks.Psas.Id.Edit.Get.Route
+    API.Dashboard.AirBreaks.Psas.Id.Edit.Post.Route
+    API.Dashboard.AirBreaks.Psas.Id.Delete.Route
+    API.Dashboard.AirBreaks.Announcements.Get.Route
+    API.Dashboard.AirBreaks.Announcements.New.Get.Route
+    API.Dashboard.AirBreaks.Announcements.New.Post.Route
+    API.Dashboard.AirBreaks.Announcements.Id.Edit.Get.Route
+    API.Dashboard.AirBreaks.Announcements.Id.Edit.Post.Route
+    API.Dashboard.AirBreaks.Announcements.Id.Delete.Route
+    API.Dashboard.AirBreaks.Promos.Get.Handler
+    API.Dashboard.AirBreaks.Promos.Get.Route
+    API.Dashboard.AirBreaks.Promos.Get.Templates
+    API.Dashboard.AirBreaks.Promos.Id.Approve.Post.Handler
+    API.Dashboard.AirBreaks.Promos.Id.Approve.Post.Route
+    API.Dashboard.AirBreaks.Promos.Id.Reject.Post.Handler
+    API.Dashboard.AirBreaks.Promos.Id.Reject.Post.Route
+    API.Dashboard.AirBreaks.Promos.Id.Delete.Handler
+    API.Dashboard.AirBreaks.Promos.Id.Delete.Route
+    API.Dashboard.AirBreaks.Underwriting.Get.Route
+    API.Dashboard.AirBreaks.Underwriting.New.Get.Route
+    API.Dashboard.AirBreaks.Underwriting.New.Post.Route
+    API.Dashboard.AirBreaks.Underwriting.Id.Edit.Get.Route
+    API.Dashboard.AirBreaks.Underwriting.Id.Edit.Post.Route
+    API.Dashboard.AirBreaks.Underwriting.Id.Delete.Route
+    API.Dashboard.AirBreaks.Underwriting.Delivery.Get.Route
+    API.Dashboard.AirBreaks.Underwriting.Delivery.Get.Handler
+    API.Dashboard.AirBreaks.Underwriting.Delivery.Get.Templates.Page
+    API.Dashboard.AirBreaks.Plan.Get.Route
+    API.Dashboard.AirBreaks.Plan.Get.Handler
+    API.Dashboard.AirBreaks.Plan.Get.Templates.Page
     Component.SourceTypeBadge
-    API.Dashboard.Underwriters.Form
-    API.Dashboard.Underwriters.Get.Route
-    API.Dashboard.Underwriters.Get.Handler
-    API.Dashboard.Underwriters.Get.Templates.Page
-    API.Dashboard.Underwriters.New.Post.Route
-    API.Dashboard.Underwriters.New.Post.Handler
-    API.Dashboard.Underwriters.Id.Edit.Post.Route
-    API.Dashboard.Underwriters.Id.Edit.Post.Handler
-    API.Dashboard.StationIds.Get.Handler
-    API.Dashboard.StationIds.Get.Route
-    API.Dashboard.StationIds.Get.Templates.ItemsFragment
-    API.Dashboard.StationIds.Get.Templates.Page
-    API.Dashboard.StationIds.Id.Delete.Handler
-    API.Dashboard.StationIds.Id.Delete.Route
-    API.Dashboard.StationIds.New.Get.Handler
-    API.Dashboard.StationIds.New.Get.Route
-    API.Dashboard.StationIds.New.Get.Templates.Form
-    API.Dashboard.StationIds.New.Post.Handler
-    API.Dashboard.StationIds.New.Post.Route
+    API.Dashboard.AirBreaks.Underwriters.Form
+    API.Dashboard.AirBreaks.Underwriters.Get.Route
+    API.Dashboard.AirBreaks.Underwriters.Get.Handler
+    API.Dashboard.AirBreaks.Underwriters.Get.Templates.Page
+    API.Dashboard.AirBreaks.Underwriters.New.Post.Route
+    API.Dashboard.AirBreaks.Underwriters.New.Post.Handler
+    API.Dashboard.AirBreaks.Underwriters.Id.Edit.Post.Route
+    API.Dashboard.AirBreaks.Underwriters.Id.Edit.Post.Handler
+    API.Dashboard.AirBreaks.StationIds.Get.Handler
+    API.Dashboard.AirBreaks.StationIds.Get.Route
+    API.Dashboard.AirBreaks.StationIds.Get.Templates.ItemsFragment
+    API.Dashboard.AirBreaks.StationIds.Get.Templates.Page
+    API.Dashboard.AirBreaks.StationIds.Id.Delete.Handler
+    API.Dashboard.AirBreaks.StationIds.Id.Delete.Route
+    API.Dashboard.AirBreaks.StationIds.New.Get.Handler
+    API.Dashboard.AirBreaks.StationIds.New.Get.Route
+    API.Dashboard.AirBreaks.StationIds.New.Get.Templates.Form
+    API.Dashboard.AirBreaks.StationIds.New.Post.Handler
+    API.Dashboard.AirBreaks.StationIds.New.Post.Route
     API.Dashboard.EphemeralUploads.Get.Handler
     API.Dashboard.EphemeralUploads.Get.Route
     API.Dashboard.EphemeralUploads.Get.Templates.ItemsFragment
@@ -450,6 +465,13 @@ library
     API.Dashboard.Shows.Slug.Get.Templates.Episode
     API.Dashboard.Shows.Slug.Get.Templates.Page
     API.Dashboard.Shows.Slug.Get.Templates.ShowHeader
+    API.Dashboard.Shows.Slug.Promos.Get.Handler
+    API.Dashboard.Shows.Slug.Promos.Get.Route
+    API.Dashboard.Shows.Slug.Promos.Get.Templates
+    API.Dashboard.Shows.Slug.Promos.New.Post.Handler
+    API.Dashboard.Shows.Slug.Promos.New.Post.Route
+    API.Dashboard.Shows.Slug.Promos.Id.Delete.Handler
+    API.Dashboard.Shows.Slug.Promos.Id.Delete.Route
     API.Dashboard.SitePages.Get.Handler
     API.Dashboard.SitePages.Get.Route
     API.Dashboard.SitePages.Get.Templates.Page
@@ -604,6 +626,7 @@ library
     Component.AudioPlayer.Waveform
     Component.BreakItems
     Component.InfiniteScroll
+    Component.InlineAudioPlayer
     Component.TrackListingEditor
     Component.ScheduleEditor
     Component.Banner
@@ -731,10 +754,15 @@ test-suite kpbj-web-test
        Domain.Icecast.StatusSpec
        API.Blog.Post.Get.HandlerSpec
        API.Dashboard.Blogs.Get.HandlerSpec
-       API.Dashboard.BreakItems.SharedSpec
-       API.Dashboard.Underwriters.New.Post.HandlerSpec
-       API.Dashboard.Underwriting.Delivery.Get.HandlerSpec
-       API.Dashboard.Underwriting.Plan.Get.HandlerSpec
+       API.Dashboard.AirBreaks.BreakItems.SharedSpec
+       API.Dashboard.AirBreaks.Promos.Get.HandlerSpec
+       API.Dashboard.AirBreaks.Promos.Id.Approve.Post.HandlerSpec
+       API.Dashboard.AirBreaks.Promos.Id.Reject.Post.HandlerSpec
+       API.Dashboard.Shows.Slug.Promos.Id.Delete.HandlerSpec
+       API.Dashboard.Shows.Slug.Promos.New.Post.HandlerSpec
+       API.Dashboard.AirBreaks.Underwriters.New.Post.HandlerSpec
+       API.Dashboard.AirBreaks.Underwriting.Delivery.Get.HandlerSpec
+       API.Dashboard.AirBreaks.Plan.Get.HandlerSpec
        API.Dashboard.Blogs.New.Get.HandlerSpec
        API.Dashboard.Blogs.New.Post.HandlerSpec
        API.Dashboard.Blogs.Slug.Delete.HandlerSpec
@@ -784,10 +812,10 @@ test-suite kpbj-web-test
        API.Dashboard.SitePages.Slug.History.Get.HandlerSpec
        API.Dashboard.SitePages.Slug.Revisions.Id.Get.HandlerSpec
        API.Dashboard.SitePages.Slug.Revisions.Id.Restore.Post.HandlerSpec
-       API.Dashboard.StationIds.Get.HandlerSpec
-       API.Dashboard.StationIds.Id.Delete.HandlerSpec
-       API.Dashboard.StationIds.New.Post.HandlerSpec
-       API.Dashboard.StationIds.New.Get.HandlerSpec
+       API.Dashboard.AirBreaks.StationIds.Get.HandlerSpec
+       API.Dashboard.AirBreaks.StationIds.Id.Delete.HandlerSpec
+       API.Dashboard.AirBreaks.StationIds.New.Post.HandlerSpec
+       API.Dashboard.AirBreaks.StationIds.New.Get.HandlerSpec
        API.Dashboard.StreamSettings.Episodes.Search.Get.HandlerSpec
        API.Dashboard.MissingEpisodes.Get.HandlerSpec
        API.Dashboard.Shows.Get.HandlerSpec
@@ -836,5 +864,6 @@ test-suite kpbj-web-test
        Effects.MimeTypeValidationSpec
        Effects.StagedUploadsSpec
        Middleware.ValidateEncodingSpec
+       Test.Handler.BreakItemFixtures
        Test.Handler.Fixtures
        Test.Handler.Monad

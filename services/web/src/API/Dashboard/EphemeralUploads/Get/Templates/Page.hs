@@ -12,6 +12,7 @@ where
 import API.Links (dashboardEphemeralUploadsLinks)
 import API.Types
 import Component.ActionsDropdown qualified as ActionsDropdown
+import Component.InlineAudioPlayer (renderInlineAudioPlayer)
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -34,7 +35,6 @@ import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import Lucid.Alpine
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -189,66 +189,25 @@ renderEphemeralUploadRow backend isStaffOrAdmin ephemeralUpload =
 
           -- Audio player cell
           Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
-            renderInlineAudioPlayer audioUrl ephemeralUploadIdText
+            renderPlayAndDownload audioUrl
 
           -- Actions cell
           Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
             ActionsDropdown.render actions
 
--- | Render an inline audio player with download button using Alpine.js
-renderInlineAudioPlayer :: Text -> Text -> Lucid.Html ()
-renderInlineAudioPlayer audioUrl _uniqueId =
-  Lucid.div_
-    [ xData_ [i|{ playing: false, audio: null }|],
-      class_ $ base ["inline-flex", "items-center", Tokens.gap2]
-    ]
-    $ do
-      -- Hidden audio element
-      Lucid.audio_
-        [ xRef_ "audioPlayer",
-          Lucid.src_ audioUrl,
-          Lucid.class_ "hidden"
-        ]
-        mempty
-      -- Play/Pause button
-      Lucid.button_
-        [ Lucid.type_ "button",
-          xOnClick_
-            [i|
-            if (!$refs.audioPlayer) return;
-            if (playing) {
-              $refs.audioPlayer.pause();
-              playing = false;
-            } else {
-              $refs.audioPlayer.play();
-              playing = true;
-              $refs.audioPlayer.onended = () => { playing = false; };
-            }
-          |],
-          class_ $ base ["p-2", "rounded", Tokens.hoverBg, "transition-colors"],
-          Lucid.title_ "Play/Pause"
-        ]
-        $ do
-          -- Play icon (shown when not playing)
-          Lucid.i_
-            [ Lucid.class_ [i|fa-solid fa-play #{Tokens.fgMuted}|],
-              Lucid.term "x-show" "!playing"
-            ]
-            mempty
-          -- Pause icon (shown when playing)
-          Lucid.i_
-            [ Lucid.class_ [i|fa-solid fa-pause #{Tokens.fgMuted}|],
-              Lucid.term "x-show" "playing"
-            ]
-            mempty
-      -- Download button
-      Lucid.a_
-        [ Lucid.href_ audioUrl,
-          Lucid.download_ "",
-          class_ $ base ["p-2", "rounded", Tokens.hoverBg, "transition-colors"],
-          Lucid.title_ "Download"
-        ]
-        $ Lucid.i_ [Lucid.class_ [i|fa-solid fa-download #{Tokens.fgMuted}|]] mempty
+-- | Render the inline audio player with a download link beside it.
+renderPlayAndDownload :: Text -> Lucid.Html ()
+renderPlayAndDownload audioUrl =
+  Lucid.div_ [class_ $ base ["inline-flex", "items-center", Tokens.gap2]] $ do
+    renderInlineAudioPlayer audioUrl
+    -- Download button
+    Lucid.a_
+      [ Lucid.href_ audioUrl,
+        Lucid.download_ "",
+        class_ $ base ["p-2", "rounded", Tokens.hoverBg, "transition-colors"],
+        Lucid.title_ "Download"
+      ]
+      $ Lucid.i_ [Lucid.class_ [i|fa-solid fa-download #{Tokens.fgMuted}|]] mempty
 
 -- | Render empty state when no ephemeral uploads exist
 renderEmptyState :: Lucid.Html ()

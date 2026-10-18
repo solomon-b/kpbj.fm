@@ -13,7 +13,9 @@ where
 import API.Links
   ( apiLinks,
     dashboardAnalyticsLinks,
+    dashboardAnnouncementsLinks,
     dashboardBlogsLinks,
+    dashboardBreakPlanLink,
     dashboardEphemeralUploadsLinks,
     dashboardEpisodesLinks,
     dashboardEventsLinks,
@@ -21,6 +23,7 @@ import API.Links
     dashboardLinks,
     dashboardMissingEpisodesLink,
     dashboardNewsletterSubscribersLinks,
+    dashboardPromosLinks,
     dashboardPsasLinks,
     dashboardShowsLinks,
     dashboardSitePagesLinks,
@@ -122,6 +125,15 @@ dashboardNewsletterSubscribersGetUrl =
 dashboardPsasGetUrl :: Links.URI
 dashboardPsasGetUrl = Links.linkURI $ dashboardPsasLinks.list Nothing
 
+dashboardAnnouncementsGetUrl :: Links.URI
+dashboardAnnouncementsGetUrl = Links.linkURI $ dashboardAnnouncementsLinks.list Nothing
+
+dashboardPromosGetUrl :: Links.URI
+dashboardPromosGetUrl = Links.linkURI $ dashboardPromosLinks.list Nothing
+
+dashboardShowPromosGetUrl :: Slug -> Links.URI
+dashboardShowPromosGetUrl slug = Links.linkURI $ dashboardShowsLinks.promosGet slug
+
 dashboardUnderwritingGetUrl :: Links.URI
 dashboardUnderwritingGetUrl = Links.linkURI $ dashboardUnderwritingLinks.list Nothing
 
@@ -132,7 +144,7 @@ dashboardUnderwritingDeliveryUrl :: Links.URI
 dashboardUnderwritingDeliveryUrl = Links.linkURI $ dashboardUnderwritingLinks.delivery Nothing
 
 dashboardBreakPlanUrl :: Links.URI
-dashboardBreakPlanUrl = Links.linkURI $ dashboardUnderwritingLinks.plan Nothing
+dashboardBreakPlanUrl = Links.linkURI $ dashboardBreakPlanLink Nothing
 
 dashboardStoreProductsGetUrl :: Links.URI
 dashboardStoreProductsGetUrl = Links.linkURI dashboardStoreProductsLinks.list
@@ -164,6 +176,9 @@ data DashboardNav
   | NavInvitations
   | NavNewsletterSubscribers
   | NavPsas
+  | NavAnnouncements
+  | NavPromos
+  | NavShowPromos
   | NavUnderwriting
   | NavUnderwriters
   | NavUnderwritingDelivery
@@ -193,6 +208,9 @@ isShowScoped = \case
   NavInvitations -> False
   NavNewsletterSubscribers -> False
   NavPsas -> False
+  NavAnnouncements -> False
+  NavPromos -> False
+  NavShowPromos -> True
   NavUnderwriting -> False
   NavUnderwriters -> False
   NavUnderwritingDelivery -> False
@@ -274,6 +292,7 @@ sidebar userMeta activeNav selectedShow =
         Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "block", Tokens.px4, Tokens.mb2]] "HOST"
         Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
           navItem "EPISODES" NavEpisodes activeNav selectedShow
+          navItem "PROMOS" NavShowPromos activeNav selectedShow
           -- navItem "BLOG" NavBlog activeNav selectedShow
           navItem "SHOW SETTINGS" NavSettings activeNav selectedShow
           -- Staff find station IDs under AIR BREAKS, so each user sees it once.
@@ -304,6 +323,8 @@ sidebar userMeta activeNav selectedShow =
             staffNavItem "PLAN" NavBreakPlan activeNav
             staffNavItem "STATION IDS" NavStationIds activeNav
             staffNavItem "PSAS" NavPsas activeNav
+            staffNavItem "ANNOUNCEMENTS" NavAnnouncements activeNav
+            staffNavItem "PROMOS" NavPromos activeNav
             staffNavItem "UNDERWRITING" NavUnderwriting activeNav
             staffNavItem "UNDERWRITERS" NavUnderwriters activeNav
             staffNavItem "DELIVERY" NavUnderwritingDelivery activeNav
@@ -423,6 +444,8 @@ staffNavUrl = \case
   NavInvitations -> Just dashboardInvitationsGetUrl
   NavNewsletterSubscribers -> Just dashboardNewsletterSubscribersGetUrl
   NavPsas -> Just dashboardPsasGetUrl
+  NavAnnouncements -> Just dashboardAnnouncementsGetUrl
+  NavPromos -> Just dashboardPromosGetUrl
   NavUnderwriting -> Just dashboardUnderwritingGetUrl
   NavUnderwriters -> Just dashboardUnderwritersGetUrl
   NavUnderwritingDelivery -> Just dashboardUnderwritingDeliveryUrl
@@ -456,6 +479,9 @@ navUrl nav mShow =
         NavInvitations -> Just dashboardInvitationsGetUrl
         NavNewsletterSubscribers -> Just dashboardNewsletterSubscribersGetUrl
         NavPsas -> Just dashboardPsasGetUrl
+        NavAnnouncements -> Just dashboardAnnouncementsGetUrl
+        NavPromos -> Just dashboardPromosGetUrl
+        NavShowPromos -> dashboardShowPromosGetUrl <$> mSlug
         NavUnderwriting -> Just dashboardUnderwritingGetUrl
         NavUnderwriters -> Just dashboardUnderwritersGetUrl
         NavUnderwritingDelivery -> Just dashboardUnderwritingDeliveryUrl

@@ -17,6 +17,7 @@ module API
     DashboardRoutes (..),
     DashboardHostRoutes (..),
     DashboardAdminRoutes (..),
+    DashboardAirBreaksRoutes (..),
     DashboardInvitationsRoutes (..),
     DashboardEpisodesRoutes (..),
     DashboardBlogsRoutes (..),
@@ -53,6 +54,20 @@ import API.Analytics.EpisodePlay.Post.Handler qualified as Analytics.EpisodePlay
 import API.Archive.Get.Handler qualified as Archive.Get
 import API.Blog.Get.Handler qualified as Blog.Get
 import API.Blog.Post.Get.Handler qualified as Blog.Post.Get
+import API.Dashboard.AirBreaks.BreakItems.Shared qualified as BreakItems.Shared
+import API.Dashboard.AirBreaks.Plan.Get.Handler qualified as Dashboard.AirBreaks.Plan.Get
+import API.Dashboard.AirBreaks.Promos.Get.Handler qualified as Dashboard.AirBreaks.Promos.Get
+import API.Dashboard.AirBreaks.Promos.Id.Approve.Post.Handler qualified as Dashboard.AirBreaks.Promos.Id.Approve.Post
+import API.Dashboard.AirBreaks.Promos.Id.Delete.Handler qualified as Dashboard.AirBreaks.Promos.Id.Delete
+import API.Dashboard.AirBreaks.Promos.Id.Reject.Post.Handler qualified as Dashboard.AirBreaks.Promos.Id.Reject.Post
+import API.Dashboard.AirBreaks.StationIds.Get.Handler qualified as Dashboard.AirBreaks.StationIds.Get
+import API.Dashboard.AirBreaks.StationIds.Id.Delete.Handler qualified as Dashboard.AirBreaks.StationIds.Id.Delete
+import API.Dashboard.AirBreaks.StationIds.New.Get.Handler qualified as Dashboard.AirBreaks.StationIds.New.Get
+import API.Dashboard.AirBreaks.StationIds.New.Post.Handler qualified as Dashboard.AirBreaks.StationIds.New.Post
+import API.Dashboard.AirBreaks.Underwriters.Get.Handler qualified as Dashboard.AirBreaks.Underwriters.Get
+import API.Dashboard.AirBreaks.Underwriters.Id.Edit.Post.Handler qualified as Dashboard.AirBreaks.Underwriters.Id.Edit.Post
+import API.Dashboard.AirBreaks.Underwriters.New.Post.Handler qualified as Dashboard.AirBreaks.Underwriters.New.Post
+import API.Dashboard.AirBreaks.Underwriting.Delivery.Get.Handler qualified as Dashboard.AirBreaks.Underwriting.Delivery.Get
 import API.Dashboard.Analytics.Data.Get.Handler qualified as Dashboard.Analytics.Data.Get
 import API.Dashboard.Analytics.Get.Handler qualified as Dashboard.Analytics.Get
 import API.Dashboard.Blogs.Get.Handler qualified as Dashboard.Blogs.Get
@@ -62,7 +77,6 @@ import API.Dashboard.Blogs.Slug.Delete.Handler qualified as Dashboard.Blogs.Slug
 import API.Dashboard.Blogs.Slug.Edit.Get.Handler qualified as Dashboard.Blogs.Slug.Edit.Get
 import API.Dashboard.Blogs.Slug.Edit.Post.Handler qualified as Dashboard.Blogs.Slug.Edit.Post
 import API.Dashboard.Blogs.Slug.Get.Handler qualified as Dashboard.Blogs.Slug.Get
-import API.Dashboard.BreakItems.Shared qualified as BreakItems.Shared
 import API.Dashboard.EphemeralUploads.Get.Handler qualified as Dashboard.EphemeralUploads.Get
 import API.Dashboard.EphemeralUploads.Id.Delete.Handler qualified as Dashboard.EphemeralUploads.Id.Delete
 import API.Dashboard.EphemeralUploads.Id.Edit.Get.Handler qualified as Dashboard.EphemeralUploads.Id.Edit.Get
@@ -112,6 +126,9 @@ import API.Dashboard.Shows.Slug.Edit.Post.Handler qualified as Dashboard.Shows.S
 import API.Dashboard.Shows.Slug.Episode.New.Get.Handler qualified as Dashboard.Shows.Slug.Episode.New.Get
 import API.Dashboard.Shows.Slug.Episode.New.Post.Handler qualified as Dashboard.Shows.Slug.Episode.New.Post
 import API.Dashboard.Shows.Slug.Get.Handler qualified as Dashboard.Shows.Slug.Get
+import API.Dashboard.Shows.Slug.Promos.Get.Handler qualified as Dashboard.Shows.Slug.Promos.Get
+import API.Dashboard.Shows.Slug.Promos.Id.Delete.Handler qualified as Dashboard.Shows.Slug.Promos.Id.Delete
+import API.Dashboard.Shows.Slug.Promos.New.Post.Handler qualified as Dashboard.Shows.Slug.Promos.New.Post
 import API.Dashboard.Shows.Slug.Restore.Post.Handler qualified as Dashboard.Shows.Slug.Restore.Post
 import API.Dashboard.SitePages.Get.Handler qualified as Dashboard.SitePages.Get
 import API.Dashboard.SitePages.Slug.Edit.Get.Handler qualified as Dashboard.SitePages.Slug.Edit.Get
@@ -126,10 +143,6 @@ import API.Dashboard.StationBlog.Slug.Delete.Handler qualified as Dashboard.Stat
 import API.Dashboard.StationBlog.Slug.Edit.Get.Handler qualified as Dashboard.StationBlog.Slug.Edit.Get
 import API.Dashboard.StationBlog.Slug.Edit.Post.Handler qualified as Dashboard.StationBlog.Slug.Edit.Post
 import API.Dashboard.StationBlog.Slug.Get.Handler qualified as Dashboard.StationBlog.Slug.Get
-import API.Dashboard.StationIds.Get.Handler qualified as Dashboard.StationIds.Get
-import API.Dashboard.StationIds.Id.Delete.Handler qualified as Dashboard.StationIds.Id.Delete
-import API.Dashboard.StationIds.New.Get.Handler qualified as Dashboard.StationIds.New.Get
-import API.Dashboard.StationIds.New.Post.Handler qualified as Dashboard.StationIds.New.Post
 import API.Dashboard.Store.Orders.Get.Handler qualified as Dashboard.Store.Orders.Get
 import API.Dashboard.Store.Orders.Id.Get.Handler qualified as Dashboard.Store.Orders.Id.Get
 import API.Dashboard.Store.Orders.Id.Label.Post.Handler qualified as Dashboard.Store.Orders.Id.Label.Post
@@ -151,11 +164,6 @@ import API.Dashboard.StreamSettings.Restart.Liquidsoap.Post.Handler qualified as
 import API.Dashboard.StreamSettings.SkipTrack.Post.Handler qualified as Dashboard.StreamSettings.SkipTrack.Post
 import API.Dashboard.StreamSettings.StartStream.Post.Handler qualified as Dashboard.StreamSettings.StartStream.Post
 import API.Dashboard.StreamSettings.StopStream.Post.Handler qualified as Dashboard.StreamSettings.StopStream.Post
-import API.Dashboard.Underwriters.Get.Handler qualified as Dashboard.Underwriters.Get
-import API.Dashboard.Underwriters.Id.Edit.Post.Handler qualified as Dashboard.Underwriters.Id.Edit.Post
-import API.Dashboard.Underwriters.New.Post.Handler qualified as Dashboard.Underwriters.New.Post
-import API.Dashboard.Underwriting.Delivery.Get.Handler qualified as Dashboard.Underwriting.Delivery.Get
-import API.Dashboard.Underwriting.Plan.Get.Handler qualified as Dashboard.Underwriting.Plan.Get
 import API.Dashboard.Users.Delete.Handler qualified as Dashboard.Users.Delete
 import API.Dashboard.Users.Detail.Get.Handler qualified as Dashboard.Users.Detail.Get
 import API.Dashboard.Users.Edit.Get.Handler qualified as Dashboard.Users.Edit.Get
@@ -361,23 +369,23 @@ server =
           profileEditGet = Dashboard.Profile.Edit.Get.handler,
           profileEditPost = Dashboard.Profile.Edit.Post.handler,
           host = dashboardHostRoutes,
-          admin = dashboardAdminRoutes
+          admin = dashboardAdminRoutes,
+          airBreaks = dashboardAirBreaksRoutes
         }
 
     dashboardHostRoutes =
       DashboardHostRoutes
         { episodes = dashboardEpisodesRoutes,
           blogs = dashboardBlogsRoutes,
-          stationIds = dashboardStationIdsRoutes,
           ephemeralUploads = dashboardEphemeralUploadsRoutes
         }
 
     dashboardStationIdsRoutes =
       DashboardStationIdsRoutes
-        { list = Dashboard.StationIds.Get.handler,
-          newGet = Dashboard.StationIds.New.Get.handler,
-          newPost = Dashboard.StationIds.New.Post.handler,
-          delete = Dashboard.StationIds.Id.Delete.handler
+        { list = Dashboard.AirBreaks.StationIds.Get.handler,
+          newGet = Dashboard.AirBreaks.StationIds.New.Get.handler,
+          newPost = Dashboard.AirBreaks.StationIds.New.Post.handler,
+          delete = Dashboard.AirBreaks.StationIds.Id.Delete.handler
         }
 
     dashboardEphemeralUploadsRoutes =
@@ -404,20 +412,44 @@ server =
           missingEpisodes = Dashboard.MissingEpisodes.Get.handler,
           analytics = dashboardAnalyticsRoutes,
           store = dashboardStoreRoutes,
-          newsletterSubscribers = dashboardNewsletterSubscribersRoutes,
+          newsletterSubscribers = dashboardNewsletterSubscribersRoutes
+        }
+
+    dashboardAirBreaksRoutes =
+      DashboardAirBreaksRoutes
+        { plan = Dashboard.AirBreaks.Plan.Get.handler,
+          stationIds = dashboardStationIdsRoutes,
           psas = dashboardPsasRoutes,
+          announcements = dashboardAnnouncementsRoutes,
+          promos =
+            DashboardPromosRoutes
+              { list = Dashboard.AirBreaks.Promos.Get.handler,
+                approvePost = Dashboard.AirBreaks.Promos.Id.Approve.Post.handler,
+                rejectPost = Dashboard.AirBreaks.Promos.Id.Reject.Post.handler,
+                delete = Dashboard.AirBreaks.Promos.Id.Delete.handler
+              },
           underwriting = dashboardUnderwritingRoutes,
           underwriters =
             DashboardUnderwritersRoutes
-              { list = Dashboard.Underwriters.Get.handler,
-                newPost = Dashboard.Underwriters.New.Post.handler,
-                editPost = Dashboard.Underwriters.Id.Edit.Post.handler
+              { list = Dashboard.AirBreaks.Underwriters.Get.handler,
+                newPost = Dashboard.AirBreaks.Underwriters.New.Post.handler,
+                editPost = Dashboard.AirBreaks.Underwriters.Id.Edit.Post.handler
               }
         }
 
-    -- Both break item sections run the same handlers. They differ only in the
-    -- Section value, which carries the category, the URLs, and the permission
-    -- gate. See "API.Dashboard.BreakItems.Shared".
+    -- The staff break item sections run the same handlers. They differ only
+    -- in the Section value, which carries the category, the URLs, and the
+    -- permission gate. See "API.Dashboard.AirBreaks.BreakItems.Shared".
+    dashboardAnnouncementsRoutes =
+      DashboardAnnouncementsRoutes
+        { list = BreakItems.Shared.listHandler BreakItems.Shared.announcementSection,
+          newGet = BreakItems.Shared.newGetHandler BreakItems.Shared.announcementSection,
+          newPost = BreakItems.Shared.newPostHandler BreakItems.Shared.announcementSection,
+          editGet = BreakItems.Shared.editGetHandler BreakItems.Shared.announcementSection,
+          editPost = BreakItems.Shared.editPostHandler BreakItems.Shared.announcementSection,
+          delete = BreakItems.Shared.deleteHandler BreakItems.Shared.announcementSection
+        }
+
     dashboardPsasRoutes =
       DashboardPsasRoutes
         { list = BreakItems.Shared.listHandler BreakItems.Shared.psaSection,
@@ -430,8 +462,7 @@ server =
 
     dashboardUnderwritingRoutes =
       DashboardUnderwritingRoutes
-        { delivery = Dashboard.Underwriting.Delivery.Get.handler,
-          plan = Dashboard.Underwriting.Plan.Get.handler,
+        { delivery = Dashboard.AirBreaks.Underwriting.Delivery.Get.handler,
           list = BreakItems.Shared.listHandler BreakItems.Shared.underwritingSection,
           newGet = BreakItems.Shared.newGetHandler BreakItems.Shared.underwritingSection,
           newPost = BreakItems.Shared.newPostHandler BreakItems.Shared.underwritingSection,
@@ -576,7 +607,10 @@ server =
           delete = Dashboard.Shows.Slug.Delete.handler,
           restorePost = Dashboard.Shows.Slug.Restore.Post.handler,
           episodeNewGet = Dashboard.Shows.Slug.Episode.New.Get.handler,
-          episodeNewPost = Dashboard.Shows.Slug.Episode.New.Post.handler
+          episodeNewPost = Dashboard.Shows.Slug.Episode.New.Post.handler,
+          promosGet = Dashboard.Shows.Slug.Promos.Get.handler,
+          promoNewPost = Dashboard.Shows.Slug.Promos.New.Post.handler,
+          promoDelete = Dashboard.Shows.Slug.Promos.Id.Delete.handler
         }
 
     dashboardUsersRoutes =

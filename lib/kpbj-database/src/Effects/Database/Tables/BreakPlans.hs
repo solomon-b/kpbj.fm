@@ -150,7 +150,8 @@ insertEntry boundary position stationIdId breakItemId =
 -- | Planned tracks for the boundaries in the inclusive range, in play order.
 --
 -- A break item that staff deleted is left out. So pulling an announcement takes
--- effect at once, although the plan still names it.
+-- effect at once, although the plan still names it. A promo for a show that is
+-- inactive or deleted is left out for the same reason.
 tracksBetween :: UTCTime -> UTCTime -> Hasql.Statement () [PlannedTrack]
 tracksBetween fromBoundary toBoundary =
   interp
@@ -164,8 +165,10 @@ tracksBetween fromBoundary toBoundary =
     SELECT e.boundary, e.position, bi.category::TEXT, bi.title, bi.audio_file_path, bi.id
     FROM break_plan_entries e
     JOIN break_items bi ON bi.id = e.break_item_id
+    LEFT JOIN shows sh ON sh.id = bi.show_id
     WHERE e.boundary BETWEEN #{fromBoundary} AND #{toBoundary}
       AND bi.deleted_at IS NULL
+      AND (bi.show_id IS NULL OR (sh.status = 'active' AND sh.deleted_at IS NULL))
     ORDER BY 1, 2
   |]
 

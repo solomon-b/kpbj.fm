@@ -33,6 +33,8 @@ module API.Links
     dashboardLinks,
     dashboardHostLinks,
     dashboardAdminLinks,
+    dashboardAirBreaksLinks,
+    dashboardBreakPlanLink,
     dashboardEpisodesLinks,
     dashboardBlogsLinks,
     dashboardStationBlogLinks,
@@ -48,6 +50,8 @@ module API.Links
     dashboardInvitationsLinks,
     dashboardNewsletterSubscribersLinks,
     dashboardPsasLinks,
+    dashboardAnnouncementsLinks,
+    dashboardPromosLinks,
     dashboardUnderwritingLinks,
     dashboardUnderwritersLinks,
     dashboardStoreLinks,
@@ -150,7 +154,7 @@ dashboardStationBlogLinks = stationBlog dashboardAdminLinks
 
 -- | Dashboard station IDs route links
 dashboardStationIdsLinks :: DashboardStationIdsRoutes (AsLink Link)
-dashboardStationIdsLinks = dashboardHostLinks.stationIds
+dashboardStationIdsLinks = dashboardAirBreaksLinks.stationIds
 
 -- | Dashboard ephemeral uploads route links
 dashboardEphemeralUploadsLinks :: DashboardEphemeralUploadsRoutes (AsLink Link)
@@ -192,17 +196,33 @@ dashboardInvitationsLinks = dashboardAdminLinks.invitations
 dashboardNewsletterSubscribersLinks :: DashboardNewsletterSubscribersRoutes (AsLink Link)
 dashboardNewsletterSubscribersLinks = dashboardAdminLinks.newsletterSubscribers
 
+-- | Dashboard air break route links, under @/dashboard/air-breaks@.
+dashboardAirBreaksLinks :: DashboardAirBreaksRoutes (AsLink Link)
+dashboardAirBreaksLinks = dashboardLinks.airBreaks
+
+-- | Dashboard break plan link. Takes an optional @YYYY-MM-DD@ day.
+dashboardBreakPlanLink :: Maybe Text -> Link
+dashboardBreakPlanLink = dashboardAirBreaksLinks.plan
+
 -- | Dashboard PSA route links.
 dashboardPsasLinks :: DashboardPsasRoutes (AsLink Link)
-dashboardPsasLinks = dashboardAdminLinks.psas
+dashboardPsasLinks = dashboardAirBreaksLinks.psas
+
+-- | Dashboard station announcement route links.
+dashboardAnnouncementsLinks :: DashboardAnnouncementsRoutes (AsLink Link)
+dashboardAnnouncementsLinks = dashboardAirBreaksLinks.announcements
+
+-- | Dashboard show promo review route links, for staff.
+dashboardPromosLinks :: DashboardPromosRoutes (AsLink Link)
+dashboardPromosLinks = dashboardAirBreaksLinks.promos
 
 -- | Dashboard underwriting announcement route links.
 dashboardUnderwritingLinks :: DashboardUnderwritingRoutes (AsLink Link)
-dashboardUnderwritingLinks = dashboardAdminLinks.underwriting
+dashboardUnderwritingLinks = dashboardAirBreaksLinks.underwriting
 
 -- | Dashboard underwriter route links.
 dashboardUnderwritersLinks :: DashboardUnderwritersRoutes (AsLink Link)
-dashboardUnderwritersLinks = dashboardAdminLinks.underwriters
+dashboardUnderwritersLinks = dashboardAirBreaksLinks.underwriters
 
 -- | Invite onboarding route links.
 inviteLinks :: InviteRoutes (AsLink Link)

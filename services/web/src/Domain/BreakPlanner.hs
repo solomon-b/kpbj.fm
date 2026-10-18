@@ -11,7 +11,9 @@
 --
 -- 1. One station ID, in every break
 -- 2. One underwriting announcement, in a show break only
--- 3. Up to 'psasPerBreak' PSAs, in every break
+-- 3. One station announcement, in every break
+-- 4. One show promo, in every break
+-- 5. Up to 'psasPerBreak' PSAs, in every break
 --
 -- The plan is made in two steps:
 --
@@ -40,6 +42,9 @@ module Domain.BreakPlanner
     stationIdMaxSeconds,
     psaMaxSeconds,
     underwritingMaxSeconds,
+    announcementMaxSeconds,
+    showPromoMaxSeconds,
+    categoryMaxSeconds,
 
     -- * Planning
     planDay,
@@ -163,7 +168,7 @@ data Rule = Rule
 
 -- | Every rule, in priority order. This is also the play order in a break.
 rules :: [Rule]
-rules = [stationIdRule, underwritingRule, psaRule]
+rules = [stationIdRule, underwritingRule, announcementRule, showPromoRule, psaRule]
 
 -- | One station ID opens every break.
 --
@@ -192,6 +197,33 @@ underwritingRule =
       ruleMaxSeconds = 30,
       ruleAlwaysFits = False,
       ruleAllows = allowAssignedSpot
+    }
+
+-- | One station announcement, in every break.
+--
+-- It comes before the PSAs, so station news airs before a PSA takes the time.
+announcementRule :: Rule
+announcementRule =
+  Rule
+    { ruleCategory = BreakItemCategory BreakItems.Announcement,
+      ruleMaxCount = 1,
+      ruleMaxSeconds = 30,
+      ruleAlwaysFits = False,
+      ruleAllows = allowEverywhere
+    }
+
+-- | One show promo, in every break.
+--
+-- The candidates hold only approved promos for active shows, because the
+-- query that reads them leaves the others out.
+showPromoRule :: Rule
+showPromoRule =
+  Rule
+    { ruleCategory = BreakItemCategory BreakItems.ShowPromo,
+      ruleMaxCount = 1,
+      ruleMaxSeconds = 10,
+      ruleAlwaysFits = False,
+      ruleAllows = allowEverywhere
     }
 
 -- | Up to two PSAs, in every break.
@@ -239,8 +271,9 @@ underwritingDailyCap = 2
 
 -- | The longest station ID an upload may carry.
 --
--- With 'psaMaxSeconds' and 'underwritingMaxSeconds' this leaves 20 seconds for
--- a show promo, so a full break always fits in 'breakSeconds'.
+-- A break with one item of each kind at its longest runs 10 + 30 + 30 + 10
+-- seconds, and leaves 40 seconds for PSAs. The rules skip an item that does
+-- not fit, so a break never runs past 'breakSeconds'.
 stationIdMaxSeconds :: Int64
 stationIdMaxSeconds = ruleMaxSeconds stationIdRule
 
@@ -251,6 +284,24 @@ psaMaxSeconds = ruleMaxSeconds psaRule
 -- | The longest underwriting announcement an upload may carry.
 underwritingMaxSeconds :: Int64
 underwritingMaxSeconds = ruleMaxSeconds underwritingRule
+
+-- | The longest station announcement an upload may carry.
+announcementMaxSeconds :: Int64
+announcementMaxSeconds = ruleMaxSeconds announcementRule
+
+-- | The longest show promo an upload may carry.
+showPromoMaxSeconds :: Int64
+showPromoMaxSeconds = ruleMaxSeconds showPromoRule
+
+-- | The longest item that a break item category accepts, in seconds.
+--
+-- The upload forms show this limit, and the save handlers apply it.
+categoryMaxSeconds :: BreakItems.Category -> Int64
+categoryMaxSeconds = \case
+  BreakItems.Psa -> psaMaxSeconds
+  BreakItems.Underwriting -> underwritingMaxSeconds
+  BreakItems.Announcement -> announcementMaxSeconds
+  BreakItems.ShowPromo -> showPromoMaxSeconds
 
 --------------------------------------------------------------------------------
 -- Planning

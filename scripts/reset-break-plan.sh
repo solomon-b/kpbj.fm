@@ -3,7 +3,7 @@
 # Delete today's break plan so that it builds again.
 #
 # The plan for a Pacific day is built once, by the first break request of the
-# day or the first view of /dashboard/underwriting/plan. Then it is fixed. This
+# day or the first view of /dashboard/air-breaks/plan. Then it is fixed. This
 # script deletes today's entries and today's break_plan_days row. The next
 # break request or plan page view builds the whole day again from the current
 # items and schedule.

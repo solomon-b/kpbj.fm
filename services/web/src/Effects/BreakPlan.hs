@@ -160,6 +160,8 @@ forecastDay now target
         let sourceType = case i.bimCategory of
               BreakItems.Psa -> "psa"
               BreakItems.Underwriting -> "underwriting"
+              BreakItems.Announcement -> "announcement"
+              BreakItems.ShowPromo -> "show_promo"
         pure (BreakPlans.PlannedTrack (peBoundary e) (pePosition e) sourceType i.bimTitle i.bimAudioFilePath (Just (BreakItems.unId bid)))
 
 -- | The planned tracks of one break, in play order.
