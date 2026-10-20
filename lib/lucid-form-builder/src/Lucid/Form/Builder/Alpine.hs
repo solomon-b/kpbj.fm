@@ -453,42 +453,32 @@ renderAlpineObject fieldInits methods validatorCalls =
            \    const hasFiles = Array.from(form.querySelectorAll('input[type=\"file\"]'))\n\
            \      .some(input => input.files && input.files.length > 0);\n\
            \\n\
-           \    if (hasFiles && htmxAction) {\n\
-           \      // Use XMLHttpRequest for file uploads to track progress\n\
-           \      this.isUploading = true;\n\
-           \      this.uploadProgress = 0;\n\
-           \\n\
-           \      const xhr = new XMLHttpRequest();\n\
-           \      const formData = new FormData(form);\n\
-           \      const self = this;\n\
-           \\n\
-           \      xhr.upload.addEventListener('progress', (e) => {\n\
-           \        if (e.lengthComputable) {\n\
-           \          self.uploadProgress = Math.round((e.loaded / e.total) * 100);\n\
-           \        }\n\
-           \      });\n\
-           \\n\
-           \      xhr.addEventListener('load', () => {\n\
-           \        self.isUploading = false;\n\
-           \        if (xhr.status >= 200 && xhr.status < 300) {\n\
-           \          const redirect = xhr.getResponseHeader('HX-Redirect');\n\
-           \          if (redirect) {\n\
-           \            window.location.href = redirect;\n\
-           \          } else if (htmxTarget) {\n\
-           \            document.querySelector(htmxTarget).innerHTML = xhr.responseText;\n\
-           \          }\n\
-           \        }\n\
-           \      });\n\
-           \\n\
-           \      xhr.addEventListener('error', () => {\n\
-           \        self.isUploading = false;\n\
-           \        alert('Upload failed. Please try again.');\n\
-           \      });\n\
-           \\n\
-           \      xhr.open('POST', htmxAction);\n\
-           \      xhr.send(formData);\n\
-           \    } else if (typeof htmx !== 'undefined' && htmxTarget && htmxAction) {\n\
+           \    if (typeof htmx !== 'undefined' && htmxTarget && htmxAction) {\n\
            \      const htmxSwap = form.getAttribute('data-htmx-swap') || 'innerHTML';\n\
+           \\n\
+           \      if (hasFiles) {\n\
+           \        // HTMX sends one progress event name for the upload and for\n\
+           \        // the download of the response. Keep the highest value, so\n\
+           \        // the bar does not go back when the download starts.\n\
+           \        this.isUploading = true;\n\
+           \        this.uploadProgress = 0;\n\
+           \        const self = this;\n\
+           \        const onProgress = (e) => {\n\
+           \          if (e.target === form && e.detail.lengthComputable && e.detail.total > 0) {\n\
+           \            const pct = Math.round((e.detail.loaded / e.detail.total) * 100);\n\
+           \            self.uploadProgress = Math.max(self.uploadProgress, pct);\n\
+           \          }\n\
+           \        };\n\
+           \        const onDone = (e) => {\n\
+           \          if (e.target !== form) return;\n\
+           \          self.isUploading = false;\n\
+           \          form.removeEventListener('htmx:xhr:progress', onProgress);\n\
+           \          form.removeEventListener('htmx:afterRequest', onDone);\n\
+           \        };\n\
+           \        form.addEventListener('htmx:xhr:progress', onProgress);\n\
+           \        form.addEventListener('htmx:afterRequest', onDone);\n\
+           \      }\n\
+           \\n\
            \      htmx.ajax('POST', htmxAction, {\n\
            \        source: form,\n\
            \        target: htmxTarget,\n\

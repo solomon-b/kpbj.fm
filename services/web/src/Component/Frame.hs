@@ -590,9 +590,44 @@ activeNavScript =
     });
   |]
 
+-- | JavaScript that defines @window.showBanner(type, title, msg)@.
+--
+-- Writes a banner into @#banner-container@. The type is @success@, @error@,
+-- @warning@, or @info@. The flash script and the HTMX error script use it.
+-- Load it before both of them.
+showBannerScript :: Text
+showBannerScript =
+  "\
+  \window.showBanner = function(type, title, msg) {\
+  \    function esc(s) { const el = document.createElement('span'); el.textContent = s; return el.innerHTML; }\
+  \    const styles = {\
+  \      success: { bg: 'bg-[var(--theme-success)]/10', border: 'border-[var(--theme-success)]', title: 'text-[var(--theme-success)]', msg: 'text-[var(--theme-success)]', dismiss: 'text-[var(--theme-success)] hover:opacity-70', icon: '\\u2713' },\
+  \      error: { bg: 'bg-[var(--theme-error)]/10', border: 'border-[var(--theme-error)]', title: 'text-[var(--theme-error)]', msg: 'text-[var(--theme-error)]', dismiss: 'text-[var(--theme-error)] hover:opacity-70', icon: '\\u2715' },\
+  \      warning: { bg: 'bg-[var(--theme-warning)]/10', border: 'border-[var(--theme-warning)]', title: 'text-[var(--theme-warning)]', msg: 'text-[var(--theme-warning)]', dismiss: 'text-[var(--theme-warning)] hover:opacity-70', icon: '\\u26A0' },\
+  \      info: { bg: 'bg-[var(--theme-info)]/10', border: 'border-[var(--theme-info)]', title: 'text-[var(--theme-info)]', msg: 'text-[var(--theme-info)]', dismiss: 'text-[var(--theme-info)] hover:opacity-70', icon: '\\u2139' }\
+  \    };\
+  \    const style = styles[type] || styles.info;\
+  \    const container = document.getElementById('banner-container');\
+  \    if (container) {\
+  \      container.innerHTML = '<div id=\"banner\" class=\"' + style.bg + ' border-2 ' + style.border + ' p-4 mb-6 w-full\">' +\
+  \        '<div class=\"flex items-center justify-between\">' +\
+  \          '<div class=\"flex items-center gap-3\">' +\
+  \            '<span class=\"text-2xl\">' + style.icon + '</span>' +\
+  \            '<div>' +\
+  \              '<h3 class=\"font-bold ' + style.title + '\">' + esc(title) + '</h3>' +\
+  \              '<p class=\"text-sm ' + style.msg + '\">' + esc(msg) + '</p>' +\
+  \            '</div>' +\
+  \          '</div>' +\
+  \          '<button onclick=\"this.closest(\\'#banner\\').remove()\" class=\"' + style.dismiss + ' font-bold text-xl\">\\u00D7</button>' +\
+  \        '</div>' +\
+  \      '</div>';\
+  \    }\
+  \};"
+
 -- | JavaScript to display banner from flash cookie on page load
 --
 -- Reads _flash cookie, displays the banner, then clears the cookie.
+-- Needs 'showBannerScript'.
 bannerFromUrlScript :: Text
 bannerFromUrlScript =
   "\
@@ -601,34 +636,29 @@ bannerFromUrlScript =
   \  if (!match) return;\
   \  try {\
   \    const flash = JSON.parse(decodeURIComponent(match[1]));\
-  \    function esc(s) { const el = document.createElement('span'); el.textContent = s; return el.innerHTML; }\
-  \    const styles = {\
-  \      success: { bg: 'bg-[var(--theme-success)]/10', border: 'border-[var(--theme-success)]', title: 'text-[var(--theme-success)]', msg: 'text-[var(--theme-success)]', dismiss: 'text-[var(--theme-success)] hover:opacity-70', icon: '\\u2713' },\
-  \      error: { bg: 'bg-[var(--theme-error)]/10', border: 'border-[var(--theme-error)]', title: 'text-[var(--theme-error)]', msg: 'text-[var(--theme-error)]', dismiss: 'text-[var(--theme-error)] hover:opacity-70', icon: '\\u2715' },\
-  \      warning: { bg: 'bg-[var(--theme-warning)]/10', border: 'border-[var(--theme-warning)]', title: 'text-[var(--theme-warning)]', msg: 'text-[var(--theme-warning)]', dismiss: 'text-[var(--theme-warning)] hover:opacity-70', icon: '\\u26A0' },\
-  \      info: { bg: 'bg-[var(--theme-info)]/10', border: 'border-[var(--theme-info)]', title: 'text-[var(--theme-info)]', msg: 'text-[var(--theme-info)]', dismiss: 'text-[var(--theme-info)] hover:opacity-70', icon: '\\u2139' }\
-  \    };\
-  \    const style = styles[flash.type] || styles.info;\
-  \    const container = document.getElementById('banner-container');\
-  \    if (container) {\
-  \      container.innerHTML = '<div id=\"banner\" class=\"' + style.bg + ' border-2 ' + style.border + ' p-4 mb-6 w-full\">' +\
-  \        '<div class=\"flex items-center justify-between\">' +\
-  \          '<div class=\"flex items-center gap-3\">' +\
-  \            '<span class=\"text-2xl\">' + style.icon + '</span>' +\
-  \            '<div>' +\
-  \              '<h3 class=\"font-bold ' + style.title + '\">' + esc(flash.title) + '</h3>' +\
-  \              '<p class=\"text-sm ' + style.msg + '\">' + esc(flash.msg) + '</p>' +\
-  \            '</div>' +\
-  \          '</div>' +\
-  \          '<button onclick=\"this.closest(\\'#banner\\').remove()\" class=\"' + style.dismiss + ' font-bold text-xl\">\\u00D7</button>' +\
-  \        '</div>' +\
-  \      '</div>';\
-  \    }\
+  \    window.showBanner(flash.type, flash.title, flash.msg);\
   \    document.cookie = '_flash=; Max-Age=0; Path=/; SameSite=Strict';\
   \  } catch(e) {\
   \    document.cookie = '_flash=; Max-Age=0; Path=/; SameSite=Strict';\
   \  }\
   \})();"
+
+-- | JavaScript to show an error banner when an HTMX request fails.
+--
+-- HTMX does not swap a 4xx or 5xx response, and it shows nothing when the
+-- request cannot reach the server. Without this script the user gets no
+-- feedback in both cases. Needs 'showBannerScript'.
+htmxErrorBannerScript :: Text
+htmxErrorBannerScript =
+  [i|
+    document.addEventListener('htmx:responseError', function(event) {
+      const status = event.detail.xhr ? event.detail.xhr.status : 'unknown';
+      window.showBanner('error', 'Request failed', 'The server returned status ' + status + '. Try again.');
+    });
+    document.addEventListener('htmx:sendError', function() {
+      window.showBanner('error', 'Connection failed', 'The server did not answer. Check your connection and try again.');
+    });
+  |]
 
 -- | JavaScript to clear banner when navigating to a new page via HTMX
 --
@@ -942,6 +972,8 @@ template mGoogleAnalyticsId streamSettings mUser main =
       Lucid.script_ [] cartStoreScript
       Lucid.script_ [] (darkModeScript (UserMetadata.mColorScheme <$> mUser))
       Lucid.script_ [] activeNavScript
+      Lucid.script_ [] showBannerScript
+      Lucid.script_ [] htmxErrorBannerScript
       Lucid.script_ [] bannerFromUrlScript
       Lucid.script_ [] clearBannerOnNavScript
       Lucid.style_ [] ("[x-cloak] { display: none !important; }" :: Text)

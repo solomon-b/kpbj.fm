@@ -70,6 +70,28 @@ test.describe("Station IDs CRUD", () => {
     );
   });
 
+  test("server error with a file chosen keeps the form", async ({ page }) => {
+    await page.goto("/dashboard/station-ids/new");
+
+    // The client accepts "<>" as a title. The server strips angle brackets,
+    // gets an empty title, and returns an OOB banner with HX-Reswap: none.
+    await page.locator('input[name="title"]').fill("<>");
+
+    // The file input keeps the chosen file after the staged upload.
+    await page.locator("#audio_file-input").setInputFiles(AUDIO_FIXTURE);
+    await expect(page.locator(".fb-audio-uploaded")).toBeVisible({
+      timeout: 15_000,
+    });
+
+    await page.getByRole("button", { name: "UPLOAD" }).click();
+
+    await expect(page.locator("#banner-container")).toContainText(
+      /title is required/i
+    );
+    await expect(page.locator('input[name="title"]')).toBeVisible();
+    await expect(page.locator('input[name="title"]')).toHaveValue("<>");
+  });
+
   // -------------------------------------------------------------------------
   // Create → Delete (serial to clean up)
   // -------------------------------------------------------------------------

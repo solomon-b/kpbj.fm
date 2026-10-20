@@ -39,7 +39,7 @@ import API.Links
   )
 import API.Types
 import Component.Banner (bannerContainerId)
-import Component.Frame (bannerFromUrlScript, darkModeScript, googleAnalyticsScript, htmxIndicatorStyles)
+import Component.Frame (bannerFromUrlScript, darkModeScript, googleAnalyticsScript, htmxErrorBannerScript, htmxIndicatorStyles, showBannerScript)
 import Control.Monad (unless, when)
 import Control.Monad.Catch (MonadThrow)
 import Data.Maybe (fromMaybe)
@@ -232,6 +232,8 @@ template mGoogleAnalyticsId userMeta allShows selectedShow activeNav statsConten
       Lucid.script_ [Lucid.src_ (rootLink $ staticAssetLink "alpine.min.js"), Lucid.defer_ "true"] (mempty @Text)
       Lucid.script_ [] ("tailwind.config = { darkMode: 'class', theme: { fontFamily: { sans: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'], mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'] } } }" :: Text)
       Lucid.script_ [] (darkModeScript (Just userMeta.mColorScheme))
+      Lucid.script_ [] showBannerScript
+      Lucid.script_ [] htmxErrorBannerScript
     Lucid.body_ [class_ $ base ["font-mono", Tokens.fgPrimary, Tokens.bgAlt]] $ do
       -- Full height flex container
       Lucid.div_ [class_ $ base ["min-h-screen", "flex"]] $ do
