@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.13.1] - 2026-10-21
+
 ### Added
 - **Break windows with PSAs, underwriting, station announcements, and show promos.** Hosts deliver audio two minutes short of their slot. Those two minutes were silence that the fallback pool filled at random. They are now a scheduled break.
   - KPBJ holds a noncommercial license. It airs underwriting announcements, which acknowledge a business that supports the station, and it sells no spots. The dashboard never says "advertisement".
