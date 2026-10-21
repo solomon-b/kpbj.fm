@@ -41,6 +41,7 @@ module Effects.Database.Tables.HostInvitation
     revokeInvitation,
     updateRecipientEmail,
     getById,
+    getLive,
 
     -- * Token Generation
     generateInviteCode,
@@ -56,7 +57,7 @@ import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (Display (..))
-import Data.Time (UTCTime)
+import Data.Time (Day, UTCTime)
 import Domain.Types.EmailAddress (EmailAddress)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.Util (nextId)
@@ -169,7 +170,10 @@ data HostInvitation f = HostInvitation
     hiClaimedBy :: Column f (Maybe User.Id),
     hiClaimedAt :: Column f (Maybe UTCTime),
     hiCreatedAt :: Column f UTCTime,
-    hiExpiresAt :: Column f UTCTime
+    hiExpiresAt :: Column f UTCTime,
+    -- | The date the show's schedule starts. The claim uses this date, or the
+    -- claim date if this date has passed.
+    hiStartsOn :: Column f Day
   }
   deriving stock (Generic)
   deriving anyclass (Rel8able)
@@ -213,7 +217,8 @@ hostInvitationSchema =
             hiClaimedBy = "claimed_by",
             hiClaimedAt = "claimed_at",
             hiCreatedAt = "created_at",
-            hiExpiresAt = "expires_at"
+            hiExpiresAt = "expires_at",
+            hiStartsOn = "starts_on"
           }
     }
 
@@ -225,7 +230,8 @@ data Insert = Insert
   { iToken :: Token,
     iScheduleData :: Value,
     iRecipientEmail :: EmailAddress,
-    iCreatedBy :: User.Id
+    iCreatedBy :: User.Id,
+    iStartsOn :: Day
   }
   deriving stock (Generic, Show, Eq)
 
@@ -245,7 +251,8 @@ data ModelWithCreator = ModelWithCreator
     mwcCreatedByName :: Text,
     mwcClaimedByName :: Maybe Text,
     mwcCreatedAt :: UTCTime,
-    mwcExpiresAt :: UTCTime
+    mwcExpiresAt :: UTCTime,
+    mwcStartsOn :: Day
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (DecodeRow)
@@ -284,7 +291,8 @@ insert Insert {..} =
                       hiClaimedBy = Rel8.null,
                       hiClaimedAt = Rel8.null,
                       hiCreatedAt = now,
-                      hiExpiresAt = unsafeDefault -- DB default: NOW() + INTERVAL '7 days'
+                      hiExpiresAt = unsafeDefault, -- DB default: NOW() + INTERVAL '7 days'
+                      hiStartsOn = lit iStartsOn
                     }
                 ],
             onConflict = Abort,
@@ -299,7 +307,7 @@ getByToken tokenValue =
   interp
     False
     [sql|
-    SELECT id, token, status, schedule_data, recipient_email, created_by, claimed_by, claimed_at, created_at, expires_at
+    SELECT id, token, status, schedule_data, recipient_email, created_by, claimed_by, claimed_at, created_at, expires_at, starts_on
     FROM host_invitations
     WHERE token = #{tokenValue}
       AND status = 'pending'
@@ -310,6 +318,10 @@ getByToken tokenValue =
 --
 -- Joins with @user_metadata@ to resolve user IDs to display names for
 -- the admin list view.
+--
+-- Nothing writes the @expired@ status to the table. A pending row past
+-- @expires_at@ comes back as 'Expired', so staff see that the link is dead and
+-- can regenerate it.
 getAllWithCreator :: Hasql.Statement () [ModelWithCreator]
 getAllWithCreator =
   interp
@@ -318,13 +330,17 @@ getAllWithCreator =
     SELECT
       hi.id,
       hi.token,
-      hi.status,
+      CASE WHEN hi.status = 'pending' AND hi.expires_at <= NOW()
+           THEN 'expired'::host_invitation_status
+           ELSE hi.status
+      END,
       hi.schedule_data,
       hi.recipient_email,
       creator_um.display_name,
       claimer_um.display_name,
       hi.created_at,
-      hi.expires_at
+      hi.expires_at,
+      hi.starts_on
     FROM host_invitations hi
     INNER JOIN user_metadata creator_um ON hi.created_by = creator_um.user_id
     LEFT JOIN user_metadata claimer_um ON hi.claimed_by = claimer_um.user_id
@@ -354,7 +370,7 @@ claimInvitation tokenValue userId =
     WHERE token = #{tokenValue}
       AND status = 'pending'
       AND expires_at > NOW()
-    RETURNING id, token, status, schedule_data, recipient_email, created_by, claimed_by, claimed_at, created_at, expires_at
+    RETURNING id, token, status, schedule_data, recipient_email, created_by, claimed_by, claimed_at, created_at, expires_at, starts_on
   |]
 
 -- | Revoke a pending host invitation.
@@ -371,18 +387,50 @@ revokeInvitation invitationId =
     SET status = 'revoked'
     WHERE id = #{invitationId}
       AND status = 'pending'
-    RETURNING id, token, status, schedule_data, recipient_email, created_by, claimed_by, claimed_at, created_at, expires_at
+    RETURNING id, token, status, schedule_data, recipient_email, created_by, claimed_by, claimed_at, created_at, expires_at, starts_on
   |]
 
 -- | Get a host invitation by its ID.
+--
+-- A pending row past @expires_at@ comes back as 'Expired'. See 'getAllWithCreator'.
 getById :: Id -> Hasql.Statement () (Maybe Model)
 getById invitationId =
   interp
     False
     [sql|
-    SELECT id, token, status, schedule_data, recipient_email, created_by, claimed_by, claimed_at, created_at, expires_at
+    SELECT
+      id,
+      token,
+      CASE WHEN status = 'pending' AND expires_at <= NOW()
+           THEN 'expired'::host_invitation_status
+           ELSE status
+      END,
+      schedule_data,
+      recipient_email,
+      created_by,
+      claimed_by,
+      claimed_at,
+      created_at,
+      expires_at,
+      starts_on
     FROM host_invitations
     WHERE id = #{invitationId}
+  |]
+
+-- | Get every invitation that a host can still claim.
+--
+-- A live invitation is pending and not past @expires_at@. New invitations are
+-- checked against these for schedule conflicts.
+getLive :: Hasql.Statement () [Model]
+getLive =
+  interp
+    False
+    [sql|
+    SELECT id, token, status, schedule_data, recipient_email, created_by, claimed_by, claimed_at, created_at, expires_at, starts_on
+    FROM host_invitations
+    WHERE status = 'pending'
+      AND expires_at > NOW()
+    ORDER BY id
   |]
 
 --------------------------------------------------------------------------------
@@ -401,7 +449,7 @@ updateRecipientEmail invitationId newEmail =
     WHERE id = #{invitationId}
       AND status = 'pending'
     RETURNING id, token, status, schedule_data, recipient_email,
-              created_by, claimed_by, claimed_at, created_at, expires_at
+              created_by, claimed_by, claimed_at, created_at, expires_at, starts_on
   |]
 
 --------------------------------------------------------------------------------

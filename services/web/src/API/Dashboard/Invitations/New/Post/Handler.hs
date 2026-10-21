@@ -1,11 +1,13 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Dashboard.Invitations.New.Post.Handler (handler) where
+module API.Dashboard.Invitations.New.Post.Handler (handler, action) where
 
 --------------------------------------------------------------------------------
 
+import API.Dashboard.Invitations.Conflict (checkInvitationConflicts)
 import API.Dashboard.Invitations.New.Post.Route (NewInvitationForm (..))
+import API.Dashboard.Shows.Slug.Edit.Post.Handler (ParsedScheduleSlot, parseScheduleStartDate)
 import API.Invite.Token.Post.Handler (parseInvitationSchedules)
 import API.Links (dashboardInvitationsLinks, inviteLinks, rootLink)
 import API.Types
@@ -25,8 +27,10 @@ import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
 import Domain.Types.Cookie (Cookie)
-import Domain.Types.EmailAddress (mkEmailAddress)
+import Domain.Types.EmailAddress (EmailAddress, mkEmailAddress)
 import Domain.Types.EmailAddress qualified as EmailAddress
+import Domain.Types.Timezone (pacificDay)
+import Effects.Clock (currentSystemTime)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.HostInvitation qualified as HostInvitation
 import Effects.Database.Tables.User qualified as User
@@ -56,54 +60,20 @@ handler cookie form =
     (_user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "Only staff can create invitations." userMetadata
 
-    -- 2. Validate recipient email format.
-    let trimmedEmail = Text.strip (nifRecipientEmail form)
-    validatedEmail <- case EmailAddress.validate (mkEmailAddress trimmedEmail) of
-      Left _ -> throwValidationError "Recipient email is not a valid email address."
-      Right addr -> pure addr
+    -- 2. Validate and store the invitation.
+    (token, validatedEmail) <- action userMetadata form
 
-    -- 3. Block creation when the email matches an existing KPBJ user.
-    existing <- execQuery (User.getUserByEmail validatedEmail)
-    case existing of
-      Left dbErr -> throwDatabaseError dbErr
-      Right (Just _) ->
-        throwValidationError
-          "That email belongs to an existing KPBJ account. \
-          \Use the user's host-management screen instead."
-      Right Nothing -> pure ()
-
-    -- 4. Validate that schedulesJson is non-empty valid JSON
-    scheduleData <- validateSchedulesJson (nifSchedulesJson form)
-
-    -- 5. Generate a human-readable invite code (INV-XXXX-XXXX).
-    token <- liftIO HostInvitation.generateInviteCode
-
-    -- 6. Insert into host_invitations
-    let insertData =
-          HostInvitation.Insert
-            { HostInvitation.iToken = token,
-              HostInvitation.iScheduleData = scheduleData,
-              HostInvitation.iRecipientEmail = validatedEmail,
-              HostInvitation.iCreatedBy = userMetadata.mUserId
-            }
-
-    insertResult <- execQuery (HostInvitation.insert insertData)
-    case insertResult of
-      Left dbErr -> throwDatabaseError dbErr
-      Right Nothing -> throwHandlerFailure "Failed to create invitation."
-      Right (Just _invitationId) -> pure ()
-
-    -- 7. Fire-and-forget invitation email. Logs internally on failure;
+    -- 3. Fire-and-forget invitation email. Logs internally on failure;
     --    must not block the redirect.
     lift $ sendHostInvitationEmail validatedEmail (HostInvitation.unToken token)
 
-    -- 8. Build the invite URL for the flash message (manual-fallback copy/paste).
+    -- 4. Build the invite URL for the flash message (manual-fallback copy/paste).
     appBaseUrl <- lift baseUrl
     let inviteUrl = appBaseUrl <> inviteLinkPath token
 
     Log.logInfo "Created host invitation" (HostInvitation.unToken token)
 
-    -- 9. Redirect to invitation list with success flash.
+    -- 5. Redirect to invitation list with success flash.
     let flash =
           FlashMessage
             Success
@@ -112,6 +82,63 @@ handler cookie form =
     pure $
       Servant.addHeader dashboardInvitationsGetUrl $
         Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
+
+-- | Validate the form and store a new invitation.
+--
+-- Returns the new token and the recipient. The caller sends the email.
+action ::
+  -- | The staff member who creates the invitation
+  UserMetadata.Model ->
+  NewInvitationForm ->
+  ExceptT HandlerError AppM (HostInvitation.Token, EmailAddress)
+action userMetadata form = do
+  -- 1. Validate recipient email format.
+  let trimmedEmail = Text.strip (nifRecipientEmail form)
+  validatedEmail <- case EmailAddress.validate (mkEmailAddress trimmedEmail) of
+    Left _ -> throwValidationError "Recipient email is not a valid email address."
+    Right addr -> pure addr
+
+  -- 2. Block creation when the email matches an existing KPBJ user.
+  existing <- execQuery (User.getUserByEmail validatedEmail)
+  case existing of
+    Left dbErr -> throwDatabaseError dbErr
+    Right (Just _) ->
+      throwValidationError
+        "That email belongs to an existing KPBJ account. \
+        \Use the user's host-management screen instead."
+    Right Nothing -> pure ()
+
+  -- 3. Validate that schedulesJson is non-empty valid JSON
+  (scheduleData, slot) <- validateSchedulesJson (nifSchedulesJson form)
+
+  -- 4. Validate the start date. The form requires one.
+  today <- pacificDay <$> lift currentSystemTime
+  startsOn <- case Text.strip (nifScheduleStartDate form) of
+    "" -> throwValidationError "Schedule start date is required."
+    dateText -> either throwValidationError pure (parseScheduleStartDate today dateText)
+
+  -- 5. Reject a slot that a show holds on the start date, or that another
+  --    live invitation holds.
+  checkInvitationConflicts (Just slot) startsOn
+
+  -- 6. Generate a human-readable invite code (INV-XXXX-XXXX).
+  token <- liftIO HostInvitation.generateInviteCode
+
+  -- 7. Insert into host_invitations
+  let insertData =
+        HostInvitation.Insert
+          { HostInvitation.iToken = token,
+            HostInvitation.iScheduleData = scheduleData,
+            HostInvitation.iRecipientEmail = validatedEmail,
+            HostInvitation.iCreatedBy = userMetadata.mUserId,
+            HostInvitation.iStartsOn = startsOn
+          }
+
+  insertResult <- execQuery (HostInvitation.insert insertData)
+  case insertResult of
+    Left dbErr -> throwDatabaseError dbErr
+    Right Nothing -> throwHandlerFailure "Failed to create invitation."
+    Right (Just _invitationId) -> pure (token, validatedEmail)
 
 --------------------------------------------------------------------------------
 
@@ -123,10 +150,11 @@ handler cookie form =
 -- message while they still have the form open.
 --
 -- The raw 'Aeson.Value' is what gets stored, not the parsed slot, because the
--- invitation keeps the submission as sent.
+-- invitation keeps the submission as sent. The parsed slot is returned too, for
+-- the conflict check.
 validateSchedulesJson ::
   Text ->
-  ExceptT HandlerError AppM Aeson.Value
+  ExceptT HandlerError AppM (Aeson.Value, ParsedScheduleSlot)
 validateSchedulesJson schedulesJson
   | Text.null (Text.strip schedulesJson) = missingSchedule
   | schedulesJson == "[]" = missingSchedule
@@ -137,7 +165,7 @@ validateSchedulesJson schedulesJson
         Right val -> case parseInvitationSchedules val of
           Left err -> throwValidationError err
           Right Nothing -> missingSchedule
-          Right (Just _) -> pure val
+          Right (Just slot) -> pure (val, slot)
   where
     missingSchedule =
       throwValidationError "Schedule is required. Please add at least one time slot."

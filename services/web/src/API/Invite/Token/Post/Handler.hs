@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Invite.Token.Post.Handler (handler, parseInvitationSchedules) where
+module API.Invite.Token.Post.Handler (handler, action, OnboardResult (..), parseInvitationSchedules) where
 
 --------------------------------------------------------------------------------
 
@@ -29,6 +29,7 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
+import Data.Time (Day)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.DisplayName qualified as DisplayName
@@ -187,9 +188,12 @@ action token form = do
 
   -- 7. Check schedule conflicts
   --
-  -- Onboarding never defers the schedule, so it takes effect today.
+  -- The schedule starts on the invitation's start date. If that date has
+  -- passed, it starts today. A show that leaves the slot before that date is
+  -- not a conflict.
   today <- pacificDay <$> lift currentSystemTime
-  conflictResult <- lift $ checkScheduleConflicts (Shows.Id 0) schedules today
+  let effectiveStart = max invitation.hiStartsOn today
+  conflictResult <- lift $ checkScheduleConflicts (Shows.Id 0) schedules effectiveStart
   case conflictResult of
     Left conflictErr -> do
       Log.logInfo "Schedule conflict detected during onboarding" (Aeson.object ["error" .= conflictErr])
@@ -256,7 +260,7 @@ action token form = do
   lift $ processShowTags showId (iofShowTags form)
 
   -- 14. Create schedule templates
-  lift $ createSchedulesForShow showId schedules
+  lift $ createSchedulesForShow showId schedules effectiveStart
 
   -- 15. Mark invitation as claimed
   claimResult <- execQuery (HostInvitation.claimInvitation token uid)
@@ -357,15 +361,13 @@ parseInvitationSchedules scheduleJson = case scheduleJson of
       validateSingleSlot parsed
 
 -- | Create schedules for a newly created show.
---
--- Uses the current Pacific date as the effective_from date.
 createSchedulesForShow ::
   Shows.Id ->
   Maybe ParsedScheduleSlot ->
+  -- | The effective_from date of the new schedule
+  Day ->
   AppM ()
-createSchedulesForShow showId slot0 = do
-  today <- pacificDay <$> currentSystemTime
-
+createSchedulesForShow showId slot0 effectiveFrom =
   forM_ slot0 $ \slot -> do
     let day = recurrenceDay (pssRecurrence slot)
         templateInsert =
@@ -387,7 +389,7 @@ createSchedulesForShow showId slot0 = do
         let validityInsert =
               ShowSchedule.ValidityInsert
                 { ShowSchedule.viTemplateId = templateId,
-                  ShowSchedule.viEffectiveFrom = today,
+                  ShowSchedule.viEffectiveFrom = effectiveFrom,
                   ShowSchedule.viEffectiveUntil = Nothing
                 }
         validityResult <- execQuery (ShowSchedule.insertValidity validityInsert)

@@ -11,6 +11,8 @@ module API.Dashboard.Shows.Slug.Edit.Post.Handler
     schedulesMatch,
     validateSingleSlot,
     checkScheduleConflicts,
+    parseScheduleStartDate,
+    formatTimeHHMM,
     removedTemplates,
     scheduleUpdateFlash,
     insertScheduleSlot,
@@ -215,16 +217,11 @@ action userMetadata slug editForm = do
         today <- pacificDay <$> lift currentSystemTime
         mStartDate <- case sefScheduleStartDate editForm of
           Nothing -> pure Nothing
-          Just dateText -> case parseDateYMD dateText of
-            Nothing -> do
+          Just dateText -> case parseScheduleStartDate today dateText of
+            Left err -> do
               Log.logInfo "Invalid schedule start date" dateText
-              throwValidationError "Invalid schedule start date."
-            Just d ->
-              if d < today
-                then do
-                  Log.logInfo "Schedule start date in the past" (Text.pack (show d))
-                  throwValidationError "The schedule start date can't be in the past."
-                else pure (Just d)
+              throwValidationError err
+            Right d -> pure (Just d)
         -- Date the submitted schedule takes effect. Deferred edits are checked
         -- against that future date, not today.
         let startDate = fromMaybe today mStartDate
@@ -434,6 +431,22 @@ minuteRange start end =
   let s = minutesFromMidnight start
       e = minutesFromMidnight end
    in (s, if e > s then e else e + 1440)
+
+-- | Parse a schedule start date in @YYYY-MM-DD@ form.
+--
+-- A date before @today@ fails. The show edit page and the host invitation
+-- forms use this, so both give the same messages.
+parseScheduleStartDate ::
+  -- | Today, as a Pacific date
+  Day ->
+  -- | The submitted date
+  Text ->
+  Either Text Day
+parseScheduleStartDate today dateText = case parseDateYMD dateText of
+  Nothing -> Left "Invalid schedule start date."
+  Just d
+    | d < today -> Left "The schedule start date can't be in the past."
+    | otherwise -> Right d
 
 -- | Format a TimeOfDay as "HH:MM" for error messages.
 formatTimeHHMM :: TimeOfDay -> Text

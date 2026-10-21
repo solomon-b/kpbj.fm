@@ -27,6 +27,8 @@ module Effects.Database.Tables.ShowSchedule
     getActiveScheduleTemplatesForShow,
     getPendingScheduleTemplatesForShow,
     checkTimeSlotConflict,
+    CandidateSlot (..),
+    checkSlotConflictAgainst,
     insertScheduleTemplate,
     updateReplayStartTime,
 
@@ -69,6 +71,7 @@ where
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Functor.Contravariant ((>$<))
 import Data.Int (Int32, Int64)
+import Data.List (intersperse)
 import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -80,12 +83,12 @@ import Domain.Types.Slug (Slug)
 import Domain.Types.Timezone (minutesFromMidnight, pacificToUtc, utcToPacific)
 import Effects.Database.Tables.Shows qualified as Shows
 import GHC.Generics (Generic)
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneColumn (..), OneRow (..), interp, sql)
+import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneColumn (..), OneRow (..), Sql, interp, sql)
 import Hasql.Statement qualified as Hasql
 import OrphanInstances.DayOfWeek ()
 import OrphanInstances.Rel8 ()
 import OrphanInstances.TimeOfDay ()
-import Rel8 hiding (Insert)
+import Rel8 hiding (Insert, Sql)
 
 --------------------------------------------------------------------------------
 -- Schedule Template Types
@@ -386,17 +389,8 @@ checkTimeSlotConflict ::
   Day ->
   Hasql.Statement () (Maybe Text)
 checkTimeSlotConflict excludeShowId dow weeks start end fromDate =
-  let dayNum = dayOfWeekNumber dow
-      prevDay = (dayNum + 6) `mod` 7
-      nextDay = (dayNum + 1) `mod` 7
-      startMin = fromIntegral (minutesFromMidnight start) :: Int64
-      rawEndMin = fromIntegral (minutesFromMidnight end) :: Int64
-      endMin = if rawEndMin > startMin then rawEndMin else rawEndMin + 1440
-   in fmap getConflictingShowTitle
-        <$> interp
-          False
-          [sql|
-    WITH templates AS (
+  slotConflictQuery
+    [sql|
       SELECT
         s.title,
         day_of_week_num(st.day_of_week) AS day_num,
@@ -413,6 +407,90 @@ checkTimeSlotConflict excludeShowId dow weeks start end fromDate =
         AND st.show_id != #{excludeShowId}
         AND (stv.effective_until IS NULL OR stv.effective_until > stv.effective_from)
         AND (stv.effective_until IS NULL OR stv.effective_until > #{fromDate})
+    |]
+    dow
+    weeks
+    start
+    end
+
+-- | A slot that a proposed slot must not overlap. The label names it in the result.
+--
+-- Host invitations use this. An invitation holds a slot before any show template
+-- exists for it.
+data CandidateSlot = CandidateSlot
+  { csLabel :: Text,
+    csDayOfWeek :: DayOfWeek,
+    csWeeksOfMonth :: [Int64],
+    csStartTime :: TimeOfDay,
+    csEndTime :: TimeOfDay,
+    csReplayStartTime :: Maybe TimeOfDay
+  }
+  deriving stock (Show, Eq)
+
+-- | Check a proposed slot against a list of candidate slots.
+--
+-- Returns the label of the first candidate the proposed slot overlaps. The overlap
+-- rules are the rules of 'checkTimeSlotConflict', and the time model is the same. A
+-- candidate has no validity window.
+checkSlotConflictAgainst ::
+  [CandidateSlot] ->
+  DayOfWeek ->
+  [Int64] ->
+  TimeOfDay ->
+  TimeOfDay ->
+  Hasql.Statement () (Maybe Text)
+checkSlotConflictAgainst candidates = slotConflictQuery candidateRows
+  where
+    candidateRows = case candidates of
+      [] ->
+        [sql|
+          SELECT NULL::TEXT AS title, NULL::BIGINT AS day_num, NULL::BIGINT[] AS weeks,
+                 NULL::INT AS start_min, NULL::INT AS end_min, NULL::INT AS replay_start_min
+          WHERE false
+        |]
+      _ ->
+        [sql|
+          SELECT * FROM (VALUES ^{rows})
+            AS c (title, day_num, weeks, start_min, end_min, replay_start_min)
+        |]
+
+    rows = mconcat (intersperse rowSeparator (map candidateRow candidates))
+
+    rowSeparator = [sql|, |]
+
+    candidateRow (CandidateSlot label day rowWeeks rowStartTime rowEndTime rowReplayTime) =
+      let rowDay = dayOfWeekNumber day
+          rowStart = fromIntegral (minutesFromMidnight rowStartTime) :: Int32
+          rawEnd = fromIntegral (minutesFromMidnight rowEndTime) :: Int32
+          rowEnd = if rawEnd > rowStart then rawEnd else rawEnd + 1440
+          rowReplay = fromIntegral . minutesFromMidnight <$> rowReplayTime :: Maybe Int32
+       in [sql|(#{label}::TEXT, #{rowDay}::BIGINT, #{rowWeeks}::BIGINT[], #{rowStart}::INT, #{rowEnd}::INT, #{rowReplay}::INT)|]
+
+-- | The overlap query that 'checkTimeSlotConflict' and 'checkSlotConflictAgainst' share.
+--
+-- @templates@ is a @SELECT@ with the columns @title@, @day_num@, @weeks@,
+-- @start_min@, @end_min@, and @replay_start_min@, in the time model that
+-- 'checkTimeSlotConflict' describes.
+slotConflictQuery ::
+  Sql ->
+  DayOfWeek ->
+  [Int64] ->
+  TimeOfDay ->
+  TimeOfDay ->
+  Hasql.Statement () (Maybe Text)
+slotConflictQuery templates dow weeks start end =
+  let dayNum = dayOfWeekNumber dow
+      prevDay = (dayNum + 6) `mod` 7
+      nextDay = (dayNum + 1) `mod` 7
+      startMin = fromIntegral (minutesFromMidnight start) :: Int64
+      rawEndMin = fromIntegral (minutesFromMidnight end) :: Int64
+      endMin = if rawEndMin > startMin then rawEndMin else rawEndMin + 1440
+   in fmap getConflictingShowTitle
+        <$> interp
+          False
+          [sql|
+    WITH templates AS (
+      ^{templates}
     ),
     windows AS (
       SELECT title, day_num, weeks, start_min, end_min

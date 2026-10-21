@@ -30,7 +30,7 @@ import Utils (fromRightM)
 --
 -- Schedule, Recipient, Status, Created By, Expires, Actions = 6.
 rowColumnCount :: Int
-rowColumnCount = 6
+rowColumnCount = 7
 
 --------------------------------------------------------------------------------
 

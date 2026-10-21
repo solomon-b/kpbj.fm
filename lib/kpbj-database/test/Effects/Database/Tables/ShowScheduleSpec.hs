@@ -5,6 +5,7 @@ module Effects.Database.Tables.ShowScheduleSpec where
 import Control.Monad (forM, forM_)
 import Control.Monad.IO.Class (liftIO)
 import Data.Either (isLeft)
+import Data.Maybe (isJust)
 import Data.Time (DayOfWeek, addDays, diffDays, diffUTCTime, getCurrentTime, utctDay)
 import Data.Time qualified as Time
 import Data.Time.Calendar (fromGregorian, toGregorian)
@@ -20,7 +21,9 @@ import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import Hedgehog (PropertyT, annotate, failure, (===))
 import Hedgehog qualified
+import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllT)
+import Hedgehog.Range qualified as Range
 import OrphanInstances.DayOfWeek (toDayOfWeek)
 import Test.Database.Helpers (insertTestEpisode, insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
@@ -72,6 +75,11 @@ spec =
         runs 10 . it "range-overlaps validity windows against the effective date" $ hedgehog . prop_checkTimeSlotConflictValidityWindows
         runs 10 . it "sees a window that crosses midnight from the next day" $ hedgehog . prop_checkTimeSlotConflictOvernight
         runs 10 . it "sees a replay that crosses midnight from the next day" $ hedgehog . prop_checkTimeSlotConflictReplayAcrossMidnight
+
+      describe "checkSlotConflictAgainst" $ do
+        runs 50 . it "agrees with checkTimeSlotConflict on one booked slot" $ hedgehog . prop_checkSlotConflictAgainstAgreesWithTemplates
+        runs 1 . it "empty list is Nothing" $ hedgehog . prop_checkSlotConflictAgainstEmpty
+        runs 1 . it "Saturday 23:00-01:00 hits Sunday 00:00-01:00" $ hedgehog . prop_checkSlotConflictAgainstOvernight
 
       -- Validity management
       describe "Validity" $ do
@@ -731,6 +739,105 @@ prop_checkTimeSlotConflictValidityWindows cfg = do
 -- | Move a day of the week forward. Saturday wraps to Sunday.
 shiftDow :: Int -> DayOfWeek -> DayOfWeek
 shiftDow n d = toEnum (fromEnum d + n)
+
+-- | A slot start time on the half hour, anywhere in the day.
+genSlotStart :: (Hedgehog.MonadGen m) => m TimeOfDay
+genSlotStart = do
+  hour <- Gen.integral (Range.linear 0 23)
+  minute <- Gen.element [0, 30]
+  pure (TimeOfDay hour minute 0)
+
+-- | The time this many minutes after a start time, wrapped past midnight.
+addSlotMinutes :: Int -> TimeOfDay -> TimeOfDay
+addSlotMinutes mins (TimeOfDay h m _) =
+  let total = (h * 60 + m + mins) `mod` 1440
+   in TimeOfDay (total `div` 60) (total `mod` 60) 0
+
+-- | checkSlotConflictAgainst: one candidate slot gives the same answer as the same
+-- slot booked as a show template.
+--
+-- The two queries share their overlap rules. The generator reaches slots that cross
+-- midnight and replays, and it puts the proposed slot on the same day as the candidate
+-- or on a day next to it, so most runs reach the overlap rules.
+prop_checkSlotConflictAgainstAgreesWithTemplates :: TestDBConfig -> PropertyT IO ()
+prop_checkSlotConflictAgainstAgreesWithTemplates cfg = do
+  arrange (bracketConn cfg) $ do
+    showInsert <- forAllT showInsertGen
+    candidateDay <- forAllT genDayOfWeek
+    candidateWeeks <- forAllT genWeeksOfMonth
+    candidateStart <- forAllT genSlotStart
+    candidateDuration <- forAllT (Gen.element [30, 60, 120])
+    candidateReplay <- forAllT (Gen.maybe genSlotStart)
+    dayShift <- forAllT (Gen.element [-1, 0, 1])
+    proposedWeeks <- forAllT genWeeksOfMonth
+    proposedStart <- forAllT genSlotStart
+    proposedDuration <- forAllT (Gen.element [30, 60, 120])
+
+    act $ do
+      today <- liftIO $ utctDay <$> getCurrentTime
+      let candidateEnd = addSlotMinutes candidateDuration candidateStart
+          proposedDay = shiftDow dayShift candidateDay
+          proposedEnd = addSlotMinutes proposedDuration proposedStart
+          candidate =
+            UUT.CandidateSlot
+              { UUT.csLabel = "candidate",
+                UUT.csDayOfWeek = candidateDay,
+                UUT.csWeeksOfMonth = candidateWeeks,
+                UUT.csStartTime = candidateStart,
+                UUT.csEndTime = candidateEnd,
+                UUT.csReplayStartTime = candidateReplay
+              }
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        showId <- unwrapInsert (Shows.insertShow showInsert {Shows.siStatus = Shows.Active})
+        templateId <-
+          TRX.statement () $
+            UUT.insertScheduleTemplate
+              (UUT.ScheduleTemplateInsert showId candidateDay candidateWeeks candidateStart candidateEnd "America/Los_Angeles" candidateReplay)
+        _ <- unwrapInsert (UUT.insertValidity (UUT.ValidityInsert templateId (addDays (-7) today) Nothing))
+        viaTemplates <- TRX.statement () (UUT.checkTimeSlotConflict (Shows.Id 0) proposedDay proposedWeeks proposedStart proposedEnd today)
+        viaCandidates <- TRX.statement () (UUT.checkSlotConflictAgainst [candidate] proposedDay proposedWeeks proposedStart proposedEnd)
+        TRX.condemn
+        pure (viaTemplates, viaCandidates)
+
+      assert $ do
+        (viaTemplates, viaCandidates) <- assertRight result
+        isJust viaCandidates === isJust viaTemplates
+
+-- | checkSlotConflictAgainst: no candidates means no conflict.
+prop_checkSlotConflictAgainstEmpty :: TestDBConfig -> PropertyT IO ()
+prop_checkSlotConflictAgainstEmpty cfg = do
+  arrange (bracketConn cfg) $ do
+    act $ do
+      result <-
+        runDB $
+          TRX.transaction TRX.ReadCommitted TRX.Read $
+            TRX.statement () (UUT.checkSlotConflictAgainst [] Time.Monday allWeeksOfMonth (TimeOfDay 20 0 0) (TimeOfDay 22 0 0))
+      assert $ do
+        mConflict <- assertRight result
+        assertNothing mConflict
+
+-- | checkSlotConflictAgainst: a candidate that crosses midnight reaches the next day.
+prop_checkSlotConflictAgainstOvernight :: TestDBConfig -> PropertyT IO ()
+prop_checkSlotConflictAgainstOvernight cfg = do
+  arrange (bracketConn cfg) $ do
+    act $ do
+      let candidate =
+            UUT.CandidateSlot
+              { UUT.csLabel = "late night",
+                UUT.csDayOfWeek = Time.Saturday,
+                UUT.csWeeksOfMonth = allWeeksOfMonth,
+                UUT.csStartTime = TimeOfDay 23 0 0,
+                UUT.csEndTime = TimeOfDay 1 0 0,
+                UUT.csReplayStartTime = Nothing
+              }
+      result <-
+        runDB $
+          TRX.transaction TRX.ReadCommitted TRX.Read $
+            TRX.statement () (UUT.checkSlotConflictAgainst [candidate] Time.Sunday allWeeksOfMonth (TimeOfDay 0 0 0) (TimeOfDay 1 0 0))
+      assert $ do
+        mConflict <- assertRight result
+        label <- assertJust mConflict
+        label === "late night"
 
 -- | checkTimeSlotConflict: a window that crosses midnight is visible from the next day.
 --
