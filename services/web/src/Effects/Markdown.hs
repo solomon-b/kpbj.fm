@@ -69,7 +69,7 @@ import Text.Pandoc
     writePlain,
     writerExtensions,
   )
-import Text.Pandoc.Definition (Block (..), nullAttr)
+import Text.Pandoc.Definition (Block (..), Inline (..), nullAttr)
 import Text.Pandoc.Walk (walk)
 import Text.XmlHtml qualified as Xml
 import Text.XmlHtml.Optics
@@ -170,6 +170,10 @@ renderMarkdownPure config markdown = do
 -- copies link and image targets as the author typed them, so
 -- @[x](javascript:alert(1))@ becomes a live @javascript:@ link. The input
 -- sanitizer does not see it, because the Markdown source contains no HTML.
+--
+-- Before Pandoc writes the HTML, 'addMissingScheme' adds @https://@ to link
+-- and image targets that have no scheme. Without it, the browser reads
+-- @[x](www.google.com)@ as a path on the current site.
 parseMarkdownToHtml ::
   MarkdownConfig ->
   Text ->
@@ -184,7 +188,27 @@ parseMarkdownToHtml config md =
     writerConfig = def {writerExtensions = extensionsFromList extensions}
     pandocAction = do
       pandocAst <- readMarkdown readerConfig md
-      writeHtml5String writerConfig pandocAst
+      writeHtml5String writerConfig (walk addMissingScheme pandocAst)
+
+-- | Add @https://@ to a link or image target that has no scheme.
+--
+-- A target with a @:@ already has a scheme, such as @https:@ or @mailto:@.
+-- A target that starts with @/@, @#@, or @?@ is a link on this site. The
+-- function keeps these targets and empty targets unchanged.
+addMissingScheme :: Inline -> Inline
+addMissingScheme inline =
+  case inline of
+    Link attr content (url, title) -> Link attr content (withScheme url, title)
+    Image attr content (url, title) -> Image attr content (withScheme url, title)
+    _ -> inline
+  where
+    withScheme url =
+      case Text.uncons url of
+        Nothing -> url
+        Just (firstChar, _)
+          | Text.isInfixOf ":" url -> url
+          | firstChar `elem` ['/', '#', '?'] -> url
+          | otherwise -> "https://" <> url
 
 -- | Parse HTML text into xmlhtml nodes (pure version).
 parseHtmlFragment ::
@@ -196,10 +220,13 @@ parseHtmlFragment htmlText =
     Right doc -> Right $ Xml.docContent doc
 
 -- | Convert configuration to Pandoc extensions.
+--
+-- 'Ext_autolink_bare_uris' is always on, so a bare URL in text becomes a link.
 configToExtensions :: MarkdownConfig -> [Extension]
 configToExtensions MarkdownConfig {..} =
   concat
-    [ [Ext_backtick_code_blocks | mcCodeBlocks],
+    [ [Ext_autolink_bare_uris],
+      [Ext_backtick_code_blocks | mcCodeBlocks],
       [Ext_task_lists | mcTaskLists],
       [Ext_hard_line_breaks | mcHardLineBreaks],
       [Ext_strikeout | mcStrikethrough],
