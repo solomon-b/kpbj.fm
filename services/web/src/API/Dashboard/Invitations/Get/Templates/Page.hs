@@ -5,6 +5,7 @@ module API.Dashboard.Invitations.Get.Templates.Page
   ( template,
     renderInvitationRow,
     renderScheduleSummary,
+    formatStartDate,
   )
 where
 
@@ -26,7 +27,7 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
-import Data.Time (UTCTime, defaultTimeLocale, formatTime)
+import Data.Time (Day, UTCTime, defaultTimeLocale, formatTime)
 import Data.Vector qualified as Vector
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
@@ -57,6 +58,7 @@ template appBaseUrl invitations =
             { itcBodyId = "invitations-table-body",
               itcHeaders =
                 [ ColumnHeader "Schedule" AlignLeft,
+                  ColumnHeader "Starts" AlignLeft,
                   ColumnHeader "Recipient" AlignLeft,
                   ColumnHeader "Status" AlignLeft,
                   ColumnHeader "Created By" AlignLeft,
@@ -79,6 +81,11 @@ renderInvitationRow appBaseUrl invitation =
       Lucid.td_ [class_ $ base [Tokens.p4]] $
         Lucid.span_ [Lucid.class_ Tokens.textSm] $
           Lucid.toHtml (renderScheduleSummary invitation.mwcScheduleData)
+
+      -- Starts column
+      Lucid.td_ [class_ $ base [Tokens.p4]] $
+        Lucid.span_ [Lucid.class_ Tokens.textSm] $
+          Lucid.toHtml (formatStartDate invitation.mwcStartsOn)
 
       -- Recipient column
       Lucid.td_ [class_ $ base [Tokens.p4]] $
@@ -214,6 +221,10 @@ renderEmptyState =
     Lucid.p_ [class_ $ base [Tokens.fgMuted, "mt-2"]] "Create a new invitation to onboard a host."
 
 -- | Format a UTC timestamp as a human-readable date string.
+-- | Format an invitation start date, e.g. "Nov 04, 2026".
+formatStartDate :: Day -> String
+formatStartDate = formatTime defaultTimeLocale "%b %d, %Y"
+
 formatDateTime :: UTCTime -> String
 formatDateTime = formatTime defaultTimeLocale "%b %d, %Y" . utcToPacific
 

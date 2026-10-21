@@ -9,7 +9,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Invitations.Get.Templates.Page (renderScheduleSummary)
+import API.Dashboard.Invitations.Get.Templates.Page (formatStartDate, renderScheduleSummary)
 import API.Links (apiLinks, inviteLinks, rootLink, userLinks)
 import API.Types (InviteRoutes (..), Routes (..), UserRoutes (..))
 import Component.Form.Hints (markdownHint)
@@ -17,6 +17,7 @@ import Data.Aeson (Value)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
+import Data.Time (Day)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.EmailAddress (EmailAddress)
@@ -52,10 +53,10 @@ template token invitation =
       ]
     $ do
       -- Step 1: Create Account
-      step1 recipientEmail scheduleData
+      step1 recipientEmail scheduleData startsOn
 
       -- Step 2: Set Up Your Show
-      step2 scheduleData
+      step2 scheduleData startsOn
   where
     postUrl :: Text
     postUrl =
@@ -65,14 +66,17 @@ template token invitation =
     scheduleData :: Value
     scheduleData = invitation.hiScheduleData
 
+    startsOn :: Day
+    startsOn = invitation.hiStartsOn
+
     recipientEmail :: EmailAddress
     recipientEmail = invitation.hiRecipientEmail
 
 --------------------------------------------------------------------------------
 -- Step 1: Create Account
 
-step1 :: EmailAddress -> Value -> Lucid.Html ()
-step1 recipientEmail scheduleData =
+step1 :: EmailAddress -> Value -> Day -> Lucid.Html ()
+step1 recipientEmail scheduleData startsOn =
   Lucid.div_ [Lucid.id_ "step1-fields", xShow_ "step === 1", xCloak_] $ do
     -- Step indicator
     stepIndicator 1
@@ -86,7 +90,7 @@ step1 recipientEmail scheduleData =
       "You've been invited to host a show. Let's get you set up."
 
     -- Schedule preview
-    schedulePreview scheduleData
+    schedulePreview scheduleData startsOn
 
     -- Form fields
     formField "Full Name" $ do
@@ -167,8 +171,8 @@ step1 recipientEmail scheduleData =
 --------------------------------------------------------------------------------
 -- Step 2: Set Up Your Show
 
-step2 :: Value -> Lucid.Html ()
-step2 scheduleData =
+step2 :: Value -> Day -> Lucid.Html ()
+step2 scheduleData startsOn =
   Lucid.div_ [xShow_ "step === 2", xCloak_] $ do
     -- Step indicator
     stepIndicator 2
@@ -217,7 +221,7 @@ step2 scheduleData =
         ]
 
     -- Schedule reminder
-    schedulePreview scheduleData
+    schedulePreview scheduleData startsOn
 
     -- Back and Submit buttons
     Lucid.div_ [class_ $ base [Tokens.mt8, "flex", Tokens.gap4]] $ do
@@ -260,14 +264,16 @@ stepIndicator currentStep =
     stepBadgeClasses = [Tokens.fontBold]
 
 -- | Read-only schedule preview card.
-schedulePreview :: Value -> Lucid.Html ()
-schedulePreview scheduleData =
+schedulePreview :: Value -> Day -> Lucid.Html ()
+schedulePreview scheduleData startsOn =
   Lucid.div_ [class_ $ base [Tokens.bgAlt, "border", Tokens.borderMuted, Tokens.p4, Tokens.mb6]] $ do
     Lucid.div_
       [class_ $ base [Tokens.textXs, Tokens.fgMuted, Tokens.fontBold, Tokens.mb2, "uppercase"]]
       "Your Assigned Timeslot"
     Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgPrimary, Tokens.fontBold]] $
       Lucid.toHtml (renderScheduleSummary scheduleData)
+    Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted]] $
+      Lucid.toHtml ("Starts " <> formatStartDate startsOn)
 
 -- | Standard form field wrapper with label.
 formField :: Text -> Lucid.Html () -> Lucid.Html ()

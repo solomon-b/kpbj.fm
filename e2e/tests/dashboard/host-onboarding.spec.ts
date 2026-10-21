@@ -16,18 +16,28 @@ import { STAFF_AUTH, USER_AUTH } from "../../playwright.config";
 
 const NEW_POST_URL = "/dashboard/invitations/new";
 
-// Tuesday 23:00-24:00 is one of the few open slots in the seeded mock
-// schedule. checkScheduleConflicts overlaps regardless of weeksOfMonth,
-// so we have to pick an actually-empty slot rather than a different
-// week-of-month within a busy one.
+// The seeded mock schedule leaves only Tuesday 23:00-24:00 free. New
+// invitations are checked for conflicts with shows and with other live
+// invitations, so this file takes 23:30-24:00 and invitations-crud.spec.ts
+// takes 23:00-23:30. The tests in this file run one at a time, and each
+// invitation is revoked after its test.
 const DEFAULT_SCHEDULE = [
   {
     dayOfWeek: "tuesday",
     weeksOfMonth: [1, 2, 3, 4, 5],
-    startTime: "23:00",
-    duration: 60,
+    startTime: "23:30",
+    duration: 30,
   },
 ];
+
+// The start date of each invitation, two weeks from now.
+const START_DATE = new Date(Date.now() + 14 * 86_400_000)
+  .toISOString()
+  .slice(0, 10);
+
+// Recipients whose invitations the current test created. afterEach revokes
+// the ones that are still pending.
+let createdRecipients: string[] = [];
 
 // Create an invitation in a staff-authenticated side context, then return
 // the URL/token for use in the unauthenticated test page. Closes the staff
@@ -49,19 +59,29 @@ async function createInvitationViaStaff(
         const fd = new FormData();
         fd.append("recipient_email", args.recipientEmail);
         fd.append("schedules_json", args.schedulesJson);
+        fd.append("schedule_start_date", args.startDate);
         const resp = await fetch(args.postUrl, {
           method: "POST",
           body: fd,
         });
-        return { hxRedirect: resp.headers.get("HX-Redirect") };
+        return {
+          hxRedirect: resp.headers.get("HX-Redirect"),
+          body: await resp.text(),
+        };
       },
       {
         recipientEmail,
         schedulesJson: JSON.stringify(DEFAULT_SCHEDULE),
+        startDate: START_DATE,
         postUrl: NEW_POST_URL,
       },
     );
-    expect(createResult.hxRedirect).toBeTruthy();
+    if (!createResult.hxRedirect) {
+      throw new Error(
+        `Invitation create did not redirect. Body:\n${createResult.body.slice(0, 1500)}`,
+      );
+    }
+    createdRecipients.push(recipientEmail);
 
     await staffPage.goto("/dashboard/invitations");
     await staffPage
@@ -78,7 +98,38 @@ async function createInvitationViaStaff(
   }
 }
 
+// Revoke each pending invitation the test created, so the slot is free for
+// the next test. A claimed invitation has no Revoke button and is skipped.
+async function revokeCreatedInvitations(browser: Browser): Promise<void> {
+  if (createdRecipients.length === 0) return;
+  const staffContext = await browser.newContext({ storageState: STAFF_AUTH });
+  const staffPage = await staffContext.newPage();
+  try {
+    staffPage.on("dialog", (d) => d.accept());
+    await staffPage.goto("/dashboard/invitations");
+    for (const recipient of createdRecipients) {
+      const row = staffPage
+        .locator("tr", { hasText: recipient })
+        .filter({ hasText: "Pending" });
+      if (await row.count()) {
+        await row.getByRole("button", { name: /Revoke/i }).click();
+        await expect(row).toBeHidden();
+      }
+    }
+  } finally {
+    createdRecipients = [];
+    await staffContext.close();
+  }
+}
+
 test.describe("Host onboarding", () => {
+  // The tests share one schedule slot, so they run one at a time.
+  test.describe.configure({ mode: "serial" });
+
+  test.afterEach(async ({ browser }) => {
+    await revokeCreatedInvitations(browser);
+  });
+
   // -------------------------------------------------------------------------
   // Invalid / missing tokens
   // -------------------------------------------------------------------------
@@ -111,6 +162,15 @@ test.describe("Host onboarding", () => {
     // It's rendered in both step1 and step2; scope to the visible one.
     await expect(
       page.locator("#step1-fields").getByText(/Your Assigned Timeslot/i),
+    ).toBeVisible();
+
+    // The preview shows the start date, e.g. "Starts Nov 04, 2026".
+    const startsText = new Date(`${START_DATE}T12:00:00`).toLocaleDateString(
+      "en-US",
+      { month: "short", day: "2-digit", year: "numeric" },
+    );
+    await expect(
+      page.locator("#step1-fields").getByText(`Starts ${startsText}`),
     ).toBeVisible();
   });
 
@@ -226,11 +286,34 @@ test.describe("Host onboarding", () => {
   });
 
   // -------------------------------------------------------------------------
+  // Already-logged-in short-circuit
+  // -------------------------------------------------------------------------
+
+  test("already-logged-in user sees the 'you already have an account' screen", async ({
+    browser,
+  }) => {
+    const recipient = `e2e-onb-loggedin-${Date.now()}@example.com`;
+    const { inviteUrl } = await createInvitationViaStaff(browser, recipient);
+
+    // Visit the invite link with a USER session.
+    const userContext = await browser.newContext({ storageState: USER_AUTH });
+    const userPage = await userContext.newPage();
+    try {
+      await userPage.goto(inviteUrl);
+      await expect(
+        userPage.getByText(/You already have an account/i),
+      ).toBeVisible();
+    } finally {
+      await userContext.close();
+    }
+  });
+
+  // -------------------------------------------------------------------------
   // Full happy path
   // -------------------------------------------------------------------------
 
-  // NOTE: this test leaves a show in the DB (Tuesday 23:00). Subsequent
-  // runs will fail on a schedule conflict until the show is cleaned up.
+  // NOTE: this test leaves a show in the DB (Tuesday 23:30), so it runs last.
+  // Later runs fail on a schedule conflict until the show is cleaned up.
   // CI re-seeds mock data each run; locally, run `just dev-mock-data`
   // to reset if this test starts failing with a conflict error.
   test("submit creates account, claims invitation, lands on show dashboard", async ({
@@ -304,28 +387,5 @@ test.describe("Host onboarding", () => {
       { recipient, postUrl: `/invite/${token}` },
     );
     expect(secondAttempt).toMatch(/invalid|expired|already been used/i);
-  });
-
-  // -------------------------------------------------------------------------
-  // Already-logged-in short-circuit
-  // -------------------------------------------------------------------------
-
-  test("already-logged-in user sees the 'you already have an account' screen", async ({
-    browser,
-  }) => {
-    const recipient = `e2e-onb-loggedin-${Date.now()}@example.com`;
-    const { inviteUrl } = await createInvitationViaStaff(browser, recipient);
-
-    // Visit the invite link with a USER session.
-    const userContext = await browser.newContext({ storageState: USER_AUTH });
-    const userPage = await userContext.newPage();
-    try {
-      await userPage.goto(inviteUrl);
-      await expect(
-        userPage.getByText(/You already have an account/i),
-      ).toBeVisible();
-    } finally {
-      await userContext.close();
-    }
   });
 });

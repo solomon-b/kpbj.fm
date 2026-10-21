@@ -21,6 +21,7 @@ import Effects.Database.Tables.EpisodeTrackSpec qualified as EpisodeTrack
 import Effects.Database.Tables.EpisodesSpec qualified as Episodes
 import Effects.Database.Tables.EventImagesSpec qualified as EventImages
 import Effects.Database.Tables.EventsSpec qualified as Events
+import Effects.Database.Tables.HostInvitationSpec qualified as HostInvitation
 import Effects.Database.Tables.NewsletterSubscribersSpec qualified as NewsletterSubscribers
 import Effects.Database.Tables.OrderItemsSpec qualified as OrderItems
 import Effects.Database.Tables.OrdersSpec qualified as Orders
@@ -124,6 +125,7 @@ main = do
     SitePages.spec
     SitePageRevisions.spec
     NewsletterSubscribers.spec
+    HostInvitation.spec
 
     -- DB Models - Special Tables
     PlaybackHistory.spec

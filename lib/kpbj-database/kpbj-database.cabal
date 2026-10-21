@@ -198,6 +198,7 @@ test-suite kpbj-database-test
     , kpbj-database:kpbj-database-test-lib
     , kpbj-types
     , web-server-core
+    , aeson
     , bytestring
     , containers
     , data-has
@@ -240,6 +241,7 @@ test-suite kpbj-database-test
     Effects.Database.Tables.EpisodeTrackSpec
     Effects.Database.Tables.EpisodesSpec
     Effects.Database.Tables.EventsSpec
+    Effects.Database.Tables.HostInvitationSpec
     Effects.Database.Tables.NewsletterSubscribersSpec
     Effects.Database.Tables.OrderItemsSpec
     Effects.Database.Tables.OrdersSpec
