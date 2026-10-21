@@ -229,6 +229,55 @@ spec = do
       let result = renderMarkdownPure defaultMarkdownConfig safeMarkdown
       result `shouldSatisfy` isRight
 
+  describe "Link targets" $ do
+    it "adds https:// to a link target that starts with www." $ do
+      let result = parseMarkdownToHtml defaultMarkdownConfig "[Google](www.google.com)"
+      case result of
+        Right html -> html `shouldSatisfy` Text.isInfixOf "href=\"https://www.google.com\""
+        Left _ -> expectationFailure "Should have parsed"
+
+    it "adds https:// to a link target with a domain and a path" $ do
+      let result = parseMarkdownToHtml defaultMarkdownConfig "[x](example.org/path)"
+      case result of
+        Right html -> html `shouldSatisfy` Text.isInfixOf "href=\"https://example.org/path\""
+        Left _ -> expectationFailure "Should have parsed"
+
+    it "adds https:// to an image source without a scheme" $ do
+      let result = parseMarkdownToHtml defaultMarkdownConfig "![pic](cdn.example.com/a.jpg)"
+      case result of
+        Right html -> html `shouldSatisfy` Text.isInfixOf "src=\"https://cdn.example.com/a.jpg\""
+        Left _ -> expectationFailure "Should have parsed"
+
+    it "keeps an https:// link target unchanged" $ do
+      let result = parseMarkdownToHtml defaultMarkdownConfig "[site](https://kpbj.fm/about)"
+      case result of
+        Right html -> html `shouldSatisfy` Text.isInfixOf "href=\"https://kpbj.fm/about\""
+        Left _ -> expectationFailure "Should have parsed"
+
+    it "keeps a mailto: link target unchanged" $ do
+      let result = parseMarkdownToHtml defaultMarkdownConfig "[mail](mailto:a@b.com)"
+      case result of
+        Right html -> html `shouldSatisfy` Text.isInfixOf "href=\"mailto:a@b.com\""
+        Left _ -> expectationFailure "Should have parsed"
+
+    it "keeps site-relative link targets unchanged" $ do
+      let relativeTargets =
+            [ ("[schedule](/schedule)", "href=\"/schedule\""),
+              ("[jump](#section)", "href=\"#section\""),
+              ("[next](?page=2)", "href=\"?page=2\"")
+            ]
+      forM_ relativeTargets $ \(md, expected) -> do
+        let result = parseMarkdownToHtml defaultMarkdownConfig md
+        case result of
+          Right html -> html `shouldSatisfy` Text.isInfixOf expected
+          Left _ -> expectationFailure $ "Should have parsed: " <> Text.unpack md
+
+    it "turns a bare https URL in text into a link" $ do
+      let result = parseMarkdownToHtml defaultMarkdownConfig "Listen at https://kpbj.fm today."
+      case result of
+        Right html -> html `shouldSatisfy` Text.isInfixOf "<a href=\"https://kpbj.fm\""
+        Left _ -> expectationFailure "Should have parsed"
+
   describe "renderContent" $ do
     it "renders bold markdown as a strong element" $ do
       let rendered = Lucid.renderText (renderContent "**bold**")
