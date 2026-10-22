@@ -75,7 +75,7 @@ stationIdInsert creatorId =
       siiAudioFilePath = "audio/station-ids/2025/01/06/id_2025-01-06_abc.mp3",
       siiMimeType = "audio/mpeg",
       siiFileSize = 512,
-      siiDurationSeconds = Just 10,
+      siiDurationSeconds = 10,
       siiCreatorId = creatorId
     }
 

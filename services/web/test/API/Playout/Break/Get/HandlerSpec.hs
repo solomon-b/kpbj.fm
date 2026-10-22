@@ -123,7 +123,7 @@ mkStationIdInsert creatorId =
       siiAudioFilePath = "audio/station-ids/2025/01/06/test_2025-01-06_def456.mp3",
       siiMimeType = "audio/mpeg",
       siiFileSize = 512,
-      siiDurationSeconds = Just 10,
+      siiDurationSeconds = 10,
       siiCreatorId = creatorId
     }
 

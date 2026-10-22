@@ -5,8 +5,7 @@
 -- the day, which times out after 5 seconds. So it gathers its inputs in a few
 -- queries, and the planner itself is a pure function.
 module Effects.BreakPlan
-  ( assumedStationIdSeconds,
-    dayBoundaries,
+  ( dayBoundaries,
     ensurePlan,
     forecastDay,
     tracksForBoundary,
@@ -19,10 +18,9 @@ where
 import App.Monad (AppM)
 import Control.Monad (forM_, when)
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT)
-import Data.Int (Int64)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
-import Data.Maybe (fromMaybe, mapMaybe)
+import Data.Maybe (mapMaybe)
 import Data.Time (Day, UTCTime, addDays, addUTCTime)
 import Domain.BreakPlanner
 import Domain.Types.Timezone (pacificDay, startOfPacificDay)
@@ -36,13 +34,6 @@ import Hasql.Pool (UsageError)
 import Hasql.Transaction qualified as HT
 
 --------------------------------------------------------------------------------
-
--- | The length assumed for a station ID with no recorded length.
---
--- Station IDs uploaded before durations were recorded carry none. Guessing a
--- length keeps them usable until their durations are filled in.
-assumedStationIdSeconds :: Int64
-assumedStationIdSeconds = 15
 
 -- | The first and last boundary whose break belongs to this Pacific day.
 --
@@ -93,10 +84,7 @@ mkInput day breaks items stationIds stationIdUsed itemUsed =
     { piDay = day,
       piBreaks = [PlanBreak b k | (b, k) <- breaks],
       piStationIds =
-        [ StationIdCandidate
-            s.simId
-            (fromMaybe assumedStationIdSeconds s.simDurationSeconds)
-            (Map.lookup s.simId stationIdUsed)
+        [ StationIdCandidate s.simId s.simDurationSeconds (Map.lookup s.simId stationIdUsed)
         | s <- stationIds
         ],
       piBreakItems =

@@ -107,7 +107,7 @@ action user form = do
             StationIds.siiAudioFilePath = storagePath,
             StationIds.siiMimeType = StagedUploads.mimeType stagedUpload,
             StationIds.siiFileSize = StagedUploads.fileSize stagedUpload,
-            StationIds.siiDurationSeconds = Just durationSeconds,
+            StationIds.siiDurationSeconds = durationSeconds,
             StationIds.siiCreatorId = User.mId user
           }
   _ <-
