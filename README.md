@@ -60,6 +60,7 @@ just run                    # Start server at localhost:4000
 ```bash
 just build              # Build all packages
 just test               # Run tests
+just test-liquidsoap    # Run Liquidsoap integration tests (~9 min)
 just format-changed     # Format changed files (ormolu + nixpkgs-fmt)
 just hlint-changed      # Lint changed Haskell files
 ```

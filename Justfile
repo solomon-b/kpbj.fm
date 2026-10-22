@@ -93,6 +93,23 @@ test:
 test-scripts:
   ./scripts/test/gen-audio-test.sh
 
+# Run the Liquidsoap integration tests on services/liquidsoap/radio.liq.
+# The clock runs at normal speed and jumps over idle time. Each scenario takes 1 to 2 minutes.
+# Name scenarios to run only those.
+# Usage: just test-liquidsoap
+#        just test-liquidsoap episode-ends-before-break
+test-liquidsoap *scenarios:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  # Take every tool from the pinned nixpkgs, so the test runs the Liquidsoap that prod runs.
+  pkg() { nix build --no-link --print-out-paths --inputs-from . "nixpkgs#$1"; }
+  export LIQUIDSOAP_BIN="$(pkg liquidsoap)/bin/liquidsoap"
+  export FAKETIME_LIB="$(pkg libfaketime)/lib/libfaketimeMT.so.1"
+  export ICECAST_BIN="$(pkg icecast)/bin/icecast"
+  export FFMPEG_BIN="$(pkg ffmpeg-headless.bin)/bin/ffmpeg"
+  python="$(pkg python3)/bin/python3"
+  "$python" -u services/liquidsoap/test/run.py services/liquidsoap/radio.liq {{scenarios}}
+
 # Build docs
 haddock:
   cabal haddock

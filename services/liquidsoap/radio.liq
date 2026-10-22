@@ -153,6 +153,16 @@ def poll()
   end
 end
 
+# Skip a source only when it has a track on air.
+#
+# A skip on an idle source does not go away. It ends the next track that the
+# source gets, as soon as that track is ready. On the scheduled queue, that
+# drops the next show, and the stream stays on fallback. Liquidsoap 2.3.3 acts
+# this way. `just test-liquidsoap` covers the case.
+def skip_if_ready(s)
+  if s.is_ready() then source.skip(s) end
+end
+
 # Fetch one break window from the API and put it on the air.
 #
 # The API answers with the break's planned tracks: a station ID, up to two
@@ -185,10 +195,13 @@ def do_break()
         # without this the cut episode would resume when the break drains, and
         # the next show would sit behind it in the queue.
         #
+        # The queue is idle when the episode ended before the break. See
+        # skip_if_ready for why the skip must not reach an idle queue.
+        #
         # last_scheduled is deliberately left alone. Clearing it would let a
         # boundary poll that fires a fraction early re-push the show that just
         # ended and restart it from the top.
-        source.skip(scheduled_queue)
+        skip_if_ready(scheduled_queue)
 
         # One call, and it blocks until every file is local. That is the point:
         # set_queue resolves before adding, so the break never waits on storage
@@ -226,9 +239,9 @@ end)
 server.register("skip_track", fun(_) -> begin
   log.important("[KPBJ] Skip track: dropping to fallback")
   last_scheduled := ""
-  source.skip(break_source)
-  source.skip(scheduled_queue)
-  source.skip(fallback_queue)
+  skip_if_ready(break_source)
+  skip_if_ready(scheduled_queue)
+  skip_if_ready(fallback_queue)
   "OK"
 end)
 
