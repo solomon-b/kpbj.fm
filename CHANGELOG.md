@@ -4,7 +4,14 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Fixed
+- **A scheduled show no longer gets dropped when the episode before it ends early.** When an episode ended before the `:58` break, the break skipped an empty scheduled queue. In Liquidsoap 2.3.3 that skip stays pending, and it ends the next request as soon as that request is ready. The next show never aired, and the stream stayed on fallback until a restart or a force-play. Pieces of the dropped episodes also stayed in the buffer. They played for about one second each on the next push, and each one added a wrong entry to the playback history. Liquidsoap now skips a source only when that source has a track on air. This applies to the break and to the dashboard skip-track command.
+- **The server journal keeps more history.** The journal cap goes from 500 MB to 4 GB. Liquidsoap logs at level 4, and at 500 MB the journal kept only a few hours of logs for every service.
+
+### Added
+- **Integration tests for the Liquidsoap script.** `just test-liquidsoap` runs `services/liquidsoap/radio.liq` with the pinned Liquidsoap binary against a stub playout API and a local Icecast. libfaketime sets the clock a few seconds before a schedule boundary, and the harness jumps the clock over idle time. Each scenario checks which tracks the script reports to `/played`, and it can send telnet commands such as `skip_track` and `force_play`. A full run takes about 9 minutes. No CI job runs it.
+  - Three scenarios cover the dropped-show fix: an episode that ends before the break, two breaks with an idle queue as overnight, and `skip_track` with nothing scheduled. All three fail on the old script.
+  - Three checks are marked as known issues. They describe the correct behavior and fail today: a cut episode plays again for a few seconds after the break, a restart near the end of a show delays the next show (#152), and `force_play` waits behind the episode on air. A known issue does not fail the run. When its check passes, the run fails, so that the marker gets removed.
 
 ---
 

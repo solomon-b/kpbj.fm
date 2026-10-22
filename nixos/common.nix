@@ -40,8 +40,9 @@
   };
 
   # ── Journal ─────────────────────────────────────────────────
+  # Liquidsoap logs at level 4, and at 500M the journal kept only a few hours.
   services.journald.extraConfig = ''
-    SystemMaxUse=500M
+    SystemMaxUse=4G
   '';
 
   # ── Nix ─────────────────────────────────────────────────────

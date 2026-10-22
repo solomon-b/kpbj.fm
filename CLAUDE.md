@@ -231,6 +231,7 @@ Example: `audio/episodes/2024/09/27/show-slug_2024-09-27_abc123.mp3`
 just run              # Run server
 just build            # Build all
 just test             # Run tests
+just test-liquidsoap  # Run Liquidsoap integration tests (~9 min)
 
 # Formatting (ormolu 0.7.2.0 required)
 just format-changed   # Format changed files
