@@ -88,12 +88,8 @@ data StationId f = StationId
     simAudioFilePath :: Column f Text,
     simMimeType :: Column f Text,
     simFileSize :: Column f Int64,
-    -- | Audio length, measured by @ffprobe@ at upload time.
-    --
-    -- NULL on rows uploaded before the break window existed. The planner falls
-    -- back to an assumed length for those, so an old station ID still opens a
-    -- break.
-    simDurationSeconds :: Column f (Maybe Int64),
+    -- | Audio length in whole seconds, measured by @ffprobe@ at upload time.
+    simDurationSeconds :: Column f Int64,
     simCreatorId :: Column f User.Id,
     simCreatedAt :: Column f UTCTime
   }
@@ -143,7 +139,7 @@ data Insert = Insert
     siiAudioFilePath :: Text,
     siiMimeType :: Text,
     siiFileSize :: Int64,
-    siiDurationSeconds :: Maybe Int64,
+    siiDurationSeconds :: Int64,
     siiCreatorId :: User.Id
   }
   deriving stock (Generic, Show, Eq)

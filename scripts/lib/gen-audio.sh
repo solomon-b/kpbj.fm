@@ -84,7 +84,7 @@ SELECT audio_file_path, duration_seconds, audio_file_size FROM episodes
 UNION ALL
 SELECT audio_file_path, NULL, file_size FROM ephemeral_uploads
 UNION ALL
-SELECT audio_file_path, NULL, file_size FROM station_ids
+SELECT audio_file_path, duration_seconds, file_size FROM station_ids
 "
 
 # Field separator for psql output. The ASCII unit separator, not a tab.
