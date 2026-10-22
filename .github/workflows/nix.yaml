@@ -25,6 +25,16 @@ jobs:
     - name: Checkout 🛎️
       uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
+    # Since 2026-10-22 the hosted runners run out of disk during the Nix and
+    # cabal builds, and the runner then fails to write its own log. Each job
+    # deletes the preinstalled toolchains that this repo does not use. The
+    # df lines show the free space in the job log.
+    - name: Free disk space 🧹
+      run: |
+        df -h /
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+        df -h /
+
     - name: Install Nix ❄
       uses: cachix/install-nix-action@616559265b40713947b9c190a8ff4b507b5df49b # v31
 
@@ -55,6 +65,13 @@ jobs:
     steps:
       - name: Checkout 🛎️
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      # See the note in the build job.
+      - name: Free disk space 🧹
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
 
       - name: Install Nix ❄
         uses: cachix/install-nix-action@616559265b40713947b9c190a8ff4b507b5df49b # v31
@@ -121,6 +138,13 @@ jobs:
       - name: Checkout 🛎️
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
+      # See the note in the build job.
+      - name: Free disk space 🧹
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
       - name: Install Nix ❄
         uses: cachix/install-nix-action@616559265b40713947b9c190a8ff4b507b5df49b # v31
 
@@ -169,6 +193,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      # See the note in the build job.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
 
       - name: Install Nix
         uses: cachix/install-nix-action@616559265b40713947b9c190a8ff4b507b5df49b # v31
