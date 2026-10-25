@@ -26,9 +26,9 @@ test.describe("Episode detail", () => {
   });
 
   test("displays episode date", async ({ page }) => {
-    // Date is in a small muted div, distinct from the description paragraph.
-    // Target the specific text-sm element that contains the date.
-    const dateEl = page.locator("#main-content [x-data*=playerId] .text-sm");
+    // The date is in a small muted div. The show title link above it also has
+    // text-sm, so select the div only.
+    const dateEl = page.locator("#main-content [x-data*=playerId] div.text-sm");
     await expect(dateEl).toBeVisible();
     const dateText = await dateEl.textContent();
     expect(dateText).toMatch(/\w+ \d{1,2}, \d{4}/);
