@@ -869,6 +869,7 @@ test-suite kpbj-web-test
        API.User.Login.Post.HandlerSpec
        API.User.Register.Post.HandlerSpec
        API.Uploads.Audio.Post.HandlerSpec
+       App.BaseUrlSpec
        App.CustomContextSpec
        App.DomainsSpec
        Domain.BreakPlannerSpec

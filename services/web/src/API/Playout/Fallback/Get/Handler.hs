@@ -7,12 +7,11 @@ where
 --------------------------------------------------------------------------------
 
 import API.Playout.Types (FallbackResponse, PlayoutTrack (..), sanitizeAnnotateValue)
-import App.BaseUrl (baseUrl)
+import App.BaseUrl (absoluteMediaUrl, baseUrl)
 import App.Monad (AppM)
-import App.Storage (StorageBackend (..), buildMediaUrl)
+import App.Storage (StorageBackend)
 import Control.Monad.Reader (asks)
 import Data.Has qualified as Has
-import Data.Text (Text)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
 
@@ -42,19 +41,10 @@ handler = do
 
       pure
         [ PlayoutTrack
-            { ptUrl = buildFullMediaUrl appBaseUrl storageBackend upload.eumAudioFilePath,
+            { ptUrl = absoluteMediaUrl appBaseUrl storageBackend upload.eumAudioFilePath,
               ptTitle = sanitizeAnnotateValue upload.eumTitle,
               ptArtist = sanitizeAnnotateValue "KPBJ 95.9 FM",
               ptSourceType = "ephemeral",
               ptBreakItemId = Nothing
             }
         ]
-
--- | Build a full URL for media files, ensuring external services can fetch them.
---
--- For S3 storage, buildMediaUrl already returns a full URL.
--- For local storage, we prepend the site base URL.
-buildFullMediaUrl :: Text -> StorageBackend -> Text -> Text
-buildFullMediaUrl appBaseUrl backend objectKey = case backend of
-  S3Storage _ -> buildMediaUrl backend objectKey
-  LocalStorage _ -> appBaseUrl <> buildMediaUrl backend objectKey

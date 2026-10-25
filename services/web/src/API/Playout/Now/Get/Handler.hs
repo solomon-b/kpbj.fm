@@ -10,16 +10,15 @@ where
 --------------------------------------------------------------------------------
 
 import API.Playout.Types (NowPlayingResponse (..), mkPlayoutMetadata)
-import App.BaseUrl (baseUrl)
+import App.BaseUrl (absoluteMediaUrl, baseUrl)
 import App.Monad (AppM)
-import App.Storage (StorageBackend (..), buildMediaUrl)
+import App.Storage (StorageBackend)
 import Control.Monad (unless)
 import Control.Monad.Reader (asks)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Either (fromRight)
 import Data.Has qualified as Has
-import Data.Text (Text)
 import Data.Time (NominalDiffTime, UTCTime, addUTCTime)
 import Effects.Clock (currentSystemTime)
 import Effects.Database.Execute (execQuery)
@@ -78,14 +77,5 @@ actionAt lookupTime = do
 
         storageBackend <- asks (Has.getter @StorageBackend)
         appBaseUrl <- baseUrl
-        let fullUrl = buildFullMediaUrl appBaseUrl storageBackend audioPath
+        let fullUrl = absoluteMediaUrl appBaseUrl storageBackend audioPath
         pure $ NowPlaying fullUrl metadata
-
--- | Build a full URL for media files, ensuring external services can fetch them.
---
--- For S3 storage, buildMediaUrl already returns a full URL.
--- For local storage, we prepend the site base URL.
-buildFullMediaUrl :: Text -> StorageBackend -> Text -> Text
-buildFullMediaUrl appBaseUrl backend objectKey = case backend of
-  S3Storage _ -> buildMediaUrl backend objectKey
-  LocalStorage _ -> appBaseUrl <> buildMediaUrl backend objectKey

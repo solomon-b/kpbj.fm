@@ -13,7 +13,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **RSS feeds of episodes.** A feed reader can now follow the station or one show (#139).
   - `/feed.xml` holds the episodes of every show. `/shows/:show_slug/feed.xml` holds the episodes of one show, and an unknown or deleted show gives a 404.
   - A feed holds every episode that a listener can play, newest first. The episode has aired, it has audio and a publish date, and it is not archived. Its show is not deleted.
-  - Each item links to the public episode page and carries the audio file as its enclosure. All URLs are absolute. In development, the site base URL goes in front of the local `/media` path.
+  - Each item links to the public episode page and carries the audio file as its enclosure. All URLs are absolute. In development, the site base URL goes in front of the local `/media` path. `App.BaseUrl.absoluteMediaUrl` builds the audio URL. The playout handlers now use it too, in place of their three private copies.
   - The response type is `application/rss+xml`, and readers can cache it for 15 minutes.
   - The home page and the archive page point feed readers to the station feed. Each show page points to its own feed. The feeds have no `itunes:` or `podcast:` tags yet.
 - **Integration tests for the Liquidsoap script.** `just test-liquidsoap` runs `services/liquidsoap/radio.liq` with the pinned Liquidsoap binary against a stub playout API and a local Icecast. libfaketime sets the clock a few seconds before a schedule boundary, and the harness jumps the clock over idle time. Each scenario checks which tracks the script reports to `/played`, and it can send telnet commands such as `skip_track` and `force_play`. A full run takes about 9 minutes. No CI job runs it.
