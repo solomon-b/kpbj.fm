@@ -36,6 +36,14 @@ jobs:
             exit 1
           fi
 
+      # The deploy builds the NixOS system on the hosted runner, so it runs out
+      # of disk like the CI jobs. See the note in the build job of nix.yaml.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
       - name: Install Nix
         uses: cachix/install-nix-action@616559265b40713947b9c190a8ff4b507b5df49b # v31
 
