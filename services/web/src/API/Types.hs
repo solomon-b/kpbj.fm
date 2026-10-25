@@ -196,6 +196,7 @@ import API.Debug.Version.Get.Route qualified as Debug.Version.Get
 import API.Donate.Get.Route qualified as Donate.Get
 import API.Events.Event.Get.Route qualified as Events.Event.Get
 import API.Events.Get.Route qualified as Events.Get
+import API.Feed.Get.Route qualified as Feed.Get
 import API.Get.Route qualified as Root.Get
 import API.Invite.Token.Get.Route qualified as Invite.Token.Get
 import API.Invite.Token.Post.Route qualified as Invite.Token.Post
@@ -211,6 +212,7 @@ import API.Shows.Get.Route qualified as Shows.Get
 import API.Shows.Slug.Blog.Get.Route qualified as Show.Blog.Get
 import API.Shows.Slug.Blog.Post.Get.Route qualified as Show.Blog.Post.Get
 import API.Shows.Slug.Episode.Get.Route qualified as Episodes.Get
+import API.Shows.Slug.Feed.Get.Route qualified as Show.Feed.Get
 import API.Shows.Slug.Get.Route qualified as Show.Get
 import API.Static.Get.Route qualified as Static.Get
 import API.Store.Cart.Get.Route qualified as Store.Cart.Get
@@ -262,6 +264,8 @@ data Routes mode = Routes
     aboutGet :: mode :- About.Get.Route,
     -- | @GET /archive@ - Episode archive across all shows
     archiveGet :: mode :- Archive.Get.Route,
+    -- | @GET /feed.xml@ - Station RSS feed of episodes from every show
+    feedGet :: mode :- Feed.Get.Route,
     -- | @GET /donate@ - Donation page
     donateGet :: mode :- Donate.Get.Route,
     -- | @GET /privacy-policy@ - Privacy policy page
@@ -338,6 +342,8 @@ data ShowsRoutes mode = ShowsRoutes
     list :: mode :- Shows.Get.Route,
     -- | @GET /shows/:slug@ - Individual show page
     detail :: mode :- Show.Get.Route,
+    -- | @GET /shows/:slug/feed.xml@ - RSS feed of the show's episodes
+    feed :: mode :- Show.Feed.Get.Route,
     -- | @/shows/:slug/blog/...@ - Show-specific blog routes
     blog :: mode :- NamedRoutes ShowBlogRoutes,
     -- | @/shows/:slug/episodes/...@ - Show episode routes

@@ -9,9 +9,10 @@ import API.Archive.Get.Templates.ItemsFragment (renderItemsFragment)
 import API.Archive.Get.Templates.Page (template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
-import App.Common (getUserInfo, renderTemplate)
+import App.Common (getUserInfo, renderTemplateWithFeeds)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
+import Component.FeedLink (stationFeed)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
@@ -57,7 +58,7 @@ handler maybePage cookie (foldHxReq -> hxRequest) =
     vd <- action maybePage
     if isAppendRequest
       then pure $ renderItemsFragment vd.alvdStorageBackend vd.alvdEpisodes vd.alvdPage vd.alvdHasMore
-      else lift $ renderTemplate hxRequest mUserInfo (template vd.alvdStorageBackend vd.alvdEpisodes vd.alvdPage vd.alvdHasMore)
+      else lift $ renderTemplateWithFeeds hxRequest mUserInfo [stationFeed] (template vd.alvdStorageBackend vd.alvdEpisodes vd.alvdPage vd.alvdHasMore)
 
 --------------------------------------------------------------------------------
 

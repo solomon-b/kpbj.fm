@@ -10,6 +10,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **The server journal keeps more history.** The journal cap goes from 500 MB to 4 GB. Liquidsoap logs at level 4, and at 500 MB the journal kept only a few hours of logs for every service.
 
 ### Added
+- **RSS feeds of episodes.** A feed reader can now follow the station or one show (#139).
+  - `/feed.xml` holds the episodes of every show. `/shows/:show_slug/feed.xml` holds the episodes of one show, and an unknown or deleted show gives a 404.
+  - A feed holds every episode that a listener can play, newest first. The episode has aired, it has audio and a publish date, and it is not archived. Its show is not deleted.
+  - Each item links to the public episode page and carries the audio file as its enclosure. All URLs are absolute. In development, the site base URL goes in front of the local `/media` path.
+  - The response type is `application/rss+xml`, and readers can cache it for 15 minutes.
+  - The home page and the archive page point feed readers to the station feed. Each show page points to its own feed. The feeds have no `itunes:` or `podcast:` tags yet.
 - **Integration tests for the Liquidsoap script.** `just test-liquidsoap` runs `services/liquidsoap/radio.liq` with the pinned Liquidsoap binary against a stub playout API and a local Icecast. libfaketime sets the clock a few seconds before a schedule boundary, and the harness jumps the clock over idle time. Each scenario checks which tracks the script reports to `/played`, and it can send telnet commands such as `skip_track` and `force_play`. A full run takes about 9 minutes. No CI job runs it.
   - Three scenarios cover the dropped-show fix: an episode that ends before the break, two breaks with an idle queue as overnight, and `skip_track` with nothing scheduled. All three fail on the old script.
   - Three checks are marked as known issues. They describe the correct behavior and fail today: a cut episode plays again for a few seconds after the break, a restart near the end of a show delays the next show (#152), and `force_play` waits behind the episode on air. A known issue does not fail the run. When its check passes, the run fails, so that the marker gets removed.

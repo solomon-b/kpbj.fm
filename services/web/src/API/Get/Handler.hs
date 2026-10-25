@@ -9,9 +9,10 @@ module API.Get.Handler where
 import API.Get.Templates (template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
-import App.Common (getUserInfo, renderTemplate)
+import App.Common (getUserInfo, renderTemplateWithFeeds)
 import App.Handler.Error (HandlerError, handleHtmlErrors)
 import App.Monad (AppM)
+import Component.FeedLink (stationFeed)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -41,7 +42,7 @@ handler cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Home" apiLinks.rootGet $ do
     mUserInfo <- lift $ getUserInfo cookie <&> fmap snd
     vd <- action
-    lift $ renderTemplate hxRequest mUserInfo (template vd.hvdStorageBackend vd.hvdFeaturedEvent)
+    lift $ renderTemplateWithFeeds hxRequest mUserInfo [stationFeed] (template vd.hvdStorageBackend vd.hvdFeaturedEvent)
 
 --------------------------------------------------------------------------------
 

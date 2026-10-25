@@ -7,9 +7,10 @@ module API.Shows.Slug.Get.Handler where
 --------------------------------------------------------------------------------
 
 import API.Shows.Slug.Get.Templates.Page (template)
-import App.Common (getUserInfo, renderTemplate)
+import App.Common (getUserInfo, renderTemplate, renderTemplateWithFeeds)
 import App.Handler.Error (HandlerError, handlePublicErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
+import Component.FeedLink (showFeed)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -69,7 +70,7 @@ handler slug mPage cookie (foldHxReq -> hxRequest) =
     mUserInfo <- lift $ getUserInfo cookie <&> fmap snd
     vd <- action slug mPage
     lift $
-      renderTemplate hxRequest mUserInfo $
+      renderTemplateWithFeeds hxRequest mUserInfo [showFeed vd.svdShowModel] $
         template
           vd.svdStorageBackend
           vd.svdShowModel

@@ -11,6 +11,7 @@ import App.CustomContext (StreamConfig)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav)
 import Component.DashboardFrame qualified as DashboardFrame
+import Component.FeedLink (FeedLink)
 import Component.Frame (loadContentOnly, loadFrame, loadFrameWithUser)
 import Control.Monad.Reader (asks)
 import Data.Aeson ((.=))
@@ -60,7 +61,20 @@ renderTemplate ::
   Maybe UserMetadata.Model ->
   Lucid.Html () ->
   AppM (Lucid.Html ())
-renderTemplate hxRequest mUserInfo templateContent = do
+renderTemplate hxRequest mUserInfo =
+  renderTemplateWithFeeds hxRequest mUserInfo []
+
+-- | 'renderTemplate' for a page that offers RSS feeds.
+--
+-- The full page gets one RSS discovery link in the head for each feed. An
+-- HTMX fragment has no head, so the feeds have no effect on it.
+renderTemplateWithFeeds ::
+  HxRequest ->
+  Maybe UserMetadata.Model ->
+  [FeedLink] ->
+  Lucid.Html () ->
+  AppM (Lucid.Html ())
+renderTemplateWithFeeds hxRequest mUserInfo feedLinks templateContent = do
   mGoogleAnalyticsId <- asks getter
   case hxRequest of
     IsHxRequest ->
@@ -69,9 +83,9 @@ renderTemplate hxRequest mUserInfo templateContent = do
       streamCfg <- asks (getter @StreamConfig)
       case mUserInfo of
         Just userInfo ->
-          loadFrameWithUser mGoogleAnalyticsId streamCfg userInfo templateContent
+          loadFrameWithUser mGoogleAnalyticsId streamCfg userInfo feedLinks templateContent
         Nothing ->
-          loadFrame mGoogleAnalyticsId streamCfg templateContent
+          loadFrame mGoogleAnalyticsId streamCfg feedLinks templateContent
 
 -- | Render template for unauthenticated pages (login, register, etc.)
 --
@@ -87,7 +101,7 @@ renderUnauthTemplate hxRequest templateContent = do
     IsNotHxRequest -> do
       mGoogleAnalyticsId <- asks getter
       streamCfg <- asks (getter @StreamConfig)
-      loadFrame mGoogleAnalyticsId streamCfg templateContent
+      loadFrame mGoogleAnalyticsId streamCfg [] templateContent
 
 -- | Render dashboard template with separate full-page layout.
 --

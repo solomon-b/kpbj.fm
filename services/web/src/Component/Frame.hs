@@ -8,6 +8,7 @@ import API.Links (apiLinks, archiveLink, dashboardLinks, eventsLinks, rootLink, 
 import API.Types
 import App.CustomContext (StreamConfig (..))
 import Component.Banner (bannerContainerId)
+import Component.FeedLink (FeedLink, renderFeedLink)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
 import Data.String.Interpolate (i)
@@ -950,13 +951,18 @@ suspensionBanner Suspended =
       Lucid.p_ [class_ $ base [Tokens.textSm, "mt-2"]] $
         Lucid.toHtml @Text "If you believe this is an error, please contact us at contact@kpbj.fm"
 
-template :: Maybe GoogleAnalyticsId -> StreamConfig -> Maybe UserMetadata.Model -> Lucid.Html () -> Lucid.Html ()
-template mGoogleAnalyticsId streamSettings mUser main =
+-- | The full site frame around the page content.
+--
+-- The list of feeds puts one RSS discovery link in the head for each feed.
+-- Most pages pass an empty list.
+template :: Maybe GoogleAnalyticsId -> StreamConfig -> Maybe UserMetadata.Model -> [FeedLink] -> Lucid.Html () -> Lucid.Html ()
+template mGoogleAnalyticsId streamSettings mUser feedLinks main =
   Lucid.doctypehtml_ $ do
     Lucid.head_ $ do
       googleAnalyticsScript mGoogleAnalyticsId
       Lucid.meta_ [Lucid.name_ "viewport", Lucid.content_ "width=device-width, initial-scale=1.0"]
       Lucid.title_ "KPBJ 95.9FM"
+      mapM_ renderFeedLink feedLinks
       -- Theme CSS (must be before Tailwind for CSS variable availability)
       -- Use user's theme preference if available, otherwise default theme
       let theme = maybe defaultTheme (getTheme . UserMetadata.mTheme) mUser
@@ -1080,11 +1086,11 @@ template mGoogleAnalyticsId streamSettings mUser main =
 
 --------------------------------------------------------------------------------
 
-loadFrame :: (Log.MonadLog m, MonadThrow m) => Maybe GoogleAnalyticsId -> StreamConfig -> Lucid.Html () -> m (Lucid.Html ())
-loadFrame mGoogleAnalyticsId streamSettings = pure . template mGoogleAnalyticsId streamSettings Nothing
+loadFrame :: (Log.MonadLog m, MonadThrow m) => Maybe GoogleAnalyticsId -> StreamConfig -> [FeedLink] -> Lucid.Html () -> m (Lucid.Html ())
+loadFrame mGoogleAnalyticsId streamSettings feedLinks = pure . template mGoogleAnalyticsId streamSettings Nothing feedLinks
 
-loadFrameWithUser :: (Log.MonadLog m, MonadThrow m) => Maybe GoogleAnalyticsId -> StreamConfig -> UserMetadata.Model -> Lucid.Html () -> m (Lucid.Html ())
-loadFrameWithUser mGoogleAnalyticsId streamSettings user = pure . template mGoogleAnalyticsId streamSettings (Just user)
+loadFrameWithUser :: (Log.MonadLog m, MonadThrow m) => Maybe GoogleAnalyticsId -> StreamConfig -> UserMetadata.Model -> [FeedLink] -> Lucid.Html () -> m (Lucid.Html ())
+loadFrameWithUser mGoogleAnalyticsId streamSettings user feedLinks = pure . template mGoogleAnalyticsId streamSettings (Just user) feedLinks
 
 -- | Load content-only for HTMX responses
 loadContentOnly :: (Log.MonadLog m, MonadThrow m) => Lucid.Html () -> m (Lucid.Html ())

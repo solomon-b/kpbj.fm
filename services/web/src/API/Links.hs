@@ -23,6 +23,8 @@ module API.Links
     -- * Link generation structures
     apiLinks,
     archiveLink,
+    stationFeedLink,
+    showFeedLink,
     blogLinks,
     eventsLinks,
     scheduleLink,
@@ -70,6 +72,7 @@ where
 import API.Types
 import Data.Int (Int64)
 import Data.Text (Text)
+import Domain.Types.Slug (Slug)
 import Domain.Types.WeekOffset (WeekOffset)
 import Servant.Links (AsLink, Link, allFieldLinks)
 import Web.HttpApiData qualified as Http
@@ -112,9 +115,17 @@ scheduleLink = apiLinks.schedule
 archiveLink :: Maybe Int64 -> Link
 archiveLink = apiLinks.archiveGet
 
+-- | Station RSS feed link (@/feed.xml@).
+stationFeedLink :: Link
+stationFeedLink = apiLinks.feedGet
+
 -- | Shows route links
 showsLinks :: ShowsRoutes (AsLink Link)
 showsLinks = apiLinks.shows
+
+-- | RSS feed link of one show (@/shows/:slug/feed.xml@).
+showFeedLink :: Slug -> Link
+showFeedLink = showsLinks.feed
 
 -- | Show blog route links
 showBlogLinks :: ShowBlogRoutes (AsLink Link)
