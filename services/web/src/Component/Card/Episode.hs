@@ -48,7 +48,8 @@ showDetailUrl showSlug =
 --
 -- When @showShowTitle@ is True, the owning show's title is rendered above the
 -- date, linking to the show page. Used on the cross-show archive, where the
--- show a card belongs to isn't otherwise obvious. Single-show pages pass False.
+-- show a card belongs to isn't otherwise obvious, and on the episode page, as
+-- the link back to the show. The show page passes False.
 renderEpisodeCard :: StorageBackend -> Bool -> Shows.Model -> Episodes.Model -> Lucid.Html ()
 renderEpisodeCard backend showShowTitle showModel episode = do
   let epUrl = episodeDetailUrl showModel.slug episode.episodeNumber
@@ -74,7 +75,7 @@ renderEpisodeCard backend showShowTitle showModel episode = do
       -- Artwork with play button overlay
       renderArtworkWithPlayer backend epUrl mArtworkUrl
 
-      -- Show title (archive only, where cards span multiple shows)
+      -- Show title (archive and episode page)
       when showShowTitle $ renderShowTitle showTitle (showDetailUrl showModel.slug)
 
       -- Episode date

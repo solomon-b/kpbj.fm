@@ -43,8 +43,9 @@ episodeTagToLink tag =
 template :: StorageBackend -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> [EpisodeTags.Model] -> Lucid.Html ()
 template backend showModel episode tracks tags = do
   Lucid.div_ [class_ $ base [Tokens.fullWidth]] $ do
-    -- Episode card (reuses the same component from show page)
-    renderEpisodeCard backend False showModel episode
+    -- Episode card (reuses the same component from show page). The show title
+    -- links back to the show page.
+    renderEpisodeCard backend True showModel episode
 
     -- Description section (only if present and not empty)
     case episode.description of
