@@ -11,10 +11,10 @@ where
 --------------------------------------------------------------------------------
 
 import API.Playout.Types (BreakResponse, PlayoutTrack (..), sanitizeAnnotateValue)
-import App.BaseUrl (baseUrl)
+import App.BaseUrl (absoluteMediaUrl, baseUrl)
 import App.Handler.Combinators (requirePlayoutSecret)
 import App.Monad (AppM)
-import App.Storage (StorageBackend (..), buildMediaUrl)
+import App.Storage (StorageBackend)
 import Control.Monad.Catch (throwM)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans.Except (runExceptT)
@@ -77,7 +77,7 @@ action currentTime = do
           appBaseUrl <- baseUrl
           pure
             [ PlayoutTrack
-                { ptUrl = buildFullMediaUrl appBaseUrl storageBackend t.plAudioFilePath,
+                { ptUrl = absoluteMediaUrl appBaseUrl storageBackend t.plAudioFilePath,
                   ptTitle = sanitizeAnnotateValue t.plTitle,
                   ptArtist = sanitizeAnnotateValue "KPBJ 95.9 FM",
                   ptSourceType = t.plSourceType,
@@ -109,12 +109,3 @@ nextBoundary (UTCTime day dayTime) =
       if rounded >= 86400
         then UTCTime (succ day) 0
         else UTCTime day (secondsToDiffTime rounded :: DiffTime)
-
--- | Build a full URL for media files, ensuring external services can fetch them.
---
--- For S3 storage, buildMediaUrl already returns a full URL.
--- For local storage, we prepend the site base URL.
-buildFullMediaUrl :: Text -> StorageBackend -> Text -> Text
-buildFullMediaUrl appBaseUrl backend objectKey = case backend of
-  S3Storage _ -> buildMediaUrl backend objectKey
-  LocalStorage _ -> appBaseUrl <> buildMediaUrl backend objectKey

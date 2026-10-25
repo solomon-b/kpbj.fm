@@ -15,6 +15,7 @@ where
 import API.Links (rootLink, showEpisodesLinks)
 import API.Types (ShowEpisodesRoutes (..))
 import App.BaseUrl (absoluteMediaUrl)
+import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Domain.Types.StorageBackend (StorageBackend)
@@ -67,14 +68,8 @@ episodeFeedItem siteBaseUrl backend title showModel episode =
 
     -- RSS 2.0 requires a length. Zero is the usual value when the size is not
     -- known, and feed readers accept it.
-    audioFileSize =
-      case episode.audioFileSize of
-        Just size -> size
-        Nothing -> 0
+    audioFileSize = fromMaybe 0 episode.audioFileSize
 
     -- RSS 2.0 requires a type. When the type is not known, use the MP3 type.
     -- MP3 is the type that most feed readers play.
-    audioMimeType =
-      case episode.audioMimeType of
-        Just mimeType -> mimeType
-        Nothing -> "audio/mpeg"
+    audioMimeType = fromMaybe "audio/mpeg" episode.audioMimeType
