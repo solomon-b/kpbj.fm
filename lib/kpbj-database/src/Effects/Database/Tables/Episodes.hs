@@ -38,6 +38,8 @@ module Effects.Database.Tables.Episodes
     -- * Queries
     getPublishedEpisodesForShow,
     getPublishedEpisodesWithShows,
+    getFeedEpisodesWithShows,
+    getFeedEpisodesForShow,
     getEpisodesForShow,
     getEpisodeByShowAndNumber,
     getEpisodeById,
@@ -432,6 +434,70 @@ getPublishedEpisodesWithShows currentTime (Limit lim) (Offset off) =
       AND episode_air_time(e.air_date, st.start_time, st.timezone) <= #{currentTime}
     ORDER BY e.published_at DESC NULLS LAST
     LIMIT #{lim} OFFSET #{off}
+  |]
+
+-- | Get every episode that belongs in the station RSS feed, each paired with
+-- its show, newest first by publish date.
+--
+-- A feed episode follows the same rules as the archive page: the episode is
+-- not deleted, its show is not deleted, and the episode has aired. A feed
+-- item also needs two more things:
+--
+-- * a @published_at@ that is set and not in the future, because the item
+--   gives it as the @pubDate@
+-- * an @audio_file_path@, because the item gives the audio as its enclosure
+--
+-- There is no limit. The feed holds every episode that qualifies.
+getFeedEpisodesWithShows :: UTCTime -> Hasql.Statement () [(Model, Shows.Model)]
+getFeedEpisodesWithShows currentTime =
+  fmap unPublishedEpisodeRow
+    <$> interp
+      False
+      [sql|
+    SELECT
+      e.id, e.show_id, e.description, e.episode_number, e.audio_file_path,
+      e.audio_file_size, e.audio_mime_type, e.duration_seconds, e.artwork_url,
+      e.schedule_template_id, e.air_date, e.published_at, e.deleted_at,
+      e.created_by, e.created_at, e.updated_at,
+      s.id, s.title, s.slug, s.description, s.logo_url, s.status,
+      s.created_at, s.updated_at, s.deleted_at
+    FROM episodes e
+    JOIN shows s ON s.id = e.show_id
+    JOIN schedule_templates st ON st.id = e.schedule_template_id
+    WHERE e.deleted_at IS NULL
+      AND s.deleted_at IS NULL
+      AND e.audio_file_path IS NOT NULL
+      AND e.published_at IS NOT NULL
+      AND e.published_at <= #{currentTime}
+      AND episode_air_time(e.air_date, st.start_time, st.timezone) <= #{currentTime}
+    ORDER BY e.published_at DESC, e.id DESC
+  |]
+
+-- | Get every episode of one show that belongs in its RSS feed, newest first by
+-- publish date.
+--
+-- The rules are the same as 'getFeedEpisodesWithShows'. The caller finds the
+-- show with 'Shows.getShowBySlug' first, which hides a deleted show, so this
+-- query does not check the show again.
+getFeedEpisodesForShow :: UTCTime -> Shows.Id -> Hasql.Statement () [Model]
+getFeedEpisodesForShow currentTime showId' =
+  interp
+    False
+    [sql|
+    SELECT
+      e.id, e.show_id, e.description, e.episode_number, e.audio_file_path,
+      e.audio_file_size, e.audio_mime_type, e.duration_seconds, e.artwork_url,
+      e.schedule_template_id, e.air_date, e.published_at, e.deleted_at,
+      e.created_by, e.created_at, e.updated_at
+    FROM episodes e
+    JOIN schedule_templates st ON st.id = e.schedule_template_id
+    WHERE e.show_id = #{showId'}
+      AND e.deleted_at IS NULL
+      AND e.audio_file_path IS NOT NULL
+      AND e.published_at IS NOT NULL
+      AND e.published_at <= #{currentTime}
+      AND episode_air_time(e.air_date, st.start_time, st.timezone) <= #{currentTime}
+    ORDER BY e.published_at DESC, e.id DESC
   |]
 
 -- | Whether a read includes the episodes that staff archived.

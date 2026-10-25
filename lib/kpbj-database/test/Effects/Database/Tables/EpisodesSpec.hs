@@ -7,7 +7,7 @@ module Effects.Database.Tables.EpisodesSpec where
 import Control.Monad.IO.Class (liftIO)
 import Data.List (isInfixOf)
 import Data.Time.Calendar (Day, addDays, dayOfWeek, fromGregorian, toGregorian)
-import Data.Time.Clock (getCurrentTime, utctDay)
+import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Offset (Offset (..))
@@ -71,6 +71,10 @@ spec =
           hedgehog . prop_restoreEpisodeIgnoresLiveEpisode
         runs 10 . it "getLiveEpisodeAtAirTime: finds the episode that took the slot" $
           hedgehog . prop_liveEpisodeAtAirTimeFindsTheHolder
+
+      describe "RSS feeds" $ do
+        runs 10 . it "feed queries: list only published episodes with audio, newest first" $
+          hedgehog . prop_feedQueriesListOnlyPublishedEpisodesWithAudio
 
       describe "Episode numbering" $ do
         runs 10 . it "set_episode_number: consecutive inserts number 1, 2, 3" $
@@ -550,6 +554,131 @@ prop_getEpisodeByShowAndNumber cfg = do
         found <- assertJust mByShowAndNumber
         UUT.id found === episodeId
         pure ()
+
+--------------------------------------------------------------------------------
+-- RSS feeds
+
+-- | The two feed queries list only the episodes that a listener can play.
+--
+-- The fixture has one show with seven episodes, and a second show that staff
+-- deleted. Each excluded episode breaks exactly one rule, so each rule is
+-- tested alone:
+--
+-- * archived: @deleted_at@ is set
+-- * no audio: @audio_file_path@ is NULL
+-- * unpublished: @published_at@ is NULL
+-- * published later: @published_at@ is in the future
+-- * not aired yet: the air date is in the future
+-- * deleted show: the episode is fine, but its show is deleted
+--
+-- Two episodes qualify. The one inserted first has the newer publish date, so
+-- the order shows that the queries sort on @published_at@ and not on the id.
+--
+-- The insert stamps @published_at@ with the transaction time, which comes after
+-- @now@. So the fixture writes a past publish date on every episode first, and
+-- then changes the two that test @published_at@.
+prop_feedQueriesListOnlyPublishedEpisodesWithAudio :: TestDBConfig -> PropertyT IO ()
+prop_feedQueriesListOnlyPublishedEpisodesWithAudio cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    liveShowInsert <- forAllT showInsertGen
+    deletedShowInsert <- forAllT showInsertGen
+    liveTemplate <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    deletedShowTemplate <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      let oneDay = 24 * 60 * 60
+          twoDaysAgo = addUTCTime (negate (2 * oneDay)) now
+          oneDayAgo = addUTCTime (negate oneDay) now
+          oneDayAhead = addUTCTime oneDay now
+
+          -- Six past dates the live show airs on, one for each episode that
+          -- has aired. The base is far enough back that all six are in the past.
+          nextAirDay day = airDayForTemplate liveTemplate (addDays 1 day)
+          airDay1 = airDayForTemplate liveTemplate feedFixtureBaseDay
+          airDay2 = nextAirDay airDay1
+          airDay3 = nextAirDay airDay2
+          airDay4 = nextAirDay airDay3
+          airDay5 = nextAirDay airDay4
+          airDay6 = nextAirDay airDay5
+          futureAirDay = airDayForTemplate liveTemplate (addDays 30 (utctDay now))
+          deletedShowAirDay = airDayForTemplate deletedShowTemplate feedFixtureBaseDay
+
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (liveShowId, liveTemplateId) <- insertTestShowWithSchedule liveShowInsert liveTemplate
+        (deletedShowId, deletedTemplateId) <- insertTestShowWithSchedule deletedShowInsert deletedShowTemplate
+
+        let withAudio showId templateId airDay =
+              episodeTemplate
+                { UUT.eiId = showId,
+                  UUT.eiScheduleTemplateId = Just templateId,
+                  UUT.eiAirDate = Just airDay,
+                  UUT.eiCreatedBy = userId,
+                  UUT.eiAudioFilePath = Just "audio/episodes/2025/01/06/feed-fixture_2025-01-06_0b7c.mp3",
+                  UUT.eiAudioFileSize = Just 57671680,
+                  UUT.eiAudioMimeType = Just "audio/mpeg"
+                }
+            withoutAudio showId templateId airDay =
+              (withAudio showId templateId airDay)
+                { UUT.eiAudioFilePath = Nothing,
+                  UUT.eiAudioFileSize = Nothing,
+                  UUT.eiAudioMimeType = Nothing
+                }
+            insertOn = unwrapInsert . UUT.insertEpisode
+
+        newerId <- insertOn (withAudio liveShowId liveTemplateId airDay1)
+        olderId <- insertOn (withAudio liveShowId liveTemplateId airDay2)
+        archivedId <- insertOn (withAudio liveShowId liveTemplateId airDay3)
+        noAudioId <- insertOn (withoutAudio liveShowId liveTemplateId airDay4)
+        unpublishedId <- insertOn (withAudio liveShowId liveTemplateId airDay5)
+        publishedLaterId <- insertOn (withAudio liveShowId liveTemplateId airDay6)
+        notAiredId <- insertOn (withAudio liveShowId liveTemplateId futureAirDay)
+        deletedShowEpisodeId <- insertOn (withAudio deletedShowId deletedTemplateId deletedShowAirDay)
+
+        -- A past publish date on every episode, then the changes under test.
+        TRX.statement () $
+          interp @()
+            False
+            [sql|
+          UPDATE episodes SET published_at = #{twoDaysAgo}
+          WHERE show_id IN (#{liveShowId}, #{deletedShowId})
+        |]
+        TRX.statement () $
+          interp @() False [sql| UPDATE episodes SET published_at = #{oneDayAgo} WHERE id = #{newerId} |]
+        TRX.statement () $
+          interp @() False [sql| UPDATE episodes SET published_at = NULL WHERE id = #{unpublishedId} |]
+        TRX.statement () $
+          interp @() False [sql| UPDATE episodes SET published_at = #{oneDayAhead} WHERE id = #{publishedLaterId} |]
+        _ <- TRX.statement () (UUT.deleteEpisode archivedId)
+        _ <- TRX.statement () (Shows.softDeleteShow deletedShowId)
+
+        showFeed <- TRX.statement () (UUT.getFeedEpisodesForShow now liveShowId)
+        stationFeed <- TRX.statement () (UUT.getFeedEpisodesWithShows now)
+        TRX.condemn
+
+        let fixtureIds =
+              [newerId, olderId, archivedId, noAudioId, unpublishedId, publishedLaterId, notAiredId, deletedShowEpisodeId]
+        pure (liveShowId, newerId, olderId, fixtureIds, showFeed, stationFeed)
+
+      assert $ do
+        (liveShowId, newerId, olderId, fixtureIds, showFeed, stationFeed) <- assertRight result
+        -- The show feed holds the two qualifying episodes, newest first.
+        map UUT.id showFeed === [newerId, olderId]
+        -- The station feed holds rows from other tests too, so look only at
+        -- the rows of this fixture.
+        let stationRows = filter (\(episode, _) -> UUT.id episode `elem` fixtureIds) stationFeed
+        map (UUT.id . fst) stationRows === [newerId, olderId]
+        map (Shows.id . snd) stationRows === [liveShowId, liveShowId]
+
+-- | A base date for the feed fixture, well in the past.
+--
+-- The fixture needs six past air dates of one template. A template can air on
+-- the fifth week of the month only, so six air dates can take more than a year.
+feedFixtureBaseDay :: Day
+feedFixtureBaseDay = fromGregorian 2024 1 1
 
 --------------------------------------------------------------------------------
 -- Episode numbering

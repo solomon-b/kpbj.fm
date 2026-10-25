@@ -84,6 +84,7 @@ library
                   , http-client
                   , http-client-tls
                   , http-conduit
+                  , http-media
                   , http-types
                   , lens
                   , log-base
@@ -160,6 +161,9 @@ library
     API.Events.Event.Get.Handler
     API.Events.Event.Get.Route
     API.Events.Event.Get.Templates.Page
+    API.Feed.Get.Handler
+    API.Feed.Get.Route
+    API.Feed.Get.Templates
     API.Get.Handler
     API.Get.Route
     API.Get.Templates
@@ -509,6 +513,9 @@ library
     API.Shows.Slug.Episode.Get.Handler
     API.Shows.Slug.Episode.Get.Route
     API.Shows.Slug.Episode.Get.Templates.Page
+    API.Shows.Slug.Feed.Get.Handler
+    API.Shows.Slug.Feed.Get.Route
+    API.Shows.Slug.Feed.Get.Templates
     API.Shows.Slug.Get.Handler
     API.Shows.Slug.Get.Route
     API.Shows.Slug.Get.Templates.Page
@@ -641,6 +648,8 @@ library
     Component.Gallery.EventGalleryEditor
     Component.Gallery.EventGalleryView
     Component.DashboardFrame
+    Component.EpisodeFeedItem
+    Component.FeedLink
     Component.Frame
     Component.NotFound
     Component.PageHeader
@@ -674,6 +683,7 @@ library
     Middleware.RateLimit
     Middleware.SecurityHeaders
     Middleware.ValidateEncoding
+    Text.RSS
     Utils
   autogen-modules:
     Paths_kpbj_web
@@ -845,6 +855,7 @@ test-suite kpbj-web-test
        API.Shows.Slug.Blog.Post.Get.HandlerSpec
        API.Shows.Slug.Episode.Get.HandlerSpec
        API.Shows.Slug.Get.HandlerSpec
+       API.Shows.Slug.Feed.Get.TemplatesSpec
        API.Store.Cart.Validate.Post.HandlerSpec
        API.Store.List.Get.HandlerSpec
        API.Store.Products.Slug.Get.HandlerSpec
@@ -852,6 +863,7 @@ test-suite kpbj-web-test
        Store.Checkout.LogicSpec
        Store.Checkout.ShippingErrorsSpec
        Templates.MarkdownFieldsSpec
+       Text.RSSSpec
        API.Newsletter.Subscribe.Post.HandlerSpec
        API.User.ForgotPassword.Post.HandlerSpec
        API.User.Login.Post.HandlerSpec

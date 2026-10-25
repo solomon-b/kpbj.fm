@@ -96,6 +96,7 @@ import API.Shows.Get.HandlerSpec qualified as ShowsHandler
 import API.Shows.Slug.Blog.Get.HandlerSpec qualified as ShowBlogHandler
 import API.Shows.Slug.Blog.Post.Get.HandlerSpec qualified as ShowBlogPostHandler
 import API.Shows.Slug.Episode.Get.HandlerSpec qualified as ShowEpisodeHandler
+import API.Shows.Slug.Feed.Get.TemplatesSpec qualified as ShowFeedTemplates
 import API.Shows.Slug.Get.HandlerSpec qualified as ShowDetailHandler
 import API.Store.Cart.Validate.Post.HandlerSpec qualified as StoreCartValidateHandler
 import API.Store.List.Get.HandlerSpec qualified as StoreListHandler
@@ -131,6 +132,7 @@ import Test.Hspec
 import Test.Hspec.Api.Formatters.V3 (specdoc, useFormatter)
 import Test.Hspec.Runner (Config (..), hspecWith)
 import Test.Hspec.Runner qualified as TR
+import Text.RSSSpec qualified as RSS
 import Text.Read (readMaybe)
 
 --------------------------------------------------------------------------------
@@ -158,6 +160,8 @@ main = do
     Diff.spec
     Markdown.spec
     MarkdownFields.spec
+    RSS.spec
+    ShowFeedTemplates.spec
     MimeTypeValidation.spec
     StagedUploadsEffects.spec
     AudioUploadHandler.spec

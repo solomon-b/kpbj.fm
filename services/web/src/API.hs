@@ -177,6 +177,7 @@ import API.Debug.Version.Get.Handler qualified as Debug.Version.Get
 import API.Donate.Get.Handler qualified as Donate.Get
 import API.Events.Event.Get.Handler qualified as Events.Event.Get
 import API.Events.Get.Handler qualified as Events.Get
+import API.Feed.Get.Handler qualified as Feed.Get
 import API.Get.Handler qualified as Root.Get
 import API.Invite.Token.Get.Handler qualified as Invite.Token.Get
 import API.Invite.Token.Post.Handler qualified as Invite.Token.Post
@@ -193,6 +194,7 @@ import API.Shows.Get.Handler qualified as Shows.Get
 import API.Shows.Slug.Blog.Get.Handler qualified as Show.Blog.Get
 import API.Shows.Slug.Blog.Post.Get.Handler qualified as Show.Blog.Post.Get
 import API.Shows.Slug.Episode.Get.Handler qualified as Episodes.Get
+import API.Shows.Slug.Feed.Get.Handler qualified as Show.Feed.Get
 import API.Shows.Slug.Get.Handler qualified as Show.Get
 import API.Static.Get.Handler qualified as Static.Get
 import API.Store.Cart.Get.Handler qualified as Store.Cart.Get
@@ -284,6 +286,7 @@ server =
       mediaGet = Media.Get.handler,
       aboutGet = About.Get.handler,
       archiveGet = Archive.Get.handler,
+      feedGet = Feed.Get.handler,
       donateGet = Donate.Get.handler,
       privacyPolicyGet = PrivacyPolicy.Get.handler,
       termsOfServiceGet = TermsOfService.Get.handler,
@@ -323,6 +326,7 @@ server =
       ShowsRoutes
         { list = Shows.Get.handler,
           detail = Show.Get.handler,
+          feed = Show.Feed.Get.handler,
           blog = showBlogRoutes,
           episodes = showEpisodesRoutes
         }

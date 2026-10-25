@@ -24,5 +24,5 @@ import Lucid qualified
 -- Used by 'Middleware.NotFound' to replace Servant's plain-text 404 responses.
 notFoundPage :: Maybe GoogleAnalyticsId -> StreamConfig -> Lucid.Html ()
 notFoundPage mGoogleAnalyticsId streamConfig =
-  Frame.template mGoogleAnalyticsId streamConfig Nothing $
+  Frame.template mGoogleAnalyticsId streamConfig Nothing [] $
     notFoundContent "Page"
