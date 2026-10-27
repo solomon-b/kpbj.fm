@@ -56,6 +56,7 @@ library
                   , async
                   , base
                   , bytestring
+                  , case-insensitive
                   , conduit
                   , containers
                   , cookie
@@ -627,6 +628,7 @@ library
     App.CustomContext
     App.Handler.Combinators
     App.Monad
+    App.RequestLog
     App.Smtp
     App.Storage
     App.Handler.Error
@@ -872,6 +874,7 @@ test-suite kpbj-web-test
        App.BaseUrlSpec
        App.CustomContextSpec
        App.DomainsSpec
+       App.RequestLogSpec
        Domain.BreakPlannerSpec
        Domain.EpisodeLengthSpec
        Effects.BreakPlanSpec

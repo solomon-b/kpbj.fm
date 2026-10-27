@@ -110,6 +110,7 @@ import App.CustomContextSpec qualified as CustomContext
 import App.DomainsSpec qualified as Domains
 import App.Handler.CombinatorsSpec qualified as Combinators
 import App.Handler.ErrorSpec qualified as ErrorHandler
+import App.RequestLogSpec qualified as RequestLog
 import Component.ScheduleEditorSpec qualified as ScheduleEditor
 import Data.Maybe (fromMaybe)
 import Domain.BreakPlannerSpec qualified as BreakPlanner
@@ -156,6 +157,7 @@ main = do
     BaseUrl.spec
     CustomContext.spec
     Domains.spec
+    RequestLog.spec
     ScheduleDiff.spec
     ScheduleEditor.spec
     ContentSanitization.spec

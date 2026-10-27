@@ -230,7 +230,9 @@ import App.Auth qualified as Auth
 import App.Context (AppContext (..))
 import App.CustomContext (buildCustomContext, loadCustomConfigs)
 import App.Monad (AppM)
+import App.RequestLog (requestLogger)
 import Component.NotFound (notFoundPage)
+import Data.Function ((&))
 import Data.Has (getter)
 import Lucid qualified
 import Middleware.NotFound (notFoundMiddleware)
@@ -266,7 +268,10 @@ runApi = do
 
           -- Build the WAI application with 404 middleware
           servantCtx = Auth.authHandler (appDbPool appCtx) (appEnvironment appCtx) :. Servant.EmptyContext
-          warpSettings = App.mkWarpSettings (appLoggerEnv appCtx) (appWarpConfig appCtx)
+          -- Replace the request logger of web-server-core. It writes secrets.
+          warpSettings =
+            App.mkWarpSettings (appLoggerEnv appCtx) (appWarpConfig appCtx)
+              & Warp.setLogger (requestLogger (appLoggerEnv appCtx))
           app =
             validateEncodingMiddleware
               . securityHeadersMiddleware
