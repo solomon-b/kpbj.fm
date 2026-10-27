@@ -20,6 +20,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
   - Three scenarios cover the dropped-show fix: an episode that ends before the break, two breaks with an idle queue as overnight, and `skip_track` with nothing scheduled. All three fail on the old script.
   - Three checks are marked as known issues. They describe the correct behavior and fail today: a cut episode plays again for a few seconds after the break, a restart near the end of a show delays the next show (#152), and `force_play` waits behind the episode on air. A known issue does not fail the run. When its check passes, the run fails, so that the marker gets removed.
 ### Changed
+- **Hosts can change the artwork of an episode that aired.** Before, a host lost access to the audio and the artwork together at the air time. Now a host can upload, replace, or clear the artwork at any time. The audio and the schedule slot stay locked for hosts after the air time, and only staff and admins can change them (#153).
 - **Every station ID has a length.** `station_ids.duration_seconds` is now `NOT NULL`. The break planner used to assume 15 seconds for a station ID with no length. That assumption is gone.
   - Uploads already measure the length. For the older rows, `scripts/station-id-durations-sql.sh` measures each file over its public bucket URL with `ffprobe` and prints `UPDATE` statements. Run it on staging and prod before the migration deploys. The migration fails while one row has no length.
 
