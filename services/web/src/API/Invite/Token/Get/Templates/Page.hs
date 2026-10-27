@@ -4,14 +4,15 @@
 module API.Invite.Token.Get.Templates.Page
   ( template,
     alreadyLoggedInTemplate,
+    staffPreviewTemplate,
   )
 where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Invitations.Get.Templates.Page (formatStartDate, renderScheduleSummary)
-import API.Links (apiLinks, inviteLinks, rootLink, userLinks)
-import API.Types (InviteRoutes (..), Routes (..), UserRoutes (..))
+import API.Dashboard.Invitations.Get.Templates.Page (formatDateTime, formatStartDate, renderScheduleSummary, renderStatusBadge)
+import API.Links (apiLinks, dashboardInvitationsLinks, inviteLinks, rootLink, userLinks)
+import API.Types (DashboardInvitationsRoutes (..), InviteRoutes (..), Routes (..), UserRoutes (..))
 import Component.Form.Hints (markdownHint)
 import Data.Aeson (Value)
 import Data.String.Interpolate (i)
@@ -379,25 +380,94 @@ loginSection =
 --------------------------------------------------------------------------------
 -- Already Logged In Template
 
--- | Template shown when a logged-in user visits an invitation link.
-alreadyLoggedInTemplate :: Lucid.Html ()
-alreadyLoggedInTemplate =
+-- | Template shown when a logged-in user who is not staff visits a valid
+-- invitation link.
+--
+-- The claim creates a new account, so the user must log out first. The page
+-- says that the invitation is not claimed, so that a host does not read it
+-- as a successful claim.
+alreadyLoggedInTemplate ::
+  -- | Recipient email of the invitation
+  EmailAddress ->
+  Lucid.Html ()
+alreadyLoggedInTemplate recipientEmail =
   Lucid.div_ [class_ $ base ["max-w-2xl", "mx-auto", Tokens.py8]] $
     Lucid.div_ [class_ $ base [Tokens.bgMain, "p-8", "text-center"]] $ do
       Lucid.h1_
         [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb4]]
-        "You already have an account"
+        "This invitation is not claimed"
+      Lucid.p_ [class_ $ base [Tokens.fgMuted, Tokens.mb4]] $ do
+        "This invitation is for "
+        Lucid.span_ [class_ $ base [Tokens.fgPrimary, Tokens.fontBold]] $
+          Lucid.toHtml (display recipientEmail)
+        ". You are logged in, so you cannot claim it."
       Lucid.p_
         [class_ $ base [Tokens.fgMuted, Tokens.mb8]]
-        "Contact staff to be assigned to a show."
+        "To claim it with a new account, log out and then open this invitation link again."
+      Lucid.div_ [class_ $ base ["flex", "flex-col", "items-center", Tokens.gap4]] $ do
+        Lucid.a_
+          [ Lucid.href_ logoutUrl,
+            hxGet_ logoutUrl,
+            class_ $ base [Tokens.buttonPrimary, "inline-block"]
+          ]
+          "LOG OUT"
+        Lucid.a_
+          [ Lucid.href_ homeUrl,
+            hxGet_ homeUrl,
+            hxSwap_ "innerHTML",
+            hxTarget_ "body",
+            hxPushUrl_ "true",
+            class_ $ base [Tokens.linkText]
+          ]
+          "\x2190 Back to kpbj.fm"
+  where
+    homeUrl = rootLink apiLinks.rootGet
+    logoutUrl = rootLink userLinks.logoutGet
+
+--------------------------------------------------------------------------------
+-- Staff Preview Template
+
+-- | Template shown when staff or an admin visits an invitation link.
+--
+-- Shows the invitation details in any status, so that staff can check the
+-- link. Staff cannot claim the invitation from this page.
+staffPreviewTemplate ::
+  -- | Invitation with creator and claimer names
+  HostInvitation.ModelWithCreator ->
+  Lucid.Html ()
+staffPreviewTemplate invitation =
+  Lucid.div_ [class_ $ base ["max-w-2xl", "mx-auto", Tokens.py8]] $
+    Lucid.div_ [class_ $ base [Tokens.bgMain, "p-8"]] $ do
+      Lucid.h1_
+        [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]]
+        "Host invitation"
+      Lucid.p_
+        [class_ $ base [Tokens.fgMuted, Tokens.mb6]]
+        "You are logged in as staff, so this page shows the invitation details. Log out to see the page that the host sees."
+      Lucid.dl_ [class_ $ base ["grid", "grid-cols-[max-content_1fr]", "gap-x-6", "gap-y-2", Tokens.textSm, Tokens.mb8]] $ do
+        detailRow "Status" $ renderStatusBadge invitation.mwcStatus
+        detailRow "Recipient" $ Lucid.toHtml (display invitation.mwcRecipientEmail)
+        detailRow "Schedule" $ Lucid.toHtml (renderScheduleSummary invitation.mwcScheduleData)
+        detailRow "Starts" $ Lucid.toHtml (formatStartDate invitation.mwcStartsOn)
+        detailRow "Created by" $ Lucid.toHtml invitation.mwcCreatedByName
+        detailRow "Created" $ Lucid.toHtml (formatDateTime invitation.mwcCreatedAt)
+        detailRow "Expires" $ Lucid.toHtml (formatDateTime invitation.mwcExpiresAt)
+        case invitation.mwcClaimedByName of
+          Just claimer -> detailRow "Claimed by" $ Lucid.toHtml claimer
+          Nothing -> pure ()
       Lucid.a_
-        [ Lucid.href_ homeUrl,
-          hxGet_ homeUrl,
+        [ Lucid.href_ invitationsUrl,
+          hxGet_ invitationsUrl,
           hxSwap_ "innerHTML",
           hxTarget_ "body",
           hxPushUrl_ "true",
           class_ $ base [Tokens.linkText]
         ]
-        "\x2190 Back to kpbj.fm"
+        "\x2190 All invitations"
   where
-    homeUrl = rootLink apiLinks.rootGet
+    invitationsUrl = rootLink dashboardInvitationsLinks.list
+
+    detailRow :: Text -> Lucid.Html () -> Lucid.Html ()
+    detailRow label value = do
+      Lucid.dt_ [class_ $ base [Tokens.fgMuted, Tokens.fontBold]] $ Lucid.toHtml label
+      Lucid.dd_ value

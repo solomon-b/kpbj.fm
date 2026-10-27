@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module API.Invite.Token.Get.Handler (handler) where
@@ -12,6 +13,7 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.HostInvitation qualified as HostInvitation
+import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 
 --------------------------------------------------------------------------------
@@ -20,7 +22,11 @@ import Lucid qualified
 --
 -- Renders the host onboarding form page for a valid invitation token.
 -- Shows an error page if the token is invalid, expired, or already claimed.
--- Shows an "already logged in" message if the user has a session.
+--
+-- A logged-in user cannot claim an invitation, because the claim creates a
+-- new account. Staff and admins see the invitation details in any status, so
+-- that they can check the link. Other logged-in users see that the
+-- invitation is not claimed and that they must log out to claim it.
 handler ::
   -- | Invitation token from URL
   HostInvitation.Token ->
@@ -32,8 +38,21 @@ handler ::
 handler token cookie (foldHxReq -> hxRequest) = do
   mUserInfo <- getUserInfo cookie
   case mUserInfo of
-    Just _ ->
-      renderUnauthTemplate hxRequest Page.alreadyLoggedInTemplate
+    Just (_, userMetadata)
+      | UserMetadata.isStaffOrHigher userMetadata.mUserRole -> do
+          result <- execQuery (HostInvitation.getByTokenWithCreator token)
+          case result of
+            Right (Just invitation) ->
+              renderUnauthTemplate hxRequest (Page.staffPreviewTemplate invitation)
+            _ ->
+              renderUnauthTemplate hxRequest ErrorPage.template
+    Just _ -> do
+      result <- execQuery (HostInvitation.getByToken token)
+      case result of
+        Right (Just invitation) ->
+          renderUnauthTemplate hxRequest (Page.alreadyLoggedInTemplate invitation.hiRecipientEmail)
+        _ ->
+          renderUnauthTemplate hxRequest ErrorPage.template
     Nothing -> do
       result <- execQuery (HostInvitation.getByToken token)
       case result of

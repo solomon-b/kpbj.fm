@@ -37,6 +37,7 @@ module Effects.Database.Tables.HostInvitation
     insert,
     getByToken,
     getAllWithCreator,
+    getByTokenWithCreator,
     claimInvitation,
     revokeInvitation,
     updateRecipientEmail,
@@ -345,6 +346,36 @@ getAllWithCreator =
     INNER JOIN user_metadata creator_um ON hi.created_by = creator_um.user_id
     LEFT JOIN user_metadata claimer_um ON hi.claimed_by = claimer_um.user_id
     ORDER BY hi.created_at DESC
+  |]
+
+-- | Get a host invitation by its token, in any status, with creator and
+-- claimer display names.
+--
+-- Staff use this to check an invite link. A pending row past @expires_at@
+-- comes back as 'Expired', the same as in 'getAllWithCreator'.
+getByTokenWithCreator :: Token -> Hasql.Statement () (Maybe ModelWithCreator)
+getByTokenWithCreator tokenValue =
+  interp
+    False
+    [sql|
+    SELECT
+      hi.id,
+      hi.token,
+      CASE WHEN hi.status = 'pending' AND hi.expires_at <= NOW()
+           THEN 'expired'::host_invitation_status
+           ELSE hi.status
+      END,
+      hi.schedule_data,
+      hi.recipient_email,
+      creator_um.display_name,
+      claimer_um.display_name,
+      hi.created_at,
+      hi.expires_at,
+      hi.starts_on
+    FROM host_invitations hi
+    INNER JOIN user_metadata creator_um ON hi.created_by = creator_um.user_id
+    LEFT JOIN user_metadata claimer_um ON hi.claimed_by = claimer_um.user_id
+    WHERE hi.token = #{tokenValue}
   |]
 
 -- | Claim a host invitation, marking it as claimed.

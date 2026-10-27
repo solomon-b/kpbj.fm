@@ -5,6 +5,10 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- **The invite page tells a logged-in visitor what happened.** The page used to say "You already have an account" to every logged-in user, and a host could read that as a successful claim (#146).
+  - A logged-in user who is not staff now sees that the invitation is not claimed, and the email it is for. The page tells them to log out and open the link again, and it has a logout button.
+  - Staff and admins see the invitation details: status, recipient, schedule, start date, creator, and expiry. This works for claimed, expired, and revoked invitations too, so staff can check any link.
+  - A logged-in user with an invalid or used token now sees the error page.
 - **The episode page links back to its show.** The show title now shows above the air date, and it opens the show page (#144).
 - **A scheduled show no longer gets dropped when the episode before it ends early.** When an episode ended before the `:58` break, the break skipped an empty scheduled queue. In Liquidsoap 2.3.3 that skip stays pending, and it ends the next request as soon as that request is ready. The next show never aired, and the stream stayed on fallback until a restart or a force-play. Pieces of the dropped episodes also stayed in the buffer. They played for about one second each on the next push, and each one added a wrong entry to the playback history. Liquidsoap now skips a source only when that source has a track on air. This applies to the break and to the dashboard skip-track command.
 - **The server journal keeps more history.** The journal cap goes from 500 MB to 4 GB. Liquidsoap logs at level 4, and at 500 MB the journal kept only a few hours of logs for every service.
