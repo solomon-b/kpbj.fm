@@ -101,8 +101,10 @@ template ctx = do
     episodeNumText = display episodeNum
     episodeBackUrl = episodeIndexUrl showModel.slug
     descriptionValue = fromMaybe "" episode.description
-    -- File uploads allowed if scheduled date is in the future OR user is staff/admin
-    allowFileUpload = Episodes.isUnaired currentTime ctx.eecTemplate episode || isStaff
+    -- Audio and schedule changes are allowed if the episode has not aired OR
+    -- the user is staff/admin. Artwork is always editable.
+    allowAudioChange = Episodes.isUnaired currentTime ctx.eecTemplate episode || isStaff
+    allowScheduleChange = allowAudioChange
     audioUrl = maybe "" (buildMediaUrl backend) episode.audioFilePath
     artworkUrl = maybe "" (buildMediaUrl backend) episode.artworkUrl
 
@@ -132,7 +134,7 @@ template ctx = do
     form = do
       section "EPISODE DETAILS" $ do
         -- Schedule slot section (only shown if episode is in future or user is staff)
-        when (allowFileUpload || isStaff) $ do
+        when allowScheduleChange $ do
           section "SCHEDULE SLOT" $ do
             case (mCurrentSlot, upcomingDates) of
               (Nothing, []) ->
@@ -176,19 +178,19 @@ template ctx = do
           value currentTagsValue
           maxLength 500
 
-      when allowFileUpload $ do
-        section "MEDIA FILES" $ do
+      section "MEDIA FILES" $ do
+        when allowAudioChange $
           stagedAudioField "episode_audio" uploadUrl "episode_audio" $ do
             label "Episode Audio"
             hint "The episode must end at least two minutes before the slot ends, so the station break fits."
             maxSize 500
             currentFile audioUrl
 
-          imageField "episode_artwork" $ do
-            label "Episode Artwork"
-            maxSize 5
-            aspectRatio (1, 1)
-            currentFile artworkUrl
+        imageField "episode_artwork" $ do
+          label "Episode Artwork"
+          maxSize 5
+          aspectRatio (1, 1)
+          currentFile artworkUrl
 
       section "TRACK LISTING" $ do
         plain $

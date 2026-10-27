@@ -42,6 +42,8 @@ spec =
         it "rejects new audio too long for the slot and leaves the upload pending" test_rejectsOverLengthNewAudio
         it "rejects a move into a slot too short for the stored audio" test_rejectsMoveIntoShorterSlot
         it "clears the slot when the submitted form picks Unscheduled" test_unscheduleThroughMultipart
+        it "lets a host clear the artwork of an aired episode" test_hostClearsArtworkOfAiredEpisode
+        it "ignores new audio from a host for an aired episode" test_hostCannotReplaceAudioOfAiredEpisode
 
 --------------------------------------------------------------------------------
 
@@ -406,3 +408,122 @@ test_unscheduleThroughMultipart cfg = do
       mEpisode <- expectSetupRight afterResult
       fmap (.scheduleTemplateId) mEpisode `shouldBe` Just Nothing
       fmap (.airDate) mEpisode `shouldBe` Just Nothing
+
+-- | The fixture from 'setupEpisodeWithAudio', with artwork stored too.
+--
+-- The episode aired on 2026-03-02, so the edits below are edits to a past
+-- episode.
+setupAiredEpisodeWithMedia ::
+  UserMetadata.UserWithMetadataInsert ->
+  Shows.Insert ->
+  TRX.Transaction (User.Model, UserMetadata.Model, Episodes.Model)
+setupAiredEpisodeWithMedia userInsert showInsert = do
+  (userModel, userMetaModel, _showId, _templateId, episodeModel) <- setupEpisodeWithAudio userInsert showInsert
+  let fileUpdate =
+        Episodes.FileUpdate
+          { Episodes.efuId = episodeModel.id,
+            Episodes.efuAudioFilePath = Nothing,
+            Episodes.efuArtworkUrl = Just "images/episode-artwork/2026/03/02/stored-artwork.png",
+            Episodes.efuDurationSeconds = Nothing,
+            Episodes.efuClearAudio = False,
+            Episodes.efuClearArtwork = False
+          }
+  _ <- TRX.statement () (Episodes.updateEpisodeFiles fileUpdate)
+  pure (userModel, userMetaModel, episodeModel)
+
+-- | A host clears the artwork of an aired episode.
+--
+-- The artwork goes, and the stored audio stays.
+test_hostClearsArtworkOfAiredEpisode :: TestDBConfig -> IO ()
+test_hostClearsArtworkOfAiredEpisode cfg = do
+  userInsert <- mkUserInsert "ep-edit-post-host-artwork" UserMetadata.Host
+
+  let showSlug = Slug "ep-edit-post-host-artwork-show"
+      showInsert =
+        Shows.Insert
+          { Shows.siTitle = "Edit Post Host Artwork Show",
+            Shows.siSlug = showSlug,
+            Shows.siDescription = Nothing,
+            Shows.siLogoUrl = Nothing,
+            Shows.siStatus = Shows.Active
+          }
+
+  bracketAppM cfg $ do
+    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ setupAiredEpisodeWithMedia userInsert showInsert
+    (userModel, userMetaModel, episodeModel) <- liftIO $ expectSetupRight dbResult
+
+    let form = (descriptionEditForm "Original description") {eefArtworkClear = True}
+    result <- runExceptT $ action userModel userMetaModel showSlug episodeModel.episodeNumber form
+
+    liftIO $ case result of
+      Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
+      Right _ -> pure ()
+
+    afterResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Read $
+          TRX.statement () (Episodes.getEpisodeById episodeModel.id)
+    liftIO $ do
+      mEpisode <- expectSetupRight afterResult
+      fmap (.artworkUrl) mEpisode `shouldBe` Just Nothing
+      fmap (.audioFilePath) mEpisode `shouldBe` Just (Just "audio/episodes/2026/03/02/stored-episode.mp3")
+
+-- | A host sends new audio for an aired episode.
+--
+-- The handler ignores the audio. The upload stays pending, and the episode
+-- keeps its stored audio and its stored length.
+test_hostCannotReplaceAudioOfAiredEpisode :: TestDBConfig -> IO ()
+test_hostCannotReplaceAudioOfAiredEpisode cfg = do
+  userInsert <- mkUserInsert "ep-edit-post-host-audio" UserMetadata.Host
+
+  let showSlug = Slug "ep-edit-post-host-audio-show"
+      showInsert =
+        Shows.Insert
+          { Shows.siTitle = "Edit Post Host Audio Show",
+            Shows.siSlug = showSlug,
+            Shows.siDescription = Nothing,
+            Shows.siLogoUrl = Nothing,
+            Shows.siStatus = Shows.Active
+          }
+      token = StagedUploads.Token "test-audio-token-ep-edit-host-aired"
+
+  bracketAppM cfg $ do
+    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+      (userModel, userMetaModel, episodeModel) <- setupAiredEpisodeWithMedia userInsert showInsert
+      let stagedInsert =
+            StagedUploads.Insert
+              { StagedUploads.siToken = token,
+                StagedUploads.siUserId = userModel.mId,
+                StagedUploads.siOriginalName = "replacement-episode.mp3",
+                StagedUploads.siStoragePath = "temp/staging/test-audio-ep-edit-host-aired.mp3",
+                StagedUploads.siMimeType = "audio/mpeg",
+                StagedUploads.siFileSize = 43200000,
+                StagedUploads.siDurationSeconds = Just 2700,
+                StagedUploads.siUploadType = StagedUploads.EpisodeAudio
+              }
+      _uploadId <- TRX.statement () (StagedUploads.insert stagedInsert)
+      pure (userModel, userMetaModel, episodeModel)
+
+    (userModel, userMetaModel, episodeModel) <- liftIO $ expectSetupRight dbResult
+
+    let form =
+          (descriptionEditForm "Original description")
+            { eefAudioToken = Just "test-audio-token-ep-edit-host-aired"
+            }
+    result <- runExceptT $ action userModel userMetaModel showSlug episodeModel.episodeNumber form
+
+    liftIO $ case result of
+      Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
+      Right _ -> pure ()
+
+    afterResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Read $ do
+          mStaged <- TRX.statement () (StagedUploads.getByToken token)
+          mEpisode <- TRX.statement () (Episodes.getEpisodeById episodeModel.id)
+          pure (mStaged, mEpisode)
+    liftIO $ do
+      (mStaged, mEpisode) <- expectSetupRight afterResult
+      fmap (.status) mStaged `shouldBe` Just StagedUploads.Pending
+      fmap (.audioFilePath) mEpisode `shouldBe` Just (Just "audio/episodes/2026/03/02/stored-episode.mp3")
+      fmap (.durationSeconds) mEpisode `shouldBe` Just (Just 3000)

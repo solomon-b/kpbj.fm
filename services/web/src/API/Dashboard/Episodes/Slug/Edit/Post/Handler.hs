@@ -254,13 +254,13 @@ checkLengthFitsSlot isPast isStaffOrAdmin episode editForm = do
       (Just audioSeconds, Just templateId) -> checkAgainstTemplate audioSeconds templateId
       _ -> pure ()
   where
-    allowFileUpload = not isPast || isStaffOrAdmin
+    allowAudioChange = not isPast || isStaffOrAdmin
     allowScheduleChange = not isPast || isStaffOrAdmin
 
     -- 'Just' when new audio arrives. The inner value is its length, and it is
     -- 'Nothing' only for a row staged before the length column existed.
     readNewAudioLength = case eefAudioToken editForm of
-      Just token | allowFileUpload -> do
+      Just token | allowAudioChange -> do
         mStaged <- fromRightM throwDatabaseError (execQuery (StagedUploads.getByToken (StagedUploads.Token token)))
         -- A missing row is not a length problem. The upload step reports it.
         pure $ fmap StagedUploads.durationSeconds mStaged
@@ -269,7 +269,7 @@ checkLengthFitsSlot isPast isStaffOrAdmin episode editForm = do
     -- The stored length stays only while the stored audio stays. A cleared
     -- file leaves its old length in the row, so that length does not count.
     keptAudioSeconds
-      | eefAudioClear editForm && allowFileUpload = Nothing
+      | eefAudioClear editForm && allowAudioChange = Nothing
       | isNothing episode.audioFilePath = Nothing
       | otherwise = episode.durationSeconds
 
@@ -305,10 +305,20 @@ execOptionalUpdates userId isStaffOrAdmin isPast episode showModel editForm = do
   -- 'isPast' is 'Episodes.isAired' over this episode and its template, so this
   -- is its complement. Asking again would read the air time a second time and
   -- let the two answers disagree.
-  let allowFileUpload = not isPast || isStaffOrAdmin
+  let allowAudioChange = not isPast || isStaffOrAdmin
+      -- After the episode airs, the audio is a record of the broadcast, and
+      -- only staff and admins can change it. The artwork stays open to hosts.
+      -- A host's audio fields are dropped here, and the artwork fields stay.
+      asksForAudioChange = isJust (eefAudioToken editForm) || eefAudioClear editForm
+      fileForm
+        | allowAudioChange = editForm
+        | otherwise = editForm {eefAudioToken = Nothing, eefAudioClear = False}
+
+  when (asksForAudioChange && not allowAudioChange) $
+    Log.logInfo "Host attempted to change audio on past episode" episode.id
 
   -- File uploads
-  fileWarning <- processFileUploadsWithWarning userId allowFileUpload showModel episode editForm
+  fileWarning <- processFileUploadsWithWarning userId showModel episode fileForm
 
   -- Schedule update
   scheduleWarning <- processScheduleUpdate isPast isStaffOrAdmin episode editForm
@@ -326,17 +336,18 @@ execOptionalUpdates userId isStaffOrAdmin isPast episode showModel editForm = do
 --
 -- Audio supports both staged uploads (tokens) and direct file uploads.
 -- Artwork only uses direct file uploads (no staged upload for images).
+--
+-- The caller removes the file fields that the user cannot change.
 processFileUploadsWithWarning ::
   User.Id ->
-  Bool -> -- allowFileUpload
   Shows.Model ->
   Episodes.Model ->
   EpisodeEditForm ->
   AppM [Text]
-processFileUploadsWithWarning userId allowFileUpload showModel episode editForm =
+processFileUploadsWithWarning userId showModel episode editForm =
   let hasFileUploads = isJust (eefArtworkFile editForm) || eefAudioClear editForm || eefArtworkClear editForm
       hasStagedUploads = isJust (eefAudioToken editForm)
-   in if not allowFileUpload || not (hasFileUploads || hasStagedUploads)
+   in if not (hasFileUploads || hasStagedUploads)
         then pure []
         else do
           result <- processFileUploads userId showModel episode editForm
