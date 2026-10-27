@@ -24,6 +24,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Hosts can change the artwork of an episode that aired.** Before, a host lost access to the audio and the artwork together at the air time. Now a host can upload, replace, or clear the artwork at any time. The audio and the schedule slot stay locked for hosts after the air time, and only staff and admins can change them (#153).
 - **Every station ID has a length.** `station_ids.duration_seconds` is now `NOT NULL`. The break planner used to assume 15 seconds for a station ID with no length. That assumption is gone.
   - Uploads already measure the length. For the older rows, `scripts/station-id-durations-sql.sh` measures each file over its public bucket URL with `ffprobe` and prints `UPDATE` statements. Run it on staging and prod before the migration deploys. The migration fails while one row has no length.
+- **The GitHub Actions pins point to the latest releases.** `actions/checkout`, `cachix/cachix-action`, and `DeterminateSystems/magic-nix-cache-action` targeted Node.js 20, and the runners warned on each job. Every pin now points to a release that runs on Node.js 24. The pins are `actions/checkout` v7, `cachix/install-nix-action` v31.11.3, `magic-nix-cache-action` v15, `cachix/cachix-action` v17, `actions/cache` v6, and `actions/upload-artifact` v7.
 
 ---
 
