@@ -36,6 +36,7 @@ spec =
     describe "API.Playout.Played.Post.Handler.record" $ do
       it "stores the break item id" storesBreakItemId
       it "stores no break item id for an empty string" storesNothingForEmpty
+      it "stores a play for each break source type" storesEachBreakSourceType
 
 --------------------------------------------------------------------------------
 
@@ -101,3 +102,40 @@ storesNothingForEmpty cfg = bracketAppM cfg $ do
   liftIO $ case stored of
     Nothing -> pure ()
     Just n -> expectationFailure ("Expected no break item id, got " <> show n)
+
+-- | The @source_type@ that Liquidsoap sends for a break item of this category.
+--
+-- The case has no wildcard, so a new category gives a warning here until it
+-- gets a source type and a row in @playback_history_source_type_check@.
+categorySourceType :: BreakItems.Category -> Text.Text
+categorySourceType = \case
+  BreakItems.Psa -> "psa"
+  BreakItems.Underwriting -> "underwriting"
+  BreakItems.Announcement -> "announcement"
+  BreakItems.ShowPromo -> "show_promo"
+
+-- | Every source type that can air in a break. The check constraint on
+-- @playback_history.source_type@ must accept each one.
+breakSourceTypes :: [Text.Text]
+breakSourceTypes =
+  ["station_id", "ephemeral"] <> map categorySourceType [minBound .. maxBound]
+
+storesEachBreakSourceType :: TestDBConfig -> IO ()
+storesEachBreakSourceType cfg =
+  bracketAppM cfg $
+    mapM_ recordOne (zip [1 ..] breakSourceTypes)
+  where
+    recordOne :: (Integer, Text.Text) -> AppM ()
+    recordOne (n, sourceType) = do
+      let request =
+            (psaPlayed "")
+              { prSourceType = sourceType,
+                prStartedAt = UTCTime (fromGregorian 2025 1 6) (fromInteger (3600 + n))
+              }
+      recorded <- runExceptT (record request)
+      case recorded of
+        Left err -> error ("Record failed for " <> show sourceType <> ": " <> show err)
+        Right () -> pure ()
+      execQuery (PlaybackHistory.getRecentPlayback 1) >>= \case
+        Right [row] -> liftIO $ row.phSourceType `shouldBe` sourceType
+        other -> error ("Expected one row, got " <> show other)
