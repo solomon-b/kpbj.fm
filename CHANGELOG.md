@@ -5,6 +5,11 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- **The request log no longer writes secrets.** The request logger of `web-server-core` wrote every header and the full query string. The playout secret from Liquidsoap, session cookies, and password-reset tokens went to the journal and to Loki (#158).
+  - `App.RequestLog` now replaces that logger. It writes the same fields, but it replaces each secret value with `<redacted>`.
+  - It redacts the `authorization`, `cookie`, `stripe-signature`, and `x-playout-secret` headers.
+  - It redacts the `token` query parameter, which the password-reset and email-verification links use. It also redacts that parameter in the `referer` and `hx-current-url` headers, because a request from those pages carries the page URL.
+  - The old playout secret is still in the journal and in Loki. Rotate it after this deploys.
 - **The invite page tells a logged-in visitor what happened.** The page used to say "You already have an account" to every logged-in user, and a host could read that as a successful claim (#146).
   - A logged-in user who is not staff now sees that the invitation is not claimed, and the email it is for. The page tells them to log out and open the link again, and it has a logout button.
   - Staff and admins see the invitation details: status, recipient, schedule, start date, creator, and expiry. This works for claimed, expired, and revoked invitations too, so staff can check any link.
