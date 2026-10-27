@@ -1,13 +1,13 @@
 import { test, expect, type Browser } from "@playwright/test";
-import { STAFF_AUTH, USER_AUTH } from "../../playwright.config";
+import { HOST_AUTH, STAFF_AUTH, USER_AUTH } from "../../playwright.config";
 
 // ---------------------------------------------------------------------------
 // Host onboarding (public invite claim) tests
 //
 // Covers the unauthenticated /invite/:token flow: invalid token rejection,
 // the two-step form, the email-lock behavior, the step-1 validation gate,
-// and the full create-account-and-show claim. Plus the already-logged-in
-// short-circuit.
+// and the full create-account-and-show claim. Plus the pages that logged-in
+// users and staff see.
 //
 // Tests start unauthenticated by default. The "create an invitation as
 // staff first" prerequisite is satisfied by spinning up a separate browser
@@ -286,25 +286,75 @@ test.describe("Host onboarding", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Already-logged-in short-circuit
+  // Already-logged-in visitors
   // -------------------------------------------------------------------------
 
-  test("already-logged-in user sees the 'you already have an account' screen", async ({
+  for (const [role, storageState] of [
+    ["user", USER_AUTH],
+    ["host", HOST_AUTH],
+  ] as const) {
+    test(`logged-in ${role} sees that the invitation is not claimed`, async ({
+      browser,
+    }) => {
+      const recipient = `e2e-onb-loggedin-${role}-${Date.now()}@example.com`;
+      const { inviteUrl } = await createInvitationViaStaff(browser, recipient);
+
+      const context = await browser.newContext({ storageState });
+      const loggedInPage = await context.newPage();
+      try {
+        await loggedInPage.goto(inviteUrl);
+        await expect(
+          loggedInPage.getByRole("heading", {
+            name: /This invitation is not claimed/i,
+          }),
+        ).toBeVisible();
+        await expect(loggedInPage.getByText(recipient)).toBeVisible();
+        await expect(
+          loggedInPage.getByRole("link", { name: /log out/i }),
+        ).toBeVisible();
+        // The onboarding form is not shown.
+        await expect(loggedInPage.locator('input[name="password"]')).toHaveCount(
+          0,
+        );
+      } finally {
+        await context.close();
+      }
+    });
+  }
+
+  test("logged-in user with an invalid token sees the error page", async ({
     browser,
   }) => {
-    const recipient = `e2e-onb-loggedin-${Date.now()}@example.com`;
-    const { inviteUrl } = await createInvitationViaStaff(browser, recipient);
-
-    // Visit the invite link with a USER session.
-    const userContext = await browser.newContext({ storageState: USER_AUTH });
-    const userPage = await userContext.newPage();
+    const context = await browser.newContext({ storageState: USER_AUTH });
+    const loggedInPage = await context.newPage();
     try {
-      await userPage.goto(inviteUrl);
+      await loggedInPage.goto("/invite/not-a-real-token");
       await expect(
-        userPage.getByText(/You already have an account/i),
+        loggedInPage.getByText(/no longer valid/i),
       ).toBeVisible();
     } finally {
-      await userContext.close();
+      await context.close();
+    }
+  });
+
+  test("staff see the invitation details", async ({ browser }) => {
+    const recipient = `e2e-onb-staff-${Date.now()}@example.com`;
+    const { inviteUrl } = await createInvitationViaStaff(browser, recipient);
+
+    const context = await browser.newContext({ storageState: STAFF_AUTH });
+    const staffPage = await context.newPage();
+    try {
+      await staffPage.goto(inviteUrl);
+      await expect(
+        staffPage.getByRole("heading", { name: /Host invitation/i }),
+      ).toBeVisible();
+      await expect(staffPage.getByText(recipient)).toBeVisible();
+      await expect(staffPage.getByText("Pending", { exact: true })).toBeVisible();
+      await expect(
+        staffPage.getByRole("link", { name: /All invitations/i }),
+      ).toBeVisible();
+    } finally {
+      await context.close();
     }
   });
 
