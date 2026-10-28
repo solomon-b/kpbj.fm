@@ -12,6 +12,7 @@ import Data.Maybe (mapMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Time (UTCTime)
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
@@ -29,15 +30,16 @@ template ::
   Text ->
   StorageBackend ->
   Shows.Model ->
-  [Episodes.Model] ->
+  -- | Each episode with the instant it aired
+  [(Episodes.Model, UTCTime)] ->
   Xml.Document
 template siteBaseUrl backend showModel episodes =
   RSS.renderFeed channel items
   where
     items = mapMaybe toItem episodes
 
-    toItem episode =
-      episodeFeedItem siteBaseUrl backend (episodeTitle episode) showModel episode
+    toItem (episode, airedAt) =
+      episodeFeedItem siteBaseUrl backend (episodeTitle episode) showModel episode airedAt
 
     newestPublishedAt =
       case items of
