@@ -10,6 +10,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
   - It redacts the `authorization`, `cookie`, `stripe-signature`, and `x-playout-secret` headers.
   - It redacts the `token` query parameter, which the password-reset and email-verification links use. It also redacts that parameter in the `referer` and `hx-current-url` headers, because a request from those pages carries the page URL.
   - The old playout secret is still in the journal and in Loki. Rotate it after this deploys.
+- **The archive pages sort episodes by air time.** The station archive and each show archive sorted on the upload time. A host who uploaded before the show aired got an earlier upload time, so the episode showed below older episodes. Both pages now sort on the air time, newest first, and the episode id breaks ties.
 - **The invite page tells a logged-in visitor what happened.** The page used to say "You already have an account" to every logged-in user, and a host could read that as a successful claim (#146).
   - A logged-in user who is not staff now sees that the invitation is not claimed, and the email it is for. The page tells them to log out and open the link again, and it has a logout button.
   - Staff and admins see the invitation details: status, recipient, schedule, start date, creator, and expiry. This works for claimed, expired, and revoked invitations too, so staff can check any link.
@@ -21,7 +22,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ### Added
 - **RSS feeds of episodes.** A feed reader can now follow the station or one show (#139).
   - `/feed.xml` holds the episodes of every show. `/shows/:show_slug/feed.xml` holds the episodes of one show, and an unknown or deleted show gives a 404.
-  - A feed holds every episode that a listener can play, newest first. The episode has aired, it has audio and a publish date, and it is not archived. Its show is not deleted.
+  - A feed holds every episode that a listener can play, newest air time first. The episode has aired, it has audio, and it is not archived. Its show is not deleted.
+  - Each item gives the air time as its `pubDate`. Feed readers sort on `pubDate`, and the upload time can come days before the air time.
   - Each item links to the public episode page and carries the audio file as its enclosure. All URLs are absolute. In development, the site base URL goes in front of the local `/media` path. `App.BaseUrl.absoluteMediaUrl` builds the audio URL. The playout handlers now use it too, in place of their three private copies.
   - The response type is `application/rss+xml`, and readers can cache it for 15 minutes.
   - The home page and the archive page point feed readers to the station feed. Each show page points to its own feed. The feeds have no `itunes:` or `podcast:` tags yet.

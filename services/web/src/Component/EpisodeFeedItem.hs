@@ -18,6 +18,7 @@ import App.BaseUrl (absoluteMediaUrl)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Data.Time (UTCTime)
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
@@ -33,9 +34,12 @@ episodeTitle episode = [i|Episode #{episodeNumber}|]
 
 -- | Build the feed item for one episode.
 --
--- Gives 'Nothing' when the episode has no audio or no publish date. The feed
--- queries already remove those episodes, but the columns can hold NULL, so
--- this function makes the decision again instead of failing.
+-- The item gives the air instant as its @pubDate@. Feed readers sort on
+-- @pubDate@, so the upload time would put the episodes out of air order.
+--
+-- Gives 'Nothing' when the episode has no audio. The feed queries already
+-- remove those episodes, but the column can hold NULL, so this function makes
+-- the decision again instead of failing.
 episodeFeedItem ::
   -- | The site base URL, from 'App.BaseUrl.baseUrl'
   Text ->
@@ -44,16 +48,18 @@ episodeFeedItem ::
   Text ->
   Shows.Model ->
   Episodes.Model ->
+  -- | The instant the episode aired
+  UTCTime ->
   Maybe RSS.Item
-episodeFeedItem siteBaseUrl backend title showModel episode =
-  case (episode.audioFilePath, episode.publishedAt) of
-    (Just audioPath, Just publishedAt) ->
+episodeFeedItem siteBaseUrl backend title showModel episode airedAt =
+  case episode.audioFilePath of
+    Just audioPath ->
       Just
         RSS.Item
           { RSS.itemTitle = title,
             RSS.itemLink = episodePageUrl,
             RSS.itemDescription = episode.description,
-            RSS.itemPublishedAt = publishedAt,
+            RSS.itemPublishedAt = airedAt,
             RSS.itemEnclosure =
               RSS.Enclosure
                 { RSS.enclosureUrl = absoluteMediaUrl siteBaseUrl backend audioPath,
@@ -61,7 +67,7 @@ episodeFeedItem siteBaseUrl backend title showModel episode =
                   RSS.enclosureType = audioMimeType
                 }
           }
-    _ -> Nothing
+    Nothing -> Nothing
   where
     episodePageUrl =
       siteBaseUrl <> rootLink (showEpisodesLinks.detail showModel.slug episode.episodeNumber)

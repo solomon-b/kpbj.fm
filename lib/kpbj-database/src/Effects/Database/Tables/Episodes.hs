@@ -93,7 +93,7 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
-import Hasql.Interpolate (DecodeRow (..), DecodeValue (..), EncodeValue (..), interp, sql)
+import Hasql.Interpolate (DecodeRow (..), DecodeValue (..), EncodeValue (..), OneColumn (..), interp, sql)
 import Hasql.Statement qualified as Hasql
 import OrphanInstances.Rel8 ()
 import Rel8 hiding (Enum, Insert, Update)
@@ -377,6 +377,10 @@ data UpcomingEpisodeRef = UpcomingEpisodeRef
 --
 -- This does __not__ filter on @published_at@. An episode with no publish date
 -- still appears once it has aired.
+--
+-- The episodes come newest first by air time. The sort does not use
+-- @published_at@, because a host can upload an episode days before it airs.
+-- The id breaks ties, so the pages stay stable.
 getPublishedEpisodesForShow :: UTCTime -> Shows.Id -> Limit -> Offset -> Hasql.Statement () [Model]
 getPublishedEpisodesForShow currentTime showId' (Limit lim) (Offset off) =
   interp
@@ -392,7 +396,7 @@ getPublishedEpisodesForShow currentTime showId' (Limit lim) (Offset off) =
     WHERE e.show_id = #{showId'}
       AND e.deleted_at IS NULL
       AND episode_air_time(e.air_date, st.start_time, st.timezone) <= #{currentTime}
-    ORDER BY e.published_at DESC NULLS LAST
+    ORDER BY episode_air_time(e.air_date, st.start_time, st.timezone) DESC, e.id DESC
     LIMIT #{lim} OFFSET #{off}
   |]
 
@@ -408,10 +412,10 @@ instance DecodeRow PublishedEpisodeRow where
   decodeRow = fmap PublishedEpisodeRow ((,) <$> decodeRow <*> decodeRow)
 
 -- | Get published episodes across all non-deleted shows, each paired with its
--- show, ordered by publish date (newest first).
+-- show, newest first by air time.
 --
 -- Powers the public @/archive@ page. Includes episodes from inactive shows —
--- only soft-deleted shows are excluded. "Published" matches
+-- only soft-deleted shows are excluded. "Published" and the sort order match
 -- 'getPublishedEpisodesForShow': not deleted, and the episode has aired.
 getPublishedEpisodesWithShows :: UTCTime -> Limit -> Offset -> Hasql.Statement () [(Model, Shows.Model)]
 getPublishedEpisodesWithShows currentTime (Limit lim) (Offset off) =
@@ -432,25 +436,42 @@ getPublishedEpisodesWithShows currentTime (Limit lim) (Offset off) =
     WHERE e.deleted_at IS NULL
       AND s.deleted_at IS NULL
       AND episode_air_time(e.air_date, st.start_time, st.timezone) <= #{currentTime}
-    ORDER BY e.published_at DESC NULLS LAST
+    ORDER BY episode_air_time(e.air_date, st.start_time, st.timezone) DESC, e.id DESC
     LIMIT #{lim} OFFSET #{off}
   |]
 
--- | Get every episode that belongs in the station RSS feed, each paired with
--- its show, newest first by publish date.
+-- | One row of 'getFeedEpisodesWithShows': an episode, its show, and the instant
+-- the episode aired.
+--
+-- The air instant is one column, so 'OneColumn' decodes it. Like
+-- 'PublishedEpisodeRow', this newtype stays private.
+newtype StationFeedRow = StationFeedRow {unStationFeedRow :: (Model, Shows.Model, UTCTime)}
+
+instance DecodeRow StationFeedRow where
+  decodeRow =
+    fmap StationFeedRow ((,,) <$> decodeRow <*> decodeRow <*> fmap getOneColumn decodeRow)
+
+-- | One row of 'getFeedEpisodesForShow': an episode and the instant it aired.
+newtype ShowFeedRow = ShowFeedRow {unShowFeedRow :: (Model, UTCTime)}
+
+instance DecodeRow ShowFeedRow where
+  decodeRow = fmap ShowFeedRow ((,) <$> decodeRow <*> fmap getOneColumn decodeRow)
+
+-- | Get every episode that belongs in the station RSS feed, each with its show
+-- and the instant it aired, newest first by air time.
 --
 -- A feed episode follows the same rules as the archive page: the episode is
 -- not deleted, its show is not deleted, and the episode has aired. A feed
--- item also needs two more things:
+-- item also needs an @audio_file_path@, because the item gives the audio as
+-- its enclosure.
 --
--- * a @published_at@ that is set and not in the future, because the item
---   gives it as the @pubDate@
--- * an @audio_file_path@, because the item gives the audio as its enclosure
+-- The item gives the air instant as its @pubDate@. Feed readers sort on
+-- @pubDate@, so the feed does not use @published_at@, which is the upload time.
 --
 -- There is no limit. The feed holds every episode that qualifies.
-getFeedEpisodesWithShows :: UTCTime -> Hasql.Statement () [(Model, Shows.Model)]
+getFeedEpisodesWithShows :: UTCTime -> Hasql.Statement () [(Model, Shows.Model, UTCTime)]
 getFeedEpisodesWithShows currentTime =
-  fmap unPublishedEpisodeRow
+  fmap unStationFeedRow
     <$> interp
       False
       [sql|
@@ -460,44 +481,43 @@ getFeedEpisodesWithShows currentTime =
       e.schedule_template_id, e.air_date, e.published_at, e.deleted_at,
       e.created_by, e.created_at, e.updated_at,
       s.id, s.title, s.slug, s.description, s.logo_url, s.status,
-      s.created_at, s.updated_at, s.deleted_at
+      s.created_at, s.updated_at, s.deleted_at,
+      episode_air_time(e.air_date, st.start_time, st.timezone)
     FROM episodes e
     JOIN shows s ON s.id = e.show_id
     JOIN schedule_templates st ON st.id = e.schedule_template_id
     WHERE e.deleted_at IS NULL
       AND s.deleted_at IS NULL
       AND e.audio_file_path IS NOT NULL
-      AND e.published_at IS NOT NULL
-      AND e.published_at <= #{currentTime}
       AND episode_air_time(e.air_date, st.start_time, st.timezone) <= #{currentTime}
-    ORDER BY e.published_at DESC, e.id DESC
+    ORDER BY episode_air_time(e.air_date, st.start_time, st.timezone) DESC, e.id DESC
   |]
 
--- | Get every episode of one show that belongs in its RSS feed, newest first by
--- publish date.
+-- | Get every episode of one show that belongs in its RSS feed, each with the
+-- instant it aired, newest first by air time.
 --
 -- The rules are the same as 'getFeedEpisodesWithShows'. The caller finds the
 -- show with 'Shows.getShowBySlug' first, which hides a deleted show, so this
 -- query does not check the show again.
-getFeedEpisodesForShow :: UTCTime -> Shows.Id -> Hasql.Statement () [Model]
+getFeedEpisodesForShow :: UTCTime -> Shows.Id -> Hasql.Statement () [(Model, UTCTime)]
 getFeedEpisodesForShow currentTime showId' =
-  interp
-    False
-    [sql|
+  fmap unShowFeedRow
+    <$> interp
+      False
+      [sql|
     SELECT
       e.id, e.show_id, e.description, e.episode_number, e.audio_file_path,
       e.audio_file_size, e.audio_mime_type, e.duration_seconds, e.artwork_url,
       e.schedule_template_id, e.air_date, e.published_at, e.deleted_at,
-      e.created_by, e.created_at, e.updated_at
+      e.created_by, e.created_at, e.updated_at,
+      episode_air_time(e.air_date, st.start_time, st.timezone)
     FROM episodes e
     JOIN schedule_templates st ON st.id = e.schedule_template_id
     WHERE e.show_id = #{showId'}
       AND e.deleted_at IS NULL
       AND e.audio_file_path IS NOT NULL
-      AND e.published_at IS NOT NULL
-      AND e.published_at <= #{currentTime}
       AND episode_air_time(e.air_date, st.start_time, st.timezone) <= #{currentTime}
-    ORDER BY e.published_at DESC, e.id DESC
+    ORDER BY episode_air_time(e.air_date, st.start_time, st.timezone) DESC, e.id DESC
   |]
 
 -- | Whether a read includes the episodes that staff archived.

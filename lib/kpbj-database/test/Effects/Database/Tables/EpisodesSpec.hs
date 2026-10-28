@@ -5,6 +5,7 @@ module Effects.Database.Tables.EpisodesSpec where
 --------------------------------------------------------------------------------
 
 import Control.Monad.IO.Class (liftIO)
+import Data.Bifunctor (first)
 import Data.List (isInfixOf)
 import Data.Time.Calendar (Day, addDays, dayOfWeek, fromGregorian, toGregorian)
 import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
@@ -55,6 +56,8 @@ spec =
           hedgehog . prop_getPublishedEpisodesForShow
         runs 10 . it "published listings split on the air time, not the date" $
           hedgehog . prop_publishedListingsSplitOnAirTime
+        runs 10 . it "published listings sort on the air time, not the publish date" $
+          hedgehog . prop_publishedListingsSortOnAirTime
         runs 10 . it "isUnaired answers from the template, and agrees with the database" $
           hedgehog . prop_isUnairedAgreesWithTheDatabase
         runs 10 . it "getEpisodeByShowAndNumber: looks up by show slug + episode number" $
@@ -73,8 +76,8 @@ spec =
           hedgehog . prop_liveEpisodeAtAirTimeFindsTheHolder
 
       describe "RSS feeds" $ do
-        runs 10 . it "feed queries: list only published episodes with audio, newest first" $
-          hedgehog . prop_feedQueriesListOnlyPublishedEpisodesWithAudio
+        runs 10 . it "feed queries: list aired episodes with audio, newest air time first" $
+          hedgehog . prop_feedQueriesListAiredEpisodesWithAudio
 
       describe "Episode numbering" $ do
         runs 10 . it "set_episode_number: consecutive inserts number 1, 2, 3" $
@@ -475,6 +478,61 @@ prop_publishedListingsSplitOnAirTime cfg = do
         filter (== lateId) archivedIds === listedIf lateId lateTime
         pure ()
 
+-- | The archive queries list episodes newest first by air time.
+--
+-- A host can upload an episode days before it airs, so the upload order and
+-- the air order can differ. In this fixture the first episode to air has the
+-- newer publish date. A sort on @published_at@ puts it first, and a sort on
+-- the air time puts it last.
+prop_publishedListingsSortOnAirTime :: TestDBConfig -> PropertyT IO ()
+prop_publishedListingsSortOnAirTime cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    scheduleTemplate <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      now <- liftIO getCurrentTime
+      let oneDay = 24 * 60 * 60
+          twoDaysAgo = addUTCTime (negate (2 * oneDay)) now
+          oneDayAgo = addUTCTime (negate oneDay) now
+          -- Two past dates the show airs on. The base is well in the past.
+          firstAirDay = airDayForTemplate scheduleTemplate feedFixtureBaseDay
+          secondAirDay = airDayForTemplate scheduleTemplate (addDays 1 firstAirDay)
+
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert scheduleTemplate
+        let onDay airDay =
+              episodeTemplate
+                { UUT.eiId = showId,
+                  UUT.eiScheduleTemplateId = Just templateId,
+                  UUT.eiAirDate = Just airDay,
+                  UUT.eiCreatedBy = userId
+                }
+        airedFirstId <- unwrapInsert (UUT.insertEpisode (onDay firstAirDay))
+        airedSecondId <- unwrapInsert (UUT.insertEpisode (onDay secondAirDay))
+
+        -- The episode that aired first was uploaded last.
+        TRX.statement () $
+          interp @() False [sql| UPDATE episodes SET published_at = #{oneDayAgo} WHERE id = #{airedFirstId} |]
+        TRX.statement () $
+          interp @() False [sql| UPDATE episodes SET published_at = #{twoDaysAgo} WHERE id = #{airedSecondId} |]
+
+        showListing <- TRX.statement () (UUT.getPublishedEpisodesForShow now showId (Limit 10) (Offset 0))
+        archive <- TRX.statement () (UUT.getPublishedEpisodesWithShows now (Limit 1000) (Offset 0))
+        TRX.condemn
+        pure (airedFirstId, airedSecondId, showListing, archive)
+
+      assert $ do
+        (airedFirstId, airedSecondId, showListing, archive) <- assertRight result
+        map UUT.id showListing === [airedSecondId, airedFirstId]
+        -- The archive holds rows from other tests too, so look only at the
+        -- rows of this fixture.
+        let archiveIds = filter (`elem` [airedFirstId, airedSecondId]) (map (UUT.id . fst) archive)
+        archiveIds === [airedSecondId, airedFirstId]
+
 -- | getPublishedEpisodesForShow: filters by non-deleted and past schedule.
 prop_getPublishedEpisodesForShow :: TestDBConfig -> PropertyT IO ()
 prop_getPublishedEpisodesForShow cfg = do
@@ -558,7 +616,8 @@ prop_getEpisodeByShowAndNumber cfg = do
 --------------------------------------------------------------------------------
 -- RSS feeds
 
--- | The two feed queries list only the episodes that a listener can play.
+-- | The two feed queries list the aired episodes that a listener can play,
+-- newest first by air time.
 --
 -- The fixture has one show with seven episodes, and a second show that staff
 -- deleted. Each excluded episode breaks exactly one rule, so each rule is
@@ -566,24 +625,27 @@ prop_getEpisodeByShowAndNumber cfg = do
 --
 -- * archived: @deleted_at@ is set
 -- * no audio: @audio_file_path@ is NULL
--- * unpublished: @published_at@ is NULL
--- * published later: @published_at@ is in the future
 -- * not aired yet: the air date is in the future
 -- * deleted show: the episode is fine, but its show is deleted
 --
--- Two episodes qualify. The one inserted first has the newer publish date, so
--- the order shows that the queries sort on @published_at@ and not on the id.
+-- Four episodes qualify. Two of them show that @published_at@ does not
+-- matter: one has no publish date, and one has a publish date in the future.
+-- The first episode to air has the newest past publish date, so the order
+-- shows that the queries sort on the air time and not on @published_at@.
 --
 -- The insert stamps @published_at@ with the transaction time, which comes after
 -- @now@. So the fixture writes a past publish date on every episode first, and
--- then changes the two that test @published_at@.
-prop_feedQueriesListOnlyPublishedEpisodesWithAudio :: TestDBConfig -> PropertyT IO ()
-prop_feedQueriesListOnlyPublishedEpisodesWithAudio cfg = do
+-- then changes the three that test @published_at@.
+--
+-- The live template is pinned to Pacific, because the expected air instants
+-- come from 'airTimeOn', which is Pacific.
+prop_feedQueriesListAiredEpisodesWithAudio :: TestDBConfig -> PropertyT IO ()
+prop_feedQueriesListAiredEpisodesWithAudio cfg = do
   arrange (bracketConn cfg) $ do
     userWithMetadata <- forAllT userWithMetadataInsertGen
     liveShowInsert <- forAllT showInsertGen
     deletedShowInsert <- forAllT showInsertGen
-    liveTemplate <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
+    liveTemplateGen <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
     deletedShowTemplate <- forAllT $ genRecurringScheduleInsert (Shows.Id 1)
     episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
 
@@ -593,6 +655,7 @@ prop_feedQueriesListOnlyPublishedEpisodesWithAudio cfg = do
           twoDaysAgo = addUTCTime (negate (2 * oneDay)) now
           oneDayAgo = addUTCTime (negate oneDay) now
           oneDayAhead = addUTCTime oneDay now
+          liveTemplate = liveTemplateGen {ShowSchedule.stiTimezone = "America/Los_Angeles"}
 
           -- Six past dates the live show airs on, one for each episode that
           -- has aired. The base is far enough back that all six are in the past.
@@ -629,8 +692,8 @@ prop_feedQueriesListOnlyPublishedEpisodesWithAudio cfg = do
                 }
             insertOn = unwrapInsert . UUT.insertEpisode
 
-        newerId <- insertOn (withAudio liveShowId liveTemplateId airDay1)
-        olderId <- insertOn (withAudio liveShowId liveTemplateId airDay2)
+        uploadedLastId <- insertOn (withAudio liveShowId liveTemplateId airDay1)
+        uploadedFirstId <- insertOn (withAudio liveShowId liveTemplateId airDay2)
         archivedId <- insertOn (withAudio liveShowId liveTemplateId airDay3)
         noAudioId <- insertOn (withoutAudio liveShowId liveTemplateId airDay4)
         unpublishedId <- insertOn (withAudio liveShowId liveTemplateId airDay5)
@@ -647,7 +710,7 @@ prop_feedQueriesListOnlyPublishedEpisodesWithAudio cfg = do
           WHERE show_id IN (#{liveShowId}, #{deletedShowId})
         |]
         TRX.statement () $
-          interp @() False [sql| UPDATE episodes SET published_at = #{oneDayAgo} WHERE id = #{newerId} |]
+          interp @() False [sql| UPDATE episodes SET published_at = #{oneDayAgo} WHERE id = #{uploadedLastId} |]
         TRX.statement () $
           interp @() False [sql| UPDATE episodes SET published_at = NULL WHERE id = #{unpublishedId} |]
         TRX.statement () $
@@ -660,18 +723,25 @@ prop_feedQueriesListOnlyPublishedEpisodesWithAudio cfg = do
         TRX.condemn
 
         let fixtureIds =
-              [newerId, olderId, archivedId, noAudioId, unpublishedId, publishedLaterId, notAiredId, deletedShowEpisodeId]
-        pure (liveShowId, newerId, olderId, fixtureIds, showFeed, stationFeed)
+              [uploadedLastId, uploadedFirstId, archivedId, noAudioId, unpublishedId, publishedLaterId, notAiredId, deletedShowEpisodeId]
+            expected =
+              [ (publishedLaterId, airTimeOn liveTemplate airDay6),
+                (unpublishedId, airTimeOn liveTemplate airDay5),
+                (uploadedFirstId, airTimeOn liveTemplate airDay2),
+                (uploadedLastId, airTimeOn liveTemplate airDay1)
+              ]
+        pure (liveShowId, expected, fixtureIds, showFeed, stationFeed)
 
       assert $ do
-        (liveShowId, newerId, olderId, fixtureIds, showFeed, stationFeed) <- assertRight result
-        -- The show feed holds the two qualifying episodes, newest first.
-        map UUT.id showFeed === [newerId, olderId]
+        (liveShowId, expected, fixtureIds, showFeed, stationFeed) <- assertRight result
+        -- The show feed holds the four qualifying episodes, newest air time
+        -- first, each with the instant it aired.
+        map (first UUT.id) showFeed === expected
         -- The station feed holds rows from other tests too, so look only at
         -- the rows of this fixture.
-        let stationRows = filter (\(episode, _) -> UUT.id episode `elem` fixtureIds) stationFeed
-        map (UUT.id . fst) stationRows === [newerId, olderId]
-        map (Shows.id . snd) stationRows === [liveShowId, liveShowId]
+        let stationRows = filter (\(episode, _, _) -> UUT.id episode `elem` fixtureIds) stationFeed
+        map (\(episode, _, airedAt) -> (UUT.id episode, airedAt)) stationRows === expected
+        map (\(_, showModel, _) -> Shows.id showModel) stationRows === replicate 4 liveShowId
 
 -- | A base date for the feed fixture, well in the past.
 --
