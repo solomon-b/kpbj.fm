@@ -10,7 +10,6 @@ import Component.EpisodeFeedItem (episodeFeedItem, episodeTitle)
 import Data.Maybe (mapMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
-import Data.Time (UTCTime)
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
@@ -27,16 +26,15 @@ template ::
   -- | The site base URL, from 'App.BaseUrl.baseUrl'
   Text ->
   StorageBackend ->
-  -- | Each episode with its show and the instant it aired
-  [(Episodes.Model, Shows.Model, UTCTime)] ->
+  [Episodes.StationFeedRow] ->
   Xml.Document
-template siteBaseUrl backend episodesWithShows =
+template siteBaseUrl backend feedRows =
   RSS.renderFeed channel items
   where
-    items = mapMaybe toItem episodesWithShows
+    items = mapMaybe toItem feedRows
 
-    toItem (episode, showModel, airedAt) =
-      episodeFeedItem siteBaseUrl backend (stationItemTitle showModel episode) showModel episode airedAt
+    toItem row =
+      episodeFeedItem siteBaseUrl backend (stationItemTitle row.sfrShow row.sfrEpisode) row.sfrShow row.sfrEpisode row.sfrAiredAt
 
     newestPublishedAt =
       case items of

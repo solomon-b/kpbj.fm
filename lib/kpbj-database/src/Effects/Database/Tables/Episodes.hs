@@ -63,6 +63,7 @@ module Effects.Database.Tables.Episodes
 
     -- * Result Types
     EpisodeWithShow (..),
+    StationFeedRow (..),
     SearchResult (..),
     UpcomingEpisodeRef (..),
 
@@ -440,16 +441,22 @@ getPublishedEpisodesWithShows currentTime (Limit lim) (Offset off) =
     LIMIT #{lim} OFFSET #{off}
   |]
 
--- | One row of 'getFeedEpisodesWithShows': an episode, its show, and the instant
--- the episode aired.
---
--- The air instant is one column, so 'OneColumn' decodes it. Like
--- 'PublishedEpisodeRow', this newtype stays private.
-newtype StationFeedRow = StationFeedRow {unStationFeedRow :: (Model, Shows.Model, UTCTime)}
+-- | One row of 'getFeedEpisodesWithShows'.
+data StationFeedRow = StationFeedRow
+  { sfrEpisode :: Model,
+    sfrShow :: Shows.Model,
+    -- | The instant the episode aired
+    sfrAiredAt :: UTCTime
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving (Display) via (RecordInstance StationFeedRow)
 
+-- | The episode and the show each span several columns, so a derived instance
+-- cannot decode them. This instance reads them in column order. The air
+-- instant is one column, so 'OneColumn' decodes it.
 instance DecodeRow StationFeedRow where
   decodeRow =
-    fmap StationFeedRow ((,,) <$> decodeRow <*> decodeRow <*> fmap getOneColumn decodeRow)
+    StationFeedRow <$> decodeRow <*> decodeRow <*> fmap getOneColumn decodeRow
 
 -- | One row of 'getFeedEpisodesForShow': an episode and the instant it aired.
 newtype ShowFeedRow = ShowFeedRow {unShowFeedRow :: (Model, UTCTime)}
@@ -469,12 +476,11 @@ instance DecodeRow ShowFeedRow where
 -- @pubDate@, so the feed does not use @published_at@, which is the upload time.
 --
 -- There is no limit. The feed holds every episode that qualifies.
-getFeedEpisodesWithShows :: UTCTime -> Hasql.Statement () [(Model, Shows.Model, UTCTime)]
+getFeedEpisodesWithShows :: UTCTime -> Hasql.Statement () [StationFeedRow]
 getFeedEpisodesWithShows currentTime =
-  fmap unStationFeedRow
-    <$> interp
-      False
-      [sql|
+  interp
+    False
+    [sql|
     SELECT
       e.id, e.show_id, e.description, e.episode_number, e.audio_file_path,
       e.audio_file_size, e.audio_mime_type, e.duration_seconds, e.artwork_url,

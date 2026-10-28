@@ -5,7 +5,7 @@ module Effects.Database.Tables.EpisodesSpec where
 --------------------------------------------------------------------------------
 
 import Control.Monad.IO.Class (liftIO)
-import Data.Bifunctor (first)
+import Data.Bifunctor qualified as Bifunctor
 import Data.List (isInfixOf)
 import Data.Time.Calendar (Day, addDays, dayOfWeek, fromGregorian, toGregorian)
 import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
@@ -736,12 +736,12 @@ prop_feedQueriesListAiredEpisodesWithAudio cfg = do
         (liveShowId, expected, fixtureIds, showFeed, stationFeed) <- assertRight result
         -- The show feed holds the four qualifying episodes, newest air time
         -- first, each with the instant it aired.
-        map (first UUT.id) showFeed === expected
+        map (Bifunctor.first UUT.id) showFeed === expected
         -- The station feed holds rows from other tests too, so look only at
         -- the rows of this fixture.
-        let stationRows = filter (\(episode, _, _) -> UUT.id episode `elem` fixtureIds) stationFeed
-        map (\(episode, _, airedAt) -> (UUT.id episode, airedAt)) stationRows === expected
-        map (\(_, showModel, _) -> Shows.id showModel) stationRows === replicate 4 liveShowId
+        let stationRows = filter (\row -> UUT.id (UUT.sfrEpisode row) `elem` fixtureIds) stationFeed
+        map (\row -> (UUT.id (UUT.sfrEpisode row), UUT.sfrAiredAt row)) stationRows === expected
+        map (Shows.id . UUT.sfrShow) stationRows === replicate 4 liveShowId
 
 -- | A base date for the feed fixture, well in the past.
 --
