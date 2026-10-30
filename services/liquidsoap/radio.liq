@@ -218,6 +218,11 @@ end
 # Mirrors the poll path: rewrites only the URL, builds annotate string internally.
 # The fallback(track_sensitive=false) switch picks it up automatically.
 # Used by the webhook when an admin forces an episode from the dashboard.
+#
+# The forced episode replaces the scheduled queue. A plain push put it behind
+# the episode on air, so a second force-play to correct a wrong one waited for
+# the whole wrong episode. See skip_if_ready for why the skip must not reach an
+# idle queue.
 server.register("force_play", fun(param) -> begin
   try
     let json.parse (data : {url: string, title: string?, artist: string?}) = param
@@ -227,6 +232,8 @@ server.register("force_play", fun(param) -> begin
     annotated = "annotate:title=\"#{title}\",artist=\"#{artist}\",source_type=\"episode\",source_url=\"#{url}\":#{url}"
     log.important("[KPBJ] Force play: #{url}")
     last_scheduled := url
+    scheduled_queue.set_queue([])
+    skip_if_ready(scheduled_queue)
     scheduled_queue.push(request.create(annotated))
     "OK"
   catch _ do
