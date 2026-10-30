@@ -5,6 +5,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- **A force-play now replaces the episode on air.** Liquidsoap added the forced episode to the end of the scheduled queue, so it waited until the current episode ended. A second force-play to correct a wrong one waited behind the wrong episode, and only a restart fixed it. Force-play now clears the queue, skips the episode on air, and starts the forced episode. Up to 5 seconds of the old episode can still play from the buffer (#157).
 - **The request log no longer writes secrets.** The request logger of `web-server-core` wrote every header and the full query string. The playout secret from Liquidsoap, session cookies, and password-reset tokens went to the journal and to Loki (#158).
   - `App.RequestLog` now replaces that logger. It writes the same fields, but it replaces each secret value with `<redacted>`.
   - It redacts the `authorization`, `cookie`, `stripe-signature`, and `x-playout-secret` headers.

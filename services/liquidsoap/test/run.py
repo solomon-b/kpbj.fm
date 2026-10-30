@@ -104,10 +104,6 @@ RESTART_FROM_ZERO = (
     "After a restart in a show, the episode plays from 0:00, and the next show "
     "waits behind it in the queue. Issue #152."
 )
-FORCE_PLAY_QUEUES = (
-    "force_play adds the episode to the end of the scheduled queue, so it waits "
-    "behind the episode on air."
-)
 
 # --- Scenarios ---------------------------------------------------------------
 #
@@ -199,7 +195,22 @@ SCENARIOS = {
         tracks={"Show F": 120},
         breaks=[],
         steps=[force_play("16:50:35", "Show F")],
-        checks=[airs("Show F", "episode", "16:50:35", "16:50:50", known_issue=FORCE_PLAY_QUEUES)],
+        checks=[airs("Show F", "episode", "16:50:35", "16:50:50")],
+    ),
+    # A staff member force-plays the wrong episode, then force-plays the
+    # correct one to fix it. The correct episode must replace the wrong one at
+    # once. Issue #157.
+    "force-play-twice": dict(
+        start=at("16:50:10"),
+        end=at("16:51:15"),
+        slots=[(at("16:30:00"), at("17:00:00"), "Show A", 600)],
+        tracks={"Show F": 120, "Show G": 120},
+        breaks=[],
+        steps=[force_play("16:50:30", "Show F"), force_play("16:50:45", "Show G")],
+        checks=[
+            airs("Show F", "episode", "16:50:30", "16:50:45"),
+            airs("Show G", "episode", "16:50:45", "16:51:00"),
+        ],
     ),
 }
 
