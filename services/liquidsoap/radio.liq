@@ -242,10 +242,13 @@ server.register("force_play", fun(param) -> begin
   end
 end)
 
-# Skip track: clear scheduled state and skip current source to drop to fallback.
+# Skip track: skip the current source to drop to fallback.
+#
+# last_scheduled is deliberately left alone. Clearing it let the next poll in
+# the same slot get the skipped episode from /now and play it again from 0:00.
+# To re-air a skipped episode, use force_play.
 server.register("skip_track", fun(_) -> begin
   log.important("[KPBJ] Skip track: dropping to fallback")
-  last_scheduled := ""
   skip_if_ready(break_source)
   skip_if_ready(scheduled_queue)
   skip_if_ready(fallback_queue)

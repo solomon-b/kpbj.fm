@@ -173,6 +173,19 @@ SCENARIOS = {
         steps=[telnet("16:59:30", "skip_track")],
         checks=[airs("Show B", "episode", "16:59:55", "17:00:15")],
     ),
+    # A staff member skips an episode early in a one-hour slot. The :29:55 poll
+    # gets the same episode from /now. The episode must stay skipped. Issue #159.
+    "skip-track-mid-slot": dict(
+        start=at("16:14:50"),
+        end=at("16:30:20"),
+        slots=[(at("16:00:00"), at("17:00:00"), "Show A", 3600)],
+        breaks=[],
+        steps=[telnet("16:15:15", "skip_track"), jump("16:15:25", "16:29:40")],
+        checks=[
+            airs("Show A", "episode", "16:14:50", "16:15:15"),
+            absent("Show A", "episode", "16:29:50", "16:30:20"),
+        ],
+    ),
     # Liquidsoap restarts after the :58 break, in the last minutes of Show A.
     # The next show must air at 17:00.
     "restart-near-end-of-show": dict(
