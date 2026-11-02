@@ -82,18 +82,21 @@ type BreakResponse = [PlayoutTrack]
 -- | Response type for the "now playing" endpoint.
 --
 -- Serializes to either:
--- - @{"url": "https://...", "title": "...", "artist": "..."}@ when audio is available
+-- - @{"url": "https://...", "offset_seconds": 0, "title": "...", "artist": "..."}@
+--   when audio is available
 -- - @null@ when no audio is available
 data NowPlayingResponse
-  = NowPlaying Text PlayoutMetadata
+  = -- | The audio URL, the seconds since the slot started, and the metadata.
+    NowPlaying Text Int64 PlayoutMetadata
   | NothingPlaying
   deriving stock (Generic, Show, Eq)
 
 instance ToJSON NowPlayingResponse where
   toJSON NothingPlaying = toJSON (Nothing :: Maybe Text)
-  toJSON (NowPlaying url meta) =
+  toJSON (NowPlaying url offset meta) =
     object
       [ "url" .= sanitizeAnnotateValue url,
+        "offset_seconds" .= offset,
         "title" .= meta.title,
         "artist" .= meta.artist
       ]

@@ -47,6 +47,8 @@ module Effects.Database.Tables.Episodes
     getEpisodesByUser,
     getCurrentlyAiringEpisode,
     getCurrentlyAiringEpisodes,
+    getAiringEpisodes,
+    AiringEpisode (..),
     insertEpisode,
     updateEpisode,
     updateEpisodeFiles,
@@ -615,7 +617,8 @@ getEpisodesByUser userId (Limit lim) (Offset off) =
             where_ $ isNull ep.deletedAt
             pure ep
 
--- | Every row that the schedule says should be on air at the given time.
+-- | Every row that the schedule says should be on air at the given time, with
+-- the start of the window that each episode airs in.
 --
 -- Liquidsoap polls @\/api\/playout\/now@, which calls this and broadcasts the
 -- first row.
@@ -701,10 +704,10 @@ getEpisodesByUser userId (Limit lim) (Offset off) =
 -- @
 --
 -- @LEAST@ skips a NULL, so an episode with no @duration_seconds@ runs to
--- @window_end@. @duration_seconds@ is written by browser JavaScript at upload
--- from @HTMLAudioElement.duration@, in @Component.AudioDurationScript@, and
--- nothing validates it on the way in. A value of 0 or less therefore reads as
--- NULL here, and the episode runs to @window_end@. Without that guard a value
+-- @window_end@. The upload handler now measures @duration_seconds@ with
+-- @ffprobe@. An older row can hold a value that the browser read at upload, and
+-- nothing validated that value. A value of 0 or less therefore reads as NULL
+-- here, and the episode runs to @window_end@. Without that guard a value
 -- of 0 makes @window_stop@ equal @window_start@, and a negative value puts it
 -- before @window_start@, so the episode never airs and the hour is dead air.
 --
@@ -752,8 +755,8 @@ getEpisodesByUser userId (Limit lim) (Offset off) =
 --
 -- The first two are scheduling conflicts. The last two are one airing counted
 -- twice. The query does not distinguish them.
-getCurrentlyAiringEpisodes :: UTCTime -> Hasql.Statement () [Model]
-getCurrentlyAiringEpisodes currentTime =
+getAiringEpisodes :: UTCTime -> Hasql.Statement () [AiringEpisode]
+getAiringEpisodes currentTime =
   interp
     False
     [sql|
@@ -847,7 +850,8 @@ getCurrentlyAiringEpisodes currentTime =
       id, show_id, description, episode_number, audio_file_path,
       audio_file_size, audio_mime_type, duration_seconds, artwork_url,
       schedule_template_id, air_date, published_at, deleted_at,
-      created_by, created_at, updated_at
+      created_by, created_at, updated_at,
+      window_start
     FROM airing_windows
     WHERE #{currentTime} >= window_start
       AND #{currentTime} < window_stop
@@ -855,6 +859,25 @@ getCurrentlyAiringEpisodes currentTime =
     -- stable, so the stream does not flip between two claimants on each poll.
     ORDER BY is_replay, air_date DESC, id DESC
   |]
+
+-- | One row of 'getAiringEpisodes'.
+data AiringEpisode = AiringEpisode
+  { aeEpisode :: Model,
+    -- | The instant the matching primary or replay window opened
+    aeWindowStart :: UTCTime
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving (Display) via (RecordInstance AiringEpisode)
+
+-- | The episode spans several columns, so a derived instance cannot decode it.
+-- This instance reads the columns in order. The window start is one column, so
+-- 'OneColumn' decodes it.
+instance DecodeRow AiringEpisode where
+  decodeRow = AiringEpisode <$> decodeRow <*> fmap getOneColumn decodeRow
+
+-- | The episodes of 'getAiringEpisodes', without their window starts.
+getCurrentlyAiringEpisodes :: UTCTime -> Hasql.Statement () [Model]
+getCurrentlyAiringEpisodes = fmap (map (.aeEpisode)) . getAiringEpisodes
 
 -- | The first row of 'getCurrentlyAiringEpisodes', or Nothing.
 --
@@ -972,7 +995,7 @@ updateScheduledSlot ScheduleSlotUpdate {..} =
 -- date with no template gives no window. Each column alone has no use.
 -- 'clearTemplateForUpcomingEpisodes' writes the same pair for a full template.
 --
--- 'getCurrentlyAiringEpisodes' joins the template with an inner join. A cleared
+-- 'getAiringEpisodes' joins the template with an inner join. A cleared
 -- episode therefore leaves the stream immediately.
 -- @unique_episode_air_date@ covers the live rows only, and NULL values never
 -- collide. A new episode can take the free air date immediately. The cleared

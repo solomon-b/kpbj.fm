@@ -90,6 +90,7 @@ import API.Invite.Token.Post.HandlerSpec qualified as InviteTokenPostHandler
 import API.Newsletter.Subscribe.Post.HandlerSpec qualified as NewsletterSubscribeHandler
 import API.Playout.Break.Get.HandlerSpec qualified as PlayoutBreakGetHandler
 import API.Playout.Fallback.Get.HandlerSpec qualified as PlayoutFallbackGetHandler
+import API.Playout.Now.Get.HandlerSpec qualified as PlayoutNowGetHandler
 import API.Playout.Played.Post.HandlerSpec qualified as PlayoutPlayedPostHandler
 import API.Schedule.Get.HandlerSpec qualified as ScheduleHandler
 import API.Shows.Get.HandlerSpec qualified as ShowsHandler
@@ -181,6 +182,7 @@ main = do
     Combinators.spec
     ErrorHandler.spec
     HomeHandler.spec
+    PlayoutNowGetHandler.spec
     PlayoutFallbackGetHandler.spec
     PlayoutBreakGetHandler.spec
     PlayoutPlayedPostHandler.spec

@@ -168,6 +168,12 @@ spec =
         it "ignores the template timezone and uses Pacific" templateTimezoneIsIgnored
         it "an episode from two dates ago never airs" oldEpisodeNeverAirs
 
+      -- The playout API measures the offset of an episode from this instant.
+      describe "getAiringEpisodes window start" $ do
+        it "gives the start of the primary window" windowStartPrimary
+        it "gives the start of the replay window" windowStartReplay
+        it "gives the previous date for an overnight window after midnight" windowStartOvernight
+
 --------------------------------------------------------------------------------
 -- Test Helpers
 
@@ -864,6 +870,45 @@ overnightAfterEnd cfg = bracketConn cfg $ do
   case result of
     Left err -> error $ "DB error: " <> show err
     Right mEpisode -> liftIO $ mEpisode `shouldBe` Nothing
+
+--------------------------------------------------------------------------------
+-- Window start
+
+windowStartPrimary :: TestDBConfig -> IO ()
+windowStartPrimary cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    _ <- setupTestData passHash (TimeOfDay 6 0 0) (TimeOfDay 8 0 0) (Just (TimeOfDay 18 0 0)) testDay (Just "audio/test.mp3") testDay Nothing
+    airing <- TRX.statement () $ Episodes.getAiringEpisodes (mkTestTime (TimeOfDay 7 10 0))
+    TRX.condemn
+    pure airing
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right airing -> liftIO $ map (.aeWindowStart) airing `shouldBe` [mkTestTime (TimeOfDay 6 0 0)]
+
+windowStartReplay :: TestDBConfig -> IO ()
+windowStartReplay cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    _ <- setupTestData passHash (TimeOfDay 6 0 0) (TimeOfDay 8 0 0) (Just (TimeOfDay 18 0 0)) testDay (Just "audio/test.mp3") testDay Nothing
+    airing <- TRX.statement () $ Episodes.getAiringEpisodes (mkTestTime (TimeOfDay 19 10 0))
+    TRX.condemn
+    pure airing
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right airing -> liftIO $ map (.aeWindowStart) airing `shouldBe` [mkTestTime (TimeOfDay 18 0 0)]
+
+windowStartOvernight :: TestDBConfig -> IO ()
+windowStartOvernight cfg = bracketConn cfg $ do
+  passHash <- hashPassword $ mkPassword "testpass"
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    _ <- setupTestData passHash (TimeOfDay 23 0 0) (TimeOfDay 2 0 0) Nothing testDay (Just "audio/test.mp3") testDay Nothing
+    airing <- TRX.statement () $ Episodes.getAiringEpisodes (mkTestTimeNextDay (TimeOfDay 1 0 0))
+    TRX.condemn
+    pure airing
+  case result of
+    Left err -> error $ "DB error: " <> show err
+    Right airing -> liftIO $ map (.aeWindowStart) airing `shouldBe` [mkTestTime (TimeOfDay 23 0 0)]
 
 --------------------------------------------------------------------------------
 -- Replay Airing Tests (replay_start_time)

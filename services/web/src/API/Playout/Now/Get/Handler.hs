@@ -4,6 +4,7 @@ module API.Playout.Now.Get.Handler
 
     -- * Exported for testing
     actionAt,
+    offsetSeconds,
   )
 where
 
@@ -19,7 +20,8 @@ import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Either (fromRight)
 import Data.Has qualified as Has
-import Data.Time (NominalDiffTime, UTCTime, addUTCTime)
+import Data.Int (Int64)
+import Data.Time (NominalDiffTime, UTCTime, addUTCTime, diffUTCTime)
 import Effects.Clock (currentSystemTime)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -40,42 +42,59 @@ lookAhead = 10
 -- | Handler for GET /api/playout/now.
 --
 -- Returns the audio URL for the episode airing 10 seconds from now, based on
--- the schedule. Returns null (NothingPlaying) if no episode is scheduled then,
--- if the scheduled episode has no audio uploaded, or on any database error.
+-- the schedule, and the offset into its slot. Returns null (NothingPlaying) if
+-- no episode is scheduled then, if the scheduled episode has no audio uploaded,
+-- or on any database error.
 -- Graceful degradation: any error returns null rather than failing.
 handler :: AppM NowPlayingResponse
-handler = currentSystemTime >>= actionAt . addUTCTime lookAhead
+handler = currentSystemTime >>= actionAt
 
 -- | 'handler' for a given instant.
+--
+-- The instant is the real time, not the look-ahead time. The offset must count
+-- from the real time, or an episode would start 10 seconds ahead of the schedule.
 actionAt :: UTCTime -> AppM NowPlayingResponse
-actionAt lookupTime = do
-  result <- execQuery $ Episodes.getCurrentlyAiringEpisodes lookupTime
+actionAt now = do
+  result <- execQuery $ Episodes.getAiringEpisodes (addUTCTime lookAhead now)
 
-  mEpisode <- case result of
+  mAiring <- case result of
     Left _err -> pure Nothing -- Graceful degradation on DB error
     Right [] -> pure Nothing
-    Right (episode : rest) -> do
+    Right (airing : rest) -> do
       -- More than one row claims this time. The order is stable, so the stream
       -- stays on one of them, but the extra rows are a data defect. Either two
       -- slots overlap, and the stream silences one of them, or one airing is
-      -- counted twice. See 'Episodes.getCurrentlyAiringEpisodes'.
+      -- counted twice. See 'Episodes.getAiringEpisodes'.
       unless (null rest) $
         Log.logAttention
           "More than one episode is airing now"
-          (Aeson.object ["episode.ids" .= map (.id) (episode : rest)])
-      pure (Just episode)
+          (Aeson.object ["episode.ids" .= map ((.id) . (.aeEpisode)) (airing : rest)])
+      pure (Just airing)
 
-  case mEpisode of
+  case mAiring of
     Nothing -> pure NothingPlaying
-    Just episode -> case episode.audioFilePath of
+    Just airing -> case airing.aeEpisode.audioFilePath of
       Nothing -> pure NothingPlaying
       Just audioPath -> do
         -- Fetch show info for metadata
-        showResult <- execQuery $ Shows.getShowById episode.showId
+        showResult <- execQuery $ Shows.getShowById airing.aeEpisode.showId
         let showTitle = maybe "KPBJ 95.9 FM" (.title) (fromRight Nothing showResult)
             metadata = mkPlayoutMetadata showTitle "KPBJ 95.9 FM"
+            offset = offsetSeconds now airing.aeWindowStart
 
         storageBackend <- asks (Has.getter @StorageBackend)
         appBaseUrl <- baseUrl
         let fullUrl = absoluteMediaUrl appBaseUrl storageBackend audioPath
-        pure $ NowPlaying fullUrl metadata
+        pure $ NowPlaying fullUrl offset metadata
+
+-- | The whole seconds from the start of a window to an instant.
+--
+-- The poll before a boundary runs before the window opens, so the difference can
+-- be negative. That case gives 0, and the episode plays from the start.
+offsetSeconds ::
+  -- | The instant
+  UTCTime ->
+  -- | The start of the window
+  UTCTime ->
+  Int64
+offsetSeconds now windowStart = max 0 (floor (diffUTCTime now windowStart))
