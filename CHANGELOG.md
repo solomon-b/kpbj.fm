@@ -5,6 +5,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- **The DST slot test no longer fails in the week after some fall clock changes.** The test looked for two clock changes in the next 400 days, but the query that it checks returns only 365 dates. The test now searches only the range of the query, and it accepts one clock change.
 - **A force-play now replaces the episode on air.** Liquidsoap added the forced episode to the end of the scheduled queue, so it waited until the current episode ended. A second force-play to correct a wrong one waited behind the wrong episode, and only a restart fixed it. Force-play now clears the queue, skips the episode on air, and starts the forced episode. Up to 5 seconds of the old episode can still play from the buffer (#157).
 - **A skipped episode stays skipped for the rest of its slot.** The skip-track command cleared the record of the scheduled episode. The next poll in the same slot then got the same episode from the API and played it again from 0:00. A skip at `:15` in a one-hour slot put the episode back on air at `:30`. Skip-track no longer clears that record. To re-air a skipped episode, use force-play (#159).
 - **The request log no longer writes secrets.** The request logger of `web-server-core` wrote every header and the full query string. The playout secret from Liquidsoap, session cookies, and password-reset tokens went to the journal and to Loki (#158).

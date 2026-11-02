@@ -1192,13 +1192,18 @@ pacificOffsetAt d =
     (Time.UTCTime d (Time.secondsToDiffTime 43200))
     (pacificToUtc (LocalTime d (TimeOfDay 12 0 0)))
 
--- | The next two dates on which Pacific time changes its offset.
+-- | The next dates, at most two, on which Pacific time changes its offset.
 --
 -- The test reads the transitions from the timezone database instead of applying
 -- the US rule. A change to the rule then moves the test with it.
+--
+-- 'UUT.getUpcomingUnscheduledShowDates' returns 365 dates, from today through
+-- today + 364 in Pacific time. The search stops at 363 days, because the given
+-- date is a UTC date, and that can be one day ahead of Pacific. One fall change
+-- can be 371 days after the last, so this range can hold only one transition.
 nextDstTransitions :: Time.Day -> [Time.Day]
 nextDstTransitions from =
-  take 2 [d | d <- [addDays 1 from .. addDays 400 from], pacificOffsetAt d /= pacificOffsetAt (addDays (-1) d)]
+  take 2 [d | d <- [addDays 1 from .. addDays 363 from], pacificOffsetAt d /= pacificOffsetAt (addDays (-1) d)]
 
 -- | Build the slot cases for a given date.
 --
@@ -1208,16 +1213,18 @@ nextDstTransitions from =
 -- controls hold the test honest, because they agree under the defect as well.
 slotCases :: Time.Day -> [SlotCase]
 slotCases today = case nextDstTransitions today of
-  [t1, t2] ->
-    [ SlotCase (withSlug "dst-a") ("same day, transition " <> show t1) t1 (TimeOfDay 1 0 0) (TimeOfDay 4 0 0),
-      SlotCase (withSlug "dst-b") ("overnight into transition " <> show t1) (addDays (-1) t1) (TimeOfDay 23 0 0) (TimeOfDay 4 0 0),
-      SlotCase (withSlug "dst-c") ("same day, transition " <> show t2) t2 (TimeOfDay 1 0 0) (TimeOfDay 4 0 0),
-      SlotCase (withSlug "dst-d") ("overnight into transition " <> show t2) (addDays (-1) t2) (TimeOfDay 23 0 0) (TimeOfDay 4 0 0),
-      SlotCase (withSlug "plain-a") "control, ordinary date" control (TimeOfDay 8 0 0) (TimeOfDay 10 0 0),
-      SlotCase (withSlug "plain-b") "control, ordinary overnight date" control (TimeOfDay 23 0 0) (TimeOfDay 1 0 0)
-    ]
-  _ -> []
+  [] -> []
+  transitions ->
+    concat (zipWith transitionCases [("dst-a", "dst-b"), ("dst-c", "dst-d")] transitions)
+      <> [ SlotCase (withSlug "plain-a") "control, ordinary date" control (TimeOfDay 8 0 0) (TimeOfDay 10 0 0),
+           SlotCase (withSlug "plain-b") "control, ordinary overnight date" control (TimeOfDay 23 0 0) (TimeOfDay 1 0 0)
+         ]
   where
+    transitionCases (sameDay, overnight) t =
+      [ SlotCase (withSlug sameDay) ("same day, transition " <> show t) t (TimeOfDay 1 0 0) (TimeOfDay 4 0 0),
+        SlotCase (withSlug overnight) ("overnight into transition " <> show t) (addDays (-1) t) (TimeOfDay 23 0 0) (TimeOfDay 4 0 0)
+      ]
+
     -- A date 30 days out, moved off a transition week if it lands on one.
     control =
       let candidate = addDays 30 today
@@ -1261,7 +1268,7 @@ prop_slotEndTimeMatchesSql cfg = do
         outcomes <- assertRight result
         if null outcomes
           then do
-            annotate "the timezone database reports fewer than 2 Pacific transitions in the next 400 days"
+            annotate "the timezone database reports no Pacific transition in the range of the query"
             failure
           else forM_ outcomes $ \(sc, mTemplate, rows) -> do
             annotate (scLabel sc)
