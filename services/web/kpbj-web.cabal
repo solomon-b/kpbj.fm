@@ -848,6 +848,7 @@ test-suite kpbj-web-test
        API.Events.Event.Get.HandlerSpec
        API.Events.Get.HandlerSpec
        API.Get.HandlerSpec
+       API.Playout.Now.Get.HandlerSpec
        API.Playout.Fallback.Get.HandlerSpec
        API.Playout.Break.Get.HandlerSpec
        API.Playout.Played.Post.HandlerSpec

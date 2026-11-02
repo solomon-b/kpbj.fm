@@ -104,7 +104,7 @@ newtype TemplateId = TemplateId {unTemplateId :: Int64}
 --
 -- An immutable recurrence: a weekday plus the weeks of the month it airs on. A show
 -- that airs every week holds all five weeks. Every template recurs, so both columns
--- are NOT NULL and 'Effects.Database.Tables.Episodes.getCurrentlyAiringEpisodes' can
+-- are NOT NULL and 'Effects.Database.Tables.Episodes.getAiringEpisodes' can
 -- test the air date against the recurrence without a special case.
 data ScheduleTemplate f = ScheduleTemplate
   { stId :: Column f TemplateId,
@@ -242,7 +242,7 @@ getScheduleTemplateById templateId = fmap listToMaybe $ run $ select do
 -- * a validity window covers the date, and
 -- * the recurrence holds the date.
 --
--- 'Effects.Database.Tables.Episodes.getCurrentlyAiringEpisodes' applies the same
+-- 'Effects.Database.Tables.Episodes.getAiringEpisodes' applies the same
 -- three conditions to read an episode. A writer that applies fewer conditions
 -- stores an episode that the stream refuses. That episode looks scheduled. It
 -- never airs, and no report shows the problem.
@@ -576,7 +576,7 @@ insertScheduleTemplate ScheduleTemplateInsert {..} =
 -- | Change only the replay start time of a template.
 --
 -- The replay is a second window on the same recurrence. It does not change the
--- primary window, and 'Effects.Database.Tables.Episodes.getCurrentlyAiringEpisodes'
+-- primary window, and 'Effects.Database.Tables.Episodes.getAiringEpisodes'
 -- builds the primary window from @start_time@ and @end_time@. An episode on this
 -- template therefore keeps its airing.
 --
@@ -827,7 +827,7 @@ instance Display BreakKind where
 --
 -- == Time arithmetic
 --
--- The window CTE is the one in 'Effects.Database.Tables.Episodes.getCurrentlyAiringEpisodes',
+-- The window CTE is the one in 'Effects.Database.Tables.Episodes.getAiringEpisodes',
 -- minus the episode join. It keeps all four of that query's parts: the
 -- @slot_length@ interval that wraps midnight, the @VALUES@ lateral that fans a
 -- template into a primary window and a replay window, the @LEAST@ correction

@@ -100,18 +100,17 @@ GHOST_TAIL = (
     "After a break cuts an episode, a few seconds of it play again after the "
     "break, and that adds a wrong history entry."
 )
-RESTART_FROM_ZERO = (
-    "After a restart in a show, the episode plays from 0:00, and the next show "
-    "waits behind it in the queue. Issue #152."
-)
 
 # --- Scenarios ---------------------------------------------------------------
 #
 # start:   fake time when Liquidsoap starts. Startup takes about 5 seconds.
 # end:     fake time when the run stops.
 # slots:   (start, end, title, audio length in seconds). /now returns the slot
-#          that is on air 10 seconds from now, as the real API does.
+#          that is on air 10 seconds from now, as the real API does. It also
+#          returns the offset into that slot, so a scenario that starts in a
+#          slot needs audio that lasts past that offset.
 # tracks:  extra episode files, for force_play. {title: audio length}
+# filler:  audio length of the filler track. The default is 600 seconds.
 # breaks:  fake times when /break returns a station ID. At other times it
 #          returns an empty list.
 # steps:   jump(...), telnet(...), and force_play(...) steps.
@@ -124,7 +123,7 @@ SCENARIOS = {
         start=at("16:57:10"),
         end=at("17:00:15"),
         slots=[
-            (at("16:30:00"), at("17:00:00"), "Show A", 15),
+            (at("16:30:00"), at("17:00:00"), "Show A", 1650),
             (at("17:00:00"), at("18:00:00"), "Show B", 120),
         ],
         breaks=[at("16:58:00")],
@@ -137,7 +136,7 @@ SCENARIOS = {
         start=at("16:57:10"),
         end=at("17:00:15"),
         slots=[
-            (at("16:30:00"), at("17:00:00"), "Show A", 600),
+            (at("16:30:00"), at("17:00:00"), "Show A", 1800),
             (at("17:00:00"), at("18:00:00"), "Show B", 120),
         ],
         breaks=[at("16:58:00")],
@@ -153,7 +152,7 @@ SCENARIOS = {
         start=at("16:27:10"),
         end=at("17:00:15"),
         slots=[
-            (at("16:00:00"), at("16:30:00"), "Late Show", 15),
+            (at("16:00:00"), at("16:30:00"), "Late Show", 1650),
             (at("17:00:00"), at("18:00:00"), "Show B", 120),
         ],
         breaks=[at("16:28:00"), at("16:58:00")],
@@ -186,25 +185,57 @@ SCENARIOS = {
             absent("Show A", "episode", "16:29:50", "16:30:20"),
         ],
     ),
-    # Liquidsoap restarts after the :58 break, in the last minutes of Show A.
-    # The next show must air at 17:00.
+    # Liquidsoap restarts after the :58 break, in the last minutes of Show A. The
+    # audio has the longest length that a 30-minute slot accepts, so it has ended
+    # by then. The next show must air at 17:00.
     "restart-near-end-of-show": dict(
         start=at("16:58:20"),
         end=at("17:00:20"),
         slots=[
-            (at("16:30:00"), at("17:00:00"), "Show A", 1800),
+            (at("16:30:00"), at("17:00:00"), "Show A", 1680),
             (at("17:00:00"), at("18:00:00"), "Show B", 120),
         ],
         breaks=[],
-        steps=[jump("16:58:45", "16:59:40")],
-        checks=[airs("Show B", "episode", "16:59:55", "17:00:20", known_issue=RESTART_FROM_ZERO)],
+        steps=[],
+        checks=[airs("Show B", "episode", "16:59:55", "17:00:20")],
+    ),
+    # Liquidsoap restarts 20 minutes into Show A, and the audio has less than a
+    # minute left at that point. Filler can start only if the episode starts at
+    # its offset. From 0:00, the episode would play for 20 minutes. Issue #152.
+    "restart-mid-show": dict(
+        start=at("16:50:10"),
+        end=at("16:51:10"),
+        slots=[(at("16:30:00"), at("17:00:00"), "Show A", 1240)],
+        breaks=[],
+        steps=[],
+        checks=[
+            airs("Show A", "episode", "16:50:10", "16:50:30"),
+            airs("Filler", "ephemeral", "16:50:30", "16:51:05"),
+        ],
+    ),
+    # Liquidsoap restarts after the audio of Show A has ended. The stream must
+    # stay on filler. An episode with no stored duration gets here, because /now
+    # can not tell that the audio has ended. fallback() does not pull from an
+    # unselected source, so the second filler track airs only if the stream did
+    # not stay on the empty episode. Issue #152.
+    "restart-after-audio-ends": dict(
+        start=at("16:50:10"),
+        end=at("16:50:50"),
+        slots=[(at("16:30:00"), at("17:00:00"), "Show A", 600)],
+        filler=20,
+        breaks=[],
+        steps=[],
+        checks=[
+            absent("Show A", "episode", "16:50:10", "16:50:50"),
+            airs("Filler", "ephemeral", "16:50:25", "16:50:50"),
+        ],
     ),
     # A staff member force-plays an episode while another one is on air. The
     # forced episode must start at once.
     "force-play-during-episode": dict(
         start=at("16:50:10"),
         end=at("16:51:00"),
-        slots=[(at("16:30:00"), at("17:00:00"), "Show A", 600)],
+        slots=[(at("16:30:00"), at("17:00:00"), "Show A", 1800)],
         tracks={"Show F": 120},
         breaks=[],
         steps=[force_play("16:50:35", "Show F")],
@@ -216,7 +247,7 @@ SCENARIOS = {
     "force-play-twice": dict(
         start=at("16:50:10"),
         end=at("16:51:15"),
-        slots=[(at("16:30:00"), at("17:00:00"), "Show A", 600)],
+        slots=[(at("16:30:00"), at("17:00:00"), "Show A", 1800)],
         tracks={"Show F": 120, "Show G": 120},
         breaks=[],
         steps=[force_play("16:50:30", "Show F"), force_play("16:50:45", "Show G")],
@@ -299,14 +330,18 @@ class Stub:
         tracks += list(sc.get("tracks", {}).items())
         for i, (title, secs) in enumerate(tracks):
             self.urls[title] = audio.tone(slug(title, secs), secs, 440 + 110 * i)
-        self.filler = audio.tone("filler-600s", 600, 220)
+        filler_secs = sc.get("filler", 600)
+        self.filler = audio.tone(f"filler-{filler_secs}s", filler_secs, 220)
         self.station_id = audio.tone("station-id-5s", 5, 880)
 
     def now(self):
-        t = self.clock.now() + dt.timedelta(seconds=10)
+        real = self.clock.now()
+        t = real + dt.timedelta(seconds=10)
         for start, end, title, _ in self.sc["slots"]:
             if start <= t < end:
-                return {"url": self.urls[title], "title": title, "artist": "Test"}
+                offset = max(0, int((real - start).total_seconds()))
+                return {"url": self.urls[title], "title": title, "artist": "Test",
+                        "offset_seconds": offset}
         return None
 
     def brk(self):

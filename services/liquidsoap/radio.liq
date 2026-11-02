@@ -7,6 +7,7 @@
 # Uses request.queue() with manual push to avoid prefetch bugs.
 # Breaks use a playlist, loaded in one call; see the note above break_source.
 # Tracks last_scheduled to prevent replaying the same show.
+# Starts a show at its offset into the slot, so a restart keeps the schedule.
 
 settings.init.allow_root.set(true)
 
@@ -132,7 +133,7 @@ def poll()
       end
     else
       try
-        let json.parse (data : {url: string, title: string?, artist: string?}) = body
+        let json.parse (data : {url: string, title: string?, artist: string?, offset_seconds: int?}) = body
         url = rewrite_url(data.url)
 
         null_poll_count := 0
@@ -143,7 +144,13 @@ def poll()
           last_scheduled := url
           title = data.title ?? "KPBJ 95.9 FM"
           artist = data.artist ?? ""
-          annotated = "annotate:title=\"#{title}\",artist=\"#{artist}\",source_type=\"episode\",source_url=\"#{url}\":#{url}"
+
+          # Start at the offset into the slot, so a restart in a show keeps the
+          # episode on the schedule. Liquidsoap applies liq_cue_in when it
+          # resolves the request.
+          offset = data.offset_seconds ?? 0
+          cue_in = if offset > 0 then ",liq_cue_in=\"#{offset}\"" else "" end
+          annotated = "annotate:title=\"#{title}\",artist=\"#{artist}\",source_type=\"episode\",source_url=\"#{url}\"#{cue_in}:#{url}"
           scheduled_queue.push(request.create(annotated))
         end
       catch _ do

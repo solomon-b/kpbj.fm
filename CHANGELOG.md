@@ -22,6 +22,11 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **The server journal keeps more history.** The journal cap goes from 500 MB to 4 GB. Liquidsoap logs at level 4, and at 500 MB the journal kept only a few hours of logs for every service.
 
 ### Added
+- **A scheduled episode starts at the correct position after a Liquidsoap restart.** After a restart in a show, the episode played from 0:00. The schedule then ran late, and the break cut the end of the episode. A restart near the end of a slot also kept the next show waiting behind the old episode (#152).
+  - `/api/playout/now` now returns `offset_seconds`, the time since the primary or replay window opened. Liquidsoap starts the episode at that position.
+  - An episode that the first poll finds in the middle of its slot also starts at its position. This includes an episode that a host uploads during the slot.
+  - Force-play still plays from the start.
+  - Restart Liquidsoap after the deploy, because a deploy does not restart it.
 - **RSS feeds of episodes.** A feed reader can now follow the station or one show (#139).
   - `/feed.xml` holds the episodes of every show. `/shows/:show_slug/feed.xml` holds the episodes of one show, and an unknown or deleted show gives a 404.
   - A feed holds every episode that a listener can play, newest air time first. The episode has aired, it has audio, and it is not archived. Its show is not deleted.
