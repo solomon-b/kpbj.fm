@@ -27,6 +27,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
   - `/api/playout/now` now returns `offset_seconds`, the time since the primary or replay window opened. Liquidsoap starts the episode at that position.
   - An episode that the first poll finds in the middle of its slot also starts at its position. This includes an episode that a host uploads during the slot.
   - Force-play still plays from the start.
+  - Liquidsoap polls again five seconds after each boundary. A failed poll before the boundary now costs a few seconds of the show, and not half of it.
   - Restart Liquidsoap after the deploy, because a deploy does not restart it.
 - **RSS feeds of episodes.** A feed reader can now follow the station or one show (#139).
   - `/feed.xml` holds the episodes of every show. `/shows/:show_slug/feed.xml` holds the episodes of one show, and an unknown or deleted show gives a 404.

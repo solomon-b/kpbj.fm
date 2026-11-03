@@ -79,7 +79,7 @@ Liquidsoap communicates with the web service via four endpoints. `POST /api/play
 | `/api/playout/break`    | GET    | Get the tracks for a break window  |
 | `/api/playout/played`   | POST   | Report what's playing              |
 
-Liquidsoap polls `/now` at `:29:55` and `:59:55`, and 3 seconds after it starts. It asks `/break` at `:28` and `:58`. `/now` returns the episode that airs 10 seconds ahead, with `offset_seconds`, the seconds since its slot opened. Liquidsoap starts the episode at that position, so a restart keeps the schedule. A break window is the last two minutes before a slot boundary. The API decides whether one is due: either a scheduled slot ends there, or the hour turns with no slot spanning it. An empty answer means play on, so a failure never cuts a show for silence.
+Liquidsoap polls `/now` at `:29:55` and `:59:55`, again at `:00:05` and `:30:05` in case the first poll failed, and 3 seconds after it starts. It asks `/break` at `:28` and `:58`. `/now` returns the episode that airs 10 seconds ahead, with `offset_seconds`, the seconds since its slot opened. Liquidsoap starts the episode at that position, so a restart keeps the schedule. A break window is the last two minutes before a slot boundary. The API decides whether one is due: either a scheduled slot ends there, or the hour turns with no slot spanning it. An empty answer means play on, so a failure never cuts a show for silence.
 
 ## Environments
 
