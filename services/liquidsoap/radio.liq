@@ -3,6 +3,7 @@
 # KPBJ 95.9 FM - Liquidsoap Radio Automation
 #
 # Polls the web API at :29:55 and :59:55 for the show that starts next.
+# Polls again at :00:05 and :30:05, in case the first poll failed.
 # Asks the web API at :28 and :58 for a break of PSAs and underwriting.
 # Uses request.queue() with manual push to avoid prefetch bugs.
 # Breaks use a playlist, loaded in one call; see the note above break_source.
@@ -114,7 +115,11 @@ break_source =
   )
 
 # Poll the API for the current scheduled show
-def poll()
+#
+# A retry does not count an empty answer. It runs seconds after the poll before
+# it, so one short database error would look like two empty polls and clear
+# last_scheduled while the episode is on air.
+def poll(~is_retry=false)
   log.important("[KPBJ] Polling schedule...")
   response = http.get(timeout=5., "#{api_base}/now")
 
@@ -126,7 +131,7 @@ def poll()
     # API returns "null" when nothing is scheduled
     if body == "null" or body == "" then
       log.info("[KPBJ] No show currently scheduled")
-      null_poll_count := null_poll_count() + 1
+      if not is_retry then null_poll_count := null_poll_count() + 1 end
       if null_poll_count() >= 2 and last_scheduled() != "" then
         log.important("[KPBJ] Clearing last_scheduled after #{null_poll_count()} consecutive empty polls")
         last_scheduled := ""
@@ -267,6 +272,13 @@ end)
 # buffers while the break plays, and starts as soon as the break ends.
 thread.when({29m55s}, poll)
 thread.when({59m55s}, poll)
+
+# Poll again five seconds after each boundary. A failed poll before the boundary
+# then costs a few seconds of the show, and not the slot. The API turns a
+# database error into null, so the retry also runs when the first poll got null.
+# A retry after a poll that worked gets the same URL and pushes nothing.
+thread.when({0m5s}, fun() -> poll(is_retry=true))
+thread.when({30m5s}, fun() -> poll(is_retry=true))
 
 # Ask for a break two minutes before each boundary. The API decides whether one
 # is actually due: a slot ends there, or the hour turns with no slot spanning it.

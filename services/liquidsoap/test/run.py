@@ -111,6 +111,8 @@ GHOST_TAIL = (
 #          slot needs audio that lasts past that offset.
 # tracks:  extra episode files, for force_play. {title: audio length}
 # filler:  audio length of the filler track. The default is 600 seconds.
+# now_null: (from, to) fake times when /now returns null, as it does on a
+#          database error.
 # breaks:  fake times when /break returns a station ID. At other times it
 #          returns an empty list.
 # steps:   jump(...), telnet(...), and force_play(...) steps.
@@ -230,6 +232,30 @@ SCENARIOS = {
             airs("Filler", "ephemeral", "16:50:25", "16:50:50"),
         ],
     ),
+    # The :59:55 poll gets null because of a database error. The poll after the
+    # boundary must still put the show on air, near its start.
+    "boundary-poll-fails": dict(
+        start=at("16:59:05"),
+        end=at("17:00:25"),
+        slots=[(at("17:00:00"), at("18:00:00"), "Show B", 120)],
+        now_null=(at("16:59:50"), at("17:00:00")),
+        breaks=[],
+        steps=[],
+        checks=[airs("Show B", "episode", "17:00:05", "17:00:20")],
+    ),
+    # A database error makes both polls at the 16:30 boundary get null. The two
+    # polls must not count as two empty polls, because that clears the record of
+    # the episode. A staff member then skips the episode, and the 16:59:55 poll
+    # would air it again.
+    "retry-keeps-last-scheduled": dict(
+        start=at("16:29:30"),
+        end=at("17:00:20"),
+        slots=[(at("16:00:00"), at("18:00:00"), "Show A", 7200)],
+        now_null=(at("16:29:50"), at("16:30:10")),
+        breaks=[],
+        steps=[telnet("16:30:12", "skip_track"), jump("16:30:20", "16:59:40")],
+        checks=[absent("Show A", "episode", "16:59:50", "17:00:20")],
+    ),
     # A staff member force-plays an episode while another one is on air. The
     # forced episode must start at once.
     "force-play-during-episode": dict(
@@ -336,6 +362,9 @@ class Stub:
 
     def now(self):
         real = self.clock.now()
+        fault = self.sc.get("now_null")
+        if fault and fault[0] <= real < fault[1]:
+            return None
         t = real + dt.timedelta(seconds=10)
         for start, end, title, _ in self.sc["slots"]:
             if start <= t < end:
