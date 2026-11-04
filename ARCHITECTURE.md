@@ -81,6 +81,8 @@ Liquidsoap communicates with the web service via four endpoints. `POST /api/play
 
 Liquidsoap polls `/now` at `:29:55` and `:59:55`, again at `:00:05` and `:30:05` in case the first poll failed, and 3 seconds after it starts. It asks `/break` at `:28` and `:58`. `/now` returns the episode that airs 10 seconds ahead, with `offset_seconds`, the seconds since its slot opened. Liquidsoap starts the episode at that position, so a restart keeps the schedule. A break window is the last two minutes before a slot boundary. The API decides whether one is due: either a scheduled slot ends there, or the hour turns with no slot spanning it. An empty answer means play on, so a failure never cuts a show for silence.
 
+Do not restart Liquidsoap in the 30 seconds before `:28` or `:58`. A break does not drop an episode that is still downloading. The rest of that episode airs after the break, and the next show starts late by about the download time. `just test-liquidsoap break-during-download` shows this as a known issue (#168).
+
 ## Environments
 
 | Environment | Web Service             | Stream                                | Stream Metadata                              |

@@ -101,6 +101,12 @@ GHOST_TAIL = (
     "break, and that adds a wrong history entry."
 )
 
+BREAK_DURING_DOWNLOAD = (
+    "A break does not drop an episode that is still downloading. The episode "
+    "airs after the break, and the next show starts late. Do not restart "
+    "Liquidsoap in the 30 seconds before :28 or :58."
+)
+
 # --- Scenarios ---------------------------------------------------------------
 #
 # start:   fake time when Liquidsoap starts. Startup takes about 5 seconds.
@@ -111,6 +117,8 @@ GHOST_TAIL = (
 #          slot needs audio that lasts past that offset.
 # tracks:  extra episode files, for force_play. {title: audio length}
 # filler:  audio length of the filler track. The default is 600 seconds.
+# slow_audio: {title: seconds} the stub waits before it sends the audio of a
+#          track, as slow storage does.
 # now_null: (from, to) fake times when /now returns null, as it does on a
 #          database error.
 # breaks:  fake times when /break returns a station ID. At other times it
@@ -200,6 +208,24 @@ SCENARIOS = {
         breaks=[],
         steps=[],
         checks=[airs("Show B", "episode", "16:59:55", "17:00:20")],
+    ),
+    # Liquidsoap restarts just before the :58 break, and Show A is still
+    # downloading when the break comes. The break must drop Show A, and Show B
+    # must air at 17:00. Issue #168.
+    "break-during-download": dict(
+        start=at("16:57:47"),
+        end=at("17:00:40"),
+        slots=[
+            (at("16:30:00"), at("17:00:00"), "Show A", 1800),
+            (at("17:00:00"), at("18:00:00"), "Show B", 120),
+        ],
+        slow_audio={"Show A": 15},
+        breaks=[at("16:58:00")],
+        steps=[],
+        checks=[
+            absent("Show A", "episode", "16:57:47", "17:00:40", known_issue=BREAK_DURING_DOWNLOAD),
+            airs("Show B", "episode", "16:59:55", "17:00:15", known_issue=BREAK_DURING_DOWNLOAD),
+        ],
     ),
     # Liquidsoap restarts 20 minutes into Show A, and the audio has less than a
     # minute left at that point. Filler can start only if the episode starts at
@@ -356,6 +382,10 @@ class Stub:
         tracks += list(sc.get("tracks", {}).items())
         for i, (title, secs) in enumerate(tracks):
             self.urls[title] = audio.tone(slug(title, secs), secs, 440 + 110 * i)
+        self.slow_audio = {
+            self.urls[title].rsplit("/", 1)[-1]: delay
+            for title, delay in sc.get("slow_audio", {}).items()
+        }
         filler_secs = sc.get("filler", 600)
         self.filler = audio.tone(f"filler-{filler_secs}s", filler_secs, 220)
         self.station_id = audio.tone("station-id-5s", 5, 880)
@@ -406,8 +436,9 @@ def serve(stub, audio):
         def do_GET(self):
             p = self.path
             if p.startswith("/audio/"):
-                f = audio.root / p.rsplit("/", 1)[-1]
-                return self.reply(200, f.read_bytes(), "audio/mpeg")
+                name = p.rsplit("/", 1)[-1]
+                time.sleep(stub.slow_audio.get(name, 0))
+                return self.reply(200, (audio.root / name).read_bytes(), "audio/mpeg")
             if p.endswith("/now"):
                 return self.reply(200, stub.now())
             if p.endswith("/break"):

@@ -4,7 +4,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Added
+- **A Liquidsoap test shows a break during an episode download.** The `break-during-download` scenario in `just test-liquidsoap` delays the audio of an episode until after the break. The episode then airs after the break, and the next show starts late. Both checks are marked as known issues, and the script does not change. `ARCHITECTURE.md` now says not to restart Liquidsoap in the 30 seconds before `:28` or `:58` (#168).
 
 ---
 
