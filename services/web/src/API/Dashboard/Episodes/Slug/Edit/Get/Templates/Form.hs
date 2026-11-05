@@ -182,7 +182,7 @@ template ctx = do
         when allowAudioChange $
           stagedAudioField "episode_audio" uploadUrl "episode_audio" $ do
             label "Episode Audio"
-            hint "The episode must end at least two minutes before the slot ends, so the station break fits."
+            hint "Upload an MP3. Maximum 500MB. The episode must end at least two minutes before the slot ends, so the station break fits."
             maxSize 500
             currentFile audioUrl
 

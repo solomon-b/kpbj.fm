@@ -8,6 +8,7 @@ import Data.Aeson qualified as Aeson
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Origin (Origin)
+import Effects.Database.Tables.BreakItems qualified as BreakItems
 import GHC.Generics (Generic)
 import Servant ((:>))
 import Servant qualified
@@ -29,6 +30,7 @@ type Route =
     :> "audio"
     :> Servant.Header "Cookie" Cookie
     :> Servant.Header "Origin" Origin
+    :> Servant.QueryParam "category" BreakItems.Category
     :> MultipartForm Tmp AudioUploadForm
     :> Servant.Post '[Servant.JSON] (Servant.Headers CorsHeaders UploadApiResponse)
 

@@ -866,6 +866,7 @@ test-suite kpbj-web-test
        Store.Checkout.LogicSpec
        Store.Checkout.ShippingErrorsSpec
        Templates.MarkdownFieldsSpec
+       Templates.UploadHintsSpec
        Text.RSSSpec
        API.Newsletter.Subscribe.Post.HandlerSpec
        API.User.ForgotPassword.Post.HandlerSpec

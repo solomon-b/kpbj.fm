@@ -15,7 +15,7 @@ import API.Links (apiLinks)
 import API.Types
 import App.Common (renderDashboardTemplate)
 import App.Config (Environment)
-import App.Domains (audioUploadUrl)
+import App.Domains (breakItemUploadUrl)
 import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
@@ -62,7 +62,7 @@ handler showSlug cookie (foldHxReq -> hxRequest) =
         NavShowPromos
         Nothing
         Nothing
-        (template backend showModel (audioUploadUrl env) today promos)
+        (template backend showModel (breakItemUploadUrl env BreakItems.ShowPromo) today promos)
 
 -- | Business logic: check access to the show, then load its promos.
 --

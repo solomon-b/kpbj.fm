@@ -14,6 +14,7 @@ where
 
 --------------------------------------------------------------------------------
 
+import API.Dashboard.AirBreaks.BreakItems.Shared (checkItemLength)
 import API.Uploads.Audio.Post.Route (CorsHeaders, UploadApiResponse (..))
 import API.Uploads.Shared (ExtensionMapper, ProcessConfig (..), displayStagedUploadError, processStagedUpload)
 import API.Uploads.Types (AudioUploadForm (..), UploadResponse (..))
@@ -26,6 +27,7 @@ import Control.Monad.Reader (asks)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
+import Data.Functor (void)
 import Data.Has qualified as Has
 import Data.Int (Int64)
 import Data.Text (Text)
@@ -36,6 +38,7 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.Origin (Origin (..))
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.AudioDuration (probeDurationSeconds)
+import Effects.Database.Tables.BreakItems qualified as BreakItems
 import Effects.Database.Tables.StagedUploads qualified as StagedUploads
 import Effects.Database.Tables.User qualified as User
 import Effects.MimeTypeValidation qualified as MimeValidation
@@ -90,9 +93,10 @@ noCorsHeaders response =
 handler ::
   Maybe Cookie ->
   Maybe Origin ->
+  Maybe BreakItems.Category ->
   AudioUploadForm ->
   AppM (Servant.Headers CorsHeaders UploadApiResponse)
-handler cookie mOrigin form = do
+handler cookie mOrigin mCategory form = do
   -- Validate CSRF (Origin header required for XHR-only endpoints)
   validateOriginStrict mOrigin >>= \case
     Left err -> pure $ noCorsHeaders $ UploadError err
@@ -102,7 +106,7 @@ handler cookie mOrigin form = do
       case authResult of
         Left _ -> pure $ addCorsHeaders validatedOrigin $ UploadError "Authentication required"
         Right (user, _userMetadata) -> do
-          result <- processAudioUpload user form
+          result <- processAudioUpload user mCategory form
           pure $ addCorsHeaders validatedOrigin result
 
 --------------------------------------------------------------------------------
@@ -146,9 +150,10 @@ optionsHandler mOrigin = do
 -- | Process the audio file upload.
 processAudioUpload ::
   User.Model ->
+  Maybe BreakItems.Category ->
   AudioUploadForm ->
   AppM UploadApiResponse
-processAudioUpload user form = do
+processAudioUpload user mCategory form = do
   backend <- asks (Has.getter @StorageBackend)
   mAwsEnv <- asks (Has.getter @(Maybe AWS.Env))
 
@@ -176,7 +181,7 @@ processAudioUpload user form = do
   case mDuration of
     Nothing -> pure $ UploadError "Could not read the length of this audio. The file may be damaged. Re-encode it and upload again."
     Just durationSeconds
-      | Left message <- checkUploadLength uploadType durationSeconds ->
+      | Left message <- checkUploadLength uploadType mCategory durationSeconds ->
           pure $ UploadError message
     Just durationSeconds -> do
       result <- processStagedUpload config backend mAwsEnv user.mId originalName browserMimeType tempFilePath (Just durationSeconds)
@@ -200,15 +205,18 @@ processAudioUpload user form = do
 -- An episode has no check here, because its limit depends on the slot, and
 -- the slot can still change after the upload.
 --
--- Every break item category shares one upload type. The check uses the
--- largest of their limits, so it never refuses a file that one of them
--- accepts. The save handler applies the exact limit of the category.
-checkUploadLength :: StagedUploads.UploadType -> Int64 -> Either Text ()
-checkUploadLength uploadType durationSeconds =
+-- Every break item category shares one upload type, so each break item form
+-- names its category in the upload URL. A request with no category gets the
+-- largest of the limits. The client sends the category, so the save handler
+-- still applies the exact limit of the category.
+checkUploadLength :: StagedUploads.UploadType -> Maybe BreakItems.Category -> Int64 -> Either Text ()
+checkUploadLength uploadType mCategory durationSeconds =
   case uploadType of
     StagedUploads.StationIdAudio -> withinLimit "Station IDs" stationIdMaxSeconds
     StagedUploads.BreakItemAudio ->
-      withinLimit "Break items" breakItemMaxSeconds
+      case mCategory of
+        Just category -> void $ checkItemLength category (Just durationSeconds)
+        Nothing -> withinLimit "Break items" breakItemMaxSeconds
     StagedUploads.EpisodeAudio -> Right ()
     StagedUploads.EphemeralAudio -> Right ()
   where

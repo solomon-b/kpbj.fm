@@ -71,8 +71,8 @@ ephemeralUploadEditForm uploadUrl ephemeralUpload = do
       section "AUDIO FILE" $ do
         stagedAudioField "audio_file" uploadUrl "ephemeral_audio" $ do
           label "Replace Audio (Optional)"
-          hint "Upload a new audio file to replace the existing one. Leave empty to keep the current file."
-          maxSize 50
+          hint "Upload an MP3 to replace the existing file. Maximum 500MB. Leave empty to keep the current file."
+          maxSize 500
 
       -- Form Actions
       cancelButton cancelUrl "CANCEL"

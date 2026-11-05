@@ -53,7 +53,7 @@ import API.Links
 import API.Types
 import App.Common (renderDashboardTemplate)
 import App.Config (Environment)
-import App.Domains (audioUploadUrl)
+import App.Domains (breakItemUploadUrl)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error
   ( HandlerError,
@@ -281,7 +281,7 @@ newGetHandler sec cookie (foldHxReq -> hxRequest) =
         sec.secNav
         Nothing
         Nothing
-        (BreakItemsUI.renderUploadForm sec.secUrls (audioUploadUrl env) today mUf)
+        (BreakItemsUI.renderUploadForm sec.secUrls (breakItemUploadUrl env sec.secCategory) today mUf)
 
 -- | @POST /dashboard/air-breaks/psas/new@ and the other sections' upload posts.
 newPostHandler ::

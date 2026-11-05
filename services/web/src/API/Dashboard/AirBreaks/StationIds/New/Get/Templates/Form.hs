@@ -58,7 +58,7 @@ stationIdUploadForm uploadUrl = do
       section "AUDIO FILE" $ do
         stagedAudioField "audio_file" uploadUrl "station_id_audio" $ do
           label "Station ID Audio"
-          hint [i|Upload an MP3, WAV, or other audio file. Maximum 50MB and #{stationIdMaxSeconds} seconds.|]
+          hint [i|Upload an MP3. Maximum 50MB and #{stationIdMaxSeconds} seconds.|]
           maxSize 50
 
       -- Form Actions
