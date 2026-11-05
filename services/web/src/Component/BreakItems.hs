@@ -445,7 +445,7 @@ audioHint category =
     maxRunSeconds = categoryMaxSeconds category
 
     fileHint =
-      [i|Upload an MP3, WAV, or other audio file. Maximum #{audioMaxSizeMb}MB and #{maxRunSeconds} seconds.|]
+      [i|Upload an MP3. Maximum #{audioMaxSizeMb}MB and #{maxRunSeconds} seconds.|]
 
     noncommercialRules =
       "Noncommercial rules apply. No call to action, no price or discount, no quality or comparison claim, and no inducement to buy. A staff member reviews the copy before it airs."

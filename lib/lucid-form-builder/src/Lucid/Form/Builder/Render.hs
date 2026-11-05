@@ -1758,7 +1758,7 @@ renderStagedAudioField field uploadUrl uploadType = do
               ]
               "CHOOSE AUDIO FILE"
             Lucid.p_ [Lucid.class_ "fb-hint"] $
-              Lucid.toHtml ([i|MP3 only · Max #{maxSizeMB}MB|] :: Text)
+              Lucid.toHtml (fromMaybe [i|MP3 only · Max #{maxSizeMB}MB|] (fcHint cfg) :: Text)
 
         -- Uploaded file display
         Lucid.div_

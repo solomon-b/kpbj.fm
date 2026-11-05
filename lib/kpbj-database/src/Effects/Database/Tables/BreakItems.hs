@@ -153,6 +153,21 @@ instance Display Category where
     Announcement -> "Announcement"
     ShowPromo -> "Show promo"
 
+instance Servant.FromHttpApiData Category where
+  parseUrlPiece = \case
+    "psa" -> Right Psa
+    "underwriting" -> Right Underwriting
+    "announcement" -> Right Announcement
+    "show_promo" -> Right ShowPromo
+    other -> Left $ "Invalid Category: " <> other
+
+instance Servant.ToHttpApiData Category where
+  toUrlPiece = \case
+    Psa -> "psa"
+    Underwriting -> "underwriting"
+    Announcement -> "announcement"
+    ShowPromo -> "show_promo"
+
 --------------------------------------------------------------------------------
 -- Review Status
 

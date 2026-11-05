@@ -20,6 +20,7 @@ module App.Domains
     uploadsDomain,
     uploadsBaseUrl,
     audioUploadUrl,
+    breakItemUploadUrl,
 
     -- * Allowed Origins (for CORS)
     allowedOrigins,
@@ -31,6 +32,8 @@ where
 import App.Config (Environment (..))
 import Data.Text (Text)
 import Domain.Types.Origin (Origin)
+import Effects.Database.Tables.BreakItems qualified as BreakItems
+import Servant qualified
 
 --------------------------------------------------------------------------------
 -- Base Domain
@@ -88,6 +91,13 @@ uploadsBaseUrl = \case
 -- - Production: "https://uploads.kpbj.fm/api/uploads/audio"
 audioUploadUrl :: Environment -> Text
 audioUploadUrl env = uploadsBaseUrl env <> "/api/uploads/audio"
+
+-- | Get the audio upload URL for one break item category.
+--
+-- The upload handler reads the category and applies the limit of that category.
+breakItemUploadUrl :: Environment -> BreakItems.Category -> Text
+breakItemUploadUrl env category =
+  audioUploadUrl env <> "?category=" <> Servant.toUrlPiece category
 
 --------------------------------------------------------------------------------
 -- CORS Configuration

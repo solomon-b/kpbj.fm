@@ -7,6 +7,7 @@ import App.Domains
 import Control.Monad (forM_)
 import Data.Text qualified as Text
 import Domain.Types.Origin (Origin (..))
+import Effects.Database.Tables.BreakItems qualified as BreakItems
 import Hedgehog
 import Hedgehog.Gen qualified as Gen
 import Test.Hspec
@@ -89,6 +90,15 @@ spec = describe "App.Domains" $ do
       env <- forAll genNonDevEnvironment
       let url = audioUploadUrl env
       assert $ "https://" `Text.isPrefixOf` url
+
+  describe "breakItemUploadUrl" $ do
+    it "adds the category to the relative Development URL" $ do
+      breakItemUploadUrl Development BreakItems.ShowPromo
+        `shouldBe` "/api/uploads/audio?category=show_promo"
+
+    it "adds the category to the absolute Production URL" $ do
+      breakItemUploadUrl Production BreakItems.Psa
+        `shouldBe` "https://uploads.kpbj.fm/api/uploads/audio?category=psa"
 
   describe "Cross-domain consistency" $ do
     it "cookie domain covers uploads domain for Staging" $ do
