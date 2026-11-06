@@ -96,11 +96,6 @@ def force_play(when, title):
     return (at(when), "force_play", title)
 
 
-GHOST_TAIL = (
-    "After a break cuts an episode, a few seconds of it play again after the "
-    "break, and that adds a wrong history entry."
-)
-
 BREAK_DURING_DOWNLOAD = (
     "A break does not drop an episode that is still downloading. The episode "
     "airs after the break, and the next show starts late. Do not restart "
@@ -141,7 +136,10 @@ SCENARIOS = {
         checks=[airs("Show B", "episode", "16:59:55", "17:00:15")],
     ),
     # Show A is still on air at the :58 break, so the break cuts it. Show B
-    # must air at 17:00, and Show A must not come back after the break.
+    # must air at 17:00, and Show A must not come back after the break. The
+    # break is a 5 second station ID, so it ends at about 16:58:04. Filler must
+    # start then. If the buffer still holds Show A, its audio plays first and
+    # filler starts at about 16:58:07. Issue #156.
     "episode-cut-by-break": dict(
         start=at("16:57:10"),
         end=at("17:00:15"),
@@ -153,7 +151,8 @@ SCENARIOS = {
         steps=[jump("16:58:15", "16:59:40")],
         checks=[
             airs("Show B", "episode", "16:59:55", "17:00:15"),
-            absent("Show A", "episode", "16:58:01", "16:58:15", known_issue=GHOST_TAIL),
+            absent("Show A", "episode", "16:58:01", "16:58:15"),
+            airs("Filler", "ephemeral", "16:58:01", "16:58:05"),
         ],
     ),
     # The last show of the night ends, and two breaks come with an idle queue,

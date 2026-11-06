@@ -65,6 +65,12 @@ null_poll_count = ref(0)
 # survives connection drops (e.g. Icecast container restart).
 last_metadata = ref([])
 
+# State: request id of the episode that the last break cut. When the break
+# ends, fallback() switches back to the scheduled buffer and replays the last
+# metadata of that buffer. The track handler ignores that one replay. See
+# do_break.
+cut_rid = ref("")
+
 # Fetch fallback tracks from the API (station ID + ephemeral)
 def get_fallback()
   response = http.get(timeout=5., "#{api_base}/fallback")
@@ -213,12 +219,25 @@ def do_break()
         # last_scheduled is deliberately left alone. Clearing it would let a
         # boundary poll that fires a fraction early re-push the show that just
         # ended and restart it from the top.
+        cut_metadata = scheduled_source.last_metadata() ?? []
+        cut_rid := cut_metadata["rid"]
         skip_if_ready(scheduled_queue)
 
         # One call, and it blocks until every file is local. That is the point:
         # set_queue resolves before adding, so the break never waits on storage
         # once it is on the air.
         break_source.set_queue(list.map(track_to_request, tracks))
+
+        # Drop the audio of the show that the buffer still holds. The skip
+        # above ends the show in the queue, but not in the buffer, so that
+        # audio played after the break. A skip on the buffer does not drop it.
+        # It waits for the next frame from the queue and then ends the next
+        # show. A seek drops it at once. 10 seconds is the max of the buffer.
+        #
+        # The buffer still reports itself as ready, so fallback() switches
+        # back to it after the break and replays the metadata of the cut show.
+        # The track handler ignores that replay by cut_rid.
+        ignore(scheduled_source.seek(10.))
       end
     catch _ do
       log.info("[KPBJ] Failed to parse break response")
@@ -294,43 +313,53 @@ radio = fallback(track_sensitive=false, [break_source, scheduled_source, fallbac
 
 # Log track changes and POST to web service
 # NOTE: Before crossfade so metadata is present. ~1s timing offset from crossfade is acceptable.
+#
+# A track with the request id in cut_rid is the replay of the episode that the
+# break cut. No audio of it airs, so it is not logged as playing and not posted.
+# A new request for the same episode, as from a force-play, has a new id.
 radio = source.on_track(radio, fun(m) -> begin
   title = m["title"] ?? "unknown"
   artist = m["artist"] ?? ""
   source_type = m["source_type"] ?? "unknown"
   source_url = m["source_url"] ?? (m["filename"] ?? "")
   break_item_id = m["break_item_id"]
+  rid = m["rid"]
 
-  last_metadata := m
+  if rid != "" and rid == cut_rid() then
+    log.important("[KPBJ] Ignoring the replay of the cut episode: #{artist} - #{title}")
+    cut_rid := ""
+  else
+    last_metadata := m
 
-  log.important("[KPBJ] Now playing: #{artist} - #{title} (#{source_type})")
+    log.important("[KPBJ] Now playing: #{artist} - #{title} (#{source_type})")
 
-  # POST to web service if playout_secret is configured
-  if playout_secret != "" then
-    t = time.utc()
-    p = fun(n) -> string.of_int(digits=2, n)
-    started_at = "#{t.year}-#{p(t.month)}-#{p(t.day)}T#{p(t.hour)}:#{p(t.min)}:#{p(t.sec)}Z"
+    # POST to web service if playout_secret is configured
+    if playout_secret != "" then
+      t = time.utc()
+      p = fun(n) -> string.of_int(digits=2, n)
+      started_at = "#{t.year}-#{p(t.month)}-#{p(t.day)}T#{p(t.hour)}:#{p(t.min)}:#{p(t.sec)}Z"
 
-    body = json.stringify({
-      prTitle = title,
-      prArtist = artist,
-      prSourceType = source_type,
-      prSourceUrl = source_url,
-      prStartedAt = started_at,
-      prBreakItemId = break_item_id
-    })
+      body = json.stringify({
+        prTitle = title,
+        prArtist = artist,
+        prSourceType = source_type,
+        prSourceUrl = source_url,
+        prStartedAt = started_at,
+        prBreakItemId = break_item_id
+      })
 
-    response = http.post(
-      timeout=5.,
-      headers=[
-        ("Content-Type", "application/json"),
-        ("X-Playout-Secret", playout_secret)
-      ],
-      data=body,
-      "#{api_base}/played"
-    )
-    if response.status_code < 200 or response.status_code >= 300 then
-      log.important("[KPBJ] Playout POST failed: #{response.status_code}")
+      response = http.post(
+        timeout=5.,
+        headers=[
+          ("Content-Type", "application/json"),
+          ("X-Playout-Secret", playout_secret)
+        ],
+        data=body,
+        "#{api_base}/played"
+      )
+      if response.status_code < 200 or response.status_code >= 300 then
+        log.important("[KPBJ] Playout POST failed: #{response.status_code}")
+      end
     end
   end
 end)
