@@ -96,11 +96,6 @@ def force_play(when, title):
     return (at(when), "force_play", title)
 
 
-GHOST_TAIL = (
-    "After a break cuts an episode, a few seconds of it play again after the "
-    "break, and that adds a wrong history entry."
-)
-
 BREAK_DURING_DOWNLOAD = (
     "A break does not drop an episode that is still downloading. The episode "
     "airs after the break, and the next show starts late. Do not restart "
@@ -118,11 +113,13 @@ BREAK_DURING_DOWNLOAD = (
 # tracks:  extra episode files, for force_play. {title: audio length}
 # filler:  audio length of the filler track. The default is 600 seconds.
 # slow_audio: {title: seconds} the stub waits before it sends the audio of a
-#          track, as slow storage does.
+#          track, as slow storage does. The title "Station ID" delays the
+#          break track.
 # now_null: (from, to) fake times when /now returns null, as it does on a
 #          database error.
 # breaks:  fake times when /break returns a station ID. At other times it
 #          returns an empty list.
+# break_secs: audio length of the station ID. The default is 5 seconds.
 # steps:   jump(...), telnet(...), and force_play(...) steps.
 # checks:  airs(...) and absent(...) checks on the /played record.
 
@@ -141,7 +138,10 @@ SCENARIOS = {
         checks=[airs("Show B", "episode", "16:59:55", "17:00:15")],
     ),
     # Show A is still on air at the :58 break, so the break cuts it. Show B
-    # must air at 17:00, and Show A must not come back after the break.
+    # must air at 17:00, and Show A must not come back after the break. The
+    # break is a 5 second station ID, so it ends at about 16:58:04. Filler must
+    # start then. If the buffer still holds Show A, its audio plays first and
+    # filler starts at about 16:58:07. Issue #156.
     "episode-cut-by-break": dict(
         start=at("16:57:10"),
         end=at("17:00:15"),
@@ -153,8 +153,62 @@ SCENARIOS = {
         steps=[jump("16:58:15", "16:59:40")],
         checks=[
             airs("Show B", "episode", "16:59:55", "17:00:15"),
-            absent("Show A", "episode", "16:58:01", "16:58:15", known_issue=GHOST_TAIL),
+            absent("Show A", "episode", "16:58:01", "16:58:15"),
+            airs("Filler", "ephemeral", "16:58:01", "16:58:05"),
         ],
+    ),
+    # The break cuts Show A and runs for 120 seconds, the longest that four
+    # break items of 30 seconds make. The 16:59:55 poll then pushes Show B
+    # while the break is on air. Show B must start when the break ends, with no
+    # Show A and no filler before it. Issue #156.
+    "long-break-cut-episode": dict(
+        start=at("16:57:10"),
+        end=at("17:00:30"),
+        slots=[
+            (at("16:30:00"), at("17:00:00"), "Show A", 1800),
+            (at("17:00:00"), at("18:00:00"), "Show B", 120),
+        ],
+        breaks=[at("16:58:00")],
+        break_secs=120,
+        steps=[],
+        checks=[
+            absent("Show A", "episode", "16:58:01", "17:00:30"),
+            airs("Show B", "episode", "16:59:58", "17:00:10"),
+            absent("Filler", "ephemeral", "16:59:58", "17:00:30"),
+        ],
+    ),
+    # The break cuts Show A, and the station ID takes 8 seconds to download.
+    # The buffer holds 5 seconds of Show A, so it runs dry before the break
+    # starts, and fallback() gets no Show A metadata to replay. Show A must not
+    # air after the break, and Show B must air at 17:00. Issue #156.
+    "break-download-drains-buffer": dict(
+        start=at("16:57:10"),
+        end=at("17:00:15"),
+        slots=[
+            (at("16:30:00"), at("17:00:00"), "Show A", 1800),
+            (at("17:00:00"), at("18:00:00"), "Show B", 120),
+        ],
+        slow_audio={"Station ID": 8},
+        breaks=[at("16:58:00")],
+        steps=[jump("16:58:40", "16:59:40")],
+        checks=[
+            airs("Station ID", "station_id", "16:58:06", "16:58:12"),
+            absent("Show A", "episode", "16:58:09", "16:58:40"),
+            airs("Show B", "episode", "16:59:55", "17:00:15"),
+        ],
+    ),
+    # As above, the buffer runs dry before the break, so the replay of Show A
+    # never comes. A staff member then force-plays Show A. The forced episode
+    # is a new request, so it must air and post, though it has the same URL as
+    # the cut episode. Issue #156.
+    "force-play-cut-episode": dict(
+        start=at("16:57:10"),
+        end=at("16:58:45"),
+        slots=[(at("16:30:00"), at("17:00:00"), "Show A", 1800)],
+        slow_audio={"Station ID": 8},
+        breaks=[at("16:58:00")],
+        steps=[force_play("16:58:25", "Show A")],
+        checks=[airs("Show A", "episode", "16:58:25", "16:58:35")],
     ),
     # The last show of the night ends, and two breaks come with an idle queue,
     # as the hourly breaks do overnight. The next show must still air.
@@ -382,13 +436,15 @@ class Stub:
         tracks += list(sc.get("tracks", {}).items())
         for i, (title, secs) in enumerate(tracks):
             self.urls[title] = audio.tone(slug(title, secs), secs, 440 + 110 * i)
-        self.slow_audio = {
-            self.urls[title].rsplit("/", 1)[-1]: delay
-            for title, delay in sc.get("slow_audio", {}).items()
-        }
         filler_secs = sc.get("filler", 600)
         self.filler = audio.tone(f"filler-{filler_secs}s", filler_secs, 220)
-        self.station_id = audio.tone("station-id-5s", 5, 880)
+        break_secs = sc.get("break_secs", 5)
+        self.station_id = audio.tone(f"station-id-{break_secs}s", break_secs, 880)
+        files = {**self.urls, "Station ID": self.station_id}
+        self.slow_audio = {
+            files[title].rsplit("/", 1)[-1]: delay
+            for title, delay in sc.get("slow_audio", {}).items()
+        }
 
     def now(self):
         real = self.clock.now()
