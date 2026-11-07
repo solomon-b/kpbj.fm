@@ -40,6 +40,7 @@ spec =
         it "updates episode description when staff submits valid form" test_updatesDescription
         it "returns NotAuthorized for unrelated regular user" test_notAuthorizedForUnrelatedUser
         it "rejects new audio too long for the slot and leaves the upload pending" test_rejectsOverLengthNewAudio
+        it "rejects new audio too short for the slot and leaves the upload pending" test_rejectsUnderLengthNewAudio
         it "rejects a move into a slot too short for the stored audio" test_rejectsMoveIntoShorterSlot
         it "clears the slot when the submitted form picks Unscheduled" test_unscheduleThroughMultipart
         it "lets a host clear the artwork of an aired episode" test_hostClearsArtworkOfAiredEpisode
@@ -215,7 +216,7 @@ test_notAuthorizedForUnrelatedUser cfg = do
       Left err -> expectationFailure $ "Expected NotAuthorized but got: " <> show err
       Right _ -> expectationFailure "Expected Left NotAuthorized but got Right"
 
--- | An episode in the default 1 hour slot, with 50:00 of audio already stored.
+-- | An episode in the default 1 hour slot, with 57:30 of audio already stored.
 --
 -- Returns the user, the show id, the slot's template id, and the episode.
 setupEpisodeWithAudio ::
@@ -233,7 +234,7 @@ setupEpisodeWithAudio userInsert showInsert = do
             Episodes.eiAudioFilePath = Just "audio/episodes/2026/03/02/stored-episode.mp3",
             Episodes.eiAudioFileSize = Nothing,
             Episodes.eiAudioMimeType = Just "audio/mpeg",
-            Episodes.eiDurationSeconds = Just 3000,
+            Episodes.eiDurationSeconds = Just 3450,
             Episodes.eiArtworkUrl = Nothing,
             Episodes.eiScheduleTemplateId = Just templateId,
             Episodes.eiAirDate = Just (fromGregorian 2026 3 2),
@@ -291,7 +292,7 @@ test_rejectsOverLengthNewAudio cfg = do
 
     liftIO $ case result of
       Left (ValidationError message) ->
-        message `shouldBe` "This episode runs 58:01. Episodes in this 1 hour slot can run at most 58:00, so the station break fits. Trim the audio and upload it again."
+        message `shouldBe` "This episode runs 58:01. Episodes in this 1 hour slot must run from 57:00 to 58:00, so the station break fits. Trim the audio and upload it again."
       Left err -> expectationFailure $ "Expected ValidationError but got: " <> show err
       Right _ -> expectationFailure "Expected Left ValidationError but got Right"
 
@@ -305,9 +306,71 @@ test_rejectsOverLengthNewAudio cfg = do
       (mStaged, mEpisode) <- expectSetupRight afterResult
       fmap (.status) mStaged `shouldBe` Just StagedUploads.Pending
       fmap (.description) mEpisode `shouldBe` Just (Just "Original description")
-      fmap (.durationSeconds) mEpisode `shouldBe` Just (Just 3000)
+      fmap (.durationSeconds) mEpisode `shouldBe` Just (Just 3450)
 
--- | 50:00 of stored audio fits the 1 hour slot but not a 30 minute slot.
+-- | New audio one second under 57:00 does not fill the 1 hour slot.
+--
+-- The refusal comes before every write. The upload stays pending, and the
+-- episode keeps its description and its stored length.
+test_rejectsUnderLengthNewAudio :: TestDBConfig -> IO ()
+test_rejectsUnderLengthNewAudio cfg = do
+  userInsert <- mkUserInsert "ep-edit-post-too-short" UserMetadata.Staff
+
+  let showSlug = Slug "ep-edit-post-too-short-show"
+      showInsert =
+        Shows.Insert
+          { Shows.siTitle = "Edit Post Too Short Show",
+            Shows.siSlug = showSlug,
+            Shows.siDescription = Nothing,
+            Shows.siLogoUrl = Nothing,
+            Shows.siStatus = Shows.Active
+          }
+      token = StagedUploads.Token "test-audio-token-ep-edit-too-short"
+
+  bracketAppM cfg $ do
+    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+      (userModel, userMetaModel, _showId, _templateId, episodeModel) <- setupEpisodeWithAudio userInsert showInsert
+      let stagedInsert =
+            StagedUploads.Insert
+              { StagedUploads.siToken = token,
+                StagedUploads.siUserId = userModel.mId,
+                StagedUploads.siOriginalName = "episode-too-short.mp3",
+                StagedUploads.siStoragePath = "temp/staging/test-audio-ep-edit-too-short.mp3",
+                StagedUploads.siMimeType = "audio/mpeg",
+                StagedUploads.siFileSize = 54704000,
+                StagedUploads.siDurationSeconds = Just 3419,
+                StagedUploads.siUploadType = StagedUploads.EpisodeAudio
+              }
+      _uploadId <- TRX.statement () (StagedUploads.insert stagedInsert)
+      pure (userModel, userMetaModel, episodeModel)
+
+    (userModel, userMetaModel, episodeModel) <- liftIO $ expectSetupRight dbResult
+
+    let form =
+          (descriptionEditForm "Edited description")
+            { eefAudioToken = Just "test-audio-token-ep-edit-too-short"
+            }
+    result <- runExceptT $ action userModel userMetaModel showSlug episodeModel.episodeNumber form
+
+    liftIO $ case result of
+      Left (ValidationError message) ->
+        message `shouldBe` "This episode runs 56:59. Episodes in this 1 hour slot must run from 57:00 to 58:00, so the episode fills the slot up to the station break. Add audio and upload it again."
+      Left err -> expectationFailure $ "Expected ValidationError but got: " <> show err
+      Right _ -> expectationFailure "Expected Left ValidationError but got Right"
+
+    afterResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Read $ do
+          mStaged <- TRX.statement () (StagedUploads.getByToken token)
+          mEpisode <- TRX.statement () (Episodes.getEpisodeById episodeModel.id)
+          pure (mStaged, mEpisode)
+    liftIO $ do
+      (mStaged, mEpisode) <- expectSetupRight afterResult
+      fmap (.status) mStaged `shouldBe` Just StagedUploads.Pending
+      fmap (.description) mEpisode `shouldBe` Just (Just "Original description")
+      fmap (.durationSeconds) mEpisode `shouldBe` Just (Just 3450)
+
+-- | 57:30 of stored audio fits the 1 hour slot but not a 30 minute slot.
 --
 -- A move into the shorter slot is refused, and the episode stays where it was.
 test_rejectsMoveIntoShorterSlot :: TestDBConfig -> IO ()
@@ -347,7 +410,7 @@ test_rejectsMoveIntoShorterSlot cfg = do
 
     liftIO $ case result of
       Left (ValidationError message) ->
-        message `shouldBe` "This episode runs 50:00. Episodes in this 30 minute slot can run at most 28:00, so the station break fits. Trim the audio and upload it again."
+        message `shouldBe` "This episode runs 57:30. Episodes in this 30 minute slot must run from 27:00 to 28:00, so the station break fits. Trim the audio and upload it again."
       Left err -> expectationFailure $ "Expected ValidationError but got: " <> show err
       Right _ -> expectationFailure "Expected Left ValidationError but got Right"
 
@@ -497,8 +560,8 @@ test_hostCannotReplaceAudioOfAiredEpisode cfg = do
                 StagedUploads.siOriginalName = "replacement-episode.mp3",
                 StagedUploads.siStoragePath = "temp/staging/test-audio-ep-edit-host-aired.mp3",
                 StagedUploads.siMimeType = "audio/mpeg",
-                StagedUploads.siFileSize = 43200000,
-                StagedUploads.siDurationSeconds = Just 2700,
+                StagedUploads.siFileSize = 55200000,
+                StagedUploads.siDurationSeconds = Just 3450,
                 StagedUploads.siUploadType = StagedUploads.EpisodeAudio
               }
       _uploadId <- TRX.statement () (StagedUploads.insert stagedInsert)
@@ -526,4 +589,4 @@ test_hostCannotReplaceAudioOfAiredEpisode cfg = do
       (mStaged, mEpisode) <- expectSetupRight afterResult
       fmap (.status) mStaged `shouldBe` Just StagedUploads.Pending
       fmap (.audioFilePath) mEpisode `shouldBe` Just (Just "audio/episodes/2026/03/02/stored-episode.mp3")
-      fmap (.durationSeconds) mEpisode `shouldBe` Just (Just 3000)
+      fmap (.durationSeconds) mEpisode `shouldBe` Just (Just 3450)

@@ -1,14 +1,17 @@
 {-# LANGUAGE QuasiQuotes #-}
 
--- | The longest episode a schedule slot can hold.
+-- | The shortest and longest episode a schedule slot can hold.
 --
 -- The station break starts 'breakSeconds' before the end of every slot, and it
 -- cuts any episode still on air. An episode must therefore end at least that
--- long before its slot ends. The cap is hard. A 1 hour slot holds at most 58:00
--- of audio.
+-- long before its slot ends. An episode must also end at most
+-- 'lengthWindowSeconds' before the break, so playout fills a gap of known size.
+-- Both limits are hard. A 1 hour slot holds 57:00 to 58:00 of audio.
 module Domain.EpisodeLength
   ( slotSeconds,
+    lengthWindowSeconds,
     maxEpisodeSeconds,
+    minEpisodeSeconds,
     checkEpisodeFitsSlot,
     formatLength,
   )
@@ -53,7 +56,22 @@ maxEpisodeSeconds ::
 maxEpisodeSeconds startTime endTime =
   slotSeconds startTime endTime - breakSeconds
 
--- | Check that an episode ends before the station break of its slot.
+-- | The largest gap, in seconds, between the end of an episode and the break.
+lengthWindowSeconds :: Int64
+lengthWindowSeconds = 60
+
+-- | The shortest episode, in seconds, that a slot accepts.
+minEpisodeSeconds ::
+  -- | Slot start
+  TimeOfDay ->
+  -- | Slot end
+  TimeOfDay ->
+  Int64
+minEpisodeSeconds startTime endTime =
+  maxEpisodeSeconds startTime endTime - lengthWindowSeconds
+
+-- | Check that an episode ends before the station break of its slot, and no
+-- more than 'lengthWindowSeconds' before it.
 --
 -- The 'Left' holds a message for the host.
 checkEpisodeFitsSlot ::
@@ -65,12 +83,16 @@ checkEpisodeFitsSlot ::
   Int64 ->
   Either Text ()
 checkEpisodeFitsSlot startTime endTime episodeSeconds
-  | episodeSeconds <= maxSeconds = Right ()
-  | otherwise =
+  | episodeSeconds > maxSeconds =
       Left
-        [i|This episode runs #{formatLength episodeSeconds}. Episodes in this #{slotName} slot can run at most #{formatLength maxSeconds}, so the station break fits. Trim the audio and upload it again.|]
+        [i|This episode runs #{formatLength episodeSeconds}. Episodes in this #{slotName} slot must run from #{formatLength minSeconds} to #{formatLength maxSeconds}, so the station break fits. Trim the audio and upload it again.|]
+  | episodeSeconds < minSeconds =
+      Left
+        [i|This episode runs #{formatLength episodeSeconds}. Episodes in this #{slotName} slot must run from #{formatLength minSeconds} to #{formatLength maxSeconds}, so the episode fills the slot up to the station break. Add audio and upload it again.|]
+  | otherwise = Right ()
   where
     maxSeconds = maxEpisodeSeconds startTime endTime
+    minSeconds = minEpisodeSeconds startTime endTime
     slotName = describeSlotLength (slotSeconds startTime endTime)
 
 -- | Format a length in seconds as @M:SS@, or as @H:MM:SS@ from one hour up.

@@ -228,10 +228,11 @@ validateDescription mDescription = do
     Left err -> throwValidationError (Sanitize.displayContentValidationError err)
     Right valid -> pure valid
 
--- | Refuse an edit that leaves the episode too long for its slot.
+-- | Refuse an edit that leaves the episode too long or too short for its slot.
 --
 -- The station break starts two minutes before the slot ends and cuts the
--- episode. The check runs when the audio or the slot changes, and the result
+-- episode. The episode must also end no more than one minute before the
+-- break. The check runs when the audio or the slot changes, and the result
 -- has both a length and a slot. It runs before any write, so a refused edit
 -- claims no upload and changes nothing.
 --
@@ -287,7 +288,7 @@ checkLengthFitsSlot isPast isStaffOrAdmin episode editForm = do
           case checkEpisodeFitsSlot template.stStartTime template.stEndTime audioSeconds of
             Right () -> pure ()
             Left lengthErr -> do
-              Log.logInfo "Rejected episode edit: too long for its slot" (episode.id, audioSeconds, templateId)
+              Log.logInfo "Rejected episode edit: wrong length for its slot" (episode.id, audioSeconds, templateId)
               throwValidationError lengthErr
 
 --------------------------------------------------------------------------------

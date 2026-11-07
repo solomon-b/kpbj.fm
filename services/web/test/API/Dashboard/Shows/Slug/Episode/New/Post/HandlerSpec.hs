@@ -42,6 +42,7 @@ spec =
         it "returns ValidationError for missing audio token" test_validationErrorForMissingAudio
         it "staff user creates episode with staged audio at the 58:00 limit of a 1 hour slot" test_staffCreatesEpisode
         it "rejects staged audio too long for the slot and leaves the upload pending" test_rejectsOverLengthAudio
+        it "rejects staged audio too short for the slot and leaves the upload pending" test_rejectsUnderLengthAudio
 
 --------------------------------------------------------------------------------
 
@@ -276,7 +277,63 @@ test_rejectsOverLengthAudio cfg = do
 
     liftIO $ case result of
       Left (ValidationError message) ->
-        message `shouldBe` "This episode runs 58:01. Episodes in this 1 hour slot can run at most 58:00, so the station break fits. Trim the audio and upload it again."
+        message `shouldBe` "This episode runs 58:01. Episodes in this 1 hour slot must run from 57:00 to 58:00, so the station break fits. Trim the audio and upload it again."
+      Left err -> expectationFailure $ "Expected ValidationError but got: " <> show err
+      Right _ -> expectationFailure "Expected Left ValidationError but got Right"
+
+    stagedResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Read $
+          TRX.statement () (StagedUploads.getByToken token)
+    liftIO $ do
+      mStaged <- expectSetupRight stagedResult
+      fmap (.status) mStaged `shouldBe` Just StagedUploads.Pending
+
+-- | Audio one second under 57:00 does not fill a 1 hour slot.
+--
+-- The refusal comes before the claim, so the staged row stays pending and the
+-- host can still use the token after a fix.
+test_rejectsUnderLengthAudio :: TestDBConfig -> IO ()
+test_rejectsUnderLengthAudio cfg = do
+  userInsert <- mkUserInsert "ep-new-post-too-short" UserMetadata.Staff
+
+  let showInsert =
+        Shows.Insert
+          { Shows.siTitle = "Show For Under Length Audio",
+            Shows.siSlug = Slug "show-for-under-length-audio",
+            Shows.siDescription = Nothing,
+            Shows.siLogoUrl = Nothing,
+            Shows.siStatus = Shows.Active
+          }
+      token = StagedUploads.Token "test-audio-token-ep-too-short"
+
+  bracketAppM cfg $ do
+    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+      (userModel, userMeta) <- setupUserModels userInsert
+      (showId, templateId) <- setupShowWithOpenSchedule showInsert
+      addTestShowHost showId userModel.mId
+      let stagedInsert =
+            StagedUploads.Insert
+              { StagedUploads.siToken = token,
+                StagedUploads.siUserId = userModel.mId,
+                StagedUploads.siOriginalName = "episode-too-short.mp3",
+                StagedUploads.siStoragePath = "temp/staging/test-audio-ep-too-short.mp3",
+                StagedUploads.siMimeType = "audio/mpeg",
+                StagedUploads.siFileSize = 54704000,
+                StagedUploads.siDurationSeconds = Just 3419,
+                StagedUploads.siUploadType = StagedUploads.EpisodeAudio
+              }
+      _uploadId <- TRX.statement () (StagedUploads.insert stagedInsert)
+      pure (userModel, userMeta, templateId)
+    (userModel, userMeta, templateId) <- liftIO $ expectSetupRight dbResult
+
+    let scheduleVal = Text.pack (show (ShowSchedule.unTemplateId templateId)) <> "|" <> testAirDate
+        form = minimalForm "0" (Just scheduleVal) (Just "test-audio-token-ep-too-short")
+    result <- runExceptT $ action userModel userMeta (Slug "show-for-under-length-audio") form
+
+    liftIO $ case result of
+      Left (ValidationError message) ->
+        message `shouldBe` "This episode runs 56:59. Episodes in this 1 hour slot must run from 57:00 to 58:00, so the episode fills the slot up to the station break. Add audio and upload it again."
       Left err -> expectationFailure $ "Expected ValidationError but got: " <> show err
       Right _ -> expectationFailure "Expected Left ValidationError but got Right"
 
