@@ -250,6 +250,9 @@ jobs:
           STREAM_URL: http://localhost:8000/stream
           METADATA_URL: http://localhost:8000/status-json.xsl
 
+      - name: Make E2E audio fixtures
+        run: nix develop --command just e2e-fixtures
+
       - name: Run E2E tests
         run: nix develop --command playwright test
         working-directory: e2e

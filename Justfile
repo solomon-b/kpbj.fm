@@ -969,16 +969,22 @@ prod-backup-db-restore-pitr TARGET:
 # Run `just dev-mock-data` before running E2E tests to load deterministic test data.
 # Prerequisites: playwright-test (provided via Nix flake)
 
+# Make the audio fixtures that are too large for git.
+# The episode upload test needs 1:57:00 to 1:58:00 of audio for its 2 hour slot.
+# This recipe makes 1:57:30 of silence at 8 kbps, about 7MB.
+e2e-fixtures:
+  test -f e2e/fixtures/episode-audio.mp3 || ffmpeg -y -v error -f lavfi -i anullsrc=r=8000:cl=mono -t 7050 -c:a libmp3lame -b:a 8k e2e/fixtures/episode-audio.mp3
+
 # Run E2E tests (headless). Reloads mock data first for a clean slate.
-e2e: dev-mock-data
+e2e: dev-mock-data e2e-fixtures
   cd e2e && playwright test
 
 # Run E2E tests with interactive UI mode. Reloads mock data first for a clean slate.
-e2e-ui: dev-mock-data
+e2e-ui: dev-mock-data e2e-fixtures
   cd e2e && playwright test --ui
 
 # Run E2E tests in a visible browser. Reloads mock data first for a clean slate.
-e2e-headed: dev-mock-data
+e2e-headed: dev-mock-data e2e-fixtures
   cd e2e && playwright test --headed
 
 # View the last E2E test report.

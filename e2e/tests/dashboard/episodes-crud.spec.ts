@@ -15,9 +15,12 @@ import path from "path";
 // returns all shows for admins — staff sees only their assigned shows.
 //
 // Uses staged audio file uploads — same pattern as station IDs and ephemeral.
+//
+// The show has a 2 hour slot, so the episode must run 1:57:00 to 1:58:00.
+// `just e2e-fixtures` makes this file. It is too large for git.
 // ---------------------------------------------------------------------------
 
-const AUDIO_FIXTURE = path.join(__dirname, "..", "..", "fixtures", "test-audio.mp3");
+const AUDIO_FIXTURE = path.join(__dirname, "..", "..", "fixtures", "episode-audio.mp3");
 const SHOW_SLUG = "sunday-morning-jazz";
 const LIST_URL = `/dashboard/episodes/${SHOW_SLUG}`;
 const NEW_URL = `/dashboard/shows/${SHOW_SLUG}/episodes/new`;
@@ -141,7 +144,7 @@ test.describe("Episodes CRUD", () => {
       // Verify the uploaded file name is shown.
       await expect(
         page.locator(".fb-audio-uploaded-name")
-      ).toContainText("test-audio.mp3");
+      ).toContainText("episode-audio.mp3");
 
       // Submit the form.
       await page.getByRole("button", { name: "SUBMIT" }).click();
