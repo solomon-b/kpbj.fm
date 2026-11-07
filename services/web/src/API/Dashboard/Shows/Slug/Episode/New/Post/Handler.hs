@@ -352,7 +352,7 @@ processFileUploads backend mAwsEnv userId showSlug slotTemplate mScheduledDate m
         Right (Just stagedUpload) ->
           case stagedAudioFitsSlot slotTemplate stagedUpload of
             Left lengthErr -> do
-              Log.logInfo "Rejected episode audio: too long for its slot" (StagedUploads.durationSeconds stagedUpload)
+              Log.logInfo "Rejected episode audio: wrong length for its slot" (StagedUploads.durationSeconds stagedUpload)
               pure $ Left lengthErr
             Right () -> do
               -- Claim and relocate to audio/{air_date}/episodes/{show-slug}-{random}.ext
@@ -388,7 +388,8 @@ processFileUploads backend mAwsEnv userId showSlug slotTemplate mScheduledDate m
     (Right (audioPath, mDurationSeconds), Left _artworkErr) -> pure $ Right (audioPath, mDurationSeconds, Nothing)
     (Right (audioPath, mDurationSeconds), Right artworkPath) -> pure $ Right (audioPath, mDurationSeconds, artworkPath)
 
--- | Check that staged audio ends before the station break of its slot.
+-- | Check that staged audio ends before the station break of its slot, and
+-- no more than one minute before it.
 --
 -- A staged row with no length passes. Only rows staged before the length
 -- column existed have none, and staged rows expire after an hour.
