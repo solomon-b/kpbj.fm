@@ -19,7 +19,7 @@ import Servant qualified
 -- slot boundary. The tracks come from the stored daily plan:
 --
 -- 1. A station ID
--- 2. Up to two PSAs
+-- 2. Every PSA that fits in the break
 -- 3. At a show break, one underwriting announcement
 --
 -- A repeated request for the same boundary returns the same tracks. Returns

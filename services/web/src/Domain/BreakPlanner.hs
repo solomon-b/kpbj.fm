@@ -5,15 +5,15 @@
 -- request for a break returns the same tracks.
 --
 -- One list of rules, 'rules', controls every break. Each rule names a
--- category, the most items of that category in one break, the longest upload
--- for it, and a test that allows or refuses an item in a break. The order of
+-- category, the most items of that category in one break (if any), the longest
+-- upload for it, and a test that allows or refuses an item in a break. The order of
 -- the list is the priority, and it is also the play order in a break:
 --
 -- 1. One station ID, in every break
 -- 2. One underwriting announcement, in a show break only
 -- 3. One station announcement, in every break
 -- 4. One show promo, in every break
--- 5. Up to 'psasPerBreak' PSAs, in every break
+-- 5. Every PSA that fits, in every break
 --
 -- The plan is made in two steps:
 --
@@ -37,7 +37,6 @@ module Domain.BreakPlanner
 
     -- * The break template
     breakSeconds,
-    psasPerBreak,
     underwritingDailyCap,
     stationIdMaxSeconds,
     psaMaxSeconds,
@@ -152,8 +151,9 @@ data RuleBreak = RuleBreak
 -- | How the fill loop places one category in a break.
 data Rule = Rule
   { ruleCategory :: Category,
-    -- | The most items of this category in one break.
-    ruleMaxCount :: Int,
+    -- | The most items of this category in one break. Nothing means no count
+    -- limit, and the time left in the break limits the rule.
+    ruleMaxCount :: Maybe Int,
     -- | The longest item an upload may carry.
     --
     -- The fill loop does not use this value. Items saved before the limit
@@ -178,7 +178,7 @@ stationIdRule :: Rule
 stationIdRule =
   Rule
     { ruleCategory = StationIdCategory,
-      ruleMaxCount = 1,
+      ruleMaxCount = Just 1,
       ruleMaxSeconds = 10,
       ruleAlwaysFits = True,
       ruleAllows = allowEverywhere
@@ -193,7 +193,7 @@ underwritingRule :: Rule
 underwritingRule =
   Rule
     { ruleCategory = BreakItemCategory BreakItems.Underwriting,
-      ruleMaxCount = 1,
+      ruleMaxCount = Just 1,
       ruleMaxSeconds = 30,
       ruleAlwaysFits = False,
       ruleAllows = allowAssignedSpot
@@ -206,7 +206,7 @@ announcementRule :: Rule
 announcementRule =
   Rule
     { ruleCategory = BreakItemCategory BreakItems.Announcement,
-      ruleMaxCount = 1,
+      ruleMaxCount = Just 1,
       ruleMaxSeconds = 30,
       ruleAlwaysFits = False,
       ruleAllows = allowEverywhere
@@ -220,18 +220,21 @@ showPromoRule :: Rule
 showPromoRule =
   Rule
     { ruleCategory = BreakItemCategory BreakItems.ShowPromo,
-      ruleMaxCount = 1,
+      ruleMaxCount = Just 1,
       ruleMaxSeconds = 10,
       ruleAlwaysFits = False,
       ruleAllows = allowEverywhere
     }
 
--- | Up to two PSAs, in every break.
+-- | Every PSA that fits, in every break.
+--
+-- The rule has no count limit. It is the last rule, so it takes the time that
+-- the other rules leave.
 psaRule :: Rule
 psaRule =
   Rule
     { ruleCategory = BreakItemCategory BreakItems.Psa,
-      ruleMaxCount = 2,
+      ruleMaxCount = Nothing,
       ruleMaxSeconds = 30,
       ruleAlwaysFits = False,
       ruleAllows = allowEverywhere
@@ -256,10 +259,6 @@ allowAssignedSpot ruleBreak candidate =
 -- | How long a break runs, in seconds.
 breakSeconds :: Int64
 breakSeconds = 120
-
--- | The most PSAs one break carries.
-psasPerBreak :: Int
-psasPerBreak = ruleMaxCount psaRule
 
 -- | The most announcements one underwriter airs in a day, across all of its
 -- recordings.
@@ -427,7 +426,7 @@ applyRule ruleBreak filling rule =
       [c | c <- rotation, cdRef c `notElem` takenRefs] <> taken
 
 -- | Walk a rotation in order and take each item the rule allows and that fits,
--- up to the rule's max count.
+-- up to the rule's max count, if it has one.
 --
 -- An item that does not fit in the time left is skipped, and the walk
 -- continues.
@@ -442,12 +441,17 @@ takeByRule ruleBreak rule startUsed = go startUsed 0
   where
     go _ _ [] = []
     go used count (candidate : rest)
-      | count >= ruleMaxCount rule = []
+      | countReached count = []
       | allowed && fits = candidate : go (used + cdSeconds candidate) (count + 1) rest
       | otherwise = go used count rest
       where
         allowed = ruleAllows rule ruleBreak candidate
         fits = ruleAlwaysFits rule || used + cdSeconds candidate <= breakSeconds
+
+    countReached count =
+      case ruleMaxCount rule of
+        Nothing -> False
+        Just maxCount -> count >= maxCount
 
 -- | Turn a filled break into its entries, in play order.
 toEntries :: PlanBreak -> [Candidate] -> [PlanEntry]

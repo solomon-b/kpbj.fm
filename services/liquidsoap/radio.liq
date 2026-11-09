@@ -183,8 +183,8 @@ end
 
 # Fetch one break window from the API and put it on the air.
 #
-# The API answers with the break's planned tracks: a station ID, up to two
-# PSAs, and at a show break one underwriting announcement. An empty array
+# The API answers with the break's planned tracks: a station ID, every PSA
+# that fits, and at a show break one underwriting announcement. An empty array
 # means no break is due at this boundary, or that nothing was available for
 # one. Both cases leave the current source untouched, so a failure here never
 # cuts a show for silence.

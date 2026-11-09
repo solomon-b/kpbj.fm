@@ -9,6 +9,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **An episode upload must be at most 1 minute shorter than its maximum length.** A 30 minute slot now takes 27:00 to 28:00 of audio, and a 1 hour slot takes 57:00 to 58:00. Before, a slot took any episode up to its maximum. The new-episode and edit-episode forms refuse a short episode, and the message states both limits. The rule applies to all roles. Episodes that are already uploaded still air as they are. An edit checks them only when it changes the audio or the slot. The upload hints now state the range. With a known maximum gap before the break, the playout redesign can cover the gap with one filler track. The e2e episode upload now uses 1:57:30 of silent audio, which `just e2e-fixtures` makes with ffmpeg before the tests run (#172).
 - **Ephemeral uploads now store their audio length.** The upload measures the length, and the new and edit forms save it. An upload or a replacement with no measured length is refused, as for station IDs. An edit that does not change the audio keeps the stored length. The playout redesign needs the length to place each track at a fixed time (#173).
 
+### Changed
+- **A break now carries every PSA that fits.** A break holds every PSA that fits in its 120 seconds, in rotation order. Before, a break held at most 2 PSAs and left the rest of the time to filler (#173).
+
 ### Fixed
 - **An episode that a break cuts no longer plays again after the break.** The break skipped the episode in the scheduled queue, but the buffer after the queue still held a few seconds of it. Those seconds played when the break ended, and the playback history got a second entry for the episode (#156).
   - The break now drops the audio in the buffer with a seek. A skip on the buffer does not drop that audio, and it ends the next show instead.
