@@ -310,9 +310,14 @@ spec = describe "Domain.BreakPlanner.planDay" $ do
                      BreakItemRef (BreakItems.Id 101)
                    ]
 
-    it "places at most two PSAs in a break" $ do
+    it "places every PSA that fits in the break" $ do
       let entries = planDay (input (showBreaks 1) [psa i 10 | i <- [100 .. 104]] [])
-      map length (itemsPerBreak entries) `shouldBe` [2]
+      map length (itemsPerBreak entries) `shouldBe` [5]
+
+    it "stops placing PSAs when the next one does not fit" $ do
+      -- 10 + 30 + 30 + 30 = 100 seconds. A fourth PSA would make 130.
+      let entries = planDay (input (showBreaks 1) [psa i 30 | i <- [100 .. 104]] [])
+      itemsPerBreak entries `shouldBe` [map BreakItems.Id [100, 101, 102]]
 
     it "never puts underwriting in an automation break" $ do
       let bs = [PlanBreak (UTCTime day 0) AutomationBreak]
@@ -531,7 +536,19 @@ spec = describe "Domain.BreakPlanner.planDay" $ do
         assert (countOf UnderwritingKind <= 1)
         assert (countOf AnnouncementKind <= 1)
         assert (countOf ShowPromoKind <= 1)
-        assert (countOf PsaKind <= psasPerBreak)
+
+        -- The PSA fill is greedy. Every PSA of the day that is not in this
+        -- break is longer than the time left.
+        let placedRefs = map peRef breakEntries
+            secondsLeft = breakSeconds - totalSeconds
+            skippedPsaSeconds =
+              [ bicSeconds item
+              | item <- piBreakItems planInput,
+                bicCategory item == BreakItems.Psa,
+                BreakItemRef (bicId item) `notElem` placedRefs
+              ]
+        annotateShow secondsLeft
+        assert (all (> secondsLeft) skippedPsaSeconds)
 
         -- The play order is the rule order.
         kinds === sort kinds
