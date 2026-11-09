@@ -80,10 +80,13 @@ action user _userMetadata ephemeralUploadId form = do
 
   -- 4. Process audio replacement or keep existing
   let audioToken = fdAudioToken form
-  (storagePath, mimeType, fileSize) <-
+  -- Without new audio, the stored length stays as it is. An old row can have none.
+  (storagePath, mimeType, fileSize, durationSeconds) <-
     if Text.null audioToken
-      then pure (ephemeralUpload.eumAudioFilePath, ephemeralUpload.eumMimeType, ephemeralUpload.eumFileSize)
-      else processNewAudio user ephemeralUpload title audioToken
+      then pure (ephemeralUpload.eumAudioFilePath, ephemeralUpload.eumMimeType, ephemeralUpload.eumFileSize, ephemeralUpload.eumDurationSeconds)
+      else do
+        (newPath, newMimeType, newFileSize, newDurationSeconds) <- processNewAudio user ephemeralUpload title audioToken
+        pure (newPath, newMimeType, newFileSize, Just newDurationSeconds)
 
   -- 5. Update the database record
   _ <-
@@ -97,6 +100,7 @@ action user _userMetadata ephemeralUploadId form = do
             storagePath
             mimeType
             fileSize
+            durationSeconds
 
   Log.logInfo "Ephemeral upload updated successfully" title
 
@@ -119,14 +123,21 @@ processNewAudio ::
   Text ->
   -- | Audio token
   Text ->
-  -- | (storagePath, mimeType, fileSize)
-  ExceptT HandlerError AppM (Text, Text, Int64)
+  -- | (storagePath, mimeType, fileSize, durationSeconds)
+  ExceptT HandlerError AppM (Text, Text, Int64, Int64)
 processNewAudio user ephemeralUpload title audioToken = do
   -- Get the staged upload to retrieve metadata
   stagedUpload <-
     fromMaybeM (throwValidationError "Uploaded file not found or expired.") $
       fromRightM throwDatabaseError $
         execQuery (StagedUploads.getByToken (StagedUploads.Token audioToken))
+
+  -- The upload handler measured the length and stored it on the staged row.
+  -- The playout needs the length to place each track at a fixed time.
+  -- This check runs before the claim, because the claim moves the file.
+  durationSeconds <-
+    fromMaybeM (throwValidationError "Could not read the audio length. Upload the file again.") $
+      pure (StagedUploads.durationSeconds stagedUpload)
 
   -- Claim and relocate the staged upload to final location
   now <- liftIO getCurrentTime
@@ -155,4 +166,4 @@ processNewAudio user ephemeralUpload title audioToken = do
     Left err -> Log.logInfo "Failed to delete old ephemeral upload file" (ephemeralUpload.eumAudioFilePath <> ": " <> err)
     Right () -> pure ()
 
-  pure (newStoragePath, StagedUploads.mimeType stagedUpload, StagedUploads.fileSize stagedUpload)
+  pure (newStoragePath, StagedUploads.mimeType stagedUpload, StagedUploads.fileSize stagedUpload, durationSeconds)

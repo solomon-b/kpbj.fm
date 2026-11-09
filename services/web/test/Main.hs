@@ -27,9 +27,11 @@ import API.Dashboard.Blogs.Slug.Get.HandlerSpec qualified as DashboardBlogsSlugG
 import API.Dashboard.EphemeralUploads.Get.HandlerSpec qualified as DashboardEphemeralUploadsGetHandler
 import API.Dashboard.EphemeralUploads.Id.Delete.HandlerSpec qualified as DashboardEphemeralUploadsDeleteHandler
 import API.Dashboard.EphemeralUploads.Id.Edit.Get.HandlerSpec qualified as DashboardEphemeralUploadsEditGetHandler
+import API.Dashboard.EphemeralUploads.Id.Edit.Post.HandlerSpec qualified as DashboardEphemeralUploadsEditPostHandler
 import API.Dashboard.EphemeralUploads.Id.Flag.Post.HandlerSpec qualified as DashboardEphemeralUploadsFlagHandler
 import API.Dashboard.EphemeralUploads.Id.Unflag.Post.HandlerSpec qualified as DashboardEphemeralUploadsUnflagHandler
 import API.Dashboard.EphemeralUploads.New.Get.HandlerSpec qualified as DashboardEphemeralUploadsNewGetHandler
+import API.Dashboard.EphemeralUploads.New.Post.HandlerSpec qualified as DashboardEphemeralUploadsNewPostHandler
 import API.Dashboard.Episodes.Get.HandlerSpec qualified as DashboardEpisodesGetHandler
 import API.Dashboard.Episodes.Redirect.HandlerSpec qualified as DashboardEpisodesRedirectHandler
 import API.Dashboard.Episodes.Slug.Delete.HandlerSpec qualified as DashboardEpisodesDeleteHandler
@@ -268,7 +270,9 @@ main = do
     DashboardSitePagesRestorePostHandler.spec
     DashboardEphemeralUploadsGetHandler.spec
     DashboardEphemeralUploadsNewGetHandler.spec
+    DashboardEphemeralUploadsNewPostHandler.spec
     DashboardEphemeralUploadsEditGetHandler.spec
+    DashboardEphemeralUploadsEditPostHandler.spec
     DashboardEphemeralUploadsDeleteHandler.spec
     DashboardEphemeralUploadsFlagHandler.spec
     DashboardEphemeralUploadsUnflagHandler.spec

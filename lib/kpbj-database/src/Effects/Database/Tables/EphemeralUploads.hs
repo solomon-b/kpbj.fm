@@ -158,6 +158,7 @@ data EphemeralUpload f = EphemeralUpload
     eumAudioFilePath :: Column f Text,
     eumMimeType :: Column f Text,
     eumFileSize :: Column f Int64,
+    eumDurationSeconds :: Column f (Maybe Int64),
     eumCreatorId :: Column f User.Id,
     eumCreatedAt :: Column f UTCTime,
     eumFlaggedAt :: Column f (Maybe UTCTime),
@@ -196,6 +197,7 @@ ephemeralUploadSchema =
             eumAudioFilePath = "audio_file_path",
             eumMimeType = "mime_type",
             eumFileSize = "file_size",
+            eumDurationSeconds = "duration_seconds",
             eumCreatorId = "creator_id",
             eumCreatedAt = "created_at",
             eumFlaggedAt = "flagged_at",
@@ -214,6 +216,7 @@ data Insert = Insert
     euiAudioFilePath :: Text,
     euiMimeType :: Text,
     euiFileSize :: Int64,
+    euiDurationSeconds :: Maybe Int64,
     euiCreatorId :: User.Id
   }
   deriving stock (Generic, Show, Eq)
@@ -229,6 +232,7 @@ data EphemeralUploadWithCreator = EphemeralUploadWithCreator
     euwcAudioFilePath :: Text,
     euwcMimeType :: Text,
     euwcFileSize :: Int64,
+    euwcDurationSeconds :: Maybe Int64,
     euwcCreatorId :: User.Id,
     euwcCreatedAt :: UTCTime,
     euwcCreatorDisplayName :: Text,
@@ -255,7 +259,7 @@ getAllEphemeralUploads includeFlagged (Limit lim) (Offset off)
       interp
         True
         [sql|
-        SELECT eu.id, eu.title, eu.description, eu.audio_file_path, eu.mime_type, eu.file_size,
+        SELECT eu.id, eu.title, eu.description, eu.audio_file_path, eu.mime_type, eu.file_size, eu.duration_seconds,
                eu.creator_id, eu.created_at, um.display_name,
                eu.flagged_at, eu.flagged_by, eu.flag_reason
         FROM ephemeral_uploads eu
@@ -268,7 +272,7 @@ getAllEphemeralUploads includeFlagged (Limit lim) (Offset off)
       interp
         True
         [sql|
-        SELECT eu.id, eu.title, eu.description, eu.audio_file_path, eu.mime_type, eu.file_size,
+        SELECT eu.id, eu.title, eu.description, eu.audio_file_path, eu.mime_type, eu.file_size, eu.duration_seconds,
                eu.creator_id, eu.created_at, um.display_name,
                eu.flagged_at, eu.flagged_by, eu.flag_reason
         FROM ephemeral_uploads eu
@@ -296,7 +300,7 @@ getRandomEphemeralUpload =
   interp
     False
     [sql|
-    SELECT id, title, description, audio_file_path, mime_type, file_size, creator_id, created_at,
+    SELECT id, title, description, audio_file_path, mime_type, file_size, duration_seconds, creator_id, created_at,
            flagged_at, flagged_by, flag_reason
     FROM ephemeral_uploads
     WHERE flagged_at IS NULL
@@ -311,8 +315,8 @@ insertEphemeralUpload Insert {..} =
     <$> interp
       False
       [sql|
-      INSERT INTO ephemeral_uploads(title, description, audio_file_path, mime_type, file_size, creator_id, created_at)
-      VALUES (#{euiTitle}, #{euiDescription}, #{euiAudioFilePath}, #{euiMimeType}, #{euiFileSize}, #{euiCreatorId}, NOW())
+      INSERT INTO ephemeral_uploads(title, description, audio_file_path, mime_type, file_size, duration_seconds, creator_id, created_at)
+      VALUES (#{euiTitle}, #{euiDescription}, #{euiAudioFilePath}, #{euiMimeType}, #{euiFileSize}, #{euiDurationSeconds}, #{euiCreatorId}, NOW())
       RETURNING id
     |]
 
@@ -320,17 +324,18 @@ insertEphemeralUpload Insert {..} =
 --
 -- Updates all mutable fields. Pass existing values for fields you don't want to change.
 -- Returns the updated model if successful, Nothing if not found.
-updateEphemeralUpload :: Id -> Text -> Text -> Text -> Text -> Int64 -> Hasql.Statement () (Maybe Model)
-updateEphemeralUpload (Id eid) newTitle newDescription newAudioFilePath newMimeType newFileSize =
+updateEphemeralUpload :: Id -> Text -> Text -> Text -> Text -> Int64 -> Maybe Int64 -> Hasql.Statement () (Maybe Model)
+updateEphemeralUpload (Id eid) newTitle newDescription newAudioFilePath newMimeType newFileSize newDurationSeconds =
   listToMaybe
     <$> interp
       False
       [sql|
       UPDATE ephemeral_uploads
       SET title = #{newTitle}, description = #{newDescription},
-          audio_file_path = #{newAudioFilePath}, mime_type = #{newMimeType}, file_size = #{newFileSize}
+          audio_file_path = #{newAudioFilePath}, mime_type = #{newMimeType}, file_size = #{newFileSize},
+          duration_seconds = #{newDurationSeconds}
       WHERE id = #{eid}
-      RETURNING id, title, description, audio_file_path, mime_type, file_size, creator_id, created_at,
+      RETURNING id, title, description, audio_file_path, mime_type, file_size, duration_seconds, creator_id, created_at,
                 flagged_at, flagged_by, flag_reason
     |]
 
@@ -362,7 +367,7 @@ flagEphemeralUpload ephemeralUploadId flaggerId reason =
       UPDATE ephemeral_uploads
       SET flagged_at = NOW(), flagged_by = #{flaggerId}, flag_reason = #{reason}::flag_reason
       WHERE id = #{ephemeralUploadId}
-      RETURNING id, title, description, audio_file_path, mime_type, file_size, creator_id, created_at,
+      RETURNING id, title, description, audio_file_path, mime_type, file_size, duration_seconds, creator_id, created_at,
                 flagged_at, flagged_by, flag_reason
     |]
 
@@ -379,7 +384,7 @@ unflagEphemeralUpload (Id eid) =
       UPDATE ephemeral_uploads
       SET flagged_at = NULL, flagged_by = NULL, flag_reason = NULL
       WHERE id = #{eid}
-      RETURNING id, title, description, audio_file_path, mime_type, file_size, creator_id, created_at,
+      RETURNING id, title, description, audio_file_path, mime_type, file_size, duration_seconds, creator_id, created_at,
                 flagged_at, flagged_by, flag_reason
     |]
 
@@ -392,7 +397,7 @@ getEphemeralUploadWithCreatorById (Id eid) =
     <$> interp
       True
       [sql|
-      SELECT eu.id, eu.title, eu.description, eu.audio_file_path, eu.mime_type, eu.file_size,
+      SELECT eu.id, eu.title, eu.description, eu.audio_file_path, eu.mime_type, eu.file_size, eu.duration_seconds,
              eu.creator_id, eu.created_at, um.display_name,
              eu.flagged_at, eu.flagged_by, eu.flag_reason
       FROM ephemeral_uploads eu

@@ -40,6 +40,7 @@ mkEphemeralUploadInsert title creatorId =
       euiAudioFilePath = "/test/audio.mp3",
       euiMimeType = "audio/mpeg",
       euiFileSize = 1024 :: Int64,
+      euiDurationSeconds = Nothing,
       euiCreatorId = creatorId
     }
 
