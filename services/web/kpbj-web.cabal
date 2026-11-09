@@ -820,9 +820,11 @@ test-suite kpbj-web-test
        API.Dashboard.EphemeralUploads.Get.HandlerSpec
        API.Dashboard.EphemeralUploads.Id.Delete.HandlerSpec
        API.Dashboard.EphemeralUploads.Id.Edit.Get.HandlerSpec
+       API.Dashboard.EphemeralUploads.Id.Edit.Post.HandlerSpec
        API.Dashboard.EphemeralUploads.Id.Flag.Post.HandlerSpec
        API.Dashboard.EphemeralUploads.Id.Unflag.Post.HandlerSpec
        API.Dashboard.EphemeralUploads.New.Get.HandlerSpec
+       API.Dashboard.EphemeralUploads.New.Post.HandlerSpec
        API.Dashboard.SitePages.Get.HandlerSpec
        API.Dashboard.SitePages.Slug.Edit.Get.HandlerSpec
        API.Dashboard.SitePages.Slug.Edit.Post.HandlerSpec

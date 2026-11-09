@@ -40,6 +40,8 @@ spec =
 
       describe "Mutations" $ do
         runs 10 . it "updateEphemeralUpload: updates fields" $ hedgehog . prop_updateEphemeralUpload
+        runs 10 . it "updateEphemeralUpload: stores the new length" $
+          hedgehog . prop_updateStoresDuration
         runs 10 . it "deleteEphemeralUpload: removes upload" $ hedgehog . prop_deleteEphemeralUpload
 
       describe "Flagging" $ do
@@ -80,6 +82,7 @@ prop_insertSelect cfg = do
         UUT.eumAudioFilePath selected === UUT.euiAudioFilePath uploadInsert
         UUT.eumMimeType selected === UUT.euiMimeType uploadInsert
         UUT.eumFileSize selected === UUT.euiFileSize uploadInsert
+        UUT.eumDurationSeconds selected === UUT.euiDurationSeconds uploadInsert
         UUT.eumFlaggedAt selected === Nothing
         UUT.eumFlaggedBy selected === Nothing
         UUT.eumFlagReason selected === Nothing
@@ -170,7 +173,7 @@ prop_updateEphemeralUpload cfg = do
         let newPath = "/updated/path.mp3"
         let newMime = "audio/wav"
         let newSize = 42000
-        mUpdated <- TRX.statement () (UUT.updateEphemeralUpload insertedId newTitle newDescription newPath newMime newSize)
+        mUpdated <- TRX.statement () (UUT.updateEphemeralUpload insertedId newTitle newDescription newPath newMime newSize Nothing)
 
         TRX.condemn
         pure (insertedId, mUpdated)
@@ -184,6 +187,34 @@ prop_updateEphemeralUpload cfg = do
         UUT.eumAudioFilePath updated === "/updated/path.mp3"
         UUT.eumMimeType updated === "audio/wav"
         UUT.eumFileSize updated === 42000
+        pure ()
+
+-- | updateEphemeralUpload: stores the new length.
+prop_updateStoresDuration :: TestDBConfig -> PropertyT IO ()
+prop_updateStoresDuration cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    template <- forAllT $ ephemeralUploadInsertGen (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+
+        let uploadInsert = template {UUT.euiCreatorId = userId}
+        insertedId <- unwrapInsert (UUT.insertEphemeralUpload uploadInsert)
+
+        mUpdated <-
+          TRX.statement
+            ()
+            (UUT.updateEphemeralUpload insertedId "Title" "Description" "/path.mp3" "audio/mpeg" 1000 (Just 321))
+
+        TRX.condemn
+        pure mUpdated
+
+      assert $ do
+        mUpdated <- assertRight result
+        updated <- assertJust mUpdated
+        UUT.eumDurationSeconds updated === Just 321
         pure ()
 
 -- | deleteEphemeralUpload: removes upload, returns its ID.

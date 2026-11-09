@@ -73,6 +73,13 @@ action user form = do
       fromRightM throwDatabaseError $
         execQuery (StagedUploads.getByToken (StagedUploads.Token audioToken))
 
+  -- The upload handler measured the length and stored it on the staged row.
+  -- The playout needs the length to place each track at a fixed time.
+  -- This check runs before the claim, because the claim moves the file.
+  durationSeconds <-
+    fromMaybeM (throwValidationError "Could not read the audio length. Upload the file again.") $
+      pure (StagedUploads.durationSeconds stagedUpload)
+
   -- 5. Claim and relocate the staged upload to final location
   now <- liftIO getCurrentTime
   let Slug titleSlug = mkSlug title
@@ -100,6 +107,7 @@ action user form = do
             EphemeralUploads.euiAudioFilePath = storagePath,
             EphemeralUploads.euiMimeType = StagedUploads.mimeType stagedUpload,
             EphemeralUploads.euiFileSize = StagedUploads.fileSize stagedUpload,
+            EphemeralUploads.euiDurationSeconds = Just durationSeconds,
             EphemeralUploads.euiCreatorId = User.mId user
           }
   _ <-

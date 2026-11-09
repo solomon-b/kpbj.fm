@@ -19,5 +19,6 @@ ephemeralUploadInsertGen userId = do
   euiAudioFilePath <- genUrl
   euiMimeType <- Gen.element ["audio/mpeg", "audio/ogg", "audio/wav"]
   euiFileSize <- Gen.integral (Range.linear 1000 10000000 :: Range.Range Int64)
+  euiDurationSeconds <- Gen.maybe (Gen.integral (Range.linear 1 14400))
   let euiCreatorId = userId
   pure EphemeralUploads.Insert {..}

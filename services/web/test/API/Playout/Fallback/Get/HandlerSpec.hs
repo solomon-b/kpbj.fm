@@ -39,6 +39,7 @@ mkEphemeralInsert title creatorId =
       euiAudioFilePath = "audio/ephemeral/2026/03/15/test_2026-03-15_abc123.mp3",
       euiMimeType = "audio/mpeg",
       euiFileSize = 1024 :: Int64,
+      euiDurationSeconds = Nothing,
       euiCreatorId = creatorId
     }
 

@@ -82,6 +82,7 @@ sampleEphemeralUpload =
       EphemeralUploads.eumAudioFilePath = "audio/ephemeral/sample.mp3",
       EphemeralUploads.eumMimeType = "audio/mpeg",
       EphemeralUploads.eumFileSize = 1024,
+      EphemeralUploads.eumDurationSeconds = Nothing,
       EphemeralUploads.eumCreatorId = User.Id 1,
       EphemeralUploads.eumCreatedAt = UTCTime sampleDay 0,
       EphemeralUploads.eumFlaggedAt = Nothing,
