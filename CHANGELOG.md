@@ -11,6 +11,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Changed
 - **A break now carries every PSA that fits.** A break holds every PSA that fits in its 120 seconds, in rotation order. Before, a break held at most 2 PSAs and left the rest of the time to filler (#173).
+- **One script fills the audio lengths for three tables.** `scripts/audio-durations-sql.sh` replaces `scripts/station-id-durations-sql.sh`. It takes the table name, and it fills the length of station IDs, ephemeral uploads, and episodes (#173).
+- **Staging placeholder audio uses the stored length of ephemeral uploads.** `scripts/lib/gen-audio.sh` now reads `ephemeral_uploads.duration_seconds`. Before, it guessed the length of each ephemeral file from its size. A row with no stored length still gets the guess (#173).
 
 ### Fixed
 - **An episode that a break cuts no longer plays again after the break.** The break skipped the episode in the scheduled queue, but the buffer after the queue still held a few seconds of it. Those seconds played when the break ended, and the playback history got a second entry for the episode (#156).

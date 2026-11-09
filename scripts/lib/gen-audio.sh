@@ -19,7 +19,7 @@ export GEN_AUDIO_MAX_SECONDS="21600"
 export GEN_AUDIO_DEFAULT_SECONDS="300"
 
 # Assumed bitrate of the real production audio, used to turn a file size into a
-# duration for the two tables that store no duration.
+# duration for a row that has no stored duration.
 export GEN_AUDIO_NOMINAL_BITRATE="128000"
 
 # Resolve the placeholder length for one row, in whole seconds.
@@ -82,7 +82,7 @@ export GEN_AUDIO_WORK_LIST_SQL="
 SELECT audio_file_path, duration_seconds, audio_file_size FROM episodes
   WHERE audio_file_path IS NOT NULL
 UNION ALL
-SELECT audio_file_path, NULL, file_size FROM ephemeral_uploads
+SELECT audio_file_path, duration_seconds, file_size FROM ephemeral_uploads
 UNION ALL
 SELECT audio_file_path, duration_seconds, file_size FROM station_ids
 "
@@ -90,7 +90,7 @@ SELECT audio_file_path, duration_seconds, file_size FROM station_ids
 # Field separator for psql output. The ASCII unit separator, not a tab.
 # Tab is IFS whitespace, so `read` collapses a run of tabs and drops the empty
 # fields that a NULL duration produces. That would shift file_size into the
-# duration slot for every station ID and ephemeral row.
+# duration slot for every row with no duration.
 GEN_AUDIO_FS=$'\x1f'
 export GEN_AUDIO_FS
 
