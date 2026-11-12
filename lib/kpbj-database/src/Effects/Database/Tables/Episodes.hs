@@ -49,6 +49,9 @@ module Effects.Database.Tables.Episodes
     getCurrentlyAiringEpisodes,
     getAiringEpisodes,
     AiringEpisode (..),
+    getSlotWindowsBetween,
+    SlotWindow (..),
+    SlotEpisode (..),
     insertEpisode,
     updateEpisode,
     updateEpisodeFiles,
@@ -66,11 +69,7 @@ module Effects.Database.Tables.Episodes
     -- * Result Types
     EpisodeWithShow (..),
     StationFeedRow (..),
-    SearchResult (..),
     UpcomingEpisodeRef (..),
-
-    -- * Search Queries
-    searchEpisodesWithAudio,
 
     -- * Tag Junction Queries
     getTagsForEpisode,
@@ -339,18 +338,6 @@ data EpisodeWithShow = EpisodeWithShow
   deriving anyclass (DecodeRow)
   deriving (Display) via (RecordInstance EpisodeWithShow)
 
--- | Search result for force-play episode lookup.
-data SearchResult = SearchResult
-  { srId :: Id,
-    srShowTitle :: Text,
-    srEpisodeNumber :: EpisodeNumber,
-    srAirDate :: Maybe Day,
-    srDurationSeconds :: Maybe Int64
-  }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass (DecodeRow)
-  deriving (Display) via (RecordInstance SearchResult)
-
 -- | A reference to an upcoming episode still attached to a template.
 --
 -- @air_date@ is non-null and @episode_number@ is non-null by the query's
@@ -585,7 +572,7 @@ getEpisodeById :: Id -> Hasql.Statement () (Maybe Model)
 getEpisodeById episodeId = fmap listToMaybe $ run $ select do
   ep <- each episodeSchema
   where_ $ ep.id ==. lit episodeId
-  where_ $ isNull (ep.deletedAt)
+  where_ $ isNull ep.deletedAt
   pure ep
 
 -- | Find an episode by its audio file path (object key).
@@ -649,8 +636,13 @@ getEpisodesByUser userId (Limit lim) (Offset off) =
 -- A replay window opens at @replay_start_time@ and runs for the same length as
 -- the primary, and it wraps the same way.
 --
--- The zone is the literal @'America\/Los_Angeles'@ in every place it appears
--- here. @schedule_templates.timezone@ is not read.
+-- The @slot_windows@ SQL function does this arithmetic. It is the only copy.
+-- 'getSlotWindowsBetween' and
+-- 'Effects.Database.Tables.ShowSchedule.breakKindsBetween' call it too. The
+-- rules below apply to all three queries.
+--
+-- The zone is the literal @'America\/Los_Angeles'@ in @slot_windows@ and in the
+-- air date filter here. @schedule_templates.timezone@ is not read.
 --
 -- == Why the window is a pair of timestamptz values
 --
@@ -766,7 +758,7 @@ getAiringEpisodes currentTime =
         e.audio_file_size, e.audio_mime_type, e.duration_seconds, e.artwork_url,
         e.schedule_template_id, e.air_date, e.published_at, e.deleted_at,
         e.created_by, e.created_at, e.updated_at,
-        v.is_replay,
+        w.is_replay,
         w.window_start,
         -- The episode stops at the end of its slot or at the end of its audio,
         -- whichever comes first. LEAST skips a NULL duration, and a duration of
@@ -784,55 +776,13 @@ getAiringEpisodes currentTime =
       JOIN shows s ON s.id = e.show_id
       -- The date the episode airs on. The column holds it directly.
       CROSS JOIN LATERAL (SELECT e.air_date AS air_date) d
-      -- The length of the slot as a time interval. An overnight slot wraps midnight.
-      CROSS JOIN LATERAL (
-        SELECT
-          CASE WHEN st.end_time > st.start_time
-            THEN st.end_time - st.start_time
-            ELSE INTERVAL '24 hours' - (st.start_time - st.end_time)
-          END AS slot_length
-      ) sl
-      -- One row for the primary window, one for the replay. A replay runs for
-      -- the same length as its primary.
-      CROSS JOIN LATERAL (
-        VALUES
-          (FALSE, st.start_time, st.end_time),
-          (TRUE, st.replay_start_time, (st.replay_start_time + sl.slot_length)::TIME)
-      ) AS v(is_replay, start_time, end_time)
-      -- The window as a pair of local timestamps. A window that closes at or
-      -- before it opens runs onto the next date.
-      CROSS JOIN LATERAL (
-        SELECT
-          d.air_date + v.start_time AS local_start,
-          (d.air_date + CASE WHEN v.end_time <= v.start_time THEN 1 ELSE 0 END) + v.end_time
-            AS local_end
-      ) l
-      -- The same pair as timestamptz values.
-      --
-      -- On the fall-back date a local time from 01:00 to 01:59 names two
-      -- instants, an hour apart, and AT TIME ZONE alone returns the later one.
-      -- LEAST against the same conversion an hour earlier takes the first
-      -- instant instead, so a slot opens when the clock first reads its start
-      -- time. A short episode then leaves its silence at the end of the slot.
-      -- One hour is the size of the Pacific shift, and the correction is a
-      -- no-op on every other local time of the year.
-      CROSS JOIN LATERAL (
-        SELECT
-          LEAST(
-            l.local_start AT TIME ZONE 'America/Los_Angeles',
-            (l.local_start - INTERVAL '1 hour') AT TIME ZONE 'America/Los_Angeles'
-              + INTERVAL '1 hour'
-          ) AS window_start,
-          LEAST(
-            l.local_end AT TIME ZONE 'America/Los_Angeles',
-            (l.local_end - INTERVAL '1 hour') AT TIME ZONE 'America/Los_Angeles'
-              + INTERVAL '1 hour'
-          ) AS window_end
+      -- One row for the primary window, one for the replay. The slot_windows
+      -- SQL function holds the time arithmetic.
+      CROSS JOIN LATERAL slot_windows(
+        d.air_date, st.start_time, st.end_time, st.replay_start_time
       ) w
       WHERE
-        -- A template with no replay contributes its primary row only.
-        v.start_time IS NOT NULL
-        AND e.audio_file_path IS NOT NULL
+        e.audio_file_path IS NOT NULL
         AND e.deleted_at IS NULL
         AND s.status = 'active'
         AND s.deleted_at IS NULL
@@ -874,6 +824,154 @@ data AiringEpisode = AiringEpisode
 -- 'OneColumn' decodes it.
 instance DecodeRow AiringEpisode where
   decodeRow = AiringEpisode <$> decodeRow <*> fmap getOneColumn decodeRow
+
+-- | One scheduled window of 'getSlotWindowsBetween'.
+data SlotWindow = SlotWindow
+  { swStart :: UTCTime,
+    swEnd :: UTCTime,
+    -- | The title of the show that holds the slot.
+    swShowTitle :: Text,
+    -- | Nothing when the slot has no episode that can play.
+    swEpisode :: Maybe SlotEpisode
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving (Display) via (RecordInstance SlotWindow)
+
+-- | The episode that plays in a 'SlotWindow'.
+data SlotEpisode = SlotEpisode
+  { seId :: Id,
+    seAudioFilePath :: Text,
+    -- | The length of the episode audio, in seconds. Always more than 0.
+    seDurationSeconds :: Int64
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving (Display) via (RecordInstance SlotEpisode)
+
+-- | The query gives the three episode columns all set or all NULL. The
+-- episode is present only when all three are set.
+instance DecodeRow SlotWindow where
+  decodeRow = toSlotWindow <$> decodeRow
+    where
+      toSlotWindow :: (UTCTime, UTCTime, Text, Maybe Id, Maybe Text, Maybe Int64) -> SlotWindow
+      toSlotWindow (start, end, showTitle, episodeId, audioFilePath, seconds) =
+        SlotWindow
+          { swStart = start,
+            swEnd = end,
+            swShowTitle = showTitle,
+            swEpisode = SlotEpisode <$> episodeId <*> audioFilePath <*> seconds
+          }
+
+-- | Every scheduled window that overlaps the range from the first instant to
+-- the second, in time order, with the episode that airs in it.
+--
+-- A window overlaps the range when it closes after the first instant and opens
+-- before the second.
+--
+-- == What a row is
+--
+-- One row is one window. A window is a template, an air date, and primary or
+-- replay. The windows come from the schedule, not from the episodes. So a slot
+-- whose host uploaded nothing still gives a row, with 'swEpisode' Nothing.
+--
+-- == Time arithmetic
+--
+-- The windows come from the @slot_windows@ SQL function, the same as in
+-- 'getAiringEpisodes'. Read the Haddock there for the rules.
+--
+-- Air dates are scanned from the day before the first instant to the day of
+-- the second, in Pacific, the same way
+-- 'Effects.Database.Tables.ShowSchedule.breakKindsBetween' scans them. So an
+-- overnight window that closes after midnight is still found.
+--
+-- A slot that opens inside the spring-forward gap gives an empty or inverted
+-- window. The query leaves it out, because nothing airs in it.
+--
+-- == Which episode
+--
+-- The episode choice is the one of 'getAiringEpisodes'. A candidate has the
+-- template and the air date of the window, an @audio_file_path@, and no
+-- @deleted_at@. The highest id wins, which is the row that 'getAiringEpisodes'
+-- puts first for that window. The @unique_episode_air_date@ index allows one
+-- live episode per show per date. So in valid data the id never decides.
+--
+-- The window holds the chosen episode only when its @duration_seconds@ is more
+-- than 0. A NULL, 0, or negative length gives 'swEpisode' Nothing, because the
+-- timeline cannot place audio of unknown length. 'getAiringEpisodes' differs here. It plays such an episode to the
+-- end of its slot.
+--
+-- == What the query excludes
+--
+-- * a template of a show that is not @active@, or that has @deleted_at@ set
+-- * an air date with no @schedule_template_validity@ row that covers it
+-- * an air date the recurrence does not cover
+-- * the replay window of a template with no @replay_start_time@
+--
+-- Two validity rows that cover one air date give one window, not two. The
+-- query tests validity with @EXISTS@, not with a join.
+getSlotWindowsBetween :: UTCTime -> UTCTime -> Hasql.Statement () [SlotWindow]
+getSlotWindowsBetween fromTime toTime =
+  interp
+    False
+    [sql|
+    WITH air_dates AS (
+      SELECT generate_series(
+        (#{fromTime}::TIMESTAMPTZ AT TIME ZONE 'America/Los_Angeles')::DATE - 1,
+        (#{toTime}::TIMESTAMPTZ AT TIME ZONE 'America/Los_Angeles')::DATE,
+        INTERVAL '1 day'
+      )::DATE AS air_date
+    ),
+    slot_windows AS (
+      SELECT
+        st.id AS template_id,
+        d.air_date,
+        s.title AS show_title,
+        w.window_start,
+        w.window_end
+      FROM schedule_templates st
+      JOIN shows s ON s.id = st.show_id
+      CROSS JOIN air_dates d
+      -- One row for the primary window, one for the replay. The slot_windows
+      -- SQL function holds the time arithmetic.
+      CROSS JOIN LATERAL slot_windows(
+        d.air_date, st.start_time, st.end_time, st.replay_start_time
+      ) w
+      WHERE
+        s.status = 'active'
+        AND s.deleted_at IS NULL
+        AND EXISTS (
+          SELECT 1
+          FROM schedule_template_validity stv
+          WHERE stv.template_id = st.id
+            AND stv.effective_from <= d.air_date
+            AND (stv.effective_until IS NULL OR stv.effective_until > d.air_date)
+        )
+        -- The air date must be a date the template holds.
+        AND recurrence_airs_on(day_of_week_num(st.day_of_week), st.weeks_of_month, d.air_date)
+    )
+    SELECT
+      sw.window_start,
+      sw.window_end,
+      sw.show_title,
+      CASE WHEN e.duration_seconds > 0 THEN e.id END,
+      CASE WHEN e.duration_seconds > 0 THEN e.audio_file_path END,
+      CASE WHEN e.duration_seconds > 0 THEN e.duration_seconds END
+    FROM slot_windows sw
+    -- The same episode that getAiringEpisodes puts first for this window.
+    LEFT JOIN LATERAL (
+      SELECT ep.id, ep.audio_file_path, ep.duration_seconds
+      FROM episodes ep
+      WHERE ep.schedule_template_id = sw.template_id
+        AND ep.air_date = sw.air_date
+        AND ep.audio_file_path IS NOT NULL
+        AND ep.deleted_at IS NULL
+      ORDER BY ep.id DESC
+      LIMIT 1
+    ) e ON TRUE
+    WHERE sw.window_end > sw.window_start
+      AND sw.window_end > #{fromTime}
+      AND sw.window_start < #{toTime}
+    ORDER BY sw.window_start, sw.template_id
+  |]
 
 -- | The episodes of 'getAiringEpisodes', without their window starts.
 getCurrentlyAiringEpisodes :: UTCTime -> Hasql.Statement () [Model]
@@ -1036,7 +1134,7 @@ deleteEpisode episodeId =
                   updatedAt = now
                 },
             updateWhere = \_ ep -> ep.id ==. lit episodeId,
-            returning = Returning (\ep -> ep)
+            returning = Returning Prelude.id
           }
 
 -- | Find the live episode of a show that already holds an air date.
@@ -1077,7 +1175,7 @@ restoreEpisode episodeId =
                   updatedAt = now
                 },
             updateWhere = \_ ep -> ep.id ==. lit episodeId &&. isNonNull ep.deletedAt,
-            returning = Returning (\ep -> ep)
+            returning = Returning Prelude.id
           }
 
 -- | Clear schedule_template_id for upcoming episodes tied to a given template,
@@ -1285,30 +1383,6 @@ getUpcomingEpisodesForTemplates templateIds fromDate =
       AND e.air_date >= #{fromDate}
       AND e.deleted_at IS NULL
     ORDER BY e.air_date
-  |]
-
---------------------------------------------------------------------------------
--- Search Queries
-
--- | Search episodes that have audio, joining with shows for the title.
---
--- Filters by show title ILIKE match, ordered by air date descending.
--- Used by the force-play admin feature to find episodes to push to the stream.
-searchEpisodesWithAudio :: Text -> Hasql.Statement () [SearchResult]
-searchEpisodesWithAudio query =
-  let pattern = "%" <> query <> "%"
-   in interp
-        False
-        [sql|
-    SELECT e.id, s.title, e.episode_number, e.air_date, e.duration_seconds
-    FROM episodes e
-    JOIN shows s ON s.id = e.show_id
-    WHERE e.audio_file_path IS NOT NULL
-      AND e.deleted_at IS NULL
-      AND s.deleted_at IS NULL
-      AND s.title ILIKE #{pattern}
-    ORDER BY e.air_date DESC NULLS LAST
-    LIMIT 20
   |]
 
 --------------------------------------------------------------------------------

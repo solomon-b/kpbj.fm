@@ -35,8 +35,6 @@ spec =
       describe "Queries" $ do
         runs 10 . it "getAllEphemeralUploads: returns paginated results" $
           hedgehog . prop_getAllEphemeralUploads_paginated
-        runs 10 . it "getRandomEphemeralUpload: returns a valid upload when entries exist" $
-          hedgehog . prop_getRandomEphemeralUpload
 
       describe "Mutations" $ do
         runs 10 . it "updateEphemeralUpload: updates fields" $ hedgehog . prop_updateEphemeralUpload
@@ -47,9 +45,10 @@ spec =
       describe "Flagging" $ do
         runs 10 . it "flagEphemeralUpload: sets flagged fields" $ hedgehog . prop_flagEphemeralUpload
         runs 10 . it "unflagEphemeralUpload: clears flagged fields" $ hedgehog . prop_unflagEphemeralUpload
-        runs 10 . it "flagged uploads excluded from getRandomEphemeralUpload" $ hedgehog . prop_flaggedExcludedFromRandom
         runs 10 . it "getAllEphemeralUploads excludes flagged when includeFlagged=False" $ hedgehog . prop_getAllExcludesFlagged
         runs 10 . it "getAllEphemeralUploads includes flagged when includeFlagged=True" $ hedgehog . prop_getAllIncludesFlagged
+        runs 10 . it "getPlayableEphemeralUploads leaves out a flagged upload and an upload with no length" $
+          hedgehog . prop_playableExcludesFlaggedAndUnknownLength
 
 --------------------------------------------------------------------------------
 -- Lens Laws
@@ -125,30 +124,6 @@ prop_getAllEphemeralUploads_paginated cfg = do
         length allItems === 3
         length limited === 2
         length offset === 1
-        pure ()
-
--- | getRandomEphemeralUpload: returns a valid upload when entries exist.
-prop_getRandomEphemeralUpload :: TestDBConfig -> PropertyT IO ()
-prop_getRandomEphemeralUpload cfg = do
-  arrange (bracketConn cfg) $ do
-    userWithMetadata <- forAllT userWithMetadataInsertGen
-    template <- forAllT $ ephemeralUploadInsertGen (User.Id 1)
-
-    act $ do
-      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        userId <- insertTestUser userWithMetadata
-
-        let uploadInsert = template {UUT.euiCreatorId = userId}
-        _ <- unwrapInsert (UUT.insertEphemeralUpload uploadInsert)
-
-        randomUpload <- TRX.statement () UUT.getRandomEphemeralUpload
-        TRX.condemn
-        pure randomUpload
-
-      assert $ do
-        mRandom <- assertRight result
-        -- Should return something since we inserted one
-        _ <- assertJust mRandom
         pure ()
 
 --------------------------------------------------------------------------------
@@ -316,33 +291,6 @@ prop_unflagEphemeralUpload cfg = do
         UUT.eumFlagReason afterUnflag === Nothing
         pure ()
 
--- | Flagged uploads are excluded from getRandomEphemeralUpload.
-prop_flaggedExcludedFromRandom :: TestDBConfig -> PropertyT IO ()
-prop_flaggedExcludedFromRandom cfg = do
-  arrange (bracketConn cfg) $ do
-    userWithMetadata <- forAllT userWithMetadataInsertGen
-    template <- forAllT $ ephemeralUploadInsertGen (User.Id 1)
-
-    act $ do
-      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        userId <- insertTestUser userWithMetadata
-
-        let uploadInsert = template {UUT.euiCreatorId = userId}
-        insertedId <- unwrapInsert (UUT.insertEphemeralUpload uploadInsert)
-
-        -- Flag the only upload
-        _ <- TRX.statement () (UUT.flagEphemeralUpload insertedId userId UUT.CopyrightConcern)
-        -- Random should return Nothing now
-        randomUpload <- TRX.statement () UUT.getRandomEphemeralUpload
-
-        TRX.condemn
-        pure randomUpload
-
-      assert $ do
-        mRandom <- assertRight result
-        assertNothing mRandom
-        pure ()
-
 -- | getAllEphemeralUploads with includeFlagged=False excludes flagged uploads.
 prop_getAllExcludesFlagged :: TestDBConfig -> PropertyT IO ()
 prop_getAllExcludesFlagged cfg = do
@@ -404,3 +352,33 @@ prop_getAllIncludesFlagged cfg = do
         allItems <- assertRight result
         length allItems === 2
         pure ()
+
+-- | getPlayableEphemeralUploads leaves out a flagged upload, an upload with a
+-- NULL length, and an upload with a length of 0. It returns the rest in id
+-- order.
+prop_playableExcludesFlaggedAndUnknownLength :: TestDBConfig -> PropertyT IO ()
+prop_playableExcludesFlaggedAndUnknownLength cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    template <- forAllT $ ephemeralUploadInsertGen (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+
+        let withLength seconds = template {UUT.euiCreatorId = userId, UUT.euiDurationSeconds = seconds}
+        firstPlayableId <- unwrapInsert (UUT.insertEphemeralUpload (withLength (Just 120)))
+        flaggedId <- unwrapInsert (UUT.insertEphemeralUpload (withLength (Just 120)))
+        _ <- unwrapInsert (UUT.insertEphemeralUpload (withLength Nothing))
+        _ <- unwrapInsert (UUT.insertEphemeralUpload (withLength (Just 0)))
+        secondPlayableId <- unwrapInsert (UUT.insertEphemeralUpload (withLength (Just 300)))
+        _ <- TRX.statement () (UUT.flagEphemeralUpload flaggedId userId UUT.CopyrightConcern)
+
+        playable <- TRX.statement () UUT.getPlayableEphemeralUploads
+
+        TRX.condemn
+        pure (firstPlayableId, secondPlayableId, playable)
+
+      assert $ do
+        (firstPlayableId, secondPlayableId, playable) <- assertRight result
+        map UUT.eumId playable === [firstPlayableId, secondPlayableId]

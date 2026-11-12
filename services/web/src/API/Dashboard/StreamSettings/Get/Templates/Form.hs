@@ -54,17 +54,11 @@ restartIcecastUrl = Links.linkURI dashboardStreamSettingsLinks.restartIcecastPos
 restartLiquidsoapUrl :: Links.URI
 restartLiquidsoapUrl = Links.linkURI dashboardStreamSettingsLinks.restartLiquidsoapPost
 
-skipTrackUrl :: Links.URI
-skipTrackUrl = Links.linkURI dashboardStreamSettingsLinks.skipTrackPost
-
 stopStreamUrl :: Links.URI
 stopStreamUrl = Links.linkURI dashboardStreamSettingsLinks.stopStreamPost
 
 startStreamUrl :: Links.URI
 startStreamUrl = Links.linkURI dashboardStreamSettingsLinks.startStreamPost
-
-episodeSearchUrl :: Links.URI
-episodeSearchUrl = Links.linkURI $ dashboardStreamSettingsLinks.episodeSearch Nothing
 
 --------------------------------------------------------------------------------
 
@@ -80,32 +74,8 @@ template icecastReachable mStatus playbackHistory = do
   -- Playback history section
   playbackHistorySection playbackHistory
 
-  -- Force episode section
-  forceEpisodeSection
-
   -- Stream controls section
   streamControlSection icecastReachable
-
---------------------------------------------------------------------------------
-
--- | Force episode section for pushing an episode to the stream.
-forceEpisodeSection :: Lucid.Html ()
-forceEpisodeSection =
-  Lucid.div_ [class_ $ base [Tokens.mb6, Tokens.p4, Tokens.bgMain, "rounded", "border", Theme.borderMuted]] $ do
-    Lucid.h2_ [class_ $ base [Tokens.fontBold, Tokens.textLg, Tokens.mb2]] "FORCE EPISODE"
-    Lucid.p_
-      [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb4]]
-      "Search for an episode and force-play it immediately. This will interrupt the current stream."
-    Lucid.input_
-      [ Lucid.type_ "search",
-        Lucid.name_ "q",
-        Lucid.placeholder_ "Search by show name...",
-        class_ $ base ["w-full", Tokens.p3, Tokens.border2, Tokens.bgMain, Tokens.textSm],
-        hxGet_ [i|/#{episodeSearchUrl}|],
-        hxTrigger_ "input changed delay:300ms, search",
-        hxTarget_ "#episode-search-results"
-      ]
-    Lucid.div_ [Lucid.id_ "episode-search-results", class_ $ base [Tokens.mt4]] mempty
 
 --------------------------------------------------------------------------------
 
@@ -116,7 +86,7 @@ streamControlSection icecastReachable =
     Lucid.h2_ [class_ $ base [Tokens.fontBold, Tokens.textLg, Tokens.mb2]] "STREAM CONTROLS"
     Lucid.p_
       [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb4]]
-      "Skip tracks or restart streaming services. These actions will briefly interrupt the stream."
+      "Restart or stop streaming services. These actions will briefly interrupt the stream."
 
     Lucid.div_ [class_ $ base ["flex", "flex-wrap", "gap-4"]] $ do
       -- Restart Icecast button
@@ -138,16 +108,6 @@ streamControlSection icecastReachable =
           hxDisabledElt_ "this"
         ]
         "RESTART LIQUIDSOAP"
-
-      -- Skip Track button
-      Lucid.button_
-        [ class_ $ base [Tokens.px6, Tokens.py2, Tokens.fontBold, Tokens.border2, Tokens.warningBorder, Tokens.warningText, Tokens.warningBg, "hover:opacity-80"],
-          hxPost_ [i|/#{skipTrackUrl}|],
-          hxSwap_ "none",
-          hxConfirm_ "Are you sure you want to skip the current track? This will drop to fallback audio.",
-          hxDisabledElt_ "this"
-        ]
-        "SKIP TRACK"
 
       -- Stop/Start Stream toggle button (based on whether Icecast is reachable)
       if icecastReachable

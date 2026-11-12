@@ -73,7 +73,8 @@ seed = do
               piSourceUrl = "http://localhost:4000/media/audio/break-items/hardware.mp3",
               piEpisodeId = Nothing,
               piBreakItemId = Just (BreakItems.unId hardwareSpot),
-              piStartedAt = pacificToUtc (LocalTime (fromGregorian 2025 2 dayOfMonth) (TimeOfDay 10 28 0))
+              piStartedAt = pacificToUtc (LocalTime (fromGregorian 2025 2 dayOfMonth) (TimeOfDay 10 28 0)),
+              piPlannedStart = Nothing
             }
   case result of
     Left err -> error ("Setup failed: " <> show err)

@@ -53,7 +53,10 @@ data PlaybackEntry f = PlaybackEntry
     phEpisodeId :: Column f (Maybe Int64),
     -- | The break item that aired. Nothing for any track that is not one.
     phBreakItemId :: Column f (Maybe Int64),
-    phStartedAt :: Column f UTCTime
+    phStartedAt :: Column f UTCTime,
+    -- | The planned start of the item in the timeline. Liquidsoap sends it
+    -- for every item. Nothing for rows from older clients.
+    phPlannedStart :: Column f (Maybe UTCTime)
   }
   deriving stock (Generic)
   deriving anyclass (Rel8able)
@@ -89,7 +92,8 @@ playbackHistorySchema =
             phSourceUrl = "source_url",
             phEpisodeId = "episode_id",
             phBreakItemId = "break_item_id",
-            phStartedAt = "started_at"
+            phStartedAt = "started_at",
+            phPlannedStart = "planned_start"
           }
     }
 
@@ -104,7 +108,8 @@ data Insert = Insert
     piSourceUrl :: Text,
     piEpisodeId :: Maybe Int64,
     piBreakItemId :: Maybe Int64,
-    piStartedAt :: UTCTime
+    piStartedAt :: UTCTime,
+    piPlannedStart :: Maybe UTCTime
   }
   deriving stock (Generic, Show, Eq)
 
@@ -112,6 +117,11 @@ data Insert = Insert
 -- Queries
 
 -- | Insert a new playback history entry.
+--
+-- An airing is unique by its source URL and planned start. A second insert
+-- for the same airing does nothing. This keeps a resumed airing from getting
+-- a second row, and a resumed break item from counting twice. A row with no
+-- planned start always inserts.
 insertPlayback :: Insert -> Hasql.Statement () ()
 insertPlayback Insert {..} =
   run_ $
@@ -128,10 +138,11 @@ insertPlayback Insert {..} =
                     phSourceUrl = lit piSourceUrl,
                     phEpisodeId = lit piEpisodeId,
                     phBreakItemId = lit piBreakItemId,
-                    phStartedAt = lit piStartedAt
+                    phStartedAt = lit piStartedAt,
+                    phPlannedStart = lit piPlannedStart
                   }
               ],
-          onConflict = Abort,
+          onConflict = DoNothing,
           returning = NoReturning
         }
 

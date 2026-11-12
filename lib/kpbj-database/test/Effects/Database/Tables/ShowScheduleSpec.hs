@@ -67,6 +67,9 @@ spec =
       -- weeks_of_month constraint
       runs 10 . it "weeks_of_month rejects an empty array" $ hedgehog . prop_rejectsEmptyWeeksOfMonth
       runs 10 . it "weeks_of_month accepts any subset of 1 to 5" $ hedgehog . prop_acceptsWeeksInRange
+
+      -- Half-hour constraint
+      runs 10 . it "slot times off the half-hour grid are rejected" $ hedgehog . prop_rejectsOffGridTimes
       runs 10 . it "upcoming dates use correct timezone for timestamp conversion" $ hedgehog . prop_timezoneConversion
 
       -- Conflict detection
@@ -1116,6 +1119,39 @@ prop_getScheduledShowsForDate cfg = do
         Hedgehog.assert (not $ null scheduled)
         let matchingShows = filter (\s -> UUT.sswdShowTitle s == Shows.siTitle show1) scheduled
         Hedgehog.assert (not $ null matchingShows)
+
+-- | The half-hour CHECK rejects a start, an end, or a replay start that is not
+-- on the hour or the half hour. The playout timeline puts its edges on that
+-- grid.
+prop_rejectsOffGridTimes :: TestDBConfig -> PropertyT IO ()
+prop_rejectsOffGridTimes cfg = do
+  arrange (bracketConn cfg) $ do
+    showInsert <- forAllT showInsertGen
+    dow <- forAllT genDayOfWeek
+    (startTime, endTime) <- forAllT genTimeRange
+    timezone <- forAllT genTimezone
+    offMinute <- forAllT (Gen.element [1, 15, 29, 45])
+    let offGrid t = t {todMin = offMinute}
+    -- One field off the grid at a time, so each part of the CHECK is tested.
+    (start, end, replay) <-
+      forAllT $
+        Gen.element
+          [ (offGrid startTime, endTime, Nothing),
+            (startTime, offGrid endTime, Nothing),
+            (startTime, endTime, Just (TimeOfDay 23 offMinute 0))
+          ]
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        showId <- unwrapInsert (Shows.insertShow showInsert)
+        let scheduleInsert = UUT.ScheduleTemplateInsert showId dow allWeeksOfMonth start end timezone replay
+        templateId <- TRX.statement () (UUT.insertScheduleTemplate scheduleInsert)
+        TRX.condemn
+        pure templateId
+
+      assert $ do
+        result <== isLeft
+        pure ()
 
 -- | The weeks_of_month CHECK rejects an empty array.
 --

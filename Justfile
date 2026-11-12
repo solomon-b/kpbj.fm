@@ -97,7 +97,7 @@ test-scripts:
 # The clock runs at normal speed and jumps over idle time. Each scenario takes 1 to 2 minutes.
 # Name scenarios to run only those.
 # Usage: just test-liquidsoap
-#        just test-liquidsoap episode-ends-before-break
+#        just test-liquidsoap next-segment-at-boundary
 test-liquidsoap *scenarios:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -347,6 +347,17 @@ dev-mock-images:
   echo "🖼️  Generating mock images..."
   ./scripts/generate-mock-images.sh
   echo "✨ Mock images generated!"
+
+# Make the filler audio for local playout.
+# The timeline plays this file when no other audio fits a gap.
+# This recipe makes 180 seconds of a quiet tone.
+dev-filler:
+  mkdir -p {{LOCAL_STORAGE_ROOT}}/audio/filler
+  test -f {{LOCAL_STORAGE_ROOT}}/audio/filler/kpbj-filler.mp3 || \
+    ffmpeg -y -v error \
+      -f lavfi -i "sine=frequency=220:sample_rate=44100" \
+      -af volume=0.05 -t 180 -c:a libmp3lame -b:a 64k \
+      {{LOCAL_STORAGE_ROOT}}/audio/filler/kpbj-filler.mp3
 
 # Load mock data into the development database
 dev-mock-data:

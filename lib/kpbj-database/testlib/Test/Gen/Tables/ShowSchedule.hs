@@ -30,12 +30,14 @@ genDayOfWeek :: (MonadGen m) => m DayOfWeek
 genDayOfWeek = Gen.element [Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]
 
 -- | Generate a valid time range (start < end)
+--
+-- Both ends are on the hour or the half hour, as the table CHECK requires.
 genTimeRange :: (MonadGen m) => m (TimeOfDay, TimeOfDay)
 genTimeRange = do
   startHour <- Gen.integral (Range.linear 6 22)
   endHour <- Gen.integral (Range.linear (startHour + 1) 23)
-  startMinute <- Gen.element [0, 15, 30, 45]
-  endMinute <- Gen.element [0, 15, 30, 45]
+  startMinute <- Gen.element [0, 30]
+  endMinute <- Gen.element [0, 30]
   pure (TimeOfDay startHour startMinute 0, TimeOfDay endHour endMinute 0)
 
 -- | Generate weeks of month (1-5).

@@ -2,16 +2,13 @@
 
 -- | Shared types for playout API endpoints.
 --
--- These endpoints are used by Liquidsoap to fetch audio URLs for playback.
+-- Liquidsoap uses these endpoints to fetch the timeline and to report plays.
 module API.Playout.Types
-  ( PlayoutMetadata (title, artist),
-    mkPlayoutMetadata,
-    PlayedRequest (..),
+  ( PlayedRequest (..),
     sanitizeAnnotateValue,
-    PlayoutTrack (..),
-    FallbackResponse,
-    BreakResponse,
-    NowPlayingResponse (..),
+    NowResponse (..),
+    SegmentResponse (..),
+    ItemResponse (..),
   )
 where
 
@@ -26,79 +23,78 @@ import GHC.Generics (Generic)
 
 --------------------------------------------------------------------------------
 
--- | Metadata for stream display (ICY metadata).
-data PlayoutMetadata = PlayoutMetadata
-  { title :: Text,
-    artist :: Text
-  }
-  deriving stock (Generic, Show, Eq)
-
---------------------------------------------------------------------------------
-
--- | A single track in a playout response with its source type.
+-- | Response type for the @/now@ endpoint.
 --
--- Used by the fallback and break endpoints.
--- Serializes to flat JSON: @{"url": "...", "title": "...", "artist": "...",
--- "source_type": "...", "break_item_id": 12}@. The id is null for a track that
--- is not a break item.
-data PlayoutTrack = PlayoutTrack
-  { ptUrl :: Text,
-    ptTitle :: Text,
-    ptArtist :: Text,
-    ptSourceType :: Text,
-    -- | The break item this track plays. Liquidsoap reports it back through
-    -- @/played@, so delivery counts do not match titles or URLs.
-    ptBreakItemId :: Maybe Int64
+-- The requested segment and the segment after it. Liquidsoap plays the first
+-- and downloads the second ahead of time. Serializes to
+-- @{"current": {...}, "next": {...}}@, with a null @"next"@ when there is no
+-- second segment.
+data NowResponse = NowResponse
+  { nrSegment :: SegmentResponse,
+    -- | Nothing when the timeline has no segment at the end of the first.
+    nrNext :: Maybe SegmentResponse
   }
   deriving stock (Generic, Show, Eq)
 
-instance ToJSON PlayoutTrack where
-  toJSON track =
+instance ToJSON NowResponse where
+  toJSON response =
+    object ["current" .= response.nrSegment, "next" .= response.nrNext]
+
+-- | One segment of the timeline. Liquidsoap plays the items in order.
+--
+-- Serializes to @{"id": "...", "segment_start": "...", "segment_end": "...",
+-- "ends_in_seconds": 1200.5, "items": [...]}@.
+data SegmentResponse = SegmentResponse
+  { -- | Changes only when what airs in the segment changes. Liquidsoap
+    -- compares it to tell whether the segment it holds is still current.
+    srId :: Text,
+    srSegmentStart :: UTCTime,
+    srSegmentEnd :: UTCTime,
+    -- | The seconds from the request time to the end of the segment.
+    srEndsInSeconds :: Double,
+    srItems :: [ItemResponse]
+  }
+  deriving stock (Generic, Show, Eq)
+
+instance ToJSON SegmentResponse where
+  toJSON segment =
     object
-      [ "url" .= sanitizeAnnotateValue track.ptUrl,
-        "title" .= track.ptTitle,
-        "artist" .= track.ptArtist,
-        "source_type" .= track.ptSourceType,
-        "break_item_id" .= track.ptBreakItemId
+      [ "id" .= segment.srId,
+        "segment_start" .= segment.srSegmentStart,
+        "segment_end" .= segment.srSegmentEnd,
+        "ends_in_seconds" .= segment.srEndsInSeconds,
+        "items" .= segment.srItems
       ]
 
--- | Fallback response is a list of tracks (station ID + ephemeral).
+-- | One item of a 'SegmentResponse'.
 --
--- Serializes to a JSON array. Empty array means no content available.
-type FallbackResponse = [PlayoutTrack]
-
--- | Break response is a list of tracks for one break window.
---
--- A station ID first, then the PSAs and the underwriting announcement that the
--- daily plan puts in the window.
---
--- Serializes to a JSON array. Empty array means no break is due, or that no
--- content is available for one. Liquidsoap plays on without cutting the
--- current source in either case, so the two need not be distinguished.
-type BreakResponse = [PlayoutTrack]
-
---------------------------------------------------------------------------------
-
--- | Response type for the "now playing" endpoint.
---
--- Serializes to either:
--- - @{"url": "https://...", "offset_seconds": 0, "title": "...", "artist": "..."}@
---   when audio is available
--- - @null@ when no audio is available
-data NowPlayingResponse
-  = -- | The audio URL, the seconds since the slot started, and the metadata.
-    NowPlaying Text Int64 PlayoutMetadata
-  | NothingPlaying
+-- The type is @episode@, @ephemeral@, @filler@, or the source type of a break
+-- track. The break item id and the cue out are null when they do not apply.
+data ItemResponse = ItemResponse
+  { irType :: Text,
+    irUrl :: Text,
+    irTitle :: Text,
+    irArtist :: Text,
+    irDurationSeconds :: Int64,
+    irCueIn :: Int64,
+    irCueOut :: Maybe Int64,
+    irBreakItemId :: Maybe Int64,
+    irPlannedStart :: UTCTime
+  }
   deriving stock (Generic, Show, Eq)
 
-instance ToJSON NowPlayingResponse where
-  toJSON NothingPlaying = toJSON (Nothing :: Maybe Text)
-  toJSON (NowPlaying url offset meta) =
+instance ToJSON ItemResponse where
+  toJSON item =
     object
-      [ "url" .= sanitizeAnnotateValue url,
-        "offset_seconds" .= offset,
-        "title" .= meta.title,
-        "artist" .= meta.artist
+      [ "type" .= item.irType,
+        "url" .= item.irUrl,
+        "title" .= item.irTitle,
+        "artist" .= item.irArtist,
+        "duration_seconds" .= item.irDurationSeconds,
+        "cue_in" .= item.irCueIn,
+        "cue_out" .= item.irCueOut,
+        "break_item_id" .= item.irBreakItemId,
+        "planned_start" .= item.irPlannedStart
       ]
 
 --------------------------------------------------------------------------------
@@ -114,33 +110,21 @@ data PlayedRequest = PlayedRequest
     prStartedAt :: UTCTime,
     -- | The break item id from the track's annotations. Liquidsoap sends an
     -- empty string for a track that is not a break item.
-    prBreakItemId :: Maybe Text
+    prBreakItemId :: Maybe Text,
+    -- | The start time of this airing in the timeline. An older client does
+    -- not send it, and it decodes as Nothing.
+    prPlannedStart :: Maybe UTCTime
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (FromJSON)
 
 --------------------------------------------------------------------------------
 
--- | Smart constructor for 'PlayoutMetadata'.
---
--- Sanitizes title and artist for safe use in Liquidsoap @annotate:@ URIs.
-mkPlayoutMetadata ::
-  -- | Track title
-  Text ->
-  -- | Artist name
-  Text ->
-  PlayoutMetadata
-mkPlayoutMetadata t a =
-  PlayoutMetadata
-    { title = sanitizeAnnotateValue t,
-      artist = sanitizeAnnotateValue a
-    }
-
 -- | Sanitize a text value for use in a Liquidsoap @annotate:@ URI.
 --
--- The annotate format uses double quotes as value delimiters and newlines
--- as command separators in the telnet protocol. Characters that would break
--- the format are stripped to prevent malformed commands.
+-- The annotate format uses double quotes as value delimiters. A newline, a
+-- carriage return, or a backslash can also break the request string. This
+-- function removes these characters, so the request always parses.
 --
 -- Every value that reaches an @annotate:@ URI goes through this, the media URL
 -- included. A URL cannot hold one of these characters today, because an object

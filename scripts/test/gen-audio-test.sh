@@ -97,6 +97,17 @@ expect_eq "keeps a key containing a space" \
   "$(printf 'audio/episodes/my show.mp3%s60%s0\n' "$US" "$US" | gen_audio_rows_to_work_list)"
 
 echo
+echo "work list sources"
+expect_eq "reads break items" "yes" \
+  "$(grep -q "FROM break_items" <<< "$GEN_AUDIO_WORK_LIST_SQL" && echo yes || echo no)"
+expect_eq "names the filler with its fixed length" "yes" \
+  "$(grep -qF "SELECT '$GEN_AUDIO_FILLER_KEY', $GEN_AUDIO_FILLER_SECONDS, NULL" <<< "$GEN_AUDIO_WORK_LIST_SQL" && echo yes || echo no)"
+expect_eq "filler key matches Domain.Timeline" "yes" \
+  "$(grep -qF "fillerObjectKey = \"$GEN_AUDIO_FILLER_KEY\"" "$SCRIPT_DIR/../../services/web/src/Domain/Timeline.hs" && echo yes || echo no)"
+expect_eq "filler is longer than the 180 second filler item" "yes" \
+  "$([ "$GEN_AUDIO_FILLER_SECONDS" -gt 180 ] && echo yes || echo no)"
+
+echo
 echo "dry run"
 GEN_AUDIO_DRY_RUN=1
 export GEN_AUDIO_DRY_RUN

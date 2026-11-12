@@ -3,21 +3,20 @@
 
 The harness runs the real script with the pinned Liquidsoap binary. It starts a
 stub playout API and a local Icecast. libfaketime sets the wall clock of
-Liquidsoap to a few seconds before a schedule boundary, so the :58 break and
-the :59:55 poll fire during the test. The stub records each /played POST, and
-each scenario checks that record.
+Liquidsoap to a few seconds before a segment boundary, so the prefetch and the
+swap at the boundary occur during the test. The stub records each /played
+POST, and each scenario checks that record.
 
 The clock runs at normal speed, and the harness jumps it forward over idle
-time. A faster clock does not work. thread.when checks its condition every 0.5
-seconds of real time, so at 2x or more it can step over the one-second windows
-that radio.liq uses. A jump keeps those checks at normal speed.
+time. A faster clock does not work, because the audio plays at normal speed.
 
 Two rules apply to a jump:
 
-  - Liquidsoap triggers inside the skipped time do not fire. Jump to a time
+  - Liquidsoap timers inside the skipped time fire at once. Jump to a time
     before the boundary under test.
-  - A jump fires every pending thread.run(delay=...) at once, because those
-    delays use the wall clock. Do not jump in the first seconds after startup.
+  - The audio does not jump. An item on air keeps its position, so it runs
+    late after a jump. Jump only when the swap at the next boundary stops the
+    item on air.
 
 The audio clock uses the monotonic clock, which libfaketime leaves alone, so
 the audio plays at normal speed across a jump.
@@ -26,7 +25,8 @@ Run it with `just test-liquidsoap`. The recipe supplies these variables:
 
   LIQUIDSOAP_BIN, FAKETIME_LIB, ICECAST_BIN, FFMPEG_BIN
 
-Scenarios run one at a time, because radio.liq uses the fixed telnet port 1234.
+Scenarios run one at a time, because they use the same stub port and the same
+Icecast mount.
 
 A check can carry a known issue. Such a check describes the correct behavior,
 and it fails today. Its failure is reported as KNOWN and does not fail the run.
@@ -36,23 +36,23 @@ Usage: run.py LIQ_FILE [SCENARIO ...]
 """
 
 import datetime as dt
+import hashlib
 import http.server
 import json
 import os
 import pathlib
 import shutil
 import signal
-import socket
 import socketserver
 import subprocess
 import sys
 import tempfile
 import threading
 import time
+import urllib.parse
 
 STUB_PORT = 18080
 ICECAST_PORT = 18000
-TELNET_PORT = 1234
 
 LIQUIDSOAP = os.environ["LIQUIDSOAP_BIN"]
 FAKETIME_LIB = os.environ["FAKETIME_LIB"]
@@ -61,6 +61,9 @@ FFMPEG = os.environ["FFMPEG_BIN"]
 
 DAY = dt.date(2026, 10, 21)
 
+# Item types that the real API gives a break item id.
+BREAK_ITEM_TYPES = {"psa", "underwriting", "announcement", "show_promo"}
+
 
 def at(hms):
     """Return a fake local time on the test day."""
@@ -68,17 +71,48 @@ def at(hms):
     return dt.datetime.combine(DAY, dt.time(h, m, s))
 
 
+def iso(t):
+    """Write a fake local time as a UTC ISO 8601 string, as the real API does."""
+    return t.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 # --- Checks and steps --------------------------------------------------------
 
 
 def airs(title, kind, lo, hi, known_issue=None):
-    """The track must appear in /played between lo and hi."""
-    return dict(want=True, title=title, kind=kind, lo=at(lo), hi=at(hi), known_issue=known_issue)
+    """The item must appear in /played between lo and hi."""
+    return dict(check="airs", want=True, title=title, kind=kind, lo=at(lo), hi=at(hi),
+                known_issue=known_issue)
 
 
 def absent(title, kind, lo, hi, known_issue=None):
-    """The track must not appear in /played between lo and hi."""
-    return dict(want=False, title=title, kind=kind, lo=at(lo), hi=at(hi), known_issue=known_issue)
+    """The item must not appear in /played between lo and hi."""
+    return dict(check="airs", want=False, title=title, kind=kind, lo=at(lo), hi=at(hi),
+                known_issue=known_issue)
+
+
+def on_time(title, kind, hms, late=2, early=0.5, known_issue=None):
+    """The item must post at most `late` seconds after its planned start hms.
+
+    By default it may post up to half a second early. Liquidsoap reports a
+    track start up to a few audio frames before the audio plays, and the items
+    of a segment can get a few frames ahead of the wall clock. Set early=0
+    when the item must not post before its planned start.
+    """
+    t = at(hms)
+    return dict(check="airs", want=True, title=title, kind=kind,
+                lo=t - dt.timedelta(seconds=early), hi=t + dt.timedelta(seconds=late),
+                known_issue=known_issue)
+
+
+def posted_planned_start(title, hms, known_issue=None):
+    """Each /played POST of the title must carry this planned start.
+
+    hms is a fake local time. The check compares it as the UTC ISO 8601 string
+    that the stub sends. The title must post at least once.
+    """
+    return dict(check="planned", title=title, planned=iso(at(hms)), hms=hms,
+                known_issue=known_issue)
 
 
 def jump(when, to):
@@ -86,280 +120,233 @@ def jump(when, to):
     return (at(when), "jump", at(to))
 
 
-def telnet(when, command):
-    """At fake time `when`, send one command to the Liquidsoap telnet server."""
-    return (at(when), "telnet", command)
+def restart(when):
+    """At fake time `when`, stop Liquidsoap and start it again."""
+    return (at(when), "restart", None)
 
-
-def force_play(when, title):
-    """At fake time `when`, force-play a track from the scenario, as the dashboard does."""
-    return (at(when), "force_play", title)
-
-
-BREAK_DURING_DOWNLOAD = (
-    "A break does not drop an episode that is still downloading. The episode "
-    "airs after the break, and the next show starts late. Do not restart "
-    "Liquidsoap in the 30 seconds before :28 or :58."
-)
 
 # --- Scenarios ---------------------------------------------------------------
 #
-# start:   fake time when Liquidsoap starts. Startup takes about 5 seconds.
-# end:     fake time when the run stops.
-# slots:   (start, end, title, audio length in seconds). /now returns the slot
-#          that is on air 10 seconds from now, as the real API does. It also
-#          returns the offset into that slot, so a scenario that starts in a
-#          slot needs audio that lasts past that offset.
-# tracks:  extra episode files, for force_play. {title: audio length}
-# filler:  audio length of the filler track. The default is 600 seconds.
-# slow_audio: {title: seconds} the stub waits before it sends the audio of a
-#          track, as slow storage does. The title "Station ID" delays the
-#          break track.
-# now_null: (from, to) fake times when /now returns null, as it does on a
-#          database error.
-# breaks:  fake times when /break returns a station ID. At other times it
-#          returns an empty list.
-# break_secs: audio length of the station ID. The default is 5 seconds.
-# steps:   jump(...), telnet(...), and force_play(...) steps.
-# checks:  airs(...) and absent(...) checks on the /played record.
+# start:      fake time when Liquidsoap starts. Startup takes about 5 seconds.
+# end:        fake time when the run stops.
+# segments:   (start, end, [(title, kind, secs, cue_out)]). secs is the audio
+#             length. cue_out is None, or the second where the item stops. An
+#             item airs for cue_out seconds, or for secs when cue_out is None.
+#             The items of a segment air one after another from its start.
+#             /now with no `from` returns the segment that holds the fake time,
+#             resumed with a cue_in on its first item. /now with `from` returns
+#             the segment that starts there. Each answer also has the whole
+#             segment after it in `next`. Segments are often shorter than a
+#             real slot, so that a run is short.
+# changes:    (when, segment) pairs. From fake time `when`, the stub answers
+#             with this segment in place of the segment with the same start.
+# fail_from:  segment starts where /now?from= answers 503.
+# slow_audio: {title: seconds} the stub waits before it sends the audio of an
+#             item, as slow storage does.
+# fail_audio: {title: count} the first `count` downloads of the audio of an
+#             item get a 500.
+# steps:      jump(...) and restart(...) steps.
+# checks:     airs(...), absent(...), on_time(...), and posted_planned_start(...)
+#             checks on the /played record.
+
+SHOW_B = (at("17:00:00"), at("17:30:00"), [("Show B", "episode", 120, None)])
+
+# A 30 minute slot from 16:30. The episode is 27 minutes long. Filler covers
+# the minute before the break. The break is a station ID, a PSA, and filler.
+SLOT_A = (at("16:30:00"), at("17:00:00"), [
+    ("Show A", "episode", 1620, None),
+    ("Filler", "filler", 180, 60),
+    ("Station ID", "station_id", 10, None),
+    ("PSA One", "psa", 30, None),
+    ("Filler", "filler", 180, 80),
+])
+
+# A slot from 16:30 that the episode fills to the end.
+FULL_SLOT_A = (at("16:30:00"), at("17:00:00"), [("Show A", "episode", 1800, None)])
 
 SCENARIOS = {
-    # Show A ends before the :58 break, so the scheduled queue is idle when the
-    # break comes. Show B must still air at 17:00.
-    "episode-ends-before-break": dict(
-        start=at("16:57:10"),
-        end=at("17:00:15"),
-        slots=[
-            (at("16:30:00"), at("17:00:00"), "Show A", 1650),
-            (at("17:00:00"), at("18:00:00"), "Show B", 120),
+    # Liquidsoap starts in a short segment and swaps to the next one at 16:58.
+    # That segment is an episode, filler cut short, a station ID, a PSA, and
+    # filler. Each item must post near its planned start, and the next segment
+    # must start at 17:00. Filler never posts.
+    "plays-segment-in-order": dict(
+        start=at("16:57:40"),
+        end=at("17:00:10"),
+        segments=[
+            (at("16:57:00"), at("16:58:00"), [("Show Z", "episode", 60, None)]),
+            (at("16:58:00"), at("17:00:00"), [
+                ("Show A", "episode", 30, None),
+                ("Filler", "filler", 180, 20),
+                ("Station ID", "station_id", 10, None),
+                ("PSA One", "psa", 30, None),
+                ("Filler", "filler", 180, 30),
+            ]),
+            SHOW_B,
         ],
-        breaks=[at("16:58:00")],
-        steps=[jump("16:58:15", "16:59:40")],
-        checks=[airs("Show B", "episode", "16:59:55", "17:00:15")],
-    ),
-    # Show A is still on air at the :58 break, so the break cuts it. Show B
-    # must air at 17:00, and Show A must not come back after the break. The
-    # break is a 5 second station ID, so it ends at about 16:58:04. Filler must
-    # start then. If the buffer still holds Show A, its audio plays first and
-    # filler starts at about 16:58:07. Issue #156.
-    "episode-cut-by-break": dict(
-        start=at("16:57:10"),
-        end=at("17:00:15"),
-        slots=[
-            (at("16:30:00"), at("17:00:00"), "Show A", 1800),
-            (at("17:00:00"), at("18:00:00"), "Show B", 120),
-        ],
-        breaks=[at("16:58:00")],
-        steps=[jump("16:58:15", "16:59:40")],
+        steps=[],
         checks=[
-            airs("Show B", "episode", "16:59:55", "17:00:15"),
-            absent("Show A", "episode", "16:58:01", "16:58:15"),
-            airs("Filler", "ephemeral", "16:58:01", "16:58:05"),
+            on_time("Show A", "episode", "16:58:00"),
+            on_time("Station ID", "station_id", "16:58:50"),
+            on_time("PSA One", "psa", "16:59:00"),
+            on_time("Show B", "episode", "17:00:00"),
+            absent("Filler", "filler", "16:57:40", "17:00:10"),
         ],
     ),
-    # The break cuts Show A and runs for 120 seconds, the longest that four
-    # break items of 30 seconds make. The 16:59:55 poll then pushes Show B
-    # while the break is on air. Show B must start when the break ends, with no
-    # Show A and no filler before it. Issue #156.
-    "long-break-cut-episode": dict(
-        start=at("16:57:10"),
+    # The next episode must start at the boundary.
+    "next-segment-at-boundary": dict(
+        start=at("16:59:30"),
+        end=at("17:00:10"),
+        segments=[FULL_SLOT_A, SHOW_B],
+        steps=[],
+        checks=[on_time("Show B", "episode", "17:00:00")],
+    ),
+    # Liquidsoap restarts 20 minutes into Show A. The episode must post at the
+    # restart, and the next segment must start on time. After the jump, Show A
+    # is still on air, so the swap must stop it.
+    "restart-mid-episode": dict(
+        start=at("16:50:00"),
+        end=at("17:00:10"),
+        segments=[SLOT_A, SHOW_B],
+        steps=[jump("16:50:30", "16:59:30")],
+        checks=[
+            airs("Show A", "episode", "16:50:00", "16:50:10"),
+            on_time("Show B", "episode", "17:00:00"),
+        ],
+    ),
+    # Liquidsoap restarts during PSA One, with 10 seconds of it left. The PSA
+    # must post again with the same planned start. PSA Two must then start on
+    # time, which it does only if PSA One resumed with a cue in. From 0:00,
+    # PSA One would play for 30 seconds, and PSA Two would start 20 seconds
+    # late. The next segment must start on time.
+    "restart-mid-break": dict(
+        start=at("16:57:50"),
+        end=at("17:00:10"),
+        segments=[
+            (at("16:30:00"), at("17:00:00"), [
+                ("Show A", "episode", 1620, None),
+                ("Filler", "filler", 180, 60),
+                ("Station ID", "station_id", 10, None),
+                ("PSA One", "psa", 30, None),
+                ("PSA Two", "psa", 30, None),
+                ("Filler", "filler", 180, 50),
+            ]),
+            SHOW_B,
+        ],
+        steps=[restart("16:58:30")],
+        checks=[
+            airs("PSA One", "psa", "16:58:10", "16:58:15"),
+            airs("PSA One", "psa", "16:58:30", "16:58:35"),
+            posted_planned_start("PSA One", "16:58:10"),
+            on_time("PSA Two", "psa", "16:58:40", early=0),
+            on_time("Show B", "episode", "17:00:00"),
+        ],
+    ),
+    # The audio of the next episode takes 8 seconds to download. Liquidsoap
+    # holds it before the check, so it must start on time, and Show A must not
+    # post after the boundary.
+    "slow-next-download": dict(
+        start=at("16:59:30"),
+        end=at("17:00:15"),
+        segments=[FULL_SLOT_A, SHOW_B],
+        slow_audio={"Show B": 8},
+        steps=[],
+        checks=[
+            on_time("Show B", "episode", "17:00:00"),
+            absent("Show A", "episode", "17:00:00", "17:00:15"),
+        ],
+    ),
+    # The check of the next segment gets a 503. Liquidsoap must play the held
+    # segment, so the next episode starts on time.
+    "check-fails": dict(
+        start=at("16:59:30"),
+        end=at("17:00:20"),
+        segments=[FULL_SLOT_A, SHOW_B],
+        fail_from=[at("17:00:00")],
+        steps=[],
+        checks=[
+            on_time("Show B", "episode", "17:00:00"),
+            absent("Show A", "episode", "17:00:00", "17:00:20"),
+        ],
+    ),
+    # The next segment changes after Liquidsoap holds it. The check must see
+    # the change, so the new episode airs at the boundary and the held one
+    # does not air.
+    "next-segment-changes": dict(
+        start=at("16:59:30"),
+        end=at("17:00:15"),
+        segments=[FULL_SLOT_A, SHOW_B],
+        changes=[(at("16:59:45"), (at("17:00:00"), at("17:30:00"), [("Show B New", "episode", 120, None)]))],
+        steps=[],
+        checks=[
+            on_time("Show B New", "episode", "17:00:00", late=3),
+            absent("Show B", "episode", "16:59:30", "17:00:15"),
+        ],
+    ),
+    # The first 3 downloads of the next episode fail. The hold must try again
+    # until one works, so the episode starts on time. With one try at the hold
+    # and one at the check, it does not air.
+    "next-download-retries": dict(
+        start=at("16:59:15"),
+        end=at("17:00:15"),
+        segments=[FULL_SLOT_A, SHOW_B],
+        fail_audio={"Show B": 3},
+        steps=[],
+        checks=[on_time("Show B", "episode", "17:00:00")],
+    ),
+    # The middle item of the next segment never downloads, and the items on
+    # each side of it take 8 seconds each. The hold must download both while
+    # it tries the bad item again, and the check must use the partial hold.
+    # Show B then starts at the boundary, and Ephemeral C follows it. If the
+    # hold waits on the bad item or the check downloads the segment again, the
+    # swap is late.
+    "next-item-never-downloads": dict(
+        start=at("16:59:15"),
         end=at("17:00:30"),
-        slots=[
-            (at("16:30:00"), at("17:00:00"), "Show A", 1800),
-            (at("17:00:00"), at("18:00:00"), "Show B", 120),
+        segments=[
+            FULL_SLOT_A,
+            (at("17:00:00"), at("17:30:00"), [
+                ("Show B", "episode", 20, None),
+                ("Bad Item", "ephemeral", 10, None),
+                ("Ephemeral C", "ephemeral", 120, None),
+            ]),
         ],
-        breaks=[at("16:58:00")],
-        break_secs=120,
+        slow_audio={"Show B": 8, "Ephemeral C": 8},
+        fail_audio={"Bad Item": 1000},
         steps=[],
         checks=[
-            absent("Show A", "episode", "16:58:01", "17:00:30"),
-            airs("Show B", "episode", "16:59:58", "17:00:10"),
-            absent("Filler", "ephemeral", "16:59:58", "17:00:30"),
+            on_time("Show B", "episode", "17:00:00"),
+            on_time("Ephemeral C", "ephemeral", "17:00:20"),
+            absent("Bad Item", "ephemeral", "16:59:15", "17:00:30"),
+            absent("Show A", "episode", "17:00:00", "17:00:30"),
         ],
     ),
-    # The break cuts Show A, and the station ID takes 8 seconds to download.
-    # The buffer holds 5 seconds of Show A, so it runs dry before the break
-    # starts, and fallback() gets no Show A metadata to replay. Show A must not
-    # air after the break, and Show B must air at 17:00. Issue #156.
-    "break-download-drains-buffer": dict(
+    # An hour with no show. Ephemeral uploads fill it, an automation break
+    # follows, and more ephemeral uploads start at 17:00. Each item must post
+    # near its planned start.
+    "unscheduled-hour": dict(
         start=at("16:57:10"),
-        end=at("17:00:15"),
-        slots=[
-            (at("16:30:00"), at("17:00:00"), "Show A", 1800),
-            (at("17:00:00"), at("18:00:00"), "Show B", 120),
+        end=at("17:00:10"),
+        segments=[
+            (at("16:56:30"), at("16:57:30"), [("Ephemeral Zero", "ephemeral", 60, None)]),
+            (at("16:57:30"), at("17:00:00"), [
+                ("Ephemeral One", "ephemeral", 20, None),
+                ("Ephemeral Two", "ephemeral", 30, 10),
+                ("Station ID", "station_id", 10, None),
+                ("PSA One", "psa", 30, None),
+                ("Underwriting One", "underwriting", 30, None),
+                ("Filler", "filler", 180, 50),
+            ]),
+            (at("17:00:00"), at("17:30:00"), [("Ephemeral Three", "ephemeral", 60, None)]),
         ],
-        slow_audio={"Station ID": 8},
-        breaks=[at("16:58:00")],
-        steps=[jump("16:58:40", "16:59:40")],
-        checks=[
-            airs("Station ID", "station_id", "16:58:06", "16:58:12"),
-            absent("Show A", "episode", "16:58:09", "16:58:40"),
-            airs("Show B", "episode", "16:59:55", "17:00:15"),
-        ],
-    ),
-    # As above, the buffer runs dry before the break, so the replay of Show A
-    # never comes. A staff member then force-plays Show A. The forced episode
-    # is a new request, so it must air and post, though it has the same URL as
-    # the cut episode. Issue #156.
-    "force-play-cut-episode": dict(
-        start=at("16:57:10"),
-        end=at("16:58:45"),
-        slots=[(at("16:30:00"), at("17:00:00"), "Show A", 1800)],
-        slow_audio={"Station ID": 8},
-        breaks=[at("16:58:00")],
-        steps=[force_play("16:58:25", "Show A")],
-        checks=[airs("Show A", "episode", "16:58:25", "16:58:35")],
-    ),
-    # The last show of the night ends, and two breaks come with an idle queue,
-    # as the hourly breaks do overnight. The next show must still air.
-    "breaks-with-idle-queue": dict(
-        start=at("16:27:10"),
-        end=at("17:00:15"),
-        slots=[
-            (at("16:00:00"), at("16:30:00"), "Late Show", 1650),
-            (at("17:00:00"), at("18:00:00"), "Show B", 120),
-        ],
-        breaks=[at("16:28:00"), at("16:58:00")],
-        steps=[
-            jump("16:28:15", "16:57:40"),
-            jump("16:58:15", "16:59:40"),
-        ],
-        checks=[airs("Show B", "episode", "16:59:55", "17:00:15")],
-    ),
-    # The dashboard skip-track command runs with nothing scheduled. The next
-    # show must still air.
-    "skip-track-with-idle-queue": dict(
-        start=at("16:59:05"),
-        end=at("17:00:15"),
-        slots=[(at("17:00:00"), at("18:00:00"), "Show B", 120)],
-        breaks=[],
-        steps=[telnet("16:59:30", "skip_track")],
-        checks=[airs("Show B", "episode", "16:59:55", "17:00:15")],
-    ),
-    # A staff member skips an episode early in a one-hour slot. The :29:55 poll
-    # gets the same episode from /now. The episode must stay skipped. Issue #159.
-    "skip-track-mid-slot": dict(
-        start=at("16:14:50"),
-        end=at("16:30:20"),
-        slots=[(at("16:00:00"), at("17:00:00"), "Show A", 3600)],
-        breaks=[],
-        steps=[telnet("16:15:15", "skip_track"), jump("16:15:25", "16:29:40")],
-        checks=[
-            airs("Show A", "episode", "16:14:50", "16:15:15"),
-            absent("Show A", "episode", "16:29:50", "16:30:20"),
-        ],
-    ),
-    # Liquidsoap restarts after the :58 break, in the last minutes of Show A. The
-    # audio has the longest length that a 30-minute slot accepts, so it has ended
-    # by then. The next show must air at 17:00.
-    "restart-near-end-of-show": dict(
-        start=at("16:58:20"),
-        end=at("17:00:20"),
-        slots=[
-            (at("16:30:00"), at("17:00:00"), "Show A", 1680),
-            (at("17:00:00"), at("18:00:00"), "Show B", 120),
-        ],
-        breaks=[],
-        steps=[],
-        checks=[airs("Show B", "episode", "16:59:55", "17:00:20")],
-    ),
-    # Liquidsoap restarts just before the :58 break, and Show A is still
-    # downloading when the break comes. The break must drop Show A, and Show B
-    # must air at 17:00. Issue #168.
-    "break-during-download": dict(
-        start=at("16:57:47"),
-        end=at("17:00:40"),
-        slots=[
-            (at("16:30:00"), at("17:00:00"), "Show A", 1800),
-            (at("17:00:00"), at("18:00:00"), "Show B", 120),
-        ],
-        slow_audio={"Show A": 15},
-        breaks=[at("16:58:00")],
         steps=[],
         checks=[
-            absent("Show A", "episode", "16:57:47", "17:00:40", known_issue=BREAK_DURING_DOWNLOAD),
-            airs("Show B", "episode", "16:59:55", "17:00:15", known_issue=BREAK_DURING_DOWNLOAD),
-        ],
-    ),
-    # Liquidsoap restarts 20 minutes into Show A, and the audio has less than a
-    # minute left at that point. Filler can start only if the episode starts at
-    # its offset. From 0:00, the episode would play for 20 minutes. Issue #152.
-    "restart-mid-show": dict(
-        start=at("16:50:10"),
-        end=at("16:51:10"),
-        slots=[(at("16:30:00"), at("17:00:00"), "Show A", 1240)],
-        breaks=[],
-        steps=[],
-        checks=[
-            airs("Show A", "episode", "16:50:10", "16:50:30"),
-            airs("Filler", "ephemeral", "16:50:30", "16:51:05"),
-        ],
-    ),
-    # Liquidsoap restarts after the audio of Show A has ended. The stream must
-    # stay on filler. An episode with no stored duration gets here, because /now
-    # can not tell that the audio has ended. fallback() does not pull from an
-    # unselected source, so the second filler track airs only if the stream did
-    # not stay on the empty episode. Issue #152.
-    "restart-after-audio-ends": dict(
-        start=at("16:50:10"),
-        end=at("16:50:50"),
-        slots=[(at("16:30:00"), at("17:00:00"), "Show A", 600)],
-        filler=20,
-        breaks=[],
-        steps=[],
-        checks=[
-            absent("Show A", "episode", "16:50:10", "16:50:50"),
-            airs("Filler", "ephemeral", "16:50:25", "16:50:50"),
-        ],
-    ),
-    # The :59:55 poll gets null because of a database error. The poll after the
-    # boundary must still put the show on air, near its start.
-    "boundary-poll-fails": dict(
-        start=at("16:59:05"),
-        end=at("17:00:25"),
-        slots=[(at("17:00:00"), at("18:00:00"), "Show B", 120)],
-        now_null=(at("16:59:50"), at("17:00:00")),
-        breaks=[],
-        steps=[],
-        checks=[airs("Show B", "episode", "17:00:05", "17:00:20")],
-    ),
-    # A database error makes both polls at the 16:30 boundary get null. The two
-    # polls must not count as two empty polls, because that clears the record of
-    # the episode. A staff member then skips the episode, and the 16:59:55 poll
-    # would air it again.
-    "retry-keeps-last-scheduled": dict(
-        start=at("16:29:30"),
-        end=at("17:00:20"),
-        slots=[(at("16:00:00"), at("18:00:00"), "Show A", 7200)],
-        now_null=(at("16:29:50"), at("16:30:10")),
-        breaks=[],
-        steps=[telnet("16:30:12", "skip_track"), jump("16:30:20", "16:59:40")],
-        checks=[absent("Show A", "episode", "16:59:50", "17:00:20")],
-    ),
-    # A staff member force-plays an episode while another one is on air. The
-    # forced episode must start at once.
-    "force-play-during-episode": dict(
-        start=at("16:50:10"),
-        end=at("16:51:00"),
-        slots=[(at("16:30:00"), at("17:00:00"), "Show A", 1800)],
-        tracks={"Show F": 120},
-        breaks=[],
-        steps=[force_play("16:50:35", "Show F")],
-        checks=[airs("Show F", "episode", "16:50:35", "16:50:50")],
-    ),
-    # A staff member force-plays the wrong episode, then force-plays the
-    # correct one to fix it. The correct episode must replace the wrong one at
-    # once. Issue #157.
-    "force-play-twice": dict(
-        start=at("16:50:10"),
-        end=at("16:51:15"),
-        slots=[(at("16:30:00"), at("17:00:00"), "Show A", 1800)],
-        tracks={"Show F": 120, "Show G": 120},
-        breaks=[],
-        steps=[force_play("16:50:30", "Show F"), force_play("16:50:45", "Show G")],
-        checks=[
-            airs("Show F", "episode", "16:50:30", "16:50:45"),
-            airs("Show G", "episode", "16:50:45", "16:51:00"),
+            on_time("Ephemeral One", "ephemeral", "16:57:30"),
+            on_time("Ephemeral Two", "ephemeral", "16:57:50"),
+            on_time("Station ID", "station_id", "16:58:00"),
+            on_time("PSA One", "psa", "16:58:10"),
+            on_time("Underwriting One", "underwriting", "16:58:40"),
+            on_time("Ephemeral Three", "ephemeral", "17:00:00"),
+            absent("Filler", "filler", "16:57:10", "17:00:10"),
         ],
     ),
 }
@@ -430,50 +417,121 @@ class Stub:
         self.sc = sc
         self.clock = clock
         self.played = []
+        self.requests = []
         self.lock = threading.Lock()
-        self.urls = {}
-        tracks = [(title, secs) for _, _, title, secs in sc["slots"]]
-        tracks += list(sc.get("tracks", {}).items())
-        for i, (title, secs) in enumerate(tracks):
-            self.urls[title] = audio.tone(slug(title, secs), secs, 440 + 110 * i)
-        filler_secs = sc.get("filler", 600)
-        self.filler = audio.tone(f"filler-{filler_secs}s", filler_secs, 220)
-        break_secs = sc.get("break_secs", 5)
-        self.station_id = audio.tone(f"station-id-{break_secs}s", break_secs, 880)
-        files = {**self.urls, "Station ID": self.station_id}
+        self.fail_from = {iso(t) for t in sc.get("fail_from", [])}
+        files = {}
+        next_id = 1
+
+        def build(start, end, entries):
+            nonlocal next_id
+            items = []
+            t = start
+            for title, kind, secs, cue_out in entries:
+                key = slug(title, secs)
+                if key not in files:
+                    files[key] = (title, audio.tone(key, secs, 220 + 110 * len(files)))
+                airs_for = cue_out if cue_out is not None else secs
+                break_item_id = None
+                if kind in BREAK_ITEM_TYPES:
+                    break_item_id = next_id
+                    next_id += 1
+                items.append(dict(
+                    type=kind, url=files[key][1], title=title, artist="KPBJ",
+                    duration_seconds=airs_for, cue_in=0, cue_out=cue_out,
+                    break_item_id=break_item_id, start=t,
+                ))
+                t += dt.timedelta(seconds=airs_for)
+            return (start, end, items)
+
+        self.base = [build(*s) for s in sc["segments"]]
+        self.changes = [(when, build(*s)) for when, s in sc.get("changes", [])]
+        slow = sc.get("slow_audio", {})
         self.slow_audio = {
-            files[title].rsplit("/", 1)[-1]: delay
-            for title, delay in sc.get("slow_audio", {}).items()
+            url.rsplit("/", 1)[-1]: slow[title]
+            for title, url in files.values() if title in slow
+        }
+        fail = sc.get("fail_audio", {})
+        self.fail_audio = {
+            url.rsplit("/", 1)[-1]: fail[title]
+            for title, url in files.values() if title in fail
         }
 
-    def now(self):
+    def segments(self, real):
+        """The segments at fake time `real`, with the changes up to then."""
+        out = list(self.base)
+        for when, changed in self.changes:
+            if real >= when:
+                out = [changed if s[0] == changed[0] else s for s in out]
+        return out
+
+    def audio_fails(self, name):
+        """True when this download of the file must get a 500."""
+        with self.lock:
+            left = self.fail_audio.get(name, 0)
+            if left > 0:
+                self.fail_audio[name] = left - 1
+                return True
+            return False
+
+    def segment_json(self, start, end, items, now, resume):
+        """Build a /now answer. A resume drops the items that ended and cues in the first."""
+        out = []
+        whole = now.replace(microsecond=0)
+        for item in items:
+            item_end = item["start"] + dt.timedelta(seconds=item["duration_seconds"])
+            if resume and item_end <= whole:
+                continue
+            j = {k: v for k, v in item.items() if k != "start"}
+            # The planned start stays the start of the whole airing, also on a
+            # resume. /played uses it to count a resumed break item once.
+            j["planned_start"] = iso(item["start"])
+            if resume and not out:
+                elapsed = int((whole - item["start"]).total_seconds())
+                j["cue_in"] += elapsed
+                j["duration_seconds"] -= elapsed
+            out.append(j)
+        # Like the API, the id comes from the whole segment, so a resume
+        # keeps it.
+        airing = [
+            [i["url"], i["cue_in"], i["cue_out"], i["break_item_id"], iso(i["start"])]
+            for i in items
+        ]
+        segment_id = hashlib.sha256(json.dumps([iso(start), iso(end), airing]).encode()).hexdigest()
+        return {
+            "id": segment_id,
+            "segment_start": iso(start),
+            "segment_end": iso(end),
+            "ends_in_seconds": (end - now).total_seconds(),
+            "items": out,
+        }
+
+    def now(self, query):
+        """Answer /now. Return (status, body)."""
         real = self.clock.now()
-        fault = self.sc.get("now_null")
-        if fault and fault[0] <= real < fault[1]:
-            return None
-        t = real + dt.timedelta(seconds=10)
-        for start, end, title, _ in self.sc["slots"]:
-            if start <= t < end:
-                offset = max(0, int((real - start).total_seconds()))
-                return {"url": self.urls[title], "title": title, "artist": "Test",
-                        "offset_seconds": offset}
-        return None
-
-    def brk(self):
-        t = self.clock.now()
-        for b in self.sc["breaks"]:
-            if abs((t - b).total_seconds()) < 5:
-                return [{"url": self.station_id, "title": "Station ID",
-                         "artist": "KPBJ", "source_type": "station_id"}]
-        return []
-
-    def fallback(self):
-        return [{"url": self.filler, "title": "Filler", "artist": "KPBJ",
-                 "source_type": "ephemeral"}]
+        segments = self.segments(real)
+        frm = query.get("from", [None])[0]
+        if frm is None:
+            found = [s for s in segments if s[0] <= real < s[1]]
+            resume = True
+        elif frm in self.fail_from:
+            return 503, {"error": "fail_from"}
+        else:
+            found = [s for s in segments if iso(s[0]) == frm]
+            resume = False
+        if not found:
+            return 503, {"error": "No segment for the request"}
+        start, end, items = found[0]
+        after = [s for s in segments if s[0] == end]
+        return 200, {
+            "current": self.segment_json(start, end, items, real, resume=resume),
+            "next": self.segment_json(*after[0], real, resume=False) if after else None,
+        }
 
     def record(self, body):
         with self.lock:
-            self.played.append((self.clock.now(), body.get("prTitle"), body.get("prSourceType")))
+            self.played.append((self.clock.now(), body.get("prTitle"), body.get("prSourceType"),
+                                body.get("prPlannedStart")))
 
 
 def serve(stub, audio):
@@ -490,17 +548,19 @@ def serve(stub, audio):
             self.wfile.write(data)
 
         def do_GET(self):
-            p = self.path
+            url = urllib.parse.urlsplit(self.path)
+            p = url.path
             if p.startswith("/audio/"):
                 name = p.rsplit("/", 1)[-1]
+                if stub.audio_fails(name):
+                    return self.reply(500, {"error": "fail_audio"})
                 time.sleep(stub.slow_audio.get(name, 0))
                 return self.reply(200, (audio.root / name).read_bytes(), "audio/mpeg")
             if p.endswith("/now"):
-                return self.reply(200, stub.now())
-            if p.endswith("/break"):
-                return self.reply(200, stub.brk())
-            if p.endswith("/fallback"):
-                return self.reply(200, stub.fallback())
+                code, body = stub.now(urllib.parse.parse_qs(url.query))
+                with stub.lock:
+                    stub.requests.append((stub.clock.now(), self.path, code))
+                return self.reply(code, body)
             self.reply(404, {"error": p})
 
         def do_POST(self):
@@ -517,23 +577,6 @@ def serve(stub, audio):
     srv = socketserver.ThreadingTCPServer(("127.0.0.1", STUB_PORT), Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
-
-
-# --- Telnet ------------------------------------------------------------------
-
-
-def send_telnet(command):
-    """Send one command, read the answer up to END, and close the session."""
-    with socket.create_connection(("127.0.0.1", TELNET_PORT), timeout=10) as s:
-        s.sendall(command.encode() + b"\n")
-        answer = b""
-        while b"END" not in answer:
-            chunk = s.recv(4096)
-            if not chunk:
-                break
-            answer += chunk
-        s.sendall(b"quit\n")
-    return answer.decode(errors="replace").replace("END", "").strip()
 
 
 # --- Icecast -----------------------------------------------------------------
@@ -564,44 +607,79 @@ def start_icecast(work):
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+# --- Liquidsoap --------------------------------------------------------------
+
+
+class Liquidsoap:
+    """One Liquidsoap process at a time, which a step can restart."""
+
+    def __init__(self, liq, env, log):
+        self.liq = liq
+        self.env = env
+        self.log = log
+        self.proc = None
+
+    def start(self):
+        self.proc = subprocess.Popen(
+            [LIQUIDSOAP, str(self.liq)],
+            env=self.env, stdout=self.log, stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+
+    def stop(self):
+        if self.proc is not None and self.proc.poll() is None:
+            os.killpg(self.proc.pid, signal.SIGTERM)
+            try:
+                self.proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                os.killpg(self.proc.pid, signal.SIGKILL)
+                self.proc.wait()
+
+    def running(self):
+        return self.proc.poll() is None
+
+
 # --- Runner ------------------------------------------------------------------
 
 
-def run_steps(sc, stub, clock, proc, log):
+def run_steps(sc, clock, liq, log):
     """Run the steps of a scenario in time order, then wait for its end."""
     steps = sorted(sc["steps"], key=lambda s: s[0])
-    while clock.now() < sc["end"] and proc.poll() is None:
+    while clock.now() < sc["end"] and liq.running():
         if steps and clock.now() >= steps[0][0]:
             _, action, arg = steps.pop(0)
             if action == "jump":
                 print(f"   {clock.now():%H:%M:%S}  jump to {arg:%H:%M:%S}", file=log, flush=True)
                 clock.set(arg)
-            else:
-                if action == "force_play":
-                    payload = {"url": stub.urls[arg], "title": arg, "artist": "Test"}
-                    command = f"force_play {json.dumps(payload)}"
-                else:
-                    command = arg
-                answer = send_telnet(command)
-                print(f"   {clock.now():%H:%M:%S}  telnet {command} -> {answer}", file=log, flush=True)
+            elif action == "restart":
+                print(f"   {clock.now():%H:%M:%S}  restart", file=log, flush=True)
+                liq.stop()
+                liq.start()
             continue
         time.sleep(0.2)
 
 
 def judge(check, played):
+    if check["check"] == "planned":
+        starts = [planned for _, title, _, planned in played if title == check["title"]]
+        return bool(starts) and all(s == check["planned"] for s in starts)
     hit = any(
         title == check["title"] and kind == check["kind"] and check["lo"] <= t <= check["hi"]
-        for t, title, kind in played
+        for t, title, kind, _ in played
     )
     return hit == check["want"]
 
 
 def describe(check):
+    if check["check"] == "planned":
+        return f"each post of '{check['title']}' has planned start {check['hms']} ({check['planned']})"
     verb = "airs" if check["want"] else "does not air"
-    return f"{check['kind']} '{check['title']}' {verb} between {check['lo']:%H:%M:%S} and {check['hi']:%H:%M:%S}"
+    lo = f"{check['lo']:%H:%M:%S.%f}"[:-5]
+    hi = f"{check['hi']:%H:%M:%S.%f}"[:-5]
+    return f"{check['kind']} '{check['title']}' {verb} between {lo} and {hi}"
 
 
-def run(liq, name, work, audio):
+def run(liq_file, name, work, audio):
     """Run one scenario. Return 'pass', 'known', or 'fail'."""
     sc = SCENARIOS[name]
     clock = Clock(work / f"{name}.clock")
@@ -620,26 +698,21 @@ def run(liq, name, work, audio):
         PLAYOUT_SECRET="test-secret",
     )
     with open(log_path, "w") as log:
-        proc = subprocess.Popen(
-            [LIQUIDSOAP, str(liq)],
-            env=env, stdout=log, stderr=subprocess.STDOUT,
-            start_new_session=True,
-        )
+        liq = Liquidsoap(liq_file, env, log)
+        liq.start()
         try:
-            run_steps(sc, stub, clock, proc, log)
+            run_steps(sc, clock, liq, log)
         finally:
-            if proc.poll() is None:
-                os.killpg(proc.pid, signal.SIGTERM)
-                try:
-                    proc.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    os.killpg(proc.pid, signal.SIGKILL)
+            liq.stop()
             srv.shutdown()
             srv.server_close()
+        print("\n/now requests:", file=log)
+        for t, path, code in stub.requests:
+            print(f"   {t:%H:%M:%S.%f}  {code}  {path}", file=log)
 
     print(f"\n== {name}")
-    for t, title, kind in stub.played:
-        print(f"   {t:%H:%M:%S}  {kind:<10} {title}")
+    for t, title, kind, planned in stub.played:
+        print(f"   {t:%H:%M:%S.%f}  {kind:<12} {title}  (planned {planned})")
     result = "pass"
     for check in sc["checks"]:
         ok = judge(check, stub.played)
@@ -660,9 +733,10 @@ def run(liq, name, work, audio):
             print(f"          Known issue: {issue}")
             if ok:
                 print("          This check passes now. Remove its known_issue marker.")
-    if proc.returncode not in (None, 0, -signal.SIGTERM):
+    code = liq.proc.returncode
+    if code not in (None, 0, -signal.SIGTERM):
         result = "fail"
-        print(f"   FAIL: liquidsoap exited with code {proc.returncode}")
+        print(f"   FAIL: liquidsoap exited with code {code}")
     return result
 
 
