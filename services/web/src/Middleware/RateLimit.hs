@@ -11,8 +11,6 @@
 --   * @POST \/api\/store\/shipping-rates@ — 10 req/min (hits EasyPost)
 --   * @POST \/api\/store\/checkout\/create-session@ — 5 req/min (creates orders)
 --   * @GET \/api\/playout\/now@ — 60 req/min
---   * @GET \/api\/playout\/fallback@ — 60 req/min
---   * @GET \/api\/playout\/break@ — 60 req/min
 --   * @POST \/api\/playout\/played@ — 60 req/min
 --
 -- Liquidsoap calls the playout endpoints a few times a minute at most.
@@ -55,14 +53,10 @@ rateLimitMiddleware = do
   shippingBackend <- newInMemoryBackend
   sessionBackend <- newInMemoryBackend
   playoutNowBackend <- newInMemoryBackend
-  playoutFallbackBackend <- newInMemoryBackend
-  playoutBreakBackend <- newInMemoryBackend
   playoutPlayedBackend <- newInMemoryBackend
   let shippingLimiter = fixedWindow shippingBackend 60 10 getClientIP
       sessionLimiter = fixedWindow sessionBackend 60 5 getClientIP
       playoutNowLimiter = fixedWindow playoutNowBackend 60 60 getClientIP
-      playoutFallbackLimiter = fixedWindow playoutFallbackBackend 60 60 getClientIP
-      playoutBreakLimiter = fixedWindow playoutBreakBackend 60 60 getClientIP
       playoutPlayedLimiter = fixedWindow playoutPlayedBackend 60 60 getClientIP
       combinedStrategy =
         MkStrategy $ \req ->
@@ -73,10 +67,6 @@ rateLimitMiddleware = do
               strategyOnRequest sessionLimiter req
             ("GET", ["api", "playout", "now"]) ->
               strategyOnRequest playoutNowLimiter req
-            ("GET", ["api", "playout", "fallback"]) ->
-              strategyOnRequest playoutFallbackLimiter req
-            ("GET", ["api", "playout", "break"]) ->
-              strategyOnRequest playoutBreakLimiter req
             ("POST", ["api", "playout", "played"]) ->
               strategyOnRequest playoutPlayedLimiter req
             _ -> pure True

@@ -75,9 +75,17 @@ gen_audio_slice() {
     -t "$seconds" -i "$master" -c copy "$out"
 }
 
-# The three tables that hold an audio path. Soft-deleted episodes are included
-# on purpose: staff can restore an archived episode, and leaving its file out
-# would break restore-then-play QA.
+# The playout filler. No table holds it, so the work list names it with a
+# fixed length. It must match fillerObjectKey in Domain.Timeline. The file must
+# be longer than the 180 second filler item, because the filler at the end of
+# a segment has no cue out and plays until the swap.
+export GEN_AUDIO_FILLER_KEY="audio/filler/kpbj-filler.mp3"
+export GEN_AUDIO_FILLER_SECONDS="240"
+
+# The four tables that hold an audio path, and the filler. Soft-deleted
+# episodes and break items are included on purpose: staff can restore them,
+# and leaving their files out would break restore-then-play QA. Prune deletes
+# every staging key that is not in this list.
 export GEN_AUDIO_WORK_LIST_SQL="
 SELECT audio_file_path, duration_seconds, audio_file_size FROM episodes
   WHERE audio_file_path IS NOT NULL
@@ -85,6 +93,10 @@ UNION ALL
 SELECT audio_file_path, duration_seconds, file_size FROM ephemeral_uploads
 UNION ALL
 SELECT audio_file_path, duration_seconds, file_size FROM station_ids
+UNION ALL
+SELECT audio_file_path, duration_seconds, file_size FROM break_items
+UNION ALL
+SELECT '$GEN_AUDIO_FILLER_KEY', $GEN_AUDIO_FILLER_SECONDS, NULL
 "
 
 # Field separator for psql output. The ASCII unit separator, not a tab.

@@ -360,7 +360,7 @@ in
                   title = "Liquidsoap Errors";
                   description = "Liquidsoap logged critical errors (severity 0 or 1) in the last 5 minutes. Audio stream may be interrupted.";
                   filter = ''\[.*:[01]\]'';
-                  expr = ''count_over_time({unit=~"kpbj-liquidsoap.*"} |~ "\\[.*:[01]\\]" !~ "crossfade duration is longer" [5m])'';
+                  expr = ''count_over_time({unit=~"kpbj-liquidsoap.*"} |~ "\\[.*:[01]\\]" [5m])'';
                 })
                 (mkAlertRule {
                   uid = "icecast-errors";
@@ -372,7 +372,7 @@ in
                 (mkAlertRule {
                   uid = "webhook-errors";
                   title = "Webhook Errors";
-                  description = "The webhook service logged errors in the last 5 minutes. Dashboard commands (restart, force-play, skip) may not be working.";
+                  description = "The webhook service logged errors in the last 5 minutes. Dashboard commands (restart, stop, start) may not be working.";
                   filter = ''ERROR|FATAL|"level":"error"'';
                   expr = ''count_over_time({unit=~"kpbj-webhook.*"} |~ "ERROR|FATAL|\"level\":\"error\"" [5m])'';
                 })

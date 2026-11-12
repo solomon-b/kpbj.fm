@@ -175,12 +175,9 @@ import API.Dashboard.Store.Products.Id.Edit.Post.Route qualified as Dashboard.St
 import API.Dashboard.Store.Products.Id.Get.Route qualified as Dashboard.Store.Products.Id.Get
 import API.Dashboard.Store.Settings.Get.Route qualified as Dashboard.Store.Settings.Get
 import API.Dashboard.Store.Settings.Post.Route qualified as Dashboard.Store.Settings.Post
-import API.Dashboard.StreamSettings.Episodes.Search.Get.Route qualified as Dashboard.StreamSettings.Episodes.Search.Get
-import API.Dashboard.StreamSettings.ForceEpisode.Post.Route qualified as Dashboard.StreamSettings.ForceEpisode.Post
 import API.Dashboard.StreamSettings.Get.Route qualified as Dashboard.StreamSettings.Get
 import API.Dashboard.StreamSettings.Restart.Icecast.Post.Route qualified as Dashboard.StreamSettings.Restart.Icecast.Post
 import API.Dashboard.StreamSettings.Restart.Liquidsoap.Post.Route qualified as Dashboard.StreamSettings.Restart.Liquidsoap.Post
-import API.Dashboard.StreamSettings.SkipTrack.Post.Route qualified as Dashboard.StreamSettings.SkipTrack.Post
 import API.Dashboard.StreamSettings.StartStream.Post.Route qualified as Dashboard.StreamSettings.StartStream.Post
 import API.Dashboard.StreamSettings.StopStream.Post.Route qualified as Dashboard.StreamSettings.StopStream.Post
 import API.Dashboard.Users.Delete.Route qualified as Dashboard.Users.Delete
@@ -202,8 +199,6 @@ import API.Invite.Token.Get.Route qualified as Invite.Token.Get
 import API.Invite.Token.Post.Route qualified as Invite.Token.Post
 import API.Media.Get.Route qualified as Media.Get
 import API.Newsletter.Subscribe.Post.Route qualified as Newsletter.Subscribe.Post
-import API.Playout.Break.Get.Route qualified as Playout.Break.Get
-import API.Playout.Fallback.Get.Route qualified as Playout.Fallback.Get
 import API.Playout.Now.Get.Route qualified as Playout.Now.Get
 import API.Playout.Played.Post.Route qualified as Playout.Played.Post
 import API.PrivacyPolicy.Get.Route qualified as PrivacyPolicy.Get
@@ -798,12 +793,6 @@ data DashboardStreamSettingsRoutes mode = DashboardStreamSettingsRoutes
     restartIcecastPost :: mode :- Dashboard.StreamSettings.Restart.Icecast.Post.Route,
     -- | @POST /dashboard/stream-settings/restart/liquidsoap@ - Restart Liquidsoap container
     restartLiquidsoapPost :: mode :- Dashboard.StreamSettings.Restart.Liquidsoap.Post.Route,
-    -- | @GET /dashboard/stream-settings/episodes/search@ - Search episodes for force-play
-    episodeSearch :: mode :- Dashboard.StreamSettings.Episodes.Search.Get.Route,
-    -- | @POST /dashboard/stream-settings/force-episode@ - Force-play an episode
-    forceEpisodePost :: mode :- Dashboard.StreamSettings.ForceEpisode.Post.Route,
-    -- | @POST /dashboard/stream-settings/skip-track@ - Skip current track to fallback
-    skipTrackPost :: mode :- Dashboard.StreamSettings.SkipTrack.Post.Route,
     -- | @POST /dashboard/stream-settings/stop-stream@ - Stop entire stream (Liquidsoap then Icecast)
     stopStreamPost :: mode :- Dashboard.StreamSettings.StopStream.Post.Route,
     -- | @POST /dashboard/stream-settings/start-stream@ - Start entire stream (Icecast then Liquidsoap)
@@ -938,10 +927,6 @@ data UploadRoutes mode = UploadRoutes
 data PlayoutRoutes mode = PlayoutRoutes
   { -- | @GET /api/playout/now@ - Get currently airing episode audio URL
     now :: mode :- Playout.Now.Get.Route,
-    -- | @GET /api/playout/fallback@ - Get random ephemeral track for fallback
-    fallback :: mode :- Playout.Fallback.Get.Route,
-    -- | @GET /api/playout/break@ - Get the tracks for one break window
-    breakWindow :: mode :- Playout.Break.Get.Route,
     -- | @POST /api/playout/played@ - Log a track that started playing
     played :: mode :- Playout.Played.Post.Route
   }

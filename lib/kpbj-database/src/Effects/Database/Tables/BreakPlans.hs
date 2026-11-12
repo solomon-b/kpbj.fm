@@ -98,6 +98,8 @@ data PlannedTrack = PlannedTrack
     plSourceType :: Text,
     plTitle :: Text,
     plAudioFilePath :: Text,
+    -- | The length of the audio, in seconds.
+    plSeconds :: Int64,
     -- | The break item this track plays. Nothing for a station ID.
     plBreakItemId :: Maybe Int64
   }
@@ -157,12 +159,12 @@ tracksBetween fromBoundary toBoundary =
   interp
     False
     [sql|
-    SELECT e.boundary, e.position, 'station_id'::TEXT, s.title, s.audio_file_path, NULL::BIGINT
+    SELECT e.boundary, e.position, 'station_id'::TEXT, s.title, s.audio_file_path, s.duration_seconds, NULL::BIGINT
     FROM break_plan_entries e
     JOIN station_ids s ON s.id = e.station_id_id
     WHERE e.boundary BETWEEN #{fromBoundary} AND #{toBoundary}
     UNION ALL
-    SELECT e.boundary, e.position, bi.category::TEXT, bi.title, bi.audio_file_path, bi.id
+    SELECT e.boundary, e.position, bi.category::TEXT, bi.title, bi.audio_file_path, bi.duration_seconds, bi.id
     FROM break_plan_entries e
     JOIN break_items bi ON bi.id = e.break_item_id
     LEFT JOIN shows sh ON sh.id = bi.show_id

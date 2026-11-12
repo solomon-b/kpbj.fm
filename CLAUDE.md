@@ -19,7 +19,7 @@ KPBJ 95.9FM community radio station. Four services on a DigitalOcean VPS running
 - **Web Service** — Haskell/Servant app. Website, dashboard, playout API.
 - **Liquidsoap** — Audio automation. Polls web API, streams to Icecast.
 - **Icecast** — Streaming server. Serves listeners.
-- **Webhook** — HTTP webhook receiver (`services/webhook/`). Handles service restarts, force-play, skip-track commands from the dashboard.
+- **Webhook** — HTTP webhook receiver (`services/webhook/`). Handles the restart, stop, and start commands from the dashboard.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for system topology and CI/CD. See [README.md](README.md) for setup and deployment.
 

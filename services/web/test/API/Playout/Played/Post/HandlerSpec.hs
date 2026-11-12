@@ -12,6 +12,7 @@ import API.Playout.Played.Post.Handler (record)
 import API.Playout.Types (PlayedRequest (..))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
+import Data.Aeson (eitherDecode)
 import Data.Int (Int64)
 import Data.Text qualified as Text
 import Data.Time (UTCTime (..), fromGregorian)
@@ -25,7 +26,7 @@ import Test.Database.Helpers (insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, withTestDB)
 import Test.Handler.Fixtures (mkUserInsert)
 import Test.Handler.Monad (bracketAppM)
-import Test.Hspec (Spec, describe, expectationFailure, it, shouldBe)
+import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe)
 import "kpbj-web" App.Monad (AppM)
 
 --------------------------------------------------------------------------------
@@ -37,6 +38,12 @@ spec =
       it "stores the break item id" storesBreakItemId
       it "stores no break item id for an empty string" storesNothingForEmpty
       it "stores a play for each break source type" storesEachBreakSourceType
+      it "records a break item once for one planned start" recordsOncePerPlannedStart
+      it "records a resumed episode once for one planned start" recordsEpisodeOncePerPlannedStart
+      it "records the same break item at two planned starts" recordsTwoPlannedStarts
+      it "records a post with no planned start" recordsWithoutPlannedStart
+      it "decodes the body that radio.liq sends for a break item" . const $ decodesBreakItemBody
+      it "decodes a body with no planned start" . const $ decodesBodyWithoutPlannedStart
 
 --------------------------------------------------------------------------------
 
@@ -75,7 +82,8 @@ psaPlayed breakItemId =
       prSourceType = "psa",
       prSourceUrl = "http://localhost:4000/media/audio/break-items/library.mp3",
       prStartedAt = UTCTime (fromGregorian 2025 1 6) 3600,
-      prBreakItemId = Just breakItemId
+      prBreakItemId = Just breakItemId,
+      prPlannedStart = Nothing
     }
 
 -- | Record the request, then read back the newest row's break item id.
@@ -139,3 +147,123 @@ storesEachBreakSourceType cfg =
       execQuery (PlaybackHistory.getRecentPlayback 1) >>= \case
         Right [row] -> liftIO $ row.phSourceType `shouldBe` sourceType
         other -> error ("Expected one row, got " <> show other)
+
+--------------------------------------------------------------------------------
+-- Planned start
+
+-- | Record the request and fail the test if the handler fails.
+recordOrFail :: PlayedRequest -> AppM ()
+recordOrFail request = do
+  recorded <- runExceptT (record request)
+  case recorded of
+    Left err -> error ("Record failed: " <> show err)
+    Right () -> pure ()
+
+-- | The planned start of an airing, in seconds after midnight.
+plannedAt :: Integer -> Maybe UTCTime
+plannedAt seconds = Just (UTCTime (fromGregorian 2025 1 6) (fromInteger seconds))
+
+-- | Every airing in 2025, counted from the delivery query.
+airingsIn2025 :: AppM Int
+airingsIn2025 = do
+  let from = UTCTime (fromGregorian 2025 1 1) 0
+      to = UTCTime (fromGregorian 2026 1 1) 0
+  execQuery (PlaybackHistory.airingsBetween from to) >>= \case
+    Right airings -> pure (length airings)
+    Left err -> error ("Count failed: " <> show err)
+
+-- | Every row in the table.
+allRows :: AppM Int
+allRows =
+  execQuery (PlaybackHistory.getRecentPlayback 100) >>= \case
+    Right rows -> pure (length rows)
+    Left err -> error ("Read failed: " <> show err)
+
+recordsOncePerPlannedStart :: TestDBConfig -> IO ()
+recordsOncePerPlannedStart cfg = bracketAppM cfg $ do
+  psaId <- seedPsa
+  let itemId = Text.pack (show (BreakItems.unId psaId))
+      first = (psaPlayed itemId) {prPlannedStart = plannedAt 3600}
+      -- Liquidsoap restarted and posted the same airing at a later time.
+      resumed = first {prStartedAt = UTCTime (fromGregorian 2025 1 6) 3700}
+  recordOrFail first
+  recordOrFail resumed
+  rows <- allRows
+  counted <- airingsIn2025
+  liftIO $ rows `shouldBe` 1
+  liftIO $ counted `shouldBe` 1
+
+recordsEpisodeOncePerPlannedStart :: TestDBConfig -> IO ()
+recordsEpisodeOncePerPlannedStart cfg = bracketAppM cfg $ do
+  let first =
+        (psaPlayed "")
+          { prTitle = "Now Show",
+            prSourceType = "episode",
+            prSourceUrl = "http://localhost:4000/media/audio/episodes/now.mp3",
+            prPlannedStart = plannedAt 3600
+          }
+      -- Liquidsoap restarted 20 minutes into the episode.
+      resumed = first {prStartedAt = UTCTime (fromGregorian 2025 1 6) 4800}
+  recordOrFail first
+  recordOrFail resumed
+  rows <- allRows
+  liftIO $ rows `shouldBe` 1
+
+recordsTwoPlannedStarts :: TestDBConfig -> IO ()
+recordsTwoPlannedStarts cfg = bracketAppM cfg $ do
+  psaId <- seedPsa
+  let itemId = Text.pack (show (BreakItems.unId psaId))
+  recordOrFail (psaPlayed itemId) {prPlannedStart = plannedAt 3600}
+  recordOrFail (psaPlayed itemId) {prPlannedStart = plannedAt 7200}
+  rows <- allRows
+  liftIO $ rows `shouldBe` 2
+
+recordsWithoutPlannedStart :: TestDBConfig -> IO ()
+recordsWithoutPlannedStart cfg = bracketAppM cfg $ do
+  psaId <- seedPsa
+  let itemId = Text.pack (show (BreakItems.unId psaId))
+  recordOrFail (psaPlayed itemId) {prPlannedStart = Nothing}
+  recordOrFail (psaPlayed itemId) {prPlannedStart = Nothing}
+  rows <- allRows
+  liftIO $ rows `shouldBe` 2
+
+-- | The body of a break item post, as radio.liq builds it with
+-- @json.stringify@. Every value is a string, the break item id too.
+decodesBreakItemBody :: Expectation
+decodesBreakItemBody =
+  eitherDecode
+    "{\"prTitle\":\"Library Hours\",\"prArtist\":\"KPBJ 95.9 FM\",\
+    \\"prSourceType\":\"psa\",\
+    \\"prSourceUrl\":\"http://localhost:4000/media/audio/break-items/library.mp3\",\
+    \\"prStartedAt\":\"2025-01-06T22:58:11Z\",\"prBreakItemId\":\"42\",\
+    \\"prPlannedStart\":\"2025-01-06T22:58:10Z\"}"
+    `shouldBe` Right
+      PlayedRequest
+        { prTitle = "Library Hours",
+          prArtist = Just "KPBJ 95.9 FM",
+          prSourceType = "psa",
+          prSourceUrl = "http://localhost:4000/media/audio/break-items/library.mp3",
+          prStartedAt = UTCTime (fromGregorian 2025 1 6) (22 * 3600 + 58 * 60 + 11),
+          prBreakItemId = Just "42",
+          prPlannedStart = Just (UTCTime (fromGregorian 2025 1 6) (22 * 3600 + 58 * 60 + 10))
+        }
+
+-- | The body of an episode post from an older client. The break item id is
+-- an empty string, and there is no planned start.
+decodesBodyWithoutPlannedStart :: Expectation
+decodesBodyWithoutPlannedStart =
+  eitherDecode
+    "{\"prTitle\":\"Now Show\",\"prArtist\":\"KPBJ 95.9 FM\",\
+    \\"prSourceType\":\"episode\",\
+    \\"prSourceUrl\":\"http://localhost:4000/media/audio/episodes/now.mp3\",\
+    \\"prStartedAt\":\"2025-01-06T22:00:00Z\",\"prBreakItemId\":\"\"}"
+    `shouldBe` Right
+      PlayedRequest
+        { prTitle = "Now Show",
+          prArtist = Just "KPBJ 95.9 FM",
+          prSourceType = "episode",
+          prSourceUrl = "http://localhost:4000/media/audio/episodes/now.mp3",
+          prStartedAt = UTCTime (fromGregorian 2025 1 6) (22 * 3600),
+          prBreakItemId = Just "",
+          prPlannedStart = Nothing
+        }

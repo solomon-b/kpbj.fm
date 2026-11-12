@@ -494,10 +494,6 @@ library
     API.Dashboard.SitePages.Slug.Revisions.Id.Get.Templates.Page
     API.Dashboard.SitePages.Slug.Revisions.Id.Restore.Post.Handler
     API.Dashboard.SitePages.Slug.Revisions.Id.Restore.Post.Route
-    API.Dashboard.StreamSettings.Episodes.Search.Get.Handler
-    API.Dashboard.StreamSettings.Episodes.Search.Get.Route
-    API.Dashboard.StreamSettings.ForceEpisode.Post.Handler
-    API.Dashboard.StreamSettings.ForceEpisode.Post.Route
     API.Dashboard.StreamSettings.Get.Handler
     API.Dashboard.StreamSettings.Get.Route
     API.Dashboard.StreamSettings.Get.Templates.Form
@@ -505,8 +501,6 @@ library
     API.Dashboard.StreamSettings.Restart.Icecast.Post.Route
     API.Dashboard.StreamSettings.Restart.Liquidsoap.Post.Handler
     API.Dashboard.StreamSettings.Restart.Liquidsoap.Post.Route
-    API.Dashboard.StreamSettings.SkipTrack.Post.Handler
-    API.Dashboard.StreamSettings.SkipTrack.Post.Route
     API.Dashboard.StreamSettings.StartStream.Post.Handler
     API.Dashboard.StreamSettings.StartStream.Post.Route
     API.Dashboard.StreamSettings.StopStream.Post.Handler
@@ -569,10 +563,6 @@ library
     API.Playout.Types
     API.Playout.Now.Get.Route
     API.Playout.Now.Get.Handler
-    API.Playout.Fallback.Get.Route
-    API.Playout.Fallback.Get.Handler
-    API.Playout.Break.Get.Route
-    API.Playout.Break.Get.Handler
     API.Playout.Played.Post.Route
     API.Playout.Played.Post.Handler
     API.Analytics.EpisodePlay.Post.Route
@@ -666,8 +656,10 @@ library
     Domain.Types.VariantsPayload
     Domain.BreakPlanner
     Domain.EpisodeLength
+    Domain.Timeline
     Effects.AudioDuration
     Effects.BreakPlan
+    Effects.Timeline
     Effects.ContentSanitization
     Effects.Diff
     Effects.EmailVerification
@@ -835,7 +827,6 @@ test-suite kpbj-web-test
        API.Dashboard.AirBreaks.StationIds.Id.Delete.HandlerSpec
        API.Dashboard.AirBreaks.StationIds.New.Post.HandlerSpec
        API.Dashboard.AirBreaks.StationIds.New.Get.HandlerSpec
-       API.Dashboard.StreamSettings.Episodes.Search.Get.HandlerSpec
        API.Dashboard.MissingEpisodes.Get.HandlerSpec
        API.Dashboard.Shows.Get.HandlerSpec
        API.Dashboard.Shows.New.Post.HandlerSpec
@@ -851,8 +842,6 @@ test-suite kpbj-web-test
        API.Events.Get.HandlerSpec
        API.Get.HandlerSpec
        API.Playout.Now.Get.HandlerSpec
-       API.Playout.Fallback.Get.HandlerSpec
-       API.Playout.Break.Get.HandlerSpec
        API.Playout.Played.Post.HandlerSpec
        API.Schedule.Get.HandlerSpec
        API.Shows.Get.HandlerSpec
@@ -881,6 +870,8 @@ test-suite kpbj-web-test
        App.RequestLogSpec
        Domain.BreakPlannerSpec
        Domain.EpisodeLengthSpec
+       Domain.TimelineSpec
+       Effects.TimelineSpec
        Effects.BreakPlanSpec
        Effects.ContentSanitizationSpec
        Effects.Database.UnderwritersSpec

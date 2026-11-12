@@ -211,6 +211,9 @@
           # migrations, which live under services/web and are therefore outside
           # the source tree of kpbj-database, so MIGRATIONS_DIR names them.
           #
+          # The locale is UTF-8. Hedgehog prints coverage bars with a non-ASCII
+          # character, and an ASCII locale makes that write fail.
+          #
           # Profiling is off here. Nixpkgs turns it on by default, which compiles
           # every module a second time, and nothing reads the profiling libraries.
           # The packages and the devShell keep it, so profiling a build by hand
@@ -225,7 +228,7 @@
                     testToolDepends = (old.testToolDepends or [ ]) ++ [ pkgs.postgresql_17 pkgs.sqlx-cli ];
                     preCheck = (old.preCheck or "") + ''
                       export MIGRATIONS_DIR=${./services/web/migrations}
-                      export LC_ALL=C
+                      export LC_ALL=C.UTF-8
                     '';
                   });
             in

@@ -35,7 +35,7 @@ module Effects.Database.Tables.EphemeralUploads
     getAllEphemeralUploads,
     getEphemeralUploadById,
     getEphemeralUploadWithCreatorById,
-    getRandomEphemeralUpload,
+    getPlayableEphemeralUploads,
     insertEphemeralUpload,
     updateEphemeralUpload,
     deleteEphemeralUpload,
@@ -290,13 +290,13 @@ getEphemeralUploadById ephemeralUploadId = fmap listToMaybe $ run $ select do
   where_ $ eumId row ==. lit ephemeralUploadId
   pure row
 
--- | Get a random unflagged ephemeral upload for fallback playback.
+-- | Every ephemeral upload that the timeline can play, in id order.
 --
--- Returns a randomly selected ephemeral upload, or Nothing if no unflagged uploads exist.
--- Used by Liquidsoap for fallback audio when no show is scheduled.
--- Flagged uploads are excluded from fallback playback.
-getRandomEphemeralUpload :: Hasql.Statement () (Maybe Model)
-getRandomEphemeralUpload =
+-- An upload can play when it is not flagged and its length is known and more
+-- than 0. The timeline places each item at a fixed instant, so it cannot use
+-- an upload of unknown length.
+getPlayableEphemeralUploads :: Hasql.Statement () [Model]
+getPlayableEphemeralUploads =
   interp
     False
     [sql|
@@ -304,8 +304,9 @@ getRandomEphemeralUpload =
            flagged_at, flagged_by, flag_reason
     FROM ephemeral_uploads
     WHERE flagged_at IS NULL
-    ORDER BY RANDOM()
-    LIMIT 1
+      AND duration_seconds IS NOT NULL
+      AND duration_seconds > 0
+    ORDER BY id
   |]
 
 -- | Insert a new ephemeral upload and return its ID.

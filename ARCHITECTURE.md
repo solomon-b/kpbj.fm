@@ -62,7 +62,7 @@ Haskell/Servant application with server-side HTML rendering (Lucid2 + HTMX). Ser
 
 ### Liquidsoap (VPS)
 
-Audio automation daemon. Polls the web service at :00 and :30 for scheduled episodes, falls back to ephemeral tracks when nothing is scheduled, and outputs 128kbps MP3 to Icecast.
+Audio automation daemon. Asks the web service for the next timeline segment before each boundary, plays its items in order, and outputs 128kbps MP3 to Icecast.
 
 ### Icecast (VPS)
 
@@ -70,18 +70,35 @@ Streaming server behind NixOS-managed Nginx (automatic Let's Encrypt via ACME). 
 
 ## Playout API
 
-Liquidsoap communicates with the web service via four endpoints. `POST /api/playout/played` is authenticated with a shared secret (`X-Playout-Secret` header); the three GETs are not.
+Liquidsoap communicates with the web service via two endpoints. `POST /api/playout/played` is authenticated with a shared secret (`X-Playout-Secret` header). `GET /api/playout/now` is not.
 
-| Endpoint                | Method | Purpose                            |
-|-------------------------|--------|------------------------------------|
-| `/api/playout/now`      | GET    | Get currently scheduled episode    |
-| `/api/playout/fallback` | GET    | Get random fallback track          |
-| `/api/playout/break`    | GET    | Get the tracks for a break window  |
-| `/api/playout/played`   | POST   | Report what's playing              |
+| Endpoint              | Method | Purpose                                  |
+|-----------------------|--------|------------------------------------------|
+| `/api/playout/now`    | GET    | Get the segment of the timeline          |
+| `/api/playout/played` | POST   | Report what is playing                   |
 
-Liquidsoap polls `/now` at `:29:55` and `:59:55`, again at `:00:05` and `:30:05` in case the first poll failed, and 3 seconds after it starts. It asks `/break` at `:28` and `:58`. `/now` returns the episode that airs 10 seconds ahead, with `offset_seconds`, the seconds since its slot opened. Liquidsoap starts the episode at that position, so a restart keeps the schedule. A break window is the last two minutes before a slot boundary. The API decides whether one is due: either a scheduled slot ends there, or the hour turns with no slot spanning it. An empty answer means play on, so a failure never cuts a show for silence.
+`/now` returns `{"current": ..., "next": ...}`. `current` is one segment of the timeline, and `next` is the whole segment after it, or null. A segment is the span between two boundaries, and its items fill the span with no gaps. Every segment is at least 30 minutes long. The items are an episode, a break, ephemeral tracks, or filler. Each item has a planned start time. Each segment has `ends_in_seconds`, the seconds from the request to the end of the segment. It has `id`, a SHA-256 hash of the segment start, the segment end, and the URL, cue points, break item id, and planned start of each item. The id changes only when what airs in the segment changes, and a resumed segment keeps it.
 
-Do not restart Liquidsoap in the 30 seconds before `:28` or `:58`. A break does not drop an episode that is still downloading. The rest of that episode airs after the break, and the next show starts late by about the download time. `just test-liquidsoap break-during-download` shows this as a known issue (#168).
+Liquidsoap plays the items one after another and does not use the planned starts. The stored lengths are rounded up to whole seconds, so the items usually end a little before their planned ends. A filler item at the end of a segment therefore has no cue out. It plays until the swap at the boundary stops it, so the gap has audio and not silence. When the items run long, the swap cuts the filler and not a break track. A segment that does not end with filler can still end with a short silence. The filler file must be longer than 180 seconds, so that a trailing filler of the full 180 seconds has spare audio.
+
+While a segment is on the air, Liquidsoap downloads the files of `next` and holds them. A file that does not download does not stop the files after it, and it is tried again every 5 seconds. A file that never downloads is left out of the held segment, and the rest of the segment plays. 10 seconds before the boundary, Liquidsoap asks `/now` for the next segment again. If its `id` matches the id of the held segment, Liquidsoap uses the held files. If not, it downloads the new segment. It swaps to the new segment at the boundary. If that request fails, Liquidsoap plays the held segment. If nothing is held, it asks `/now` again at the boundary. A restart asks `/now` at once, and the answer holds the segment that airs now. So a restart keeps the schedule.
+
+`/played` takes `prPlannedStart`, the planned start time of the item. The web service uses it to ignore a repeated report of the same airing. Liquidsoap does not post filler items to `/played`.
+
+### Known limits
+
+After a restart, the audio runs behind the timeline by the download time of the current segment. The swap at the next boundary then cuts that many seconds from the end of the segment. The end of a segment is its break. The same occurs when the next segment changes after Liquidsoap holds it. Liquidsoap then downloads the new segment at the check, and a download of more than 10 seconds makes the audio late.
+
+An item that still does not download at the check is dropped, and the items after it play early. Liquidsoap logs `[KPBJ] Could not resolve <url>` for each try.
+
+### Release steps for the timeline
+
+The first release of the timeline needs these steps, in this order:
+
+1. Upload a filler file of at least 240 seconds to `audio/filler/kpbj-filler.mp3` in the prod bucket. On staging, `just prod-to-staging-audio` makes a placeholder for it.
+2. Deploy.
+3. Restart Liquidsoap right after the deploy. The deploy does not restart it, and the old script cannot read the new `/now`.
+4. Fill the length of the older ephemeral uploads with `scripts/audio-durations-sql.sh ephemeral_uploads prod`. The usage at the top of the script gives the full commands.
 
 ## Environments
 

@@ -827,12 +827,9 @@ instance Display BreakKind where
 --
 -- == Time arithmetic
 --
--- The window CTE is the one in 'Effects.Database.Tables.Episodes.getAiringEpisodes',
--- minus the episode join. It keeps all four of that query's parts: the
--- @slot_length@ interval that wraps midnight, the @VALUES@ lateral that fans a
--- template into a primary window and a replay window, the @LEAST@ correction
--- that resolves an ambiguous fall-back clock reading to the earlier instant,
--- and the hardcoded zone. Read the Haddock there before changing any of it.
+-- The windows come from the @slot_windows@ SQL function, the same as in
+-- 'Effects.Database.Tables.Episodes.getAiringEpisodes'. Read the Haddock there
+-- for the rules.
 --
 -- Air dates are scanned from the day before the first boundary to the day of
 -- the last, in Pacific, so an overnight slot that closes after midnight is
@@ -870,40 +867,11 @@ breakKindsBetween fromBoundary toBoundary =
         JOIN schedule_template_validity stv ON stv.template_id = st.id
         JOIN shows s ON s.id = st.show_id
         CROSS JOIN air_dates d
-        CROSS JOIN LATERAL (
-          SELECT
-            CASE WHEN st.end_time > st.start_time
-              THEN st.end_time - st.start_time
-              ELSE INTERVAL '24 hours' - (st.start_time - st.end_time)
-            END AS slot_length
-        ) sl
-        CROSS JOIN LATERAL (
-          VALUES
-            (st.start_time, st.end_time),
-            (st.replay_start_time, (st.replay_start_time + sl.slot_length)::TIME)
-        ) AS v(start_time, end_time)
-        CROSS JOIN LATERAL (
-          SELECT
-            d.air_date + v.start_time AS local_start,
-            (d.air_date + CASE WHEN v.end_time <= v.start_time THEN 1 ELSE 0 END) + v.end_time
-              AS local_end
-        ) l
-        CROSS JOIN LATERAL (
-          SELECT
-            LEAST(
-              l.local_start AT TIME ZONE 'America/Los_Angeles',
-              (l.local_start - INTERVAL '1 hour') AT TIME ZONE 'America/Los_Angeles'
-                + INTERVAL '1 hour'
-            ) AS window_start,
-            LEAST(
-              l.local_end AT TIME ZONE 'America/Los_Angeles',
-              (l.local_end - INTERVAL '1 hour') AT TIME ZONE 'America/Los_Angeles'
-                + INTERVAL '1 hour'
-            ) AS window_end
+        CROSS JOIN LATERAL slot_windows(
+          d.air_date, st.start_time, st.end_time, st.replay_start_time
         ) w
         WHERE
-          v.start_time IS NOT NULL
-          AND s.status = 'active'
+          s.status = 'active'
           AND s.deleted_at IS NULL
           AND stv.effective_from <= d.air_date
           AND (stv.effective_until IS NULL OR stv.effective_until > d.air_date)

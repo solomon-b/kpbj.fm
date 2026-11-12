@@ -76,7 +76,6 @@ import API.Dashboard.StationBlog.Slug.Delete.HandlerSpec qualified as DashboardS
 import API.Dashboard.StationBlog.Slug.Edit.Get.HandlerSpec qualified as DashboardStationBlogEditGetHandler
 import API.Dashboard.StationBlog.Slug.Edit.Post.HandlerSpec qualified as DashboardStationBlogEditPostHandler
 import API.Dashboard.StationBlog.Slug.Get.HandlerSpec qualified as DashboardStationBlogSlugGetHandler
-import API.Dashboard.StreamSettings.Episodes.Search.Get.HandlerSpec qualified as DashboardStreamSettingsEpisodeSearchHandler
 import API.Dashboard.Users.Delete.HandlerSpec qualified as DashboardUsersDeleteHandler
 import API.Dashboard.Users.Detail.Get.HandlerSpec qualified as DashboardUsersDetailGetHandler
 import API.Dashboard.Users.Edit.Get.HandlerSpec qualified as DashboardUsersEditGetHandler
@@ -90,8 +89,6 @@ import API.Events.Get.HandlerSpec qualified as EventsHandler
 import API.Get.HandlerSpec qualified as HomeHandler
 import API.Invite.Token.Post.HandlerSpec qualified as InviteTokenPostHandler
 import API.Newsletter.Subscribe.Post.HandlerSpec qualified as NewsletterSubscribeHandler
-import API.Playout.Break.Get.HandlerSpec qualified as PlayoutBreakGetHandler
-import API.Playout.Fallback.Get.HandlerSpec qualified as PlayoutFallbackGetHandler
 import API.Playout.Now.Get.HandlerSpec qualified as PlayoutNowGetHandler
 import API.Playout.Played.Post.HandlerSpec qualified as PlayoutPlayedPostHandler
 import API.Schedule.Get.HandlerSpec qualified as ScheduleHandler
@@ -119,6 +116,7 @@ import Data.Maybe (fromMaybe)
 import Domain.BreakPlannerSpec qualified as BreakPlanner
 import Domain.EpisodeLengthSpec qualified as EpisodeLength
 import Domain.Icecast.StatusSpec qualified as IcecastStatus
+import Domain.TimelineSpec qualified as Timeline
 import Effects.BreakPlanSpec qualified as BreakPlanEffects
 import Effects.ContentSanitizationSpec qualified as ContentSanitization
 import Effects.Database.UnderwritersSpec qualified as UnderwritersTable
@@ -126,6 +124,7 @@ import Effects.DiffSpec qualified as Diff
 import Effects.MarkdownSpec qualified as Markdown
 import Effects.MimeTypeValidationSpec qualified as MimeTypeValidation
 import Effects.StagedUploadsSpec qualified as StagedUploadsEffects
+import Effects.TimelineSpec qualified as TimelineEffects
 import Middleware.ValidateEncodingSpec qualified as ValidateEncoding
 import Store.Checkout.EmailsSpec qualified as StoreCheckoutEmails
 import Store.Checkout.LogicSpec qualified as StoreCheckoutLogic
@@ -176,6 +175,7 @@ main = do
     AudioUploadHandler.spec
     BreakPlanner.spec
     EpisodeLength.spec
+    Timeline.spec
     StoreCheckoutEmails.spec
     StoreCheckoutLogic.spec
     StoreCheckoutShippingErrors.spec
@@ -187,11 +187,10 @@ main = do
     ErrorHandler.spec
     HomeHandler.spec
     PlayoutNowGetHandler.spec
-    PlayoutFallbackGetHandler.spec
-    PlayoutBreakGetHandler.spec
     PlayoutPlayedPostHandler.spec
     UnderwritersTable.spec
     BreakPlanEffects.spec
+    TimelineEffects.spec
     DashboardBreakItemsShared.spec
     DashboardPromosGetHandler.spec
     DashboardPromosApproveHandler.spec
@@ -280,7 +279,6 @@ main = do
     DashboardStationIdsNewGetHandler.spec
     DashboardStationIdsNewPostHandler.spec
     DashboardStationIdsDeleteHandler.spec
-    DashboardStreamSettingsEpisodeSearchHandler.spec
     DashboardMissingEpisodesGetHandler.spec
     StoreListHandler.spec
     StoreProductHandler.spec

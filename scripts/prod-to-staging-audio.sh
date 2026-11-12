@@ -9,7 +9,8 @@
 # Usage: ./scripts/prod-to-staging-audio.sh [--replace] [--prune] [--dry-run]
 #   --replace  rewrite keys that already exist. Needed once, for the initial
 #              migration away from the real MP3s.
-#   --prune    delete staging audio keys that no database row references
+#   --prune    delete staging audio keys that are not in the work list. The
+#              work list is every database audio path, and the filler.
 #   --dry-run  print what would happen and write nothing
 #
 

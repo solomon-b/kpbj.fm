@@ -61,6 +61,24 @@ spec =
         let slot = mkSlot "friday" [1, 3] "invalid" 60
         parseScheduleSlot slot `shouldBe` Left "Invalid start time: invalid"
 
+      -- The playout timeline puts its edges on the half-hour grid. A slot off
+      -- the grid would end with no station break before the next show.
+      it "rejects a start time off the half-hour grid" $ do
+        let slot = mkSlot "friday" [1, 3] "08:15" 60
+        parseScheduleSlot slot `shouldBe` Left "Start time must be on the hour or the half hour: 08:15"
+
+      it "accepts a start time on the half hour" $ do
+        let slot = mkSlot "friday" [1, 3] "08:30" 30
+        fmap pssEnd (parseScheduleSlot slot) `shouldBe` Right (TimeOfDay 9 0 0)
+
+      it "rejects a replay time off the half-hour grid" $ do
+        let slot = (mkSlot "friday" [1, 3] "08:00" 60) {replayTime = Just "20:45"}
+        parseScheduleSlot slot `shouldBe` Left "Replay time must be on the hour or the half hour: 20:45"
+
+      it "accepts a replay time on the hour" $ do
+        let slot = (mkSlot "friday" [1, 3] "08:00" 60) {replayTime = Just "20:00"}
+        fmap pssReplayStartTime (parseScheduleSlot slot) `shouldBe` Right (Just (TimeOfDay 20 0 0))
+
       it "rejects invalid duration" $ do
         let slot = mkSlot "friday" [1, 3] "08:00" 45
         parseScheduleSlot slot `shouldBe` Left "Invalid duration: 45 (must be 30, 60, or 120)"

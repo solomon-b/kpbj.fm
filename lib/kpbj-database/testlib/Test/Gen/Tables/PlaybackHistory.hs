@@ -20,4 +20,5 @@ playbackInsertGen = do
       -- Episode and ephemeral rows never carry a break item.
       piBreakItemId = Nothing
   piStartedAt <- genUTCTime
+  let piPlannedStart = Nothing
   pure PlaybackHistory.Insert {..}

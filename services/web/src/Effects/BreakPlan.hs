@@ -1,14 +1,15 @@
 -- | Build and read the stored daily break plan.
 --
--- Today's plan is built the first time a break asks for it, or when staff open
--- today's plan view. A future day is only forecast, in memory. The build runs inside Liquidsoap's first break request of
--- the day, which times out after 5 seconds. So it gathers its inputs in a few
--- queries, and the planner itself is a pure function.
+-- The first @/now@ request of the day builds today's plan. Today's plan view
+-- for staff can also build it. A future day is only forecast, in memory.
+--
+-- The build runs inside a @/now@ request, and Liquidsoap stops the request
+-- after 5 seconds. So the build gets its inputs in a few queries, and the
+-- planner itself is a pure function.
 module Effects.BreakPlan
   ( dayBoundaries,
     ensurePlan,
     forecastDay,
-    tracksForBoundary,
     tracksForDay,
   )
 where
@@ -142,7 +143,7 @@ forecastDay now target
     toTrack stationById itemById e = case peRef e of
       StationIdRef sid -> do
         s <- Map.lookup sid stationById
-        pure (BreakPlans.PlannedTrack (peBoundary e) (pePosition e) "station_id" s.simTitle s.simAudioFilePath Nothing)
+        pure (BreakPlans.PlannedTrack (peBoundary e) (pePosition e) "station_id" s.simTitle s.simAudioFilePath s.simDurationSeconds Nothing)
       BreakItemRef bid -> do
         i <- Map.lookup bid itemById
         let sourceType = case i.bimCategory of
@@ -150,11 +151,7 @@ forecastDay now target
               BreakItems.Underwriting -> "underwriting"
               BreakItems.Announcement -> "announcement"
               BreakItems.ShowPromo -> "show_promo"
-        pure (BreakPlans.PlannedTrack (peBoundary e) (pePosition e) sourceType i.bimTitle i.bimAudioFilePath (Just (BreakItems.unId bid)))
-
--- | The planned tracks of one break, in play order.
-tracksForBoundary :: UTCTime -> AppM (Either UsageError [BreakPlans.PlannedTrack])
-tracksForBoundary boundary = execQuery (BreakPlans.tracksBetween boundary boundary)
+        pure (BreakPlans.PlannedTrack (peBoundary e) (pePosition e) sourceType i.bimTitle i.bimAudioFilePath i.bimDurationSeconds (Just (BreakItems.unId bid)))
 
 -- | The planned tracks of every break of a day, in time and play order.
 tracksForDay :: Day -> AppM (Either UsageError [BreakPlans.PlannedTrack])

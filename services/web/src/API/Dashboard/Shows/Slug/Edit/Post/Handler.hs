@@ -335,6 +335,9 @@ parseScheduleSlot :: ScheduleSlotInfo -> Either Text ParsedScheduleSlot
 parseScheduleSlot slot = do
   dow <- maybe (Left $ "Invalid day of week: " <> dayOfWeek slot) Right (dayOfWeekFromText (dayOfWeek slot))
   start <- maybe (Left $ "Invalid start time: " <> startTime slot) Right (parseTimeHHMM (startTime slot))
+  unless (onHalfHour start) $
+    Left $
+      "Start time must be on the hour or the half hour: " <> startTime slot
   weeks <- parseWeeks (weeksOfMonth slot)
   validateEditorCanShow (recurring dow weeks)
   let dur = duration slot
@@ -348,7 +351,9 @@ parseScheduleSlot slot = do
           | Text.null (Text.strip rt) -> Right Nothing
           | otherwise -> case parseTimeHHMM rt of
               Nothing -> Left $ "Invalid replay time: " <> rt
-              Just replayTod -> Right (Just replayTod)
+              Just replayTod
+                | onHalfHour replayTod -> Right (Just replayTod)
+                | otherwise -> Left $ "Replay time must be on the hour or the half hour: " <> rt
       Right $
         ParsedScheduleSlot
           { pssRecurrence = recurring dow weeks,
@@ -356,6 +361,14 @@ parseScheduleSlot slot = do
             pssEnd = end,
             pssReplayStartTime = mReplay
           }
+
+-- | True for a time on the hour or the half hour.
+--
+-- The playout timeline puts its edges on this grid, and a table CHECK on
+-- @schedule_templates@ requires it. The durations are whole half hours, so an
+-- end time is on the grid when its start is.
+onHalfHour :: TimeOfDay -> Bool
+onHalfHour t = minutesFromMidnight t `mod` 30 == 0
 
 -- | Reject a week set the schedule editor cannot show.
 --

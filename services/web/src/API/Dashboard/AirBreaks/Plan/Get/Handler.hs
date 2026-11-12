@@ -69,8 +69,8 @@ handler mDay cookie (foldHxReq -> hxRequest) =
 
 -- | The plan for a day.
 --
--- Only today's plan is ever built. Viewing today builds it if the first break
--- request has not. A past day shows what was planned. A future day shows a
+-- Only today's plan is ever built. Viewing today builds it if the first
+-- @/now@ request of the day has not. A past day shows what was planned. A future day shows a
 -- forecast, which is not stored.
 action ::
   -- | The current time

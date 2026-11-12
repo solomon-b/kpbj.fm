@@ -156,12 +156,9 @@ import API.Dashboard.Store.Products.Id.Edit.Post.Handler qualified as Dashboard.
 import API.Dashboard.Store.Products.Id.Get.Handler qualified as Dashboard.Store.Products.Id.Get
 import API.Dashboard.Store.Settings.Get.Handler qualified as Dashboard.Store.Settings.Get
 import API.Dashboard.Store.Settings.Post.Handler qualified as Dashboard.Store.Settings.Post
-import API.Dashboard.StreamSettings.Episodes.Search.Get.Handler qualified as Dashboard.StreamSettings.Episodes.Search.Get
-import API.Dashboard.StreamSettings.ForceEpisode.Post.Handler qualified as Dashboard.StreamSettings.ForceEpisode.Post
 import API.Dashboard.StreamSettings.Get.Handler qualified as Dashboard.StreamSettings.Get
 import API.Dashboard.StreamSettings.Restart.Icecast.Post.Handler qualified as Dashboard.StreamSettings.Restart.Icecast.Post
 import API.Dashboard.StreamSettings.Restart.Liquidsoap.Post.Handler qualified as Dashboard.StreamSettings.Restart.Liquidsoap.Post
-import API.Dashboard.StreamSettings.SkipTrack.Post.Handler qualified as Dashboard.StreamSettings.SkipTrack.Post
 import API.Dashboard.StreamSettings.StartStream.Post.Handler qualified as Dashboard.StreamSettings.StartStream.Post
 import API.Dashboard.StreamSettings.StopStream.Post.Handler qualified as Dashboard.StreamSettings.StopStream.Post
 import API.Dashboard.Users.Delete.Handler qualified as Dashboard.Users.Delete
@@ -184,8 +181,6 @@ import API.Invite.Token.Post.Handler qualified as Invite.Token.Post
 import API.Links
 import API.Media.Get.Handler qualified as Media.Get
 import API.Newsletter.Subscribe.Post.Handler qualified as Newsletter.Subscribe.Post
-import API.Playout.Break.Get.Handler qualified as Playout.Break.Get
-import API.Playout.Fallback.Get.Handler qualified as Playout.Fallback.Get
 import API.Playout.Now.Get.Handler qualified as Playout.Now.Get
 import API.Playout.Played.Post.Handler qualified as Playout.Played.Post
 import API.PrivacyPolicy.Get.Handler qualified as PrivacyPolicy.Get
@@ -544,9 +539,6 @@ server =
         { get = Dashboard.StreamSettings.Get.handler,
           restartIcecastPost = Dashboard.StreamSettings.Restart.Icecast.Post.handler,
           restartLiquidsoapPost = Dashboard.StreamSettings.Restart.Liquidsoap.Post.handler,
-          episodeSearch = Dashboard.StreamSettings.Episodes.Search.Get.handler,
-          forceEpisodePost = Dashboard.StreamSettings.ForceEpisode.Post.handler,
-          skipTrackPost = Dashboard.StreamSettings.SkipTrack.Post.handler,
           stopStreamPost = Dashboard.StreamSettings.StopStream.Post.handler,
           startStreamPost = Dashboard.StreamSettings.StartStream.Post.handler
         }
@@ -644,8 +636,6 @@ server =
     playoutRoutes =
       PlayoutRoutes
         { now = Playout.Now.Get.handler,
-          fallback = Playout.Fallback.Get.handler,
-          breakWindow = Playout.Break.Get.handler,
           played = Playout.Played.Post.handler
         }
 

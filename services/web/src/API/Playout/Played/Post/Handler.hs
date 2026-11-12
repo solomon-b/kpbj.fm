@@ -79,7 +79,8 @@ record request = do
             -- Liquidsoap sends an empty string for a track that is not a break
             -- item, which reads as no id.
             piBreakItemId = request.prBreakItemId >>= readMaybe . Text.unpack,
-            piStartedAt = request.prStartedAt
+            piStartedAt = request.prStartedAt,
+            piPlannedStart = request.prPlannedStart
           }
 
   result <- execQuery (PlaybackHistory.insertPlayback insert)

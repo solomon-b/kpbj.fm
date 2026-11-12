@@ -13,6 +13,7 @@ import Effects.Database.RecurrenceSpec qualified as Recurrence
 import Effects.Database.Tables.BlogPostsSpec qualified as BlogPosts
 import Effects.Database.Tables.BlogTagsSpec qualified as BlogTags
 import Effects.Database.Tables.BreakItemsSpec qualified as BreakItems
+import Effects.Database.Tables.BreakPlansSpec qualified as BreakPlans
 import Effects.Database.Tables.BreakWindowSpec qualified as BreakWindow
 import Effects.Database.Tables.CurrentlyAiringSpec qualified as CurrentlyAiring
 import Effects.Database.Tables.EmailVerificationTokensSpec qualified as EmailVerificationTokens
@@ -102,6 +103,7 @@ main = do
     CurrentlyAiring.spec
     BreakWindow.spec
     BreakItems.spec
+    BreakPlans.spec
     BlogPosts.spec
     BlogTags.spec
     Events.spec

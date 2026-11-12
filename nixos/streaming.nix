@@ -20,20 +20,6 @@ let
     exec /run/wrappers/bin/sudo ${pkgs.systemd}/bin/systemctl "$@"
   '';
 
-  # Force-play script: sends JSON to liquidsoap via telnet.
-  # Liquidsoap parses the JSON and builds the annotate URI internally.
-  forcePlayCmd = pkgs.writeShellScriptBin "kpbj-force-play" ''
-    PAYLOAD=$(${pkgs.jq}/bin/jq -cn --arg url "$1" --arg title "$2" --arg artist "$3" \
-      '{url: $url, title: $title, artist: $artist}')
-    { printf 'force_play %s\nquit\n' "$PAYLOAD"; sleep 2; } | ${pkgs.nmap}/bin/ncat -i 5 127.0.0.1 1234 > /dev/null
-  '';
-
-  # Skip-track script: tells liquidsoap to skip the current scheduled source,
-  # dropping to fallback audio immediately.
-  skipTrackCmd = pkgs.writeShellScriptBin "kpbj-skip-track" ''
-    { printf 'skip_track\nquit\n'; sleep 2; } | ${pkgs.nmap}/bin/ncat -i 5 127.0.0.1 1234 > /dev/null
-  '';
-
   # Stop-stream script: stop Liquidsoap first (stop sending audio), then Icecast.
   stopStreamCmd = pkgs.writeShellScriptBin "kpbj-stop-stream" ''
     exec /run/wrappers/bin/sudo ${pkgs.systemd}/bin/systemctl stop kpbj-liquidsoap.service kpbj-icecast.service
@@ -231,8 +217,6 @@ in
         ICECAST_SERVICE = "kpbj-icecast.service";
         LIQUIDSOAP_SERVICE = "kpbj-liquidsoap.service";
         RESTART_CMD = "${restartCmd}/bin/kpbj-restart";
-        FORCE_PLAY_CMD = "${forcePlayCmd}/bin/kpbj-force-play";
-        SKIP_TRACK_CMD = "${skipTrackCmd}/bin/kpbj-skip-track";
         STOP_STREAM_CMD = "${stopStreamCmd}/bin/kpbj-stop-stream";
         START_STREAM_CMD = "${startStreamCmd}/bin/kpbj-start-stream";
       };

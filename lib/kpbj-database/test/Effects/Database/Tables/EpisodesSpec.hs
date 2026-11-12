@@ -4,15 +4,20 @@ module Effects.Database.Tables.EpisodesSpec where
 
 --------------------------------------------------------------------------------
 
+import Control.Monad (forM)
 import Control.Monad.IO.Class (liftIO)
 import Data.Bifunctor qualified as Bifunctor
-import Data.List (isInfixOf)
-import Data.Time.Calendar (Day, addDays, dayOfWeek, fromGregorian, toGregorian)
-import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
-import Data.Time.LocalTime (TimeOfDay (..))
+import Data.Foldable (traverse_)
+import Data.Int (Int64)
+import Data.List (find, isInfixOf)
+import Data.Maybe (isJust, listToMaybe)
+import Data.Text (Text)
+import Data.Time.Calendar (Day, DayOfWeek (..), addDays, dayOfWeek, fromGregorian, toGregorian)
+import Data.Time.Clock (UTCTime (..), addUTCTime, getCurrentTime)
+import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..))
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Offset (Offset (..))
-import Domain.Types.Timezone (pacificDay)
+import Domain.Types.Timezone (pacificDay, pacificToUtc)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
 import Effects.Database.Tables.Episodes qualified as UUT
@@ -22,9 +27,11 @@ import Effects.Database.Tables.User qualified as User
 import Hasql.Interpolate (interp, sql)
 import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
-import Hedgehog (PropertyT, (/==), (===))
+import Hedgehog (MonadGen, PropertyT, cover, (/==), (===))
+import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllT)
-import Test.Database.Helpers (insertTestShowWithSchedule, insertTestUser, unwrapInsert)
+import Hedgehog.Range qualified as Range
+import Test.Database.Helpers (insertTestEpisode, insertTestShowWithSchedule, insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertJust, assertNothing, assertRight, assertSingleton)
@@ -90,6 +97,18 @@ spec =
           hedgehog . prop_twoLiveEpisodesCannotShareAnAirTime
         runs 10 . it "unique_episode_air_date: a soft-deleted episode releases its air time" $
           hedgehog . prop_deletedEpisodeReleasesItsSlot
+
+      describe "Slot windows" $ do
+        runs 20 . it "getSlotWindowsBetween: the window at an instant holds the episode getAiringEpisodes airs" $
+          hedgehog . prop_slotWindowsAgreeWithAiring
+        runs 10 . it "returns a window with no episode" $
+          hedgehog . prop_slotWindowWithNoEpisode
+        runs 10 . it "returns the primary and the replay window" $
+          hedgehog . prop_slotWindowsPrimaryAndReplay
+        runs 10 . it "gives no episode when the episode length is unknown" $
+          hedgehog . prop_slotWindowUnknownLength
+        runs 1 . it "opens a 01:00 slot on the fall-back date when getAiringEpisodes does" $
+          hedgehog . prop_slotWindowOnFallBackDate
 
       describe "Play logging" $ do
         runs 10 . it "getEpisodeByAudioPath: finds a soft-deleted episode" $
@@ -443,7 +462,7 @@ prop_publishedListingsSplitOnAirTime cfg = do
                 ShowSchedule.stiReplayStartTime = Nothing
               }
           earlyTemplate = airsTodayAt earlyTemplateGen (TimeOfDay 0 0 0) (TimeOfDay 1 0 0)
-          lateTemplate = airsTodayAt lateTemplateGen (TimeOfDay 23 0 0) (TimeOfDay 23 59 0)
+          lateTemplate = airsTodayAt lateTemplateGen (TimeOfDay 23 0 0) (TimeOfDay 23 30 0)
           -- Both episodes air today. The instants are what the query compares, so
           -- the expectation reads them from the template the same way it does.
           earlyTime = airTimeOn earlyTemplate today
@@ -829,7 +848,7 @@ prop_duplicateEpisodeNumberRejected cfg = do
             airDays = threeAirDays scheduleTemplate
 
         -- Two episodes. The trigger gives them the numbers 1 and 2.
-        _ <- traverse (unwrapInsert . UUT.insertEpisode . insertOn) (take 2 airDays)
+        traverse_ (unwrapInsert . UUT.insertEpisode . insertOn) (take 2 airDays)
 
         -- Write 2 again, on a third date. A third date stops
         -- unique_episode_air_date from firing first. The trigger keeps an
@@ -1348,7 +1367,7 @@ prop_sameDayChangeSplitsOnAirTime cfg = do
                 ShowSchedule.stiTimezone = "America/Los_Angeles"
               }
           earlyTemplate = airsTodayAt earlyTemplateGen (TimeOfDay 0 0 0) (TimeOfDay 1 0 0)
-          lateTemplate = airsTodayAt lateTemplateGen (TimeOfDay 23 0 0) (TimeOfDay 23 59 0)
+          lateTemplate = airsTodayAt lateTemplateGen (TimeOfDay 23 0 0) (TimeOfDay 23 30 0)
 
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
@@ -2502,4 +2521,386 @@ prop_audioPathFindsDeletedEpisode cfg = do
       assert $ do
         (episodeId, found) <- assertRight result
         episode <- assertJust found
-        episode.id === episodeId
+        UUT.id episode === episodeId
+
+--------------------------------------------------------------------------------
+-- Slot windows
+
+-- | The episode that a test puts in one slot.
+data EpisodeShape
+  = -- | No episode row.
+    NoEpisode
+  | -- | An episode row with no audio.
+    EpisodeWithoutAudio
+  | -- | An episode with audio that is longer than its slot by the given
+    -- number of seconds.
+    EpisodeFillingSlot Int64
+  deriving stock (Show)
+
+genEpisodeShape :: (MonadGen m) => m EpisodeShape
+genEpisodeShape =
+  Gen.choice
+    [ pure NoEpisode,
+      pure EpisodeWithoutAudio,
+      EpisodeFillingSlot <$> Gen.integral (Range.linear 0 600)
+    ]
+
+-- | One test instant, as an offset from the opening of a window.
+data InstantChoice = InstantChoice
+  { -- | True for the second air date, False for the first.
+    icSecondAirDay :: Bool,
+    -- | True for the replay window. A template with no replay uses the primary.
+    icReplay :: Bool,
+    -- | The offset from the window opening. It can be before or after the window.
+    icOffsetSeconds :: Int64
+  }
+  deriving stock (Show)
+
+genInstantChoice :: (MonadGen m) => Int64 -> m InstantChoice
+genInstantChoice slotSeconds = do
+  secondAirDay <- Gen.bool
+  replay <- Gen.bool
+  -- A constant range. A linear range stays near its origin for the few small
+  -- sizes that 10 runs reach, and then no instant falls inside the window.
+  offsetSeconds <- Gen.integral (Range.constant (-3600) (slotSeconds + 3600))
+  pure (InstantChoice secondAirDay replay offsetSeconds)
+
+-- | A template for the agreement property. Half of them are overnight.
+--
+-- 'genRecurringScheduleInsert' gives a start before the end. An overnight
+-- template swaps the two, so the slot wraps midnight. It has no replay, because
+-- the generated replay time fits only the original end.
+genSlotTemplate :: (MonadGen m) => m ShowSchedule.ScheduleTemplateInsert
+genSlotTemplate = do
+  template <- genRecurringScheduleInsert (Shows.Id 1)
+  overnight <- Gen.bool
+  pure $
+    if overnight
+      then
+        template
+          { ShowSchedule.stiStartTime = ShowSchedule.stiEndTime template,
+            ShowSchedule.stiEndTime = ShowSchedule.stiStartTime template,
+            ShowSchedule.stiReplayStartTime = Nothing
+          }
+      else template
+
+-- | The length of a template slot in seconds, from its clock times. A slot
+-- whose end is at or before its start wraps midnight.
+slotSecondsOf :: ShowSchedule.ScheduleTemplateInsert -> Int64
+slotSecondsOf template =
+  if endSeconds > startSeconds
+    then endSeconds - startSeconds
+    else 86400 - (startSeconds - endSeconds)
+  where
+    secondsOfDay time = fromIntegral (todHour time * 3600 + todMin time * 60)
+    startSeconds = secondsOfDay (ShowSchedule.stiStartTime template)
+    endSeconds = secondsOfDay (ShowSchedule.stiEndTime template)
+
+-- | The instant that an 'InstantChoice' names.
+instantFor :: ShowSchedule.ScheduleTemplateInsert -> Day -> Day -> InstantChoice -> UTCTime
+instantFor template firstAirDay secondAirDay choice =
+  addUTCTime (fromIntegral (icOffsetSeconds choice)) windowOpen
+  where
+    airDay = if icSecondAirDay choice then secondAirDay else firstAirDay
+    openTime = case (icReplay choice, ShowSchedule.stiReplayStartTime template) of
+      (True, Just replayStart) -> replayStart
+      _ -> ShowSchedule.stiStartTime template
+    windowOpen = pacificToUtc (LocalTime airDay openTime)
+
+-- | The episode insert for one slot, or Nothing for 'NoEpisode'.
+--
+-- An episode with audio is one hour longer than its slot, plus the extra
+-- seconds. On the fall-back date a slot can hold one more elapsed hour than its
+-- clock times say, and the audio must still fill it.
+shapedEpisode :: UUT.Insert -> Int64 -> Text -> Day -> EpisodeShape -> Maybe UUT.Insert
+shapedEpisode baseInsert slotSeconds audioPath airDay shape =
+  case shape of
+    NoEpisode -> Nothing
+    EpisodeWithoutAudio ->
+      Just datedInsert {UUT.eiAudioFilePath = Nothing}
+    EpisodeFillingSlot extraSeconds ->
+      Just
+        datedInsert
+          { UUT.eiAudioFilePath = Just audioPath,
+            UUT.eiDurationSeconds = Just (slotSeconds + 3600 + extraSeconds)
+          }
+  where
+    datedInsert = baseInsert {UUT.eiAirDate = Just airDay}
+
+-- | getSlotWindowsBetween agrees with getAiringEpisodes.
+--
+-- At each test instant, the window that holds the instant names the episode
+-- that 'UUT.getAiringEpisodes' puts first. When no episode airs, the window
+-- names none, or no window holds the instant.
+--
+-- Every episode with audio fills its slot. The two queries differ on purpose
+-- for a short episode, or one of unknown length. 'UUT.getAiringEpisodes' stops a
+-- short episode early and plays an unknown length to the end of the slot. The
+-- slot window gives no episode for an unknown length. The other tests cover
+-- that case.
+prop_slotWindowsAgreeWithAiring :: TestDBConfig -> PropertyT IO ()
+prop_slotWindowsAgreeWithAiring cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    template <- forAllT genSlotTemplate
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+    anchorOffset <- forAllT $ Gen.integral (Range.constant 0 364)
+    firstShape <- forAllT genEpisodeShape
+    secondShape <- forAllT genEpisodeShape
+    let slotSeconds = slotSecondsOf template
+    instantChoices <- forAllT $ Gen.list (Range.singleton 20) (genInstantChoice slotSeconds)
+
+    act $ do
+      let firstAirDay = airDayForTemplate template (addDays anchorOffset fixtureBaseDay)
+          secondAirDay = airDayForTemplate template (addDays 1 firstAirDay)
+          instants = map (instantFor template firstAirDay secondAirDay) instantChoices
+
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert {Shows.siStatus = Shows.Active} template
+        _ <-
+          unwrapInsert $
+            ShowSchedule.insertValidity $
+              ShowSchedule.ValidityInsert templateId (addDays (-30) firstAirDay) Nothing
+
+        let baseInsert =
+              episodeTemplate
+                { UUT.eiId = showId,
+                  UUT.eiScheduleTemplateId = Just templateId,
+                  UUT.eiCreatedBy = userId
+                }
+            firstEpisode = shapedEpisode baseInsert slotSeconds "audio/episodes/first.mp3" firstAirDay firstShape
+            secondEpisode = shapedEpisode baseInsert slotSeconds "audio/episodes/second.mp3" secondAirDay secondShape
+        mapM_ insertTestEpisode firstEpisode
+        mapM_ insertTestEpisode secondEpisode
+
+        observations <- forM instants $ \instant -> do
+          windows <- TRX.statement () (UUT.getSlotWindowsBetween instant (addUTCTime 1 instant))
+          airing <- TRX.statement () (UUT.getAiringEpisodes instant)
+          pure (instant, windows, airing)
+
+        TRX.condemn
+        pure observations
+
+      assert $ do
+        observations <- assertRight result
+        let fromWindows = [(instant, windowEpisodeAt instant windows) | (instant, windows, _) <- observations]
+            fromAiring = [(instant, firstAiringEpisode airing) | (instant, _, airing) <- observations]
+        -- Fail when too few runs land an instant on an airing episode, so a
+        -- weak generator cannot pass in silence.
+        cover 20 "an episode airs at some instant" (any (isJust . snd) fromAiring)
+        fromWindows === fromAiring
+  where
+    -- The episode of the window that holds the instant, if a window holds it.
+    windowEpisodeAt instant windows =
+      let holdsInstant window = UUT.swStart window <= instant && instant < UUT.swEnd window
+       in UUT.seId <$> (find holdsInstant windows >>= UUT.swEpisode)
+    -- The episode of the first airing row, if there is one.
+    firstAiringEpisode airing =
+      case listToMaybe airing of
+        Nothing -> Nothing
+        Just airingEpisode ->
+          let episode = UUT.aeEpisode airingEpisode
+           in Just (UUT.id episode)
+
+-- | Monday, January 6, 2025. Every fixed slot window test uses this date.
+slotTestDay :: Day
+slotTestDay = fromGregorian 2025 1 6
+
+-- | A Pacific clock time on 'slotTestDay', or on a later date.
+slotTestTime :: Integer -> TimeOfDay -> UTCTime
+slotTestTime daysLater time = pacificToUtc (LocalTime (addDays daysLater slotTestDay) time)
+
+-- | Insert an active show with a Monday 14:00 to 16:00 slot and the given
+-- replay start. The slot is valid from December 1, 2024 with no end.
+insertMondaySlot :: Shows.Insert -> Maybe TimeOfDay -> TRX.Transaction (Shows.Id, ShowSchedule.TemplateId)
+insertMondaySlot showInsert replayStart = do
+  let template =
+        ShowSchedule.ScheduleTemplateInsert
+          { stiShowId = Shows.Id 1,
+            stiDayOfWeek = Monday,
+            stiWeeksOfMonth = [1, 2, 3, 4, 5],
+            stiStartTime = TimeOfDay 14 0 0,
+            stiEndTime = TimeOfDay 16 0 0,
+            stiTimezone = "America/Los_Angeles",
+            stiReplayStartTime = replayStart
+          }
+  (showId, templateId) <- insertTestShowWithSchedule showInsert {Shows.siStatus = Shows.Active} template
+  _ <-
+    unwrapInsert $
+      ShowSchedule.insertValidity $
+        ShowSchedule.ValidityInsert templateId (fromGregorian 2024 12 1) Nothing
+  pure (showId, templateId)
+
+-- | A scheduled slot with no episode row gives one window with no episode.
+prop_slotWindowWithNoEpisode :: TestDBConfig -> PropertyT IO ()
+prop_slotWindowWithNoEpisode cfg = do
+  arrange (bracketConn cfg) $ do
+    showInsert <- forAllT showInsertGen
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        _ <- insertMondaySlot showInsert Nothing
+        windows <-
+          TRX.statement () $
+            UUT.getSlotWindowsBetween (slotTestTime 0 (TimeOfDay 0 0 0)) (slotTestTime 1 (TimeOfDay 0 0 0))
+        TRX.condemn
+        pure windows
+
+      assert $ do
+        windows <- assertRight result
+        windows
+          === [ UUT.SlotWindow
+                  { swStart = slotTestTime 0 (TimeOfDay 14 0 0),
+                    swEnd = slotTestTime 0 (TimeOfDay 16 0 0),
+                    swShowTitle = Shows.siTitle showInsert,
+                    swEpisode = Nothing
+                  }
+              ]
+
+-- | A template with a replay gives the primary window and the replay window.
+-- The replay opens at 22:00 and closes at midnight. Both hold the episode.
+prop_slotWindowsPrimaryAndReplay :: TestDBConfig -> PropertyT IO ()
+prop_slotWindowsPrimaryAndReplay cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      let audioPath = "audio/episodes/2025/01/06/primary-and-replay.mp3"
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertMondaySlot showInsert (Just (TimeOfDay 22 0 0))
+        episodeId <-
+          insertTestEpisode
+            episodeTemplate
+              { UUT.eiId = showId,
+                UUT.eiScheduleTemplateId = Just templateId,
+                UUT.eiAirDate = Just slotTestDay,
+                UUT.eiCreatedBy = userId,
+                UUT.eiAudioFilePath = Just audioPath,
+                UUT.eiDurationSeconds = Just 7080
+              }
+        windows <-
+          TRX.statement () $
+            UUT.getSlotWindowsBetween (slotTestTime 0 (TimeOfDay 0 0 0)) (slotTestTime 1 (TimeOfDay 6 0 0))
+        TRX.condemn
+        pure (episodeId, windows)
+
+      assert $ do
+        (episodeId, windows) <- assertRight result
+        let window start end =
+              UUT.SlotWindow
+                { swStart = start,
+                  swEnd = end,
+                  swShowTitle = Shows.siTitle showInsert,
+                  swEpisode =
+                    Just
+                      UUT.SlotEpisode
+                        { seId = episodeId,
+                          seAudioFilePath = audioPath,
+                          seDurationSeconds = 7080
+                        }
+                }
+        windows
+          === [ window (slotTestTime 0 (TimeOfDay 14 0 0)) (slotTestTime 0 (TimeOfDay 16 0 0)),
+                window (slotTestTime 0 (TimeOfDay 22 0 0)) (slotTestTime 1 (TimeOfDay 0 0 0))
+              ]
+
+-- | An episode with audio but a NULL, 0, or negative length gives a window with
+-- no episode.
+prop_slotWindowUnknownLength :: TestDBConfig -> PropertyT IO ()
+prop_slotWindowUnknownLength cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+    badLength <- forAllT $ Gen.element [Nothing, Just 0, Just (-60)]
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertMondaySlot showInsert Nothing
+        _ <-
+          insertTestEpisode
+            episodeTemplate
+              { UUT.eiId = showId,
+                UUT.eiScheduleTemplateId = Just templateId,
+                UUT.eiAirDate = Just slotTestDay,
+                UUT.eiCreatedBy = userId,
+                UUT.eiAudioFilePath = Just "audio/episodes/2025/01/06/unknown-length.mp3",
+                UUT.eiDurationSeconds = badLength
+              }
+        windows <-
+          TRX.statement () $
+            UUT.getSlotWindowsBetween (slotTestTime 0 (TimeOfDay 0 0 0)) (slotTestTime 1 (TimeOfDay 0 0 0))
+        TRX.condemn
+        pure windows
+
+      assert $ do
+        windows <- assertRight result
+        window <- assertSingleton windows
+        UUT.swEpisode window === Nothing
+
+-- | A Sunday 01:00 to 02:00 slot on the fall-back date, November 2, 2025.
+--
+-- The clock reads 01:00 twice that night, at 08:00 UTC and at 09:00 UTC. The
+-- window opens the first time, so it runs from 08:00 to 10:00 UTC, two hours.
+-- 'UUT.getAiringEpisodes' airs the episode for the same two hours. The test
+-- checks one second on each side of both window edges.
+prop_slotWindowOnFallBackDate :: TestDBConfig -> PropertyT IO ()
+prop_slotWindowOnFallBackDate cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      let fallBackDay = fromGregorian 2025 11 2
+          utcAt = UTCTime fallBackDay
+          windowOpen = utcAt (8 * 3600)
+          windowClose = utcAt (10 * 3600)
+          probes = [addUTCTime (-1) windowOpen, windowOpen, addUTCTime (-1) windowClose, windowClose]
+          template =
+            ShowSchedule.ScheduleTemplateInsert
+              { stiShowId = Shows.Id 1,
+                stiDayOfWeek = Sunday,
+                stiWeeksOfMonth = [1, 2, 3, 4, 5],
+                stiStartTime = TimeOfDay 1 0 0,
+                stiEndTime = TimeOfDay 2 0 0,
+                stiTimezone = "America/Los_Angeles",
+                stiReplayStartTime = Nothing
+              }
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertTestShowWithSchedule showInsert {Shows.siStatus = Shows.Active} template
+        _ <-
+          unwrapInsert $
+            ShowSchedule.insertValidity $
+              ShowSchedule.ValidityInsert templateId (fromGregorian 2025 10 1) Nothing
+        -- Two hours of audio, so the episode fills the long slot.
+        episodeId <-
+          insertTestEpisode
+            episodeTemplate
+              { UUT.eiId = showId,
+                UUT.eiScheduleTemplateId = Just templateId,
+                UUT.eiAirDate = Just fallBackDay,
+                UUT.eiCreatedBy = userId,
+                UUT.eiAudioFilePath = Just "audio/episodes/2025/11/02/fall-back.mp3",
+                UUT.eiDurationSeconds = Just 7200
+              }
+        windows <- TRX.statement () (UUT.getSlotWindowsBetween (utcAt 0) (utcAt (12 * 3600)))
+        airing <- forM probes $ \probe -> do
+          rows <- TRX.statement () (UUT.getAiringEpisodes probe)
+          pure (map (UUT.id . UUT.aeEpisode) rows)
+        TRX.condemn
+        pure (episodeId, windows, airing)
+
+      assert $ do
+        (episodeId, windows, airing) <- assertRight result
+        window <- assertSingleton windows
+        (UUT.swStart window, UUT.swEnd window) === (windowOpen, windowClose)
+        fmap UUT.seId (UUT.swEpisode window) === Just episodeId
+        airing === [[], [episodeId], [episodeId], []]

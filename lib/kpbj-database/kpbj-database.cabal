@@ -234,6 +234,7 @@ test-suite kpbj-database-test
     Effects.Database.Tables.BlogPostsSpec
     Effects.Database.Tables.BlogTagsSpec
     Effects.Database.Tables.BreakItemsSpec
+    Effects.Database.Tables.BreakPlansSpec
     Effects.Database.Tables.BreakWindowSpec
     Effects.Database.Tables.CurrentlyAiringSpec
     Effects.Database.Tables.EmailVerificationTokensSpec
