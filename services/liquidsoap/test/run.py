@@ -115,6 +115,11 @@ def posted_planned_start(title, hms, known_issue=None):
                 known_issue=known_issue)
 
 
+def downloads(title, most, known_issue=None):
+    """The stub must get at most `most` requests for the audio of the title."""
+    return dict(check="downloads", title=title, most=most, known_issue=known_issue)
+
+
 def jump(when, to):
     """At fake time `when`, move the clock forward to `to`."""
     return (at(when), "jump", at(to))
@@ -147,7 +152,8 @@ def restart(when):
 #             item get a 500.
 # steps:      jump(...) and restart(...) steps.
 # checks:     airs(...), absent(...), on_time(...), and posted_planned_start(...)
-#             checks on the /played record.
+#             checks on the /played record, and downloads(...) checks on the
+#             audio requests.
 
 SHOW_B = (at("17:00:00"), at("17:30:00"), [("Show B", "episode", 120, None)])
 
@@ -320,6 +326,25 @@ SCENARIOS = {
             absent("Show A", "episode", "17:00:00", "17:00:30"),
         ],
     ),
+    # The next segment repeats filler 5 times, and the filler never downloads.
+    # The hold has about 7 passes before the check. Each pass must request the
+    # filler once, not once for each of the 5 items. Show B must still start
+    # at the boundary.
+    "repeated-filler-fails": dict(
+        start=at("16:59:15"),
+        end=at("17:00:10"),
+        segments=[
+            FULL_SLOT_A,
+            (at("17:00:00"), at("17:30:00"), [("Show B", "episode", 20, None)]
+                + [("Filler", "filler", 180, None)] * 5),
+        ],
+        fail_audio={"Filler": 1000},
+        steps=[],
+        checks=[
+            on_time("Show B", "episode", "17:00:00"),
+            downloads("Filler", 10),
+        ],
+    ),
     # An hour with no show. Ephemeral uploads fill it, an automation break
     # follows, and more ephemeral uploads start at 17:00. Each item must post
     # near its planned start.
@@ -418,6 +443,8 @@ class Stub:
         self.clock = clock
         self.played = []
         self.requests = []
+        # The file name of each audio request, in arrival order.
+        self.downloads = []
         self.lock = threading.Lock()
         self.fail_from = {iso(t) for t in sc.get("fail_from", [])}
         files = {}
@@ -456,6 +483,7 @@ class Stub:
             url.rsplit("/", 1)[-1]: fail[title]
             for title, url in files.values() if title in fail
         }
+        self.file_names = {title: url.rsplit("/", 1)[-1] for title, url in files.values()}
 
     def segments(self, real):
         """The segments at fake time `real`, with the changes up to then."""
@@ -552,6 +580,8 @@ def serve(stub, audio):
             p = url.path
             if p.startswith("/audio/"):
                 name = p.rsplit("/", 1)[-1]
+                with stub.lock:
+                    stub.downloads.append(name)
                 if stub.audio_fails(name):
                     return self.reply(500, {"error": "fail_audio"})
                 time.sleep(stub.slow_audio.get(name, 0))
@@ -659,7 +689,11 @@ def run_steps(sc, clock, liq, log):
         time.sleep(0.2)
 
 
-def judge(check, played):
+def judge(check, stub):
+    played = stub.played
+    if check["check"] == "downloads":
+        name = stub.file_names[check["title"]]
+        return stub.downloads.count(name) <= check["most"]
     if check["check"] == "planned":
         starts = [planned for _, title, _, planned in played if title == check["title"]]
         return bool(starts) and all(s == check["planned"] for s in starts)
@@ -671,6 +705,8 @@ def judge(check, played):
 
 
 def describe(check):
+    if check["check"] == "downloads":
+        return f"the audio of '{check['title']}' is requested at most {check['most']} times"
     if check["check"] == "planned":
         return f"each post of '{check['title']}' has planned start {check['hms']} ({check['planned']})"
     verb = "airs" if check["want"] else "does not air"
@@ -715,7 +751,7 @@ def run(liq_file, name, work, audio):
         print(f"   {t:%H:%M:%S.%f}  {kind:<12} {title}  (planned {planned})")
     result = "pass"
     for check in sc["checks"]:
-        ok = judge(check, stub.played)
+        ok = judge(check, stub)
         issue = check["known_issue"]
         if issue is None:
             label = "PASS" if ok else "FAIL"

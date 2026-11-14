@@ -26,7 +26,10 @@
 
 settings.init.allow_root.set(true)
 
-settings.log.level.set(4)
+# Level 4 adds about 8 lines for each request. A file that does not download
+# then writes thousands of lines an hour. They push other services out of the
+# journal, and Loki keeps them for 30 days.
+settings.log.level.set(3)
 
 # A failure that can change what airs logs with log.critical, at level 1. The
 # Liquidsoap alert in nixos/monitoring.nix matches levels 0 and 1. Other
@@ -161,11 +164,13 @@ end
 # Download every file of a segment. Returns the requests that resolved.
 #
 # This blocks until all files are local. Each pass tries the items that did
-# not resolve yet, so one bad item does not stop the items after it. A new
-# pass starts every 5 seconds until the wall clock time `until`. A time in the
-# past gives each item one try. After the last pass, an item that did not
-# resolve is dropped. The items after it then play early, and the stream goes
-# quiet before the boundary.
+# not resolve yet, so one bad item does not stop the items after it. A URL
+# that fails in a pass is not tried again for the other items in that pass.
+# Repeated filler has one URL for many items. A new pass starts every 5
+# seconds until the wall clock time `until`. A time in the past gives each
+# item one try. After the last pass, an item that did not resolve is dropped.
+# The items after it then play early, and the stream goes quiet before the
+# boundary.
 def resolve_items(items, until)
   def resolve_one(item)
     r = item_to_request(item)
@@ -177,11 +182,20 @@ def resolve_items(items, until)
       null()
     end
   end
-  def try_missing(pair)
-    let (item, r) = pair
-    (item, if null.defined(r) then r else resolve_one(item) end)
-  end
   def rec pass(pairs)
+    failed_urls = ref([])
+    def try_missing(pair)
+      let (item, r) = pair
+      if null.defined(r) or list.mem(item.url, failed_urls()) then
+        pair
+      else
+        fresh = resolve_one(item)
+        if not null.defined(fresh) then
+          failed_urls := item.url :: failed_urls()
+        end
+        (item, fresh)
+      end
+    end
     pairs = list.map(try_missing, pairs)
     missing = list.exists(fun(p) -> not null.defined(snd(p)), pairs)
     if missing and time() + 5. < until then
