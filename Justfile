@@ -348,17 +348,6 @@ dev-mock-images:
   ./scripts/generate-mock-images.sh
   echo "✨ Mock images generated!"
 
-# Make the filler audio for local playout.
-# The timeline plays this file when no other audio fits a gap.
-# This recipe makes 180 seconds of a quiet tone.
-dev-filler:
-  mkdir -p {{LOCAL_STORAGE_ROOT}}/audio/filler
-  test -f {{LOCAL_STORAGE_ROOT}}/audio/filler/kpbj-filler.mp3 || \
-    ffmpeg -y -v error \
-      -f lavfi -i "sine=frequency=220:sample_rate=44100" \
-      -af volume=0.05 -t 180 -c:a libmp3lame -b:a 64k \
-      {{LOCAL_STORAGE_ROOT}}/audio/filler/kpbj-filler.mp3
-
 # Load mock data into the development database
 dev-mock-data:
   echo "🖼️  Loading mock images to {{LOCAL_STORAGE_ROOT}}..."

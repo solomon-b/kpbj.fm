@@ -3,7 +3,8 @@
 # Copy Production to Local Dev (Database + Files)
 # Copies both the production database and S3 bucket to local development.
 # Database: PII is sanitized for User and Host accounts.
-# Files: Downloaded to /tmp/kpbj.
+# Files: images/ downloaded to /tmp/kpbj, as the staging sync does. Each audio path in the database
+# gets a placeholder tone of the same length, as on staging.
 #
 # Credentials are loaded from SOPS-encrypted secrets.
 #
@@ -18,6 +19,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/gen-audio.sh
+source "$SCRIPT_DIR/lib/gen-audio.sh"
 
 echo "========================================"
 echo "Production to Local Dev Full Copy"
@@ -25,7 +28,7 @@ echo "========================================"
 echo ""
 echo "This will COMPLETELY REPLACE the local dev environment with production data."
 echo "  - Database: PII sanitized for User/Host accounts"
-echo "  - Files: Downloaded to $LOCAL_STORAGE_ROOT"
+echo "  - Files: images downloaded to $LOCAL_STORAGE_ROOT, audio as placeholder tones"
 echo ""
 
 read -rp "Type 'yes' to confirm: " CONFIRM
@@ -90,16 +93,20 @@ echo "========================================"
 mkdir -p "$LOCAL_STORAGE_ROOT"
 
 echo ""
-echo "Downloading from production bucket..."
+echo "Downloading images from production bucket..."
 echo "  Bucket: $PROD_BUCKET"
 echo "  Destination: $LOCAL_STORAGE_ROOT"
 
-# Download from production (with --delete to mirror exactly)
+# Download images/ from production (with --delete to mirror exactly), as the
+# staging sync does. The rest of the bucket is audio, under audio/ and the
+# staged uploads in temp/, so the placeholders below replace it.
 AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID" \
 AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY" \
-aws s3 sync "s3://$PROD_BUCKET" "$LOCAL_STORAGE_ROOT" \
+aws s3 sync "s3://$PROD_BUCKET/images" "$LOCAL_STORAGE_ROOT/images" \
   --endpoint-url "$PROD_ENDPOINT" \
   --delete
+
+generate_local_audio
 
 FILE_COUNT=$(find "$LOCAL_STORAGE_ROOT" -type f | wc -l)
 TOTAL_SIZE=$(du -sh "$LOCAL_STORAGE_ROOT" | cut -f1)

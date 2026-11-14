@@ -125,7 +125,7 @@ gen_audio_rows_to_work_list() {
   done
 }
 
-# Query the staging database for the work list.
+# Query a database for the work list.
 # Usage: gen_audio_work_list PSQL_URL
 gen_audio_work_list() {
   local url="$1"
@@ -145,10 +145,17 @@ gen_audio_staging_keys() {
     | awk '{key=""; for(i=4;i<=NF;i++) key=key (i>4?" ":"") $i; print key}'
 }
 
+# List every key already in the local storage root under audio/.
+gen_audio_local_keys() {
+  [ -d "$GEN_AUDIO_LOCAL_ROOT/audio" ] || return 0
+  (cd "$GEN_AUDIO_LOCAL_ROOT" && find audio -type f)
+}
+
 # Upload one generated file.
 # put-object rather than cp, because cp switches to multipart above 8 MB and any
 # episode over about 2.3 hours would cross that.
 # The explicit content type stops Liquidsoap warning about binary/octet-stream.
+# With GEN_AUDIO_LOCAL_ROOT set, the file goes to that directory instead.
 # Usage: gen_audio_put LOCAL_PATH KEY
 gen_audio_put() {
   local path="$1" key="$2"
@@ -156,6 +163,12 @@ gen_audio_put() {
   if [ -n "${GEN_AUDIO_DRY_RUN:-}" ]; then
     echo "DRY RUN would upload $key"
     return 0
+  fi
+
+  if [ -n "${GEN_AUDIO_LOCAL_ROOT:-}" ]; then
+    mkdir -p "$(dirname "$GEN_AUDIO_LOCAL_ROOT/$key")" &&
+      cp "$path" "$GEN_AUDIO_LOCAL_ROOT/$key"
+    return
   fi
 
   AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID" \
@@ -171,6 +184,7 @@ gen_audio_put() {
 }
 
 # Delete one staging object.
+# With GEN_AUDIO_LOCAL_ROOT set, it deletes the local file instead.
 # Usage: gen_audio_delete KEY
 gen_audio_delete() {
   local key="$1"
@@ -180,6 +194,11 @@ gen_audio_delete() {
     return 0
   fi
 
+  if [ -n "${GEN_AUDIO_LOCAL_ROOT:-}" ]; then
+    rm -f "$GEN_AUDIO_LOCAL_ROOT/$key"
+    return
+  fi
+
   AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID" \
   AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY" \
   aws s3api delete-object \
@@ -187,6 +206,44 @@ gen_audio_delete() {
     --key "$key" \
     --endpoint-url "$STAGING_ENDPOINT" \
     >/dev/null
+}
+
+# Write placeholder audio to the local storage root, from the local database.
+# It rewrites every file and deletes audio files with no database row, so no
+# real audio from an older download stays behind.
+# Needs common.sh for LOCAL_STORAGE_ROOT and the local database settings.
+generate_local_audio() {
+  local work_file existing_file
+
+  work_file=$(mktemp)
+  existing_file=$(mktemp)
+  # shellcheck disable=SC2064
+  trap "rm -f '$work_file' '$existing_file'" RETURN
+
+  export GEN_AUDIO_LOCAL_ROOT="$LOCAL_STORAGE_ROOT"
+
+  # A copy of prod has the prod schema, which can lack columns that the work
+  # list reads. Bring the local database up to the migrations in this tree.
+  echo ""
+  echo "Running the local migrations..."
+  DATABASE_URL="postgres://$LOCAL_DB_USER@localhost:$DEV_DB_PORT/$LOCAL_DB_NAME" \
+    sqlx migrate run \
+    --source "$(dirname "${BASH_SOURCE[0]}")/../../services/web/migrations" || return 1
+
+  echo "Reading the work list from the local database..."
+  # The prune deletes every file that is not in the work list. A failed query
+  # gives an empty list, so stop before the prune can delete every file.
+  if ! gen_audio_work_list \
+    "postgres://$LOCAL_DB_USER@localhost:$DEV_DB_PORT/$LOCAL_DB_NAME" \
+    > "$work_file" || [ ! -s "$work_file" ]; then
+    echo "ERROR: could not read the work list from the local database." >&2
+    return 1
+  fi
+
+  gen_audio_local_keys > "$existing_file"
+
+  echo "Writing placeholder audio to $LOCAL_STORAGE_ROOT..."
+  gen_audio_generate "$work_file" "$existing_file" 1 1
 }
 
 # Generate and upload the placeholder audio.

@@ -52,7 +52,6 @@ nix develop                 # Enter dev shell
 just dev-db-start           # Start PostgreSQL
 just dev-migrations-run     # Run migrations
 just dev-mock-data          # Load test data (optional)
-just dev-filler             # Make the filler audio for local playout (optional)
 just run                    # Start server at localhost:4000
 ```
 
