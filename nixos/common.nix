@@ -40,7 +40,8 @@
   };
 
   # ── Journal ─────────────────────────────────────────────────
-  # Liquidsoap logs at level 4, and at 500M the journal kept only a few hours.
+  # Liquidsoap once logged at level 4, and at 500M the journal then kept only a
+  # few hours. It now logs at level 3. The cap stays at 4G.
   services.journald.extraConfig = ''
     SystemMaxUse=4G
   '';
