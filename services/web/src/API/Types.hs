@@ -77,6 +77,7 @@ import API.Dashboard.AirBreaks.StationIds.Get.Route qualified as Dashboard.AirBr
 import API.Dashboard.AirBreaks.StationIds.Id.Delete.Route qualified as Dashboard.AirBreaks.StationIds.Id.Delete
 import API.Dashboard.AirBreaks.StationIds.New.Get.Route qualified as Dashboard.AirBreaks.StationIds.New.Get
 import API.Dashboard.AirBreaks.StationIds.New.Post.Route qualified as Dashboard.AirBreaks.StationIds.New.Post
+import API.Dashboard.AirBreaks.Timeline.Get.Route qualified as Dashboard.AirBreaks.Timeline.Get
 import API.Dashboard.AirBreaks.Underwriters.Get.Route qualified as Dashboard.AirBreaks.Underwriters.Get
 import API.Dashboard.AirBreaks.Underwriters.Id.Edit.Post.Route qualified as Dashboard.AirBreaks.Underwriters.Id.Edit.Post
 import API.Dashboard.AirBreaks.Underwriters.New.Post.Route qualified as Dashboard.AirBreaks.Underwriters.New.Post
@@ -443,7 +444,9 @@ data DashboardRoutes mode = DashboardRoutes
 -- permission check. Hosts can use the station ID pages. The other pages
 -- are for staff.
 data DashboardAirBreaksRoutes mode = DashboardAirBreaksRoutes
-  { -- | @GET /dashboard/air-breaks/plan@ - Break plan view
+  { -- | @GET /dashboard/air-breaks/timeline@ - Day timeline view
+    timeline :: mode :- Dashboard.AirBreaks.Timeline.Get.Route,
+    -- | @GET /dashboard/air-breaks/plan@ - Redirect to the day timeline
     plan :: mode :- Dashboard.AirBreaks.Plan.Get.Route,
     -- | @/dashboard/air-breaks/station-ids/...@ - Station ID management routes
     stationIds :: mode :- NamedRoutes DashboardStationIdsRoutes,

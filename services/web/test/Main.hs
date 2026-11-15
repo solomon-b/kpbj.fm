@@ -6,7 +6,6 @@ import API.Archive.Get.HandlerSpec qualified as ArchiveGetHandler
 import API.Blog.Get.HandlerSpec qualified as BlogGetHandler
 import API.Blog.Post.Get.HandlerSpec qualified as BlogPostGetHandler
 import API.Dashboard.AirBreaks.BreakItems.SharedSpec qualified as DashboardBreakItemsShared
-import API.Dashboard.AirBreaks.Plan.Get.HandlerSpec qualified as DashboardAirBreaksPlanHandler
 import API.Dashboard.AirBreaks.Promos.Get.HandlerSpec qualified as DashboardPromosGetHandler
 import API.Dashboard.AirBreaks.Promos.Id.Approve.Post.HandlerSpec qualified as DashboardPromosApproveHandler
 import API.Dashboard.AirBreaks.Promos.Id.Reject.Post.HandlerSpec qualified as DashboardPromosRejectHandler
@@ -14,6 +13,7 @@ import API.Dashboard.AirBreaks.StationIds.Get.HandlerSpec qualified as Dashboard
 import API.Dashboard.AirBreaks.StationIds.Id.Delete.HandlerSpec qualified as DashboardStationIdsDeleteHandler
 import API.Dashboard.AirBreaks.StationIds.New.Get.HandlerSpec qualified as DashboardStationIdsNewGetHandler
 import API.Dashboard.AirBreaks.StationIds.New.Post.HandlerSpec qualified as DashboardStationIdsNewPostHandler
+import API.Dashboard.AirBreaks.Timeline.Get.HandlerSpec qualified as DashboardAirBreaksTimelineHandler
 import API.Dashboard.AirBreaks.Underwriters.New.Post.HandlerSpec qualified as DashboardUnderwritersNewPostHandler
 import API.Dashboard.AirBreaks.Underwriting.Delivery.Get.HandlerSpec qualified as DashboardUnderwritingDeliveryHandler
 import API.Dashboard.Analytics.Data.Get.HandlerSpec qualified as AnalyticsDataHandler
@@ -114,6 +114,7 @@ import App.RequestLogSpec qualified as RequestLog
 import Component.ScheduleEditorSpec qualified as ScheduleEditor
 import Data.Maybe (fromMaybe)
 import Domain.BreakPlannerSpec qualified as BreakPlanner
+import Domain.DayTimelineSpec qualified as DayTimeline
 import Domain.EpisodeLengthSpec qualified as EpisodeLength
 import Domain.Icecast.StatusSpec qualified as IcecastStatus
 import Domain.TimelineSpec qualified as Timeline
@@ -174,6 +175,7 @@ main = do
     StagedUploadsEffects.spec
     AudioUploadHandler.spec
     BreakPlanner.spec
+    DayTimeline.spec
     EpisodeLength.spec
     Timeline.spec
     StoreCheckoutEmails.spec
@@ -199,7 +201,7 @@ main = do
     DashboardShowPromosDeleteHandler.spec
     DashboardUnderwritersNewPostHandler.spec
     DashboardUnderwritingDeliveryHandler.spec
-    DashboardAirBreaksPlanHandler.spec
+    DashboardAirBreaksTimelineHandler.spec
     EventsHandler.spec
     EventHandler.spec
     ShowsHandler.spec

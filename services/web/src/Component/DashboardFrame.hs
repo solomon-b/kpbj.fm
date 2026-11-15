@@ -15,7 +15,6 @@ import API.Links
     dashboardAnalyticsLinks,
     dashboardAnnouncementsLinks,
     dashboardBlogsLinks,
-    dashboardBreakPlanLink,
     dashboardEphemeralUploadsLinks,
     dashboardEpisodesLinks,
     dashboardEventsLinks,
@@ -33,6 +32,7 @@ import API.Links
     dashboardStoreProductsLinks,
     dashboardStoreSettingsLinks,
     dashboardStreamSettingsLinks,
+    dashboardTimelineLink,
     dashboardUnderwritersLinks,
     dashboardUnderwritingLinks,
     dashboardUsersLinks,
@@ -143,8 +143,8 @@ dashboardUnderwritersGetUrl = Links.linkURI dashboardUnderwritersLinks.list
 dashboardUnderwritingDeliveryUrl :: Links.URI
 dashboardUnderwritingDeliveryUrl = Links.linkURI $ dashboardUnderwritingLinks.delivery Nothing
 
-dashboardBreakPlanUrl :: Links.URI
-dashboardBreakPlanUrl = Links.linkURI $ dashboardBreakPlanLink Nothing
+dashboardTimelineUrl :: Links.URI
+dashboardTimelineUrl = Links.linkURI $ dashboardTimelineLink Nothing
 
 dashboardStoreProductsGetUrl :: Links.URI
 dashboardStoreProductsGetUrl = Links.linkURI dashboardStoreProductsLinks.list
@@ -182,7 +182,7 @@ data DashboardNav
   | NavUnderwriting
   | NavUnderwriters
   | NavUnderwritingDelivery
-  | NavBreakPlan
+  | NavTimeline
   | NavStoreProducts
   | NavStoreOrders
   | NavStoreSettings
@@ -214,7 +214,7 @@ isShowScoped = \case
   NavUnderwriting -> False
   NavUnderwriters -> False
   NavUnderwritingDelivery -> False
-  NavBreakPlan -> False
+  NavTimeline -> False
   NavStoreProducts -> False
   NavStoreOrders -> False
   NavStoreSettings -> False
@@ -312,6 +312,7 @@ sidebar userMeta activeNav selectedShow =
             staffNavItem "STATION BLOG" NavStationBlog activeNav
             staffNavItem "EVENTS" NavEvents activeNav
             staffNavItem "MISSING EPISODES" NavMissingEpisodes activeNav
+            staffNavItem "TIMELINE" NavTimeline activeNav
             staffNavItem "SITE PAGES" NavSitePages activeNav
             -- Admin-only items
             when (UserMetadata.isAdmin userMeta.mUserRole) $ do
@@ -320,7 +321,6 @@ sidebar userMeta activeNav selectedShow =
         Lucid.div_ [class_ $ base ["border-t", Theme.borderMuted, "mt-4", "pt-4"]] $ do
           Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "block", Tokens.px4, Tokens.mb2]] "AIR BREAKS"
           Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
-            staffNavItem "PLAN" NavBreakPlan activeNav
             staffNavItem "STATION IDS" NavStationIds activeNav
             staffNavItem "PSAS" NavPsas activeNav
             staffNavItem "ANNOUNCEMENTS" NavAnnouncements activeNav
@@ -449,7 +449,7 @@ staffNavUrl = \case
   NavUnderwriting -> Just dashboardUnderwritingGetUrl
   NavUnderwriters -> Just dashboardUnderwritersGetUrl
   NavUnderwritingDelivery -> Just dashboardUnderwritingDeliveryUrl
-  NavBreakPlan -> Just dashboardBreakPlanUrl
+  NavTimeline -> Just dashboardTimelineUrl
   NavStoreProducts -> Just dashboardStoreProductsGetUrl
   NavStoreOrders -> Just dashboardStoreOrdersGetUrl
   NavStoreSettings -> Just dashboardStoreSettingsGetUrl
@@ -485,7 +485,7 @@ navUrl nav mShow =
         NavUnderwriting -> Just dashboardUnderwritingGetUrl
         NavUnderwriters -> Just dashboardUnderwritersGetUrl
         NavUnderwritingDelivery -> Just dashboardUnderwritingDeliveryUrl
-        NavBreakPlan -> Just dashboardBreakPlanUrl
+        NavTimeline -> Just dashboardTimelineUrl
         NavStoreProducts -> Just dashboardStoreProductsGetUrl
         NavStoreOrders -> Just dashboardStoreOrdersGetUrl
         NavStoreSettings -> Just dashboardStoreSettingsGetUrl

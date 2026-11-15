@@ -1,11 +1,10 @@
+{-# LANGUAGE DataKinds #-}
+
 module API.Dashboard.AirBreaks.Plan.Get.Route where
 
 --------------------------------------------------------------------------------
 
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie)
-import Domain.Types.HxRequest (HxRequest)
-import Lucid qualified
 import Servant ((:>))
 import Servant qualified
 import Text.HTML (HTML)
@@ -14,12 +13,11 @@ import Text.HTML (HTML)
 
 -- | "GET /dashboard/air-breaks/plan"
 --
--- The @day@ parameter is @YYYY-MM-DD@. It defaults to today in Pacific.
+-- The day timeline replaced the break plan page. This route redirects old
+-- links there, with the same @day@ parameter.
 type Route =
   "dashboard"
     :> "air-breaks"
     :> "plan"
     :> Servant.QueryParam "day" Text
-    :> Servant.Header "Cookie" Cookie
-    :> Servant.Header "HX-Request" HxRequest
-    :> Servant.Get '[HTML] (Lucid.Html ())
+    :> Servant.Verb 'Servant.GET 301 '[HTML] (Servant.Headers '[Servant.Header "Location" Text] Servant.NoContent)

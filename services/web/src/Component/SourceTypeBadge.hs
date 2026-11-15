@@ -1,6 +1,6 @@
 -- | The badge for a playout source type, such as @episode@ or @psa@.
 --
--- The playback history and the break plan view both show it.
+-- The playback history and the day timeline both show it.
 module Component.SourceTypeBadge
   ( sourceTypeBadge,
   )
@@ -31,5 +31,7 @@ sourceTypeBadge "announcement" =
   Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.px3, Tokens.py2, "rounded", Tokens.warningBg, Tokens.warningText]] "announcement"
 sourceTypeBadge "show_promo" =
   Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.px3, Tokens.py2, "rounded", Tokens.warningBg, Tokens.warningText]] "show_promo"
+sourceTypeBadge "filler" =
+  Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.px3, Tokens.py2, "rounded", Tokens.mutedBg, Tokens.fgMuted]] "filler"
 sourceTypeBadge other =
   Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.px3, Tokens.py2, "rounded", Tokens.bgInverse, Tokens.fgInverse]] $ Lucid.toHtml other

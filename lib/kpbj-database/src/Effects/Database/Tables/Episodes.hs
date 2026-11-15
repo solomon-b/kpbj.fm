@@ -831,6 +831,8 @@ data SlotWindow = SlotWindow
     swEnd :: UTCTime,
     -- | The title of the show that holds the slot.
     swShowTitle :: Text,
+    -- | The slug of the show that holds the slot.
+    swShowSlug :: Slug,
     -- | Nothing when the slot has no episode that can play.
     swEpisode :: Maybe SlotEpisode
   }
@@ -840,6 +842,7 @@ data SlotWindow = SlotWindow
 -- | The episode that plays in a 'SlotWindow'.
 data SlotEpisode = SlotEpisode
   { seId :: Id,
+    seEpisodeNumber :: EpisodeNumber,
     seAudioFilePath :: Text,
     -- | The length of the episode audio, in seconds. Always more than 0.
     seDurationSeconds :: Int64
@@ -847,18 +850,19 @@ data SlotEpisode = SlotEpisode
   deriving stock (Generic, Show, Eq)
   deriving (Display) via (RecordInstance SlotEpisode)
 
--- | The query gives the three episode columns all set or all NULL. The
--- episode is present only when all three are set.
+-- | The query gives the four episode columns all set or all NULL. The
+-- episode is present only when all four are set.
 instance DecodeRow SlotWindow where
   decodeRow = toSlotWindow <$> decodeRow
     where
-      toSlotWindow :: (UTCTime, UTCTime, Text, Maybe Id, Maybe Text, Maybe Int64) -> SlotWindow
-      toSlotWindow (start, end, showTitle, episodeId, audioFilePath, seconds) =
+      toSlotWindow :: (UTCTime, UTCTime, Text, Slug, Maybe Id, Maybe EpisodeNumber, Maybe Text, Maybe Int64) -> SlotWindow
+      toSlotWindow (start, end, showTitle, showSlug, episodeId, episodeNumber, audioFilePath, seconds) =
         SlotWindow
           { swStart = start,
             swEnd = end,
             swShowTitle = showTitle,
-            swEpisode = SlotEpisode <$> episodeId <*> audioFilePath <*> seconds
+            swShowSlug = showSlug,
+            swEpisode = SlotEpisode <$> episodeId <*> episodeNumber <*> audioFilePath <*> seconds
           }
 
 -- | Every scheduled window that overlaps the range from the first instant to
@@ -925,6 +929,7 @@ getSlotWindowsBetween fromTime toTime =
         st.id AS template_id,
         d.air_date,
         s.title AS show_title,
+        s.slug AS show_slug,
         w.window_start,
         w.window_end
       FROM schedule_templates st
@@ -952,13 +957,15 @@ getSlotWindowsBetween fromTime toTime =
       sw.window_start,
       sw.window_end,
       sw.show_title,
+      sw.show_slug,
       CASE WHEN e.duration_seconds > 0 THEN e.id END,
+      CASE WHEN e.duration_seconds > 0 THEN e.episode_number END,
       CASE WHEN e.duration_seconds > 0 THEN e.audio_file_path END,
       CASE WHEN e.duration_seconds > 0 THEN e.duration_seconds END
     FROM slot_windows sw
     -- The same episode that getAiringEpisodes puts first for this window.
     LEFT JOIN LATERAL (
-      SELECT ep.id, ep.audio_file_path, ep.duration_seconds
+      SELECT ep.id, ep.episode_number, ep.audio_file_path, ep.duration_seconds
       FROM episodes ep
       WHERE ep.schedule_template_id = sw.template_id
         AND ep.air_date = sw.air_date

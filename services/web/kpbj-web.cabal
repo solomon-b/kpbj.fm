@@ -336,7 +336,9 @@ library
     API.Dashboard.AirBreaks.Underwriting.Delivery.Get.Templates.Page
     API.Dashboard.AirBreaks.Plan.Get.Route
     API.Dashboard.AirBreaks.Plan.Get.Handler
-    API.Dashboard.AirBreaks.Plan.Get.Templates.Page
+    API.Dashboard.AirBreaks.Timeline.Get.Route
+    API.Dashboard.AirBreaks.Timeline.Get.Handler
+    API.Dashboard.AirBreaks.Timeline.Get.Templates.Page
     Component.SourceTypeBadge
     API.Dashboard.AirBreaks.Underwriters.Form
     API.Dashboard.AirBreaks.Underwriters.Get.Route
@@ -655,6 +657,7 @@ library
     Design.FormStyles
     Domain.Types.VariantsPayload
     Domain.BreakPlanner
+    Domain.DayTimeline
     Domain.EpisodeLength
     Domain.Timeline
     Effects.AudioDuration
@@ -767,7 +770,7 @@ test-suite kpbj-web-test
        API.Dashboard.Shows.Slug.Promos.New.Post.HandlerSpec
        API.Dashboard.AirBreaks.Underwriters.New.Post.HandlerSpec
        API.Dashboard.AirBreaks.Underwriting.Delivery.Get.HandlerSpec
-       API.Dashboard.AirBreaks.Plan.Get.HandlerSpec
+       API.Dashboard.AirBreaks.Timeline.Get.HandlerSpec
        API.Dashboard.Blogs.New.Get.HandlerSpec
        API.Dashboard.Blogs.New.Post.HandlerSpec
        API.Dashboard.Blogs.Slug.Delete.HandlerSpec
@@ -869,6 +872,7 @@ test-suite kpbj-web-test
        App.DomainsSpec
        App.RequestLogSpec
        Domain.BreakPlannerSpec
+       Domain.DayTimelineSpec
        Domain.EpisodeLengthSpec
        Domain.TimelineSpec
        Effects.TimelineSpec
