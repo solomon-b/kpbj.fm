@@ -36,7 +36,7 @@ module API.Links
     dashboardHostLinks,
     dashboardAdminLinks,
     dashboardAirBreaksLinks,
-    dashboardBreakPlanLink,
+    dashboardTimelineLink,
     dashboardEpisodesLinks,
     dashboardBlogsLinks,
     dashboardStationBlogLinks,
@@ -211,9 +211,9 @@ dashboardNewsletterSubscribersLinks = dashboardAdminLinks.newsletterSubscribers
 dashboardAirBreaksLinks :: DashboardAirBreaksRoutes (AsLink Link)
 dashboardAirBreaksLinks = dashboardLinks.airBreaks
 
--- | Dashboard break plan link. Takes an optional @YYYY-MM-DD@ day.
-dashboardBreakPlanLink :: Maybe Text -> Link
-dashboardBreakPlanLink = dashboardAirBreaksLinks.plan
+-- | Dashboard day timeline link. Takes an optional @YYYY-MM-DD@ day.
+dashboardTimelineLink :: Maybe Text -> Link
+dashboardTimelineLink = dashboardAirBreaksLinks.timeline
 
 -- | Dashboard PSA route links.
 dashboardPsasLinks :: DashboardPsasRoutes (AsLink Link)

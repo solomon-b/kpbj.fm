@@ -20,9 +20,10 @@ import Data.Time
     fromGregorian,
   )
 import Data.Time.Calendar (DayOfWeek (..))
+import Domain.DayTimeline (TimelineData (..))
 import Domain.Timeline
 import Domain.Types.Slug (Slug (..))
-import Domain.Types.Timezone (pacificToUtc)
+import Domain.Types.Timezone (pacificToUtc, startOfPacificDay)
 import Effects.BreakPlan (forecastDay)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Execute (execQuery)
@@ -54,6 +55,11 @@ spec =
       it "drops a slot window that overlaps an earlier one" . const $ dropsOverlap
       it "does not build a plan for a past day in the window" noPlanForPastDay
       it "gives the 00:00 break the stored tracks of the day before" midnightBreak
+      it "gives a day the same segments as the window around an instant" dayMatchesAround
+      it "keeps a segment that crosses midnight in both days" crossesMidnight
+      it "covers the whole day with segments" (coversWholeDay (fromGregorian 2025 1 6))
+      it "covers a 23 hour day with segments" (coversWholeDay (fromGregorian 2025 3 9))
+      it "covers a 25 hour day with segments" (coversWholeDay (fromGregorian 2025 11 2))
 
 --------------------------------------------------------------------------------
 -- Fixtures
@@ -142,6 +148,37 @@ seedEpisodeSlot userId = do
   case result of
     Left err -> error ("Setup failed: " <> show err)
     Right episodeId -> pure episodeId
+
+-- | Insert a show with a Monday 23:00 to 01:00 slot and no episode. Midnight
+-- is inside the slot, so it has no break.
+seedOvernightSlot :: AppM ()
+seedOvernightSlot = do
+  let showInsert = Shows.Insert "Night Show" (Slug "night-show") Nothing Nothing Shows.Active
+      template =
+        ShowSchedule.ScheduleTemplateInsert
+          { stiShowId = Shows.Id 0,
+            stiDayOfWeek = Monday,
+            stiWeeksOfMonth = [1, 2, 3, 4, 5],
+            stiStartTime = TimeOfDay 23 0 0,
+            stiEndTime = TimeOfDay 1 0 0,
+            stiTimezone = "America/Los_Angeles",
+            stiReplayStartTime = Nothing
+          }
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    (_, templateId) <- insertTestShowWithSchedule showInsert template
+    unwrapInsert $
+      ShowSchedule.insertValidity $
+        ShowSchedule.ValidityInsert templateId (fromGregorian 2024 12 1) Nothing
+  case result of
+    Left err -> error ("Setup failed: " <> show err)
+    Right _ -> pure ()
+
+-- | Build the timeline of a day, failing the test on a database error.
+dayOf :: UTCTime -> Day -> AppM [Segment]
+dayOf now d =
+  dayTimeline now d >>= \case
+    Left err -> error ("Timeline failed: " <> show err)
+    Right dayData -> pure (tdSegments dayData)
 
 -- | Build the timeline, failing the test on a database error.
 timeline :: UTCTime -> UTCTime -> AppM [Segment]
@@ -233,6 +270,46 @@ midnightBreak cfg =
         stored `shouldNotBe` []
         breakTracksOf segment `shouldBe` plannedPairs stored
 
+dayMatchesAround :: TestDBConfig -> IO ()
+dayMatchesAround cfg =
+  bracketAppM cfg $ do
+    userId <- seedBreakItems
+    _ <- seedEpisodeSlot userId
+    let now = at 0 (TimeOfDay 12 0 0)
+        instants = [at 0 (TimeOfDay hour 40 0) | hour <- [2, 14, 15, 22]]
+    daySegments <- dayOf now day
+    aroundSegments <- traverse (\instant -> segmentContaining instant <$> timeline now instant) instants
+    liftIO $ do
+      map (`segmentContaining` daySegments) instants `shouldBe` aroundSegments
+      notElem Nothing aroundSegments `shouldBe` True
+
+crossesMidnight :: TestDBConfig -> IO ()
+crossesMidnight cfg =
+  bracketAppM cfg $ do
+    seedOvernightSlot
+    let now = at 0 (TimeOfDay 12 0 0)
+        start = at 0 (TimeOfDay 23 0 0)
+        end = at 1 (TimeOfDay 1 0 0)
+    monday <- dayOf now day
+    tuesday <- dayOf now (addDays 1 day)
+    let spans segments = [(segStart s, segEnd s) | s <- segments, segStart s == start]
+    liftIO $ do
+      spans monday `shouldBe` [(start, end)]
+      spans tuesday `shouldBe` [(start, end)]
+
+-- | With no shows, the automation breaks are the edges. The first segment
+-- starts by midnight, the last ends by the next midnight, and no gap lies
+-- between them.
+coversWholeDay :: Day -> TestDBConfig -> IO ()
+coversWholeDay today cfg = bracketAppM cfg $ do
+  segments <- dayOf (pacificToUtc (LocalTime today (TimeOfDay 12 0 0))) today
+  let starts = map segStart segments
+      ends = map segEnd segments
+  liftIO $ do
+    fmap (<= startOfPacificDay today) (take 1 starts) `shouldBe` [True]
+    fmap (>= startOfPacificDay (succ today)) (take 1 (reverse ends)) `shouldBe` [True]
+    drop 1 starts `shouldBe` take (length ends - 1) ends
+
 dropsOverlap :: Expectation
 dropsOverlap = do
   let window start end title =
@@ -240,6 +317,7 @@ dropsOverlap = do
           { Episodes.swStart = start,
             Episodes.swEnd = end,
             Episodes.swShowTitle = title,
+            Episodes.swShowSlug = Slug title,
             Episodes.swEpisode = Nothing
           }
       early = window (at 0 (TimeOfDay 14 0 0)) (at 0 (TimeOfDay 15 0 0)) "Early"

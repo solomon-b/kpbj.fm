@@ -6,6 +6,9 @@ module Effects.Timeline
   ( lookAround,
     timelineAround,
 
+    -- * A whole day
+    dayTimeline,
+
     -- * Exported for testing
     slotInputs,
   )
@@ -22,8 +25,9 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Time (Day, NominalDiffTime, UTCTime, addUTCTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
+import Domain.DayTimeline (TimelineData (..))
 import Domain.Timeline
-import Domain.Types.Timezone (pacificDay)
+import Domain.Types.Timezone (pacificDay, startOfPacificDay)
 import Effects.BreakPlan (ensurePlan, forecastDay, tracksForDay)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.BreakPlans qualified as BreakPlans
@@ -51,29 +55,78 @@ timelineAround ::
   -- | The centre instant
   UTCTime ->
   AppM (Either UsageError [Segment])
-timelineAround now centre = runExceptT $ do
+timelineAround now centre =
+  fmap tdSegments <$> timelineBetween now from to
+  where
+    from = floorToHour (addUTCTime (negate lookAround) centre)
+    to = ceilingToHour (addUTCTime lookAround centre)
+
+-- | The timeline of one Pacific day.
+--
+-- A segment that crosses midnight has no edge at midnight, so a window of
+-- exactly one day would drop it. The window reaches 'lookAround' past each
+-- end of the day. Each list then keeps only what overlaps the day. A segment
+-- that crosses midnight is in the timeline of both days.
+--
+-- Every segment of the day lies inside the window, so it is the same segment
+-- that @/api/playout/now@ builds from the same data.
+dayTimeline ::
+  -- | The current time
+  UTCTime ->
+  -- | The day
+  Day ->
+  AppM (Either UsageError TimelineData)
+dayTimeline now day =
+  fmap clip <$> timelineBetween now (addUTCTime (negate lookAround) dayStart) (addUTCTime lookAround dayEnd)
+  where
+    dayStart = startOfPacificDay day
+    dayEnd = startOfPacificDay (succ day)
+    overlapsDay start end = start < dayEnd && end > dayStart
+    clip timeline =
+      TimelineData
+        { tdSegments = [s | s <- tdSegments timeline, overlapsDay (segStart s) (segEnd s)],
+          tdSlots = [w | w <- tdSlots timeline, overlapsDay w.swStart w.swEnd],
+          tdDroppedSlots = [w | w <- tdDroppedSlots timeline, overlapsDay w.swStart w.swEnd],
+          tdBreakBoundaries = [b | b <- tdBreakBoundaries timeline, b > dayStart, b <= dayEnd]
+        }
+
+-- | Build the timeline of a window.
+timelineBetween ::
+  -- | The current time
+  UTCTime ->
+  -- | The window start
+  UTCTime ->
+  -- | The window end
+  UTCTime ->
+  AppM (Either UsageError TimelineData)
+timelineBetween now from to = runExceptT $ do
   windows <- ExceptT $ execQuery (Episodes.getSlotWindowsBetween from to)
   kinds <- ExceptT $ execQuery (ShowSchedule.breakKindsBetween from to)
   uploads <- ExceptT $ execQuery EphemeralUploads.getPlayableEphemeralUploads
   planned <- concat <$> traverse (ExceptT . plannedTracksOfDay now) days
 
-  let (slots, droppedWindows) = slotInputs windows
+  let (keptWindows, droppedWindows) = splitOverlaps windows
   lift $ forM_ droppedWindows $ \window ->
     Log.logAttention "Slot window overlaps an earlier window" (show window)
 
-  let tracksInWindow = [t | t <- planned, t.plBoundary >= from, t.plBoundary <= to]
+  let boundaries = map fst kinds
+      tracksInWindow = [t | t <- planned, t.plBoundary >= from, t.plBoundary <= to]
       input =
         TimelineInput
           { tiFrom = from,
             tiTo = to,
-            tiSlots = slots,
-            tiBreaks = toBreakInputs (map fst kinds) tracksInWindow,
+            tiSlots = map toSlotInput keptWindows,
+            tiBreaks = toBreakInputs boundaries tracksInWindow,
             tiEphemeral = mapMaybe toEphemeralCandidate uploads
           }
-  pure (buildTimeline input)
+  pure
+    TimelineData
+      { tdSegments = buildTimeline input,
+        tdSlots = keptWindows,
+        tdDroppedSlots = droppedWindows,
+        tdBreakBoundaries = boundaries
+      }
   where
-    from = floorToHour (addUTCTime (negate lookAround) centre)
-    to = ceilingToHour (addUTCTime lookAround centre)
     -- A break belongs to the Pacific day of its start, 120 seconds before its
     -- boundary.
     days = [pacificDay (addUTCTime (-120) from) .. pacificDay (addUTCTime (-120) to)]

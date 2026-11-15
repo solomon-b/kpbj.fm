@@ -96,6 +96,7 @@ module Design.Tokens
     infoBg,
     infoBorder,
     infoText,
+    mutedBg,
 
     -- * Layout
     maxWidth,
@@ -376,6 +377,10 @@ infoBorder = "border-[var(--theme-info)]"
 
 infoText :: Text
 infoText = Theme.info
+
+-- | A tint of the muted foreground, for a neutral status.
+mutedBg :: Text
+mutedBg = "bg-[var(--theme-fg-muted)]/10"
 
 --------------------------------------------------------------------------------
 -- Layout

@@ -2755,6 +2755,7 @@ prop_slotWindowWithNoEpisode cfg = do
                   { swStart = slotTestTime 0 (TimeOfDay 14 0 0),
                     swEnd = slotTestTime 0 (TimeOfDay 16 0 0),
                     swShowTitle = Shows.siTitle showInsert,
+                    swShowSlug = Shows.siSlug showInsert,
                     swEpisode = Nothing
                   }
               ]
@@ -2783,23 +2784,27 @@ prop_slotWindowsPrimaryAndReplay cfg = do
                 UUT.eiAudioFilePath = Just audioPath,
                 UUT.eiDurationSeconds = Just 7080
               }
+        episode <- TRX.statement () (UUT.getEpisodeById episodeId)
         windows <-
           TRX.statement () $
             UUT.getSlotWindowsBetween (slotTestTime 0 (TimeOfDay 0 0 0)) (slotTestTime 1 (TimeOfDay 6 0 0))
         TRX.condemn
-        pure (episodeId, windows)
+        pure (episodeId, fmap UUT.episodeNumber episode, windows)
 
       assert $ do
-        (episodeId, windows) <- assertRight result
+        (episodeId, mEpisodeNumber, windows) <- assertRight result
+        episodeNumber <- assertJust mEpisodeNumber
         let window start end =
               UUT.SlotWindow
                 { swStart = start,
                   swEnd = end,
                   swShowTitle = Shows.siTitle showInsert,
+                  swShowSlug = Shows.siSlug showInsert,
                   swEpisode =
                     Just
                       UUT.SlotEpisode
                         { seId = episodeId,
+                          seEpisodeNumber = episodeNumber,
                           seAudioFilePath = audioPath,
                           seDurationSeconds = 7080
                         }

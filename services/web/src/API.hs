@@ -64,6 +64,7 @@ import API.Dashboard.AirBreaks.StationIds.Get.Handler qualified as Dashboard.Air
 import API.Dashboard.AirBreaks.StationIds.Id.Delete.Handler qualified as Dashboard.AirBreaks.StationIds.Id.Delete
 import API.Dashboard.AirBreaks.StationIds.New.Get.Handler qualified as Dashboard.AirBreaks.StationIds.New.Get
 import API.Dashboard.AirBreaks.StationIds.New.Post.Handler qualified as Dashboard.AirBreaks.StationIds.New.Post
+import API.Dashboard.AirBreaks.Timeline.Get.Handler qualified as Dashboard.AirBreaks.Timeline.Get
 import API.Dashboard.AirBreaks.Underwriters.Get.Handler qualified as Dashboard.AirBreaks.Underwriters.Get
 import API.Dashboard.AirBreaks.Underwriters.Id.Edit.Post.Handler qualified as Dashboard.AirBreaks.Underwriters.Id.Edit.Post
 import API.Dashboard.AirBreaks.Underwriters.New.Post.Handler qualified as Dashboard.AirBreaks.Underwriters.New.Post
@@ -421,7 +422,8 @@ server =
 
     dashboardAirBreaksRoutes =
       DashboardAirBreaksRoutes
-        { plan = Dashboard.AirBreaks.Plan.Get.handler,
+        { timeline = Dashboard.AirBreaks.Timeline.Get.handler,
+          plan = Dashboard.AirBreaks.Plan.Get.handler,
           stationIds = dashboardStationIdsRoutes,
           psas = dashboardPsasRoutes,
           announcements = dashboardAnnouncementsRoutes,
