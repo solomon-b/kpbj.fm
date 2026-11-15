@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.13.3] - 2026-11-15
+
 ### Release steps
 Do these steps in this order. PR #175 and PR #176 need all of them (#173).
 1. Upload a filler file of at least 240 seconds to `audio/filler/kpbj-filler.mp3` in the prod bucket, with `scripts/prod-upload-s3-object.sh`. On staging, `just prod-to-staging-audio` makes a placeholder for it.
