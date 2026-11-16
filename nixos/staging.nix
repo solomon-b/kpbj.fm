@@ -10,6 +10,7 @@
     ./fail2ban.nix
     ./streaming.nix
     ./sync-host-emails.nix
+    ./sync-schedule-calendar.nix
     ./token-cleanup.nix
     ./episode-check.nix
     ./listener-snapshots.nix
@@ -43,6 +44,16 @@
   kpbj.syncHostEmails = {
     enable = true;
     dryRun = true;
+  };
+
+  # Staging has no calendar of its own. Both hosts read one secrets
+  # file, so the dry run compares the staging schedule to the
+  # production calendar. The links use the production URL for the
+  # same reason.
+  kpbj.syncScheduleCalendar = {
+    enable = true;
+    dryRun = true;
+    baseUrl = "https://www.kpbj.fm";
   };
 
   kpbj.tokenCleanup = {
@@ -162,6 +173,15 @@
         "WOULD (REMOVE FROM|ADD TO) GOOGLE GROUP"
         "Computed diff"
         "^={10,}$"
+        # sync-schedule-calendar runs with --dry-run in staging. It
+        # compares the staging schedule to the production calendar,
+        # so each run logs a plan with differences. Drop those lines.
+        # Production reports the problems of its calendar, so drop
+        # those lines too.
+        "sync-schedule-calendar.*dry.run"
+        "Computed plan"
+        "A person changed one airing in the calendar"
+        "Failed to read a calendar event"
       ];
     };
 

@@ -7,6 +7,7 @@ module Job
   ( -- * Job monad
     JobM,
     runJob,
+    runJobWith,
 
     -- * Setup failures
     exitWithError,
@@ -62,7 +63,16 @@ instance MonadDB JobM where
   runDBTransaction =
     runDB . Transaction.transaction Transaction.Serializable Transaction.Write
 
--- | Run a job.
+-- | Run a job. The log has the lines at info level and above.
+--
+-- See 'runJobWith' for the setup and the failures.
+runJob :: Text -> JobM a -> IO a
+runJob = runJobWith Log.LogInfo
+
+-- | Run a job with a given maximum log level.
+--
+-- A job with a verbose flag passes 'Log.LogTrace' here, and the log then has
+-- the trace lines too.
 --
 -- The name is the component of each log line. The connection string comes
 -- from @DATABASE_URL@. The connection closes when the job ends.
@@ -70,15 +80,15 @@ instance MonadDB JobM where
 -- A missing @DATABASE_URL@ or a failed connection stops the program with
 -- 'exitWithError'. An exception that escapes the job is logged at attention
 -- level, and the program exits with code 1.
-runJob :: Text -> JobM a -> IO a
-runJob name job = do
+runJobWith :: Log.LogLevel -> Text -> JobM a -> IO a
+runJobWith maxLevel name job = do
   dbUrl <- requireEnv "DATABASE_URL"
   Connection.acquire [Setting.connection (Setting.Connection.string (Text.pack dbUrl))] >>= \case
     Left err -> exitWithError ("Failed to connect to database: " <> show err)
     Right conn ->
       flip finally (Connection.release conn) $
         Log.withStdOutLogger $ \logger ->
-          Log.runLogT name logger Log.LogInfo $
+          Log.runLogT name logger maxLevel $
             runReaderT (coerce (logEscapedException job)) conn
 
 -- | Log an exception that escapes the job, then exit with code 1.

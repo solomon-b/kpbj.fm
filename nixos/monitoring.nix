@@ -14,8 +14,10 @@
 let
   cfg = config.kpbj.monitoring;
 
-  # Helper to build a Grafana alert rule from a Loki query.
-  mkAlertRule = { uid, title, expr, description ? "", filter ? "" }: {
+  # Helper to build a Grafana alert rule from a Loki query. The rule
+  # fires when the query matches for longer than forDuration. The
+  # default fires on the first match.
+  mkAlertRule = { uid, title, expr, description ? "", filter ? "", forDuration ? "0s" }: {
     inherit uid title;
     annotations = { inherit description filter; };
     condition = "B";
@@ -45,7 +47,7 @@ let
     ];
     noDataState = "OK";
     execErrState = "Error";
-    "for" = "0s";
+    "for" = forDuration;
   };
 
   # Helper to build a Grafana alert rule from a Prometheus query with a
@@ -382,6 +384,18 @@ in
                   description = "A scheduled batch job (token-cleanup, sync-host-emails, episode-check, listener-snapshots, ga-poller, mailchimp-reconcile, order-cleanup, or staged-upload-cleanup) logged errors in the last 5 minutes.";
                   filter = ''ATTENTION|ERROR|FATAL|error:|"level":"error"'';
                   expr = ''count_over_time({unit=~"kpbj-(token-cleanup|sync-host-emails|episode-check|listener-snapshots|ga-poller|mailchimp-reconcile|order-cleanup|staged-upload-cleanup).*"} |~ "ATTENTION|ERROR|FATAL|error:|\"level\":\"error\"" [5m])'';
+                })
+                # sync-schedule-calendar runs every 5 minutes, and each run
+                # repairs what the run before it did not finish. So one bad
+                # run is not a problem. With a 5 minute window and a 5 minute
+                # sustain, the rule fires when two successive runs log errors.
+                (mkAlertRule {
+                  uid = "sync-schedule-calendar-errors";
+                  title = "Schedule Calendar Sync Errors";
+                  description = "The sync-schedule-calendar job logged errors in two successive runs. The Google Calendar can be different from the broadcast schedule.";
+                  filter = ''ATTENTION|ERROR|FATAL|error:|"level":"error"'';
+                  expr = ''count_over_time({unit=~"kpbj-sync-schedule-calendar.*"} |~ "ATTENTION|ERROR|FATAL|error:|\"level\":\"error\"" [5m])'';
+                  forDuration = "5m";
                 })
                 (mkAlertRule {
                   uid = "friendly-ghost-errors";

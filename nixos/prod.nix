@@ -10,6 +10,7 @@
     ./fail2ban.nix
     ./streaming.nix
     ./sync-host-emails.nix
+    ./sync-schedule-calendar.nix
     ./token-cleanup.nix
     ./episode-check.nix
     ./listener-snapshots.nix
@@ -42,6 +43,11 @@
   kpbj.syncHostEmails = {
     enable = true;
     dryRun = false;
+  };
+
+  kpbj.syncScheduleCalendar = {
+    enable = true;
+    baseUrl = "https://www.kpbj.fm";
   };
 
   kpbj.tokenCleanup = {

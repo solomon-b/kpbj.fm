@@ -17,10 +17,12 @@ module Effects.Database.RecurrenceSpec where
 
 import Control.Monad (forM_)
 import Data.Int (Int64)
+import Data.List (subsequences)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day, DayOfWeek (..), fromGregorian)
 import Data.Time qualified as Time
+import Domain.Types.Recurrence qualified as Recurrence
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.ShowSchedule (dayOfWeekNumber)
 import Hasql.Interpolate (OneColumn (..), interp, sql)
@@ -45,6 +47,7 @@ spec =
       it "returns false, not NULL, when both arguments are NULL" oneTimeIsFalseNotNull
       it "puts days 1 to 7 in week 1 and day 8 in week 2" weekBoundaries
       it "agrees with the Haskell model over four months" agreesWithHaskellModel
+      it "agrees with Recurrence.airsOn for every recurrence over seven years" agreesWithAirsOn
 
     describe "day_of_week_num" $
       it "agrees with dayOfWeekNumber for every enum value" dayNumbersAgree
@@ -232,6 +235,24 @@ agreesWithHaskellModel cfg = do
       actual <- runQuery cfg $ TRX.statement () $ airsOnDatesIn dayNum weeks from to
       let expected = filter (haskellAirsOn dayNum weeks) allDays
       (dayNum, weeks, actual) `shouldBe` (dayNum, weeks, expected)
+
+-- | The SQL function and 'Recurrence.airsOn' must pick the same dates.
+--
+-- The calendar sync expands a recurrence with 'Recurrence.airsOn', and playout
+-- uses the SQL function. The check covers each weekday with each of the 31 week
+-- sets that the column can hold, from 2024 through 2030. That range has two leap
+-- years.
+agreesWithAirsOn :: TestDBConfig -> IO ()
+agreesWithAirsOn cfg = do
+  let from = fromGregorian 2024 1 1
+      to = fromGregorian 2030 12 31
+      allDays = [from .. to]
+      weekSets = filter (not . null) (subsequences [1, 2, 3, 4, 5])
+  forM_ [Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday] $ \dow ->
+    forM_ weekSets $ \weeks -> do
+      actual <- runQuery cfg $ TRX.statement () $ airsOnDatesIn (dayOfWeekNumber dow) weeks from to
+      let expected = filter (Recurrence.airsOn (Recurrence.recurrenceFromRow dow weeks)) allDays
+      (dow, weeks, actual) `shouldBe` (dow, weeks, expected)
 
 -- | The SQL enum mapping and the Haskell one must agree.
 --

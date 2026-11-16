@@ -30,6 +30,7 @@ module Domain.Types.Recurrence
     weekNumbers,
     weekNumber,
     airsEveryWeek,
+    airsOn,
 
     -- * Rendering
     formatRecurrence,
@@ -53,7 +54,7 @@ import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
-import Data.Time (DayOfWeek (..))
+import Data.Time (Day, DayOfWeek (..), dayOfWeek, toGregorian)
 import OrphanInstances.DayOfWeek (dayOfWeekFromText)
 
 --------------------------------------------------------------------------------
@@ -138,6 +139,18 @@ weekNumbers = NE.toList . NE.map weekNumber . recurrenceWeeks
 -- | True when the recurrence covers every week of the month.
 airsEveryWeek :: Recurrence -> Bool
 airsEveryWeek r = recurrenceWeeks r == everyWeek
+
+-- | True when the recurrence covers the date.
+--
+-- This is the Haskell twin of the SQL function @recurrence_airs_on@. The date
+-- must fall on the weekday, and its week of the month must be one of the weeks.
+-- Days 1 to 7 are week 1, and days 29 to 31 are week 5.
+airsOn :: Recurrence -> Day -> Bool
+airsOn r day =
+  dayOfWeek day == recurrenceDay r
+    && fromIntegral ((dayOfMonth + 6) `div` 7) `elem` weekNumbers r
+  where
+    (_, _, dayOfMonth) = toGregorian day
 
 --------------------------------------------------------------------------------
 

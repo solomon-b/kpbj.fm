@@ -14,10 +14,13 @@ import Data.List (sort)
 import Data.List.NonEmpty qualified as NE
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (DayOfWeek (..))
+import Data.Time (DayOfWeek (..), fromGregorian)
 import Domain.Types.Recurrence
   ( Recurrence,
     airsEveryWeek,
+    airsOn,
+    editorCanShow,
+    editorWeekSets,
     everyWeek,
     formatRecurrence,
     frequencyLabel,
@@ -27,8 +30,6 @@ import Domain.Types.Recurrence
     recurrenceDay,
     recurrenceFromRow,
     recurrenceWeeks,
-    editorCanShow,
-    editorWeekSets,
     recurring,
     weekNumber,
     weekNumbers,
@@ -212,6 +213,26 @@ spec = describe "Domain.Types.Recurrence" $ do
     it "is the five-week set the handler writes for a weekly show" $ do
       map weekNumber (NE.toList everyWeek) `shouldBe` [1, 2, 3, 4, 5]
       airsEveryWeek (recurring Monday everyWeek) `shouldBe` True
+
+  describe "airsOn" $ do
+    -- November 2026 starts on a Sunday, so its Saturdays are the 7th, 14th, 21st
+    -- and 28th, and the 29th is a Sunday in week 5.
+    it "airs a weekly show on its weekday only" $ do
+      let weekly = recurring Saturday everyWeek
+      airsOn weekly (fromGregorian 2026 11 21) `shouldBe` True
+      airsOn weekly (fromGregorian 2026 11 22) `shouldBe` False
+
+    it "airs a first-and-third show on those two weeks only" $ do
+      let firstAndThird = recurrenceFromRow Saturday [1, 3]
+      map (airsOn firstAndThird . fromGregorian 2026 11) [7, 14, 21, 28]
+        `shouldBe` [True, False, True, False]
+
+    it "airs a week-5 show on day 29 and later" $
+      airsOn (recurrenceFromRow Sunday [5]) (fromGregorian 2026 11 29) `shouldBe` True
+
+    it "never airs a week-5 show in a 28-day February" $ do
+      let weekFive = recurrenceFromRow Sunday [5]
+      any (airsOn weekFive) [fromGregorian 2027 2 1 .. fromGregorian 2027 2 28] `shouldBe` False
 
 --------------------------------------------------------------------------------
 

@@ -5,7 +5,9 @@ module Effects.Database.Tables.ShowScheduleSpec where
 import Control.Monad (forM, forM_)
 import Control.Monad.IO.Class (liftIO)
 import Data.Either (isLeft)
+import Data.List (sort)
 import Data.Maybe (isJust)
+import Data.Text.Display (display)
 import Data.Time (DayOfWeek, addDays, diffDays, diffUTCTime, getCurrentTime, utctDay)
 import Data.Time qualified as Time
 import Data.Time.Calendar (fromGregorian, toGregorian)
@@ -17,6 +19,7 @@ import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as UUT
 import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import Hedgehog (PropertyT, annotate, failure, (===))
@@ -92,6 +95,10 @@ spec =
       -- Scheduled shows
       describe "getScheduledShowsForDate" $ do
         runs 10 . it "returns shows scheduled for a given date" $ hedgehog . prop_getScheduledShowsForDate
+
+      -- Calendar series
+      describe "getCalendarSeriesRows" $ do
+        runs 5 . it "returns one row for each validity window, with the show state and the active hosts" $ hedgehog . prop_getCalendarSeriesRows
 
       -- Slot end time
       describe "makeUpcomingShowDateFromTemplate" $ do
@@ -1119,6 +1126,89 @@ prop_getScheduledShowsForDate cfg = do
         Hedgehog.assert (not $ null scheduled)
         let matchingShows = filter (\s -> UUT.sswdShowTitle s == Shows.siTitle show1) scheduled
         Hedgehog.assert (not $ null matchingShows)
+
+-- | 'UUT.getCalendarSeriesRows' returns every validity window and filters
+-- nothing. The calendar sync needs the windows of inactive and deleted shows,
+-- and the empty windows, to decide what to remove.
+--
+-- Three shows cover the cases:
+--
+-- * an active show with two active hosts, one host who left, and a replay
+-- * an inactive show with no host and an empty window
+-- * a soft-deleted show with a closed window
+prop_getCalendarSeriesRows :: TestDBConfig -> PropertyT IO ()
+prop_getCalendarSeriesRows cfg = do
+  arrange (bracketConn cfg) $ do
+    host1 <- forAllT userWithMetadataInsertGen
+    host2 <- forAllT userWithMetadataInsertGen
+    formerHost <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+
+    act $ do
+      let from = fromGregorian 2026 1 5
+          closed = fromGregorian 2026 6 1
+          withSuffix suffix status =
+            showInsert {Shows.siStatus = status, Shows.siSlug = Shows.siSlug showInsert <> suffix}
+          activeShow = withSuffix "calactive" Shows.Active
+          inactiveShow = withSuffix "calinactive" Shows.Inactive
+          deletedShow = withSuffix "caldeleted" Shows.Active
+          slugs = map Shows.siSlug [activeShow, inactiveShow, deletedShow]
+          template showId replay =
+            UUT.ScheduleTemplateInsert showId Time.Saturday allWeeksOfMonth (TimeOfDay 22 0 0) (TimeOfDay 0 0 0) "America/Los_Angeles" replay
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        hostId1 <- insertTestUser host1
+        hostId2 <- insertTestUser host2
+        formerHostId <- insertTestUser formerHost
+
+        activeId <- unwrapInsert (Shows.insertShow activeShow)
+        TRX.statement () $ ShowHost.insertShowHost $ ShowHost.Insert activeId hostId1 ShowHost.Host
+        TRX.statement () $ ShowHost.insertShowHost $ ShowHost.Insert activeId hostId2 ShowHost.Host
+        TRX.statement () $ ShowHost.insertShowHost $ ShowHost.Insert activeId formerHostId ShowHost.Host
+        TRX.statement () $ ShowHost.removeShowHost activeId formerHostId
+        activeTemplate <- TRX.statement () (UUT.insertScheduleTemplate (template activeId (Just (TimeOfDay 10 0 0))))
+        _ <- unwrapInsert (UUT.insertValidity (UUT.ValidityInsert activeTemplate from Nothing))
+
+        inactiveId <- unwrapInsert (Shows.insertShow inactiveShow)
+        inactiveTemplate <- TRX.statement () (UUT.insertScheduleTemplate (template inactiveId Nothing))
+        _ <- unwrapInsert (UUT.insertValidity (UUT.ValidityInsert inactiveTemplate from (Just from)))
+
+        deletedId <- unwrapInsert (Shows.insertShow deletedShow)
+        deletedTemplate <- TRX.statement () (UUT.insertScheduleTemplate (template deletedId Nothing))
+        _ <- unwrapInsert (UUT.insertValidity (UUT.ValidityInsert deletedTemplate from (Just closed)))
+        _ <- TRX.statement () (Shows.softDeleteShow deletedId)
+
+        rows <- TRX.statement () UUT.getCalendarSeriesRows
+        TRX.condemn
+        pure (filter (\r -> UUT.csrShowSlug r `elem` slugs) rows)
+
+      assert $ do
+        rows <- assertRight result
+        let rowFor showRow = filter (\r -> UUT.csrShowSlug r == Shows.siSlug showRow) rows
+            hostNames = map (display . UserMetadata.uwmiDisplayName) [host1, host2]
+        length rows === 3
+
+        [active] <- pure (rowFor activeShow)
+        UUT.csrShowLive active === True
+        UUT.csrShowTitle active === Shows.siTitle activeShow
+        UUT.csrShowDescription active === Shows.siDescription activeShow
+        UUT.csrDayOfWeek active === Time.Saturday
+        UUT.csrWeeksOfMonth active === allWeeksOfMonth
+        UUT.csrStartTime active === TimeOfDay 22 0 0
+        UUT.csrEndTime active === TimeOfDay 0 0 0
+        UUT.csrReplayStartTime active === Just (TimeOfDay 10 0 0)
+        UUT.csrEffectiveFrom active === from
+        UUT.csrEffectiveUntil active === Nothing
+        sort (UUT.csrHostNames active) === sort hostNames
+
+        [inactive] <- pure (rowFor inactiveShow)
+        UUT.csrShowLive inactive === False
+        UUT.csrHostNames inactive === []
+        UUT.csrReplayStartTime inactive === Nothing
+        UUT.csrEffectiveUntil inactive === Just from
+
+        [deleted] <- pure (rowFor deletedShow)
+        UUT.csrShowLive deleted === False
+        UUT.csrEffectiveUntil deleted === Just closed
 
 -- | The half-hour CHECK rejects a start, an end, or a replay start that is not
 -- on the hour or the half hour. The playout timeline puts its edges on that

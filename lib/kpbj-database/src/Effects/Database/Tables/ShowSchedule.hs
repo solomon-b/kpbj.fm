@@ -43,6 +43,10 @@ module Effects.Database.Tables.ShowSchedule
     ScheduledShowWithDetails (..),
     getScheduledShowsForDate,
 
+    -- * Calendar Series
+    CalendarSeriesRow (..),
+    getCalendarSeriesRows,
+
     -- * Break Windows
     BreakKind (..),
     breakKindsBetween,
@@ -686,6 +690,78 @@ restoreValidity validityId =
             updateWhere = \_ validity -> stvId validity ==. lit validityId,
             returning = Returning stvId
           }
+
+--------------------------------------------------------------------------------
+-- Calendar Series (for the Google Calendar sync)
+
+-- | One validity window of one schedule template, with its show and hosts.
+--
+-- The calendar sync job turns each row into one recurring calendar event, and a
+-- second one when the template has a replay.
+data CalendarSeriesRow = CalendarSeriesRow
+  { csrValidityId :: Int64,
+    csrTemplateId :: Int64,
+    csrDayOfWeek :: DayOfWeek,
+    csrWeeksOfMonth :: [Int64],
+    csrStartTime :: TimeOfDay,
+    csrEndTime :: TimeOfDay,
+    csrReplayStartTime :: Maybe TimeOfDay,
+    csrEffectiveFrom :: Day,
+    -- | Exclusive. 'Nothing' means the window is open.
+    csrEffectiveUntil :: Maybe Day,
+    -- | The show is active and not deleted. Playout airs only such a show.
+    csrShowLive :: Bool,
+    csrShowTitle :: Text,
+    csrShowSlug :: Slug,
+    csrShowDescription :: Maybe Text,
+    -- | The names of the active hosts. Empty when the show has none.
+    csrHostNames :: [Text]
+  }
+  deriving stock (Show, Generic, Eq)
+  deriving anyclass (DecodeRow)
+
+instance Display CalendarSeriesRow where
+  displayBuilder _ = "CalendarSeriesRow"
+
+-- | Every validity window, with no filter.
+--
+-- The query keeps the windows of inactive and deleted shows, the windows that
+-- ended, and the empty windows. The calendar sync job needs them to decide
+-- which calendar events to end and which to remove. It does not require a host,
+-- because the playout timeline does not.
+getCalendarSeriesRows :: Hasql.Statement () [CalendarSeriesRow]
+getCalendarSeriesRows =
+  interp
+    False
+    [sql|
+    SELECT
+      stv.id,
+      st.id,
+      st.day_of_week,
+      st.weeks_of_month,
+      st.start_time::time,
+      st.end_time::time,
+      st.replay_start_time::time,
+      stv.effective_from,
+      stv.effective_until,
+      (s.status = 'active' AND s.deleted_at IS NULL),
+      s.title,
+      s.slug,
+      s.description,
+      COALESCE(
+        (
+          SELECT ARRAY_AGG(COALESCE(um.display_name, um.full_name)::text ORDER BY sh.joined_at, sh.user_id)
+          FROM show_hosts sh
+          JOIN user_metadata um ON um.user_id = sh.user_id
+          WHERE sh.show_id = s.id AND sh.left_at IS NULL
+        ),
+        '{}'
+      )
+    FROM schedule_template_validity stv
+    JOIN schedule_templates st ON st.id = stv.template_id
+    JOIN shows s ON s.id = st.show_id
+    ORDER BY stv.id
+  |]
 
 --------------------------------------------------------------------------------
 -- Scheduled Show With Details (for schedule views)
