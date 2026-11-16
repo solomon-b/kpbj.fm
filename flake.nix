@@ -73,6 +73,8 @@
 
               kpbj-email = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-email" ./lib/kpbj-email { });
 
+              kpbj-job = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-job" ./lib/kpbj-job { });
+
               stripe-http = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "stripe-http" ./lib/stripe-http { });
 
               easypost-http = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "easypost-http" ./lib/easypost-http { });
@@ -159,7 +161,7 @@
         in
         rec {
           devShell = hsPkgs.shellFor {
-            packages = p: map pkgs.haskell.lib.doCheck [ p.kpbj-types p.kpbj-storage p.kpbj-database p.kpbj-email p.kpbj-web p.sync-host-emails p.token-cleanup p.episode-check p.listener-snapshots p.ga-poller p.mailchimp-reconcile ];
+            packages = p: map pkgs.haskell.lib.doCheck [ p.kpbj-types p.kpbj-storage p.kpbj-database p.kpbj-email p.kpbj-job p.kpbj-web p.sync-host-emails p.token-cleanup p.episode-check p.listener-snapshots p.ga-poller p.mailchimp-reconcile ];
             withHoogle = false;
             buildInputs = [
               pkgs.cabal-install
@@ -236,6 +238,7 @@
               kpbj-web = runTests hsPkgs.kpbj-web;
               kpbj-database = runTests hsPkgs.kpbj-database;
               kpbj-storage = runTests hsPkgs.kpbj-storage;
+              kpbj-job = runTests hsPkgs.kpbj-job;
               stripe-http = runTests hsPkgs.stripe-http;
               easypost-http = runTests hsPkgs.easypost-http;
               mailchimp-http = runTests hsPkgs.mailchimp-http;
