@@ -11,7 +11,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
   - Each statement writes one `db query` line at info level with its SQL text. The first backfill run of `ga-poller` writes up to 13,500 of them.
   - The `error` field of a failed statement now starts with `SessionUsageError`.
   - An exception that escapes a job stops it with one `ATTENTION` line, "Job failed with an exception", and exit code 1. Before, some jobs logged an exception from a statement and continued, and any other exception went to stderr with no `ATTENTION` line.
-  - `ga-poller` inserts each row with its own statement. A row that fails no longer stops the other rows of its report.
+  - `ga-poller` inserts each row with its own statement. A row that fails no longer stops the other rows of its report. The failures of one report go in one "Insert session error" line. The line has the new `failed` and `rows` fields, and its `error` field holds the first failure.
   - `sync-host-emails` connects to the database at the start. A missing `DATABASE_URL` or a failed connection now stops it before the Google calls, with an `ERROR:` line on stderr.
   - When more than one environment variable is missing, a job can report a different one first.
 

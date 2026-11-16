@@ -3,7 +3,7 @@ module Main (main) where
 --------------------------------------------------------------------------------
 
 import Control.Exception (SomeException, try)
-import Control.Monad (forM, forM_, when)
+import Control.Monad (forM, forM_)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (ExceptT (..), except, runExceptT, throwE, withExceptT)
 import Crypto.JOSE qualified as JOSE
@@ -16,6 +16,7 @@ import Data.Aeson.Types (Parser, parseEither)
 import Data.Bifunctor (first)
 import Data.ByteString.Char8 qualified as BS8
 import Data.ByteString.Lazy qualified as LBS
+import Data.Either (lefts)
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -143,22 +144,22 @@ runDailyReports propertyId token day windowStart windowEnd = do
               "dimension" .= gaName,
               "rows" .= length inserts
             ]
-        -- A row that fails does not stop the rows after it.
-        inserted <- forM inserts $ \ins ->
-          execQuery (GaSnapshots.insertSnapshot ins) >>= \case
-            Left err ->
-              False
-                <$ Log.logAttention
-                  "Insert session error"
-                  ( Aeson.object
-                      [ "day" .= formatDay day,
-                        "dimension" .= gaName,
-                        "error" .= show err
-                      ]
-                  )
-            Right () -> pure True
-        when (and inserted) $
-          Log.logInfo_ "Inserted rows"
+        -- A row that fails does not stop the rows after it. The failures of
+        -- one report go in one log line, so a lost connection during the
+        -- backfill does not write a line for each row.
+        errors <- fmap lefts $ forM inserts $ \ins ->
+          execQuery (GaSnapshots.insertSnapshot ins)
+        case errors of
+          [] -> Log.logInfo_ "Inserted rows"
+          (firstErr : _) ->
+            Log.logAttention "Insert session error" $
+              Aeson.object
+                [ "day" .= formatDay day,
+                  "dimension" .= gaName,
+                  "failed" .= length errors,
+                  "rows" .= length inserts,
+                  "error" .= show firstErr
+                ]
 
 -- | Filter junk dimension values that GA returns for unattributed sessions.
 validDimensionValue :: Text -> Bool
