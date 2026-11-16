@@ -1,71 +1,43 @@
+{-# LANGUAGE QuasiQuotes #-}
+
 module Main (main) where
 
 --------------------------------------------------------------------------------
 
-import Control.Exception (SomeException, bracket, try)
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Exception (try)
+import Control.Monad.IO.Class (liftIO)
 import Data.Aeson qualified as Aeson
 import Data.Int (Int32)
-import Data.Text qualified as Text
 import Domain.Icecast.Status (parseListenerCount)
-import Hasql.Connection qualified as Connection
-import Hasql.Connection.Setting qualified as Setting
-import Hasql.Connection.Setting.Connection qualified as Setting.Connection
-import Hasql.Decoders qualified as Decoders
-import Hasql.Encoders qualified as Encoders
-import Hasql.Session qualified as Session
-import Hasql.Statement qualified as Statement
+import Effects.Database.Execute (execQuery)
+import Hasql.Interpolate (interp, sql)
+import Hasql.Statement qualified as Hasql
+import Job (JobM, requireEnv, runJob)
 import Log qualified
-import Log.Backend.StandardOutput qualified as Log
 import Network.HTTP.Client qualified as HTTPClient
 import Network.HTTP.Simple qualified as HTTP
-import System.Environment (lookupEnv)
-import System.Exit (exitFailure)
-import System.IO (hPutStrLn, stderr)
 
 --------------------------------------------------------------------------------
 
 main :: IO ()
 main = do
-  mDbUrl <- lookupEnv "DATABASE_URL"
-  mIcecastUrl <- lookupEnv "ICECAST_METADATA_URL"
-
-  case (mDbUrl, mIcecastUrl) of
-    (Nothing, _) -> do
-      hPutStrLn stderr "ERROR: DATABASE_URL environment variable is required"
-      exitFailure
-    (_, Nothing) -> do
-      hPutStrLn stderr "ERROR: ICECAST_METADATA_URL environment variable is required"
-      exitFailure
-    (Just dbUrl, Just icecastUrl) -> do
-      connResult <- Connection.acquire [Setting.connection (Setting.Connection.string (Text.pack dbUrl))]
-      case connResult of
-        Left err -> do
-          hPutStrLn stderr $ "ERROR: Failed to connect to database: " <> show err
-          exitFailure
-        Right conn ->
-          bracket (pure conn) Connection.release $ \c ->
-            Log.withStdOutLogger $ \logger ->
-              Log.runLogT "listener-snapshots" logger Log.LogInfo $
-                pollAndRecord c icecastUrl
+  icecastUrl <- requireEnv "ICECAST_METADATA_URL"
+  runJob "listener-snapshots" (pollAndRecord icecastUrl)
 
 --------------------------------------------------------------------------------
 
 -- | Fetch Icecast stats and record the listener count.
-pollAndRecord :: (MonadIO m, Log.MonadLog m) => Connection.Connection -> String -> m ()
-pollAndRecord conn icecastUrl = do
+pollAndRecord :: String -> JobM ()
+pollAndRecord icecastUrl = do
   mListenerCount <- liftIO $ fetchListenerCount icecastUrl
   case mListenerCount of
     Nothing ->
       Log.logAttention_ "Icecast unreachable or unparseable, skipping snapshot"
-    Just count -> do
-      result <- liftIO $ try @SomeException $ Session.run (insertSnapshot count) conn
-      case result of
+    Just count ->
+      execQuery (insertSnapshot count) >>= \case
         Left err ->
-          Log.logAttention "Insert failed" (show err)
-        Right (Left sessionErr) ->
-          Log.logAttention "Insert error" (show sessionErr)
-        Right (Right ()) ->
+          Log.logAttention "Insert error" (show err)
+        Right () ->
           Log.logInfo "Recorded snapshot" (Aeson.object ["listener_count" Aeson..= count])
 
 --------------------------------------------------------------------------------
@@ -87,16 +59,14 @@ fetchListenerCount url = do
     Left _err -> pure Nothing
     Right body -> pure (parseListenerCount body)
 
-
 --------------------------------------------------------------------------------
 -- Database
 
 -- | Insert a listener snapshot row.
-insertSnapshot :: Int32 -> Session.Session ()
+insertSnapshot :: Int32 -> Hasql.Statement () ()
 insertSnapshot count =
-  Session.statement count $
-    Statement.Statement
-      "INSERT INTO listener_snapshots (listener_count) VALUES ($1 :: int4)"
-      (Encoders.param (Encoders.nonNullable Encoders.int4))
-      Decoders.noResult
-      True
+  interp
+    True
+    [sql|
+    INSERT INTO listener_snapshots (listener_count) VALUES (#{count} :: int4)
+  |]
