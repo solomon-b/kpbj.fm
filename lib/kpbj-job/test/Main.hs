@@ -10,7 +10,8 @@ import Data.Int (Int32)
 import Effects.Database.Execute (execQuery)
 import Hasql.Interpolate (OneColumn (..), interp, sql)
 import Hasql.Statement qualified as Hasql
-import Job (runJob)
+import Job (runJob, runJobWith)
+import Log qualified
 import System.Directory (getCurrentDirectory, makeAbsolute)
 import System.Environment (lookupEnv, setEnv, unsetEnv)
 import System.Exit (ExitCode (..), exitSuccess, exitWith)
@@ -77,6 +78,11 @@ spec =
         setDatabaseUrl cfg
         runJob "test" (liftIO (exitWith (ExitFailure 3))) `shouldThrow` (== ExitFailure 3)
         runJob "test" (liftIO exitSuccess) `shouldThrow` (== ExitSuccess)
+
+      it "runs a job at trace level" $ \cfg -> do
+        setDatabaseUrl cfg
+        result <- runJobWith Log.LogTrace "test" (Log.logTrace_ "trace line" >> execQuery selectOne)
+        result `shouldBe'` [1]
   where
     -- A UsageError has no Eq instance, so compare the Right value only.
     shouldBe' result expected = either (fail . show) (`shouldBe` expected) result

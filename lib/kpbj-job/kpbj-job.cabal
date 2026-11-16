@@ -61,3 +61,4 @@ test-suite kpbj-job-test
     , hasql
     , hasql-interpolate
     , hspec
+    , log-base

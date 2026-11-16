@@ -169,7 +169,8 @@ jobs:
             .#checks.x86_64-linux.stripe-http \
             .#checks.x86_64-linux.easypost-http \
             .#checks.x86_64-linux.mailchimp-http \
-            .#checks.x86_64-linux.sync-host-emails
+            .#checks.x86_64-linux.sync-host-emails \
+            .#checks.x86_64-linux.sync-schedule-calendar
 
   e2e:
     needs: build

@@ -4,7 +4,11 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Added
+- **A Google Calendar shows the broadcast schedule.** The new `sync-schedule-calendar` job makes one station-owned Google Calendar equal to the schedule. It runs every 5 minutes on production. Each schedule slot is one recurring event, and a replay is a second event with "(Replay)" in its title. The calendar follows the playout timeline, so a show appears when it is active, with or without a host. Each event has the host names, the show description, and a link to the show page. The job owns the calendar for today and later dates, and it deletes an event that a person adds by hand. It does not change what the calendar shows for dates before today. Nobody must edit the calendar by hand, so share it with "See all event details" only. If a person moves or deletes one airing, the job does not repair it. It logs an attention line on each run until a person corrects the airing. On staging the job runs as a dry run and writes nothing. `ARCHITECTURE.md` has the setup steps and the three new secrets in `secrets/google.yaml` (#138).
+
+### Changed
+- **A job can set its log level.** The `kpbj-job` library has a new `runJobWith`, which takes the maximum log level of the run. `runJob` stays at info level, so the other jobs log as before. `sync-schedule-calendar` uses it for its `--verbose` flag.
 
 ---
 

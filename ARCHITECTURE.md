@@ -70,11 +70,12 @@ Streaming server behind NixOS-managed Nginx (automatic Let's Encrypt via ACME). 
 
 ## Scheduled Jobs
 
-Eight small Haskell programs in `jobs/` do the periodic work. Each one is its own cabal package and its own binary. On the VPS, each job is a systemd `oneshot` service named `kpbj-<job>`, and a systemd timer with the same name starts it. A job starts, does its work, and exits. The diagram above does not show the jobs.
+Nine small Haskell programs in `jobs/` do the periodic work. Each one is its own cabal package and its own binary. On the VPS, each job is a systemd `oneshot` service named `kpbj-<job>`, and a systemd timer with the same name starts it. A job starts, does its work, and exits. The diagram above does not show the jobs.
 
 | Job                     | Default schedule   | What it does                                                                                   | Talks to                     |
 |-------------------------|--------------------|------------------------------------------------------------------------------------------------|------------------------------|
 | `listener-snapshots`    | Every minute       | Reads the listener count from Icecast and adds a row to `listener_snapshots`.                  | Icecast, PostgreSQL          |
+| `sync-schedule-calendar` | Every 5 minutes   | Makes the station Google Calendar match the broadcast schedule. See "Schedule calendar sync" below. | PostgreSQL, Google Calendar  |
 | `order-cleanup`         | Every 30 minutes   | Cancels pending orders older than 30 minutes and restores their inventory.                     | PostgreSQL                   |
 | `token-cleanup`         | Hourly             | Deletes expired email verification and password reset tokens, and all tokens older than 90 days. | PostgreSQL                 |
 | `staged-upload-cleanup` | Hourly             | Deletes expired staged uploads: the file first, then the row.                                  | PostgreSQL, storage          |
@@ -85,7 +86,7 @@ Eight small Haskell programs in `jobs/` do the periodic work. Each one is its ow
 
 The schedule of a job is the `timerInterval` option in `nixos/<job>.nix`. The timers use the system time zone of the VPS. `mailchimp-reconcile` also has a `kpbj-mailchimp-reconcile-bootstrap` service with no timer. Start it by hand one time to import the Mailchimp audience into PostgreSQL.
 
-Five jobs have a `--dry-run` flag, which logs what the job would do and changes nothing: `token-cleanup`, `order-cleanup`, `staged-upload-cleanup`, `episode-check`, and `sync-host-emails`. `nixos/prod.nix` and `nixos/staging.nix` set the flag for each host. Staging runs `sync-host-emails` and `episode-check` as dry runs, so it sends no email and changes no Google Group. `staged-upload-cleanup` is a dry run on both hosts on purpose, so it deletes nothing yet.
+Six jobs have a `--dry-run` flag, which logs what the job would do and changes nothing: `token-cleanup`, `order-cleanup`, `staged-upload-cleanup`, `episode-check`, `sync-host-emails`, and `sync-schedule-calendar`. `nixos/prod.nix` and `nixos/staging.nix` set the flag for each host. Staging runs `sync-host-emails`, `sync-schedule-calendar`, and `episode-check` as dry runs, so it sends no email and changes no Google Group or calendar. `staged-upload-cleanup` is a dry run on both hosts on purpose, so it deletes nothing yet.
 
 ### The job monad
 
@@ -98,6 +99,8 @@ Every job runs in `JobM` from the `kpbj-job` library (`lib/kpbj-job/src/Job.hs`)
 3. It runs the job.
 4. It closes the connection.
 
+`runJob` logs at info level and above. `runJobWith` takes the maximum log level as its first argument. A job with a `--verbose` flag passes `Log.LogTrace` there, as `sync-schedule-calendar` does.
+
 HTTP clients, tokens, and configs are not in `JobM`. A job passes them to its functions as arguments.
 
 ### Failures and alerts
@@ -109,7 +112,7 @@ The log lines of a job go to the systemd journal, and Loki collects them.
 - An exception that escapes the job is logged at `ATTENTION` level as "Job failed with an exception". The job exits with code 1.
 - `execQuery` also writes one `db query` line at info level for each statement.
 
-The `batch-job-errors` alert in `nixos/monitoring.nix` fires when a job unit logs `ATTENTION`, `ERROR`, or `FATAL` in a 5 minute window. Keep the message of an `ATTENTION` line stable, because the alert and the dashboards read these lines. The alert lists all eight jobs by unit name.
+The `batch-job-errors` alert in `nixos/monitoring.nix` fires when a job unit logs `ATTENTION`, `ERROR`, or `FATAL` in a 5 minute window. Keep the message of an `ATTENTION` line stable, because the alert and the dashboards read these lines. The alert lists all nine jobs by unit name.
 
 ### Add a job
 
@@ -187,6 +190,7 @@ nixos/
   web.nix                 # Web service (native systemd)
   nginx.nix               # Reverse proxy + ACME (Let's Encrypt)
   sync-host-emails.nix    # Host email sync job (Google Groups)
+  sync-schedule-calendar.nix  # Schedule sync job (Google Calendar)
   token-cleanup.nix       # Expired token cleanup job
   order-cleanup.nix       # Stale pending order cleanup job
   staged-upload-cleanup.nix  # Expired staged upload cleanup job
@@ -212,6 +216,31 @@ services/webhook/hooks.yaml     # Webhook definitions
 
 Deploy commands: `just staging-nixos-deploy`, `just prod-nixos-deploy`
 
+### Schedule calendar sync
+
+The `sync-schedule-calendar` job (`jobs/sync-schedule-calendar/`) keeps one Google Calendar equal to the broadcast schedule. It runs every 5 minutes on production. On staging it runs as a dry run against the production calendar, and it writes nothing.
+
+How it works:
+
+- Each validity window of a schedule template is one recurring event. A replay is a second event.
+- The calendar follows the playout timeline. A show appears when it is active and not deleted, with or without a host.
+- The job keeps no state. Each event carries the key of its window in a private property, `kpbjSeries`.
+- The job owns the calendar for today and later dates. It deletes an event that a person adds.
+- The job does not change what the calendar shows for dates before today.
+- Nobody must edit the calendar by hand. Share it with staff and hosts with "See all event details" only. The job does not repair one airing that a person moves or deletes. It logs an attention line for that airing on each run, and a person must correct the airing in Google Calendar.
+
+Setup for a new calendar:
+
+1. Create a service account in the `kpbj-fm` Google Cloud project, with no project role. Create a JSON key for it.
+2. Enable the Google Calendar API in that project.
+3. Create the calendar in the station Workspace. Share it with the service account email, with the permission "Make changes to events". Give no other account that permission.
+4. Add three secrets to `secrets/google.yaml`:
+   - `google_calendar_sa_email`: the `client_email` field of the key file.
+   - `google_calendar_sa_private_key`: the `private_key` field of the key file, as PEM text.
+   - `google_calendar_id`: the Calendar ID from the "Integrate calendar" section of the calendar settings.
+
+The log has the counts of each run only. To see one line for each action, run the job with `--verbose`. To see the raw events of the calendar, run it with `--dump`.
+
 ## Secrets Management (SOPS)
 
 All secrets are SOPS-encrypted with [age](https://age-encryption.org/) keys and stored in `secrets/`:
@@ -223,7 +252,7 @@ secrets/
   prod-web.yaml            # Production web: DB password, SMTP, AWS keys
   staging-streaming.yaml   # Staging: Icecast passwords, playout/webhook secrets
   staging-web.yaml         # Staging web: DB password, SMTP, AWS keys
-  google.yaml              # Google Groups service account credentials
+  google.yaml              # Google service account credentials (Groups, Calendar)
   backup.yaml              # Backup/sync credentials (prod + staging)
 ```
 
