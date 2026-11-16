@@ -187,6 +187,8 @@ toSlotInput window =
       EpisodeCandidate
         { ecId = episode.seId,
           ecShowTitle = window.swShowTitle,
+          ecShowSlug = window.swShowSlug,
+          ecEpisodeNumber = episode.seEpisodeNumber,
           ecAudioKey = episode.seAudioFilePath,
           ecSeconds = episode.seDurationSeconds
         }

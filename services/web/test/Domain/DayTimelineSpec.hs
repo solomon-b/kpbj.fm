@@ -106,6 +106,8 @@ timelineOf kept dropped pool =
       EpisodeCandidate
         { ecId = Episodes.seId episode,
           ecShowTitle = Episodes.swShowTitle w,
+          ecShowSlug = Episodes.swShowSlug w,
+          ecEpisodeNumber = Episodes.seEpisodeNumber episode,
           ecAudioKey = Episodes.seAudioFilePath episode,
           ecSeconds = Episodes.seDurationSeconds episode
         }

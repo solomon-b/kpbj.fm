@@ -69,7 +69,7 @@ renderEpisodeCard backend showShowTitle showModel episode = do
   -- so no local audio element is needed here.
   Lucid.div_
     [ class_ $ base [Tokens.bgMain],
-      xData_ $ audioPlayerScript playerId hasAudio audioUrl episodeMetadata episodeIdNum
+      xData_ $ audioPlayerScript playerId hasAudio audioUrl episodeMetadata [i|/#{epUrl}|] episodeIdNum
     ]
     $ do
       -- Artwork with play button overlay
@@ -171,13 +171,14 @@ renderEpisodeDate airDate =
 --
 -- Instead of playing audio locally, delegates playback to the persistent
 -- navbar player. This allows audio to continue playing across page navigation.
-audioPlayerScript :: Text -> Text -> Text -> Text -> Int64 -> Text
-audioPlayerScript playerId hasAudio audioUrl episodeMetadata episodeIdNum =
+audioPlayerScript :: Text -> Text -> Text -> Text -> Text -> Int64 -> Text
+audioPlayerScript playerId hasAudio audioUrl episodeMetadata pageUrl episodeIdNum =
   [i|{
   playerId: '#{playerId}',
   hasAudio: #{hasAudio},
   audioUrl: '#{escapeJsString audioUrl}',
   title: '#{escapeJsString episodeMetadata}',
+  pageUrl: '#{escapeJsString pageUrl}',
   episodeId: #{episodeIdNum},
 
   // Scrub bar state
@@ -242,7 +243,7 @@ audioPlayerScript playerId hasAudio audioUrl episodeMetadata episodeIdNum =
 
     if (!this.isPlaying) {
       // Start playback then seek after audio loads
-      toggleEpisodeInNavbar(this.audioUrl, this.title, this.episodeId);
+      toggleEpisodeInNavbar(this.audioUrl, this.title, this.episodeId, this.pageUrl);
       setTimeout(() => {
         const state = getNavbarEpisodeState(this.audioUrl);
         if (state.duration > 0) {
@@ -276,7 +277,7 @@ audioPlayerScript playerId hasAudio audioUrl episodeMetadata episodeIdNum =
       this.scrubbing = false;
 
       if (!this.isPlaying) {
-        toggleEpisodeInNavbar(this.audioUrl, this.title, this.episodeId);
+        toggleEpisodeInNavbar(this.audioUrl, this.title, this.episodeId, this.pageUrl);
         setTimeout(() => {
           const state = getNavbarEpisodeState(this.audioUrl);
           if (state.duration > 0) {
@@ -302,7 +303,7 @@ audioPlayerScript playerId hasAudio audioUrl episodeMetadata episodeIdNum =
   toggle() {
     if (!this.hasAudio) return;
     // Delegate playback to the navbar player
-    toggleEpisodeInNavbar(this.audioUrl, this.title, this.episodeId);
+    toggleEpisodeInNavbar(this.audioUrl, this.title, this.episodeId, this.pageUrl);
   },
 
   // Keep pause() method for global coordination (pauseOtherPlayers may call this)

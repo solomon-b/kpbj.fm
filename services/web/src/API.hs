@@ -201,7 +201,7 @@ import API.Store.List.Get.Handler qualified as Store.List.Get
 import API.Store.Orders.Confirmation.Get.Handler qualified as Store.Orders.Confirmation.Get
 import API.Store.Products.Slug.Get.Handler qualified as Store.Products.Slug.Get
 import API.Store.ShippingRates.Post.Handler qualified as Store.ShippingRates.Post
-import API.Stream.Metadata.Get.Handler qualified as Stream.Metadata.Get
+import API.Stream.NowPlaying.Get.Handler qualified as Stream.NowPlaying.Get
 import API.TermsOfService.Get.Handler qualified as TermsOfService.Get
 import API.Types
 import API.Uploads.Audio.Post.Handler qualified as Uploads.Audio.Post
@@ -304,7 +304,7 @@ server =
       store = storeRoutes,
       storeApi = storeApiRoutes,
       webhooks = webhookRoutes,
-      streamMetadata = Stream.Metadata.Get.handler,
+      streamNowPlaying = Stream.NowPlaying.Get.handler,
       newsletterSubscribePost = Newsletter.Subscribe.Post.handler,
       debugVersion = Debug.Version.Get.handler
     }

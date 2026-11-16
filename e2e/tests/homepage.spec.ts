@@ -189,16 +189,18 @@ test.describe("Homepage", () => {
     expect(volume).toBeCloseTo(0.3, 1);
   });
 
-  test("metadata endpoint returns valid response", async ({ page }) => {
+  test("now-playing endpoint returns a title", async ({ page }) => {
     // page.request is Playwright's built-in HTTP client — it can make
     // requests directly without going through the browser.
     // Useful for testing API endpoints.
-    const response = await page.request.get("/api/stream/metadata");
+    const response = await page.request.get("/api/stream/now-playing");
     expect(response.status()).toBe(200);
 
     const json = await response.json();
-    // Even when Icecast is down, the handler returns a fallback structure.
-    expect(json).toHaveProperty("icestats");
-    expect(json.icestats).toHaveProperty("source");
+    // The title is never empty. With no item on air it is the station name.
+    expect(typeof json.title).toBe("string");
+    expect(json.title.length).toBeGreaterThan(0);
+    // The url is null when no episode plays.
+    expect(json).toHaveProperty("url");
   });
 });

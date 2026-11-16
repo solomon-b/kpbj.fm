@@ -36,6 +36,7 @@ module Domain.Timeline
     buildTimeline,
 
     -- * Reading
+    itemAt,
     resumeAt,
     segmentContaining,
     segmentStartingAt,
@@ -47,11 +48,13 @@ where
 import Data.Int (Int64)
 import Data.List (find, unfoldr)
 import Data.Map.Strict qualified as Map
+import Data.Maybe (listToMaybe)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Time (UTCTime, addUTCTime, diffUTCTime)
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Domain.BreakPlanner (breakSeconds)
+import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
 import Effects.Database.Tables.Episodes qualified as Episodes
 import System.Random (StdGen, mkStdGen, uniformR)
@@ -80,6 +83,9 @@ fillerSeconds = 180
 data EpisodeCandidate = EpisodeCandidate
   { ecId :: Episodes.Id,
     ecShowTitle :: Text,
+    -- | With the episode number, it identifies the public page of the episode.
+    ecShowSlug :: Slug,
+    ecEpisodeNumber :: Episodes.EpisodeNumber,
     ecAudioKey :: Text,
     ecSeconds :: Int64
   }
@@ -452,6 +458,14 @@ segmentContaining instant =
 segmentStartingAt :: UTCTime -> [Segment] -> Maybe Segment
 segmentStartingAt instant =
   find (\segment -> segStart segment == instant)
+
+-- | The item on air at an instant. Nothing when no segment holds the instant.
+--
+-- The item is resumed, as in 'resumeAt'. Its planned start is the start of
+-- the whole item.
+itemAt :: UTCTime -> [Segment] -> Maybe Item
+itemAt instant segments =
+  segmentContaining instant segments >>= listToMaybe . resumeAt instant
 
 --------------------------------------------------------------------------------
 -- Time

@@ -4,6 +4,9 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **The top player links to the episode that plays.** When an episode airs on the stream, the player text is `<show title> - Episode <n>`, and it links to the page of that episode. An archived episode played from an episode card gets the same link. A click on the link does not stop the audio. A break track, an ephemeral upload, and the filler show as plain text with no link. The stream text now comes from the playout timeline, through the new `GET /api/stream/now-playing`. The route returns a title and a page URL, so the text and the link always agree. Before, the text came from Icecast and had only the show title. The player also reads the text when the stream starts again after a pause. `/api/stream/metadata` is removed, because the player was its only caller (#142).
+
 ### Changed
 - **Every ephemeral upload and every episode with audio must have a length.** `ephemeral_uploads.duration_seconds` is now `NOT NULL`. The new `episodes_audio_has_duration` CHECK refuses an episode that has audio and no `duration_seconds`. An episode with no audio can still have no length. Both migrations fail if a row breaks the rule, and the backfills with `scripts/audio-durations-sql.sh` filled every such row in prod. The new-episode and edit-episode forms now refuse staged audio with no length, as the ephemeral forms do. Before, they saved it with no length, and the episode did not air. Three tests of a NULL length on an episode with audio are removed, because that row can no longer exist (#173).
 
