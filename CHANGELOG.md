@@ -4,7 +4,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Fixed
+- **A show promo can run 30 seconds.** The limit was 10 seconds, but the plan for show promos set 30 (#103). The upload field, the form hint, and the save handler all read one constant, so all three now use 30. A break with one item of each category at full length now has 20 seconds left, so it carries no 30 second PSA. A shorter PSA still fits.
 
 ---
 

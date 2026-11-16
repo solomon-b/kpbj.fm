@@ -35,7 +35,7 @@ spec =
       it "saves a pending promo for the host's show" test_hostSubmitsPendingPromo
       it "saves a promo from staff as pending too" test_staffSubmitIsPending
       it "refuses a host who does not host the show" test_refusesOtherHost
-      it "refuses a promo longer than 10 seconds" test_refusesLongPromo
+      it "refuses a promo longer than 30 seconds" test_refusesLongPromo
 
 --------------------------------------------------------------------------------
 
@@ -123,11 +123,11 @@ test_refusesOtherHost cfg = do
       Right [] -> pure ()
       other -> expectationFailure $ "Expected no promos, got " <> show other
 
--- | The host stages an 11 second upload. The handler refuses it before it
+-- | The host stages a 31 second upload. The handler refuses it before it
 -- claims the upload or saves a row.
 test_refusesLongPromo :: TestDBConfig -> IO ()
 test_refusesLongPromo cfg = do
-  (userModel, userMeta, showId) <- setupHostAndUpload cfg "promo-too-long" UserMetadata.Host 11
+  (userModel, userMeta, showId) <- setupHostAndUpload cfg "promo-too-long" UserMetadata.Host 31
   bracketAppM cfg $ do
     result <- runExceptT (action userModel userMeta (Slug "night-shift") (promoForm "promo-too-long"))
     liftIO $ case result of

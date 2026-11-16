@@ -221,7 +221,7 @@ showPromoRule =
   Rule
     { ruleCategory = BreakItemCategory BreakItems.ShowPromo,
       ruleMaxCount = Just 1,
-      ruleMaxSeconds = 10,
+      ruleMaxSeconds = 30,
       ruleAlwaysFits = False,
       ruleAllows = allowEverywhere
     }
@@ -270,8 +270,8 @@ underwritingDailyCap = 2
 
 -- | The longest station ID an upload may carry.
 --
--- A break with one item of each kind at its longest runs 10 + 30 + 30 + 10
--- seconds, and leaves 40 seconds for PSAs. The rules skip an item that does
+-- A break with one item of each kind at its longest runs 10 + 30 + 30 + 30
+-- seconds, and leaves 20 seconds for PSAs. The rules skip an item that does
 -- not fit, so a break never runs past 'breakSeconds'.
 stationIdMaxSeconds :: Int64
 stationIdMaxSeconds = ruleMaxSeconds stationIdRule

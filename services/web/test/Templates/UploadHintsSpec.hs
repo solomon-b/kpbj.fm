@@ -29,9 +29,9 @@ spec = describe "Staged audio upload hints" $ do
   it "shows the 10 second limit on the station ID form" $
     render (stationIdUploadForm uploadUrl) `shouldSatisfy` Text.isInfixOf "and 10 seconds."
 
-  it "shows the 10 second limit on the show promo form" $
+  it "shows the 30 second limit on the show promo form" $
     render (Promos.template backend sampleShow uploadUrl sampleDay [])
-      `shouldSatisfy` Text.isInfixOf "and 10 seconds."
+      `shouldSatisfy` Text.isInfixOf "and 30 seconds."
 
   it "shows the 30 second limit on the PSA form" $
     render (renderUploadForm psaSection.secUrls uploadUrl sampleDay Nothing)
