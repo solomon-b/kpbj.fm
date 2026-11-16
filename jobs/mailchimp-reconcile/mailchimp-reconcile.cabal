@@ -12,10 +12,10 @@ executable mailchimp-reconcile
                   , aeson
                   , bytestring
                   , containers
-                  , hasql
                   , http-client
                   , http-client-tls
                   , kpbj-database
+                  , kpbj-job
                   , log-base
                   , mailchimp-http
                   , optparse-applicative
