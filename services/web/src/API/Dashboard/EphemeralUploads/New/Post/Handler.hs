@@ -107,7 +107,7 @@ action user form = do
             EphemeralUploads.euiAudioFilePath = storagePath,
             EphemeralUploads.euiMimeType = StagedUploads.mimeType stagedUpload,
             EphemeralUploads.euiFileSize = StagedUploads.fileSize stagedUpload,
-            EphemeralUploads.euiDurationSeconds = Just durationSeconds,
+            EphemeralUploads.euiDurationSeconds = durationSeconds,
             EphemeralUploads.euiCreatorId = User.mId user
           }
   _ <-

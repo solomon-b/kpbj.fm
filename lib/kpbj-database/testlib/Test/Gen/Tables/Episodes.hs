@@ -22,7 +22,11 @@ episodeInsertGen showId templateId userId = do
   eiAudioFilePath <- Gen.maybe genUrl
   eiAudioFileSize <- Gen.maybe $ Gen.integral (Range.linear 1000 100000000)
   eiAudioMimeType <- Gen.maybe $ Gen.element ["audio/mpeg", "audio/mp3", "audio/wav"]
-  eiDurationSeconds <- Gen.maybe $ Gen.integral (Range.linear 60 7200)
+  -- An episode with audio has a length. Without audio, the length can be
+  -- either, as after the audio is cleared.
+  eiDurationSeconds <- case eiAudioFilePath of
+    Just _ -> Just <$> Gen.integral (Range.linear 60 7200)
+    Nothing -> Gen.maybe $ Gen.integral (Range.linear 60 7200)
   eiArtworkUrl <- Gen.maybe genUrl
   eiAirDate <- Just <$> genDay
   let eiCreatedBy = userId

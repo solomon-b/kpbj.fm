@@ -22,7 +22,7 @@ import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
-import Data.Maybe (fromMaybe, mapMaybe)
+import Data.Maybe (fromMaybe)
 import Data.Time (Day, NominalDiffTime, UTCTime, addUTCTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Domain.DayTimeline (TimelineData (..))
@@ -117,7 +117,7 @@ timelineBetween now from to = runExceptT $ do
             tiTo = to,
             tiSlots = map toSlotInput keptWindows,
             tiBreaks = toBreakInputs boundaries tracksInWindow,
-            tiEphemeral = mapMaybe toEphemeralCandidate uploads
+            tiEphemeral = map toEphemeralCandidate uploads
           }
   pure
     TimelineData
@@ -224,19 +224,14 @@ toBreakTrack track =
 --------------------------------------------------------------------------------
 -- Ephemeral uploads
 
--- | The query only returns uploads with a length. An upload without one is
--- skipped, because the timeline cannot place it.
-toEphemeralCandidate :: EphemeralUploads.Model -> Maybe EphemeralCandidate
-toEphemeralCandidate upload = case upload.eumDurationSeconds of
-  Nothing -> Nothing
-  Just seconds ->
-    Just
-      EphemeralCandidate
-        { ecdId = upload.eumId,
-          ecdTitle = upload.eumTitle,
-          ecdAudioKey = upload.eumAudioFilePath,
-          ecdSeconds = seconds
-        }
+toEphemeralCandidate :: EphemeralUploads.Model -> EphemeralCandidate
+toEphemeralCandidate upload =
+  EphemeralCandidate
+    { ecdId = upload.eumId,
+      ecdTitle = upload.eumTitle,
+      ecdAudioKey = upload.eumAudioFilePath,
+      ecdSeconds = upload.eumDurationSeconds
+    }
 
 --------------------------------------------------------------------------------
 -- Whole hours

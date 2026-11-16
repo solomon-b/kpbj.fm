@@ -233,8 +233,8 @@ validateDescription mDescription = do
 -- The station break starts two minutes before the slot ends and cuts the
 -- episode. The episode must also end no more than one minute before the
 -- break. The check runs when the audio or the slot changes, and the result
--- has both a length and a slot. It runs before any write, so a refused edit
--- claims no upload and changes nothing.
+-- has both a length and a slot. New audio with no length is refused. It runs
+-- before any write, so a refused edit claims no upload and changes nothing.
 --
 -- The two permission rules repeat the ones in 'execOptionalUpdates' and
 -- 'processScheduleUpdate'. A change those functions skip is not a change here.
@@ -246,6 +246,9 @@ checkLengthFitsSlot ::
   ExceptT HandlerError AppM ()
 checkLengthFitsSlot isPast isStaffOrAdmin episode editForm = do
   mNewAudio <- readNewAudioLength
+  -- The database refuses an episode that has audio and no length.
+  when (mNewAudio == Just Nothing) $
+    throwValidationError "Could not read the audio length. Upload the file again."
   let audioChanged = isJust mNewAudio
       slotChanged = resultingTemplateId /= episode.scheduleTemplateId
       -- New audio replaces the kept audio.
@@ -259,7 +262,7 @@ checkLengthFitsSlot isPast isStaffOrAdmin episode editForm = do
     allowScheduleChange = not isPast || isStaffOrAdmin
 
     -- 'Just' when new audio arrives. The inner value is its length, and it is
-    -- 'Nothing' only for a row staged before the length column existed.
+    -- 'Nothing' when the staged row has no length.
     readNewAudioLength = case eefAudioToken editForm of
       Just token | allowAudioChange -> do
         mStaged <- fromRightM throwDatabaseError (execQuery (StagedUploads.getByToken (StagedUploads.Token token)))

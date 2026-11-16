@@ -391,15 +391,15 @@ processFileUploads backend mAwsEnv userId showSlug slotTemplate mScheduledDate m
 -- | Check that staged audio ends before the station break of its slot, and
 -- no more than one minute before it.
 --
--- A staged row with no length passes. Only rows staged before the length
--- column existed have none, and staged rows expire after an hour.
+-- A staged row with no length fails. The database refuses an episode that
+-- has audio and no length.
 stagedAudioFitsSlot ::
   ShowSchedule.ScheduleTemplate Result ->
   StagedUploads.Model ->
   Either Text ()
 stagedAudioFitsSlot slotTemplate stagedUpload =
   case StagedUploads.durationSeconds stagedUpload of
-    Nothing -> Right ()
+    Nothing -> Left "Could not read the audio length. Upload the file again."
     Just audioSeconds ->
       checkEpisodeFitsSlot slotTemplate.stStartTime slotTemplate.stEndTime audioSeconds
 

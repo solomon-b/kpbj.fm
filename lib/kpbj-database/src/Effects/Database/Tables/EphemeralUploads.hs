@@ -158,7 +158,7 @@ data EphemeralUpload f = EphemeralUpload
     eumAudioFilePath :: Column f Text,
     eumMimeType :: Column f Text,
     eumFileSize :: Column f Int64,
-    eumDurationSeconds :: Column f (Maybe Int64),
+    eumDurationSeconds :: Column f Int64,
     eumCreatorId :: Column f User.Id,
     eumCreatedAt :: Column f UTCTime,
     eumFlaggedAt :: Column f (Maybe UTCTime),
@@ -216,7 +216,7 @@ data Insert = Insert
     euiAudioFilePath :: Text,
     euiMimeType :: Text,
     euiFileSize :: Int64,
-    euiDurationSeconds :: Maybe Int64,
+    euiDurationSeconds :: Int64,
     euiCreatorId :: User.Id
   }
   deriving stock (Generic, Show, Eq)
@@ -232,7 +232,7 @@ data EphemeralUploadWithCreator = EphemeralUploadWithCreator
     euwcAudioFilePath :: Text,
     euwcMimeType :: Text,
     euwcFileSize :: Int64,
-    euwcDurationSeconds :: Maybe Int64,
+    euwcDurationSeconds :: Int64,
     euwcCreatorId :: User.Id,
     euwcCreatedAt :: UTCTime,
     euwcCreatorDisplayName :: Text,
@@ -292,9 +292,9 @@ getEphemeralUploadById ephemeralUploadId = fmap listToMaybe $ run $ select do
 
 -- | Every ephemeral upload that the timeline can play, in id order.
 --
--- An upload can play when it is not flagged and its length is known and more
--- than 0. The timeline places each item at a fixed instant, so it cannot use
--- an upload of unknown length.
+-- An upload can play when it is not flagged and its length is more than 0.
+-- The timeline places each item at a fixed instant, so an upload of length 0
+-- has no place in it.
 getPlayableEphemeralUploads :: Hasql.Statement () [Model]
 getPlayableEphemeralUploads =
   interp
@@ -304,7 +304,6 @@ getPlayableEphemeralUploads =
            flagged_at, flagged_by, flag_reason
     FROM ephemeral_uploads
     WHERE flagged_at IS NULL
-      AND duration_seconds IS NOT NULL
       AND duration_seconds > 0
     ORDER BY id
   |]
@@ -325,7 +324,7 @@ insertEphemeralUpload Insert {..} =
 --
 -- Updates all mutable fields. Pass existing values for fields you don't want to change.
 -- Returns the updated model if successful, Nothing if not found.
-updateEphemeralUpload :: Id -> Text -> Text -> Text -> Text -> Int64 -> Maybe Int64 -> Hasql.Statement () (Maybe Model)
+updateEphemeralUpload :: Id -> Text -> Text -> Text -> Text -> Int64 -> Int64 -> Hasql.Statement () (Maybe Model)
 updateEphemeralUpload (Id eid) newTitle newDescription newAudioFilePath newMimeType newFileSize newDurationSeconds =
   listToMaybe
     <$> interp
