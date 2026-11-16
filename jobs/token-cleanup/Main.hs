@@ -1,26 +1,18 @@
+{-# LANGUAGE QuasiQuotes #-}
+
 module Main (main) where
 
 --------------------------------------------------------------------------------
 
-import Control.Exception (SomeException, bracket, try)
-import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Int (Int64)
-import Data.Text qualified as Text
-import Hasql.Connection qualified as Connection
-import Hasql.Connection.Setting qualified as Setting
-import Hasql.Connection.Setting.Connection qualified as Setting.Connection
-import Hasql.Decoders qualified as Decoders
-import Hasql.Encoders qualified as Encoders
-import Hasql.Session qualified as Session
-import Hasql.Statement qualified as Statement
+import Effects.Database.Execute (execQuery)
+import Hasql.Interpolate (OneColumn (..), interp, sql)
+import Hasql.Statement qualified as Hasql
+import Job (JobM, runJob)
 import Log qualified
-import Log.Backend.StandardOutput qualified as Log
 import Options.Applicative
-import System.Environment (lookupEnv)
-import System.Exit (exitFailure)
-import System.IO (hPutStrLn, stderr)
 
 --------------------------------------------------------------------------------
 
@@ -40,140 +32,122 @@ optionsParser =
 main :: IO ()
 main = do
   opts <- execParser (info (optionsParser <**> helper) (fullDesc <> progDesc "Clean up expired authentication tokens"))
-  mDbUrl <- lookupEnv "DATABASE_URL"
-  case mDbUrl of
-    Nothing -> do
-      hPutStrLn stderr "ERROR: DATABASE_URL environment variable is required"
-      exitFailure
-    Just dbUrl -> do
-      connResult <- Connection.acquire [Setting.connection (Setting.Connection.string (Text.pack dbUrl))]
-      case connResult of
-        Left err -> do
-          hPutStrLn stderr $ "ERROR: Failed to connect to database: " <> show err
-          exitFailure
-        Right conn ->
-          bracket (pure conn) Connection.release $ \c ->
-            Log.withStdOutLogger $ \logger ->
-              Log.runLogT "token-cleanup" logger Log.LogInfo $
-                if optDryRun opts
-                  then runDryRun c
-                  else runCleanup c
+  runJob "token-cleanup" $
+    if optDryRun opts
+      then runDryRun
+      else runCleanup
 
 --------------------------------------------------------------------------------
 
-runCleanup :: (MonadIO m, Log.MonadLog m) => Connection.Connection -> m ()
-runCleanup conn = do
-  runDelete conn "expired email verification tokens" deleteExpiredVerificationTokens
-  runDelete conn "expired password reset tokens" deleteExpiredPasswordResetTokens
-  runDelete conn ("email verification tokens older than " <> show tokenRetentionDays <> " days") (deleteOldVerificationTokens tokenRetentionDays)
-  runDelete conn ("password reset tokens older than " <> show tokenRetentionDays <> " days") (deleteOldPasswordResetTokens tokenRetentionDays)
+runCleanup :: JobM ()
+runCleanup = do
+  runDelete "expired email verification tokens" deleteExpiredVerificationTokens
+  runDelete "expired password reset tokens" deleteExpiredPasswordResetTokens
+  runDelete ("email verification tokens older than " <> show tokenRetentionDays <> " days") (deleteOldVerificationTokens tokenRetentionDays)
+  runDelete ("password reset tokens older than " <> show tokenRetentionDays <> " days") (deleteOldPasswordResetTokens tokenRetentionDays)
 
-runDryRun :: (MonadIO m, Log.MonadLog m) => Connection.Connection -> m ()
-runDryRun conn = do
+runDryRun :: JobM ()
+runDryRun = do
   Log.logInfo "Running in dry-run mode" ()
-  countQuery conn "expired email verification tokens" countExpiredVerificationTokens
-  countQuery conn "expired password reset tokens" countExpiredPasswordResetTokens
-  countQuery conn ("email verification tokens older than " <> show tokenRetentionDays <> " days") (countOldVerificationTokens tokenRetentionDays)
-  countQuery conn ("password reset tokens older than " <> show tokenRetentionDays <> " days") (countOldPasswordResetTokens tokenRetentionDays)
+  countQuery "expired email verification tokens" countExpiredVerificationTokens
+  countQuery "expired password reset tokens" countExpiredPasswordResetTokens
+  countQuery ("email verification tokens older than " <> show tokenRetentionDays <> " days") (countOldVerificationTokens tokenRetentionDays)
+  countQuery ("password reset tokens older than " <> show tokenRetentionDays <> " days") (countOldPasswordResetTokens tokenRetentionDays)
 
 --------------------------------------------------------------------------------
 
-runDelete :: (MonadIO m, Log.MonadLog m) => Connection.Connection -> String -> Session.Session () -> m ()
-runDelete conn name session = do
-  result <- liftIO $ try $ Session.run session conn
-  case result of
-    Left (e :: SomeException) ->
-      Log.logAttention "Cleanup failed" $ Aeson.object ["category" .= name, "error" .= show e]
-    Right (Left sessionErr) ->
-      Log.logAttention "Cleanup error" $ Aeson.object ["category" .= name, "error" .= show sessionErr]
-    Right (Right ()) ->
+runDelete :: String -> Hasql.Statement () () -> JobM ()
+runDelete name statement =
+  execQuery statement >>= \case
+    Left err ->
+      Log.logAttention "Cleanup error" $ Aeson.object ["category" .= name, "error" .= show err]
+    Right () ->
       Log.logInfo "Cleaned up" $ Aeson.object ["category" .= name]
 
-countQuery :: (MonadIO m, Log.MonadLog m) => Connection.Connection -> String -> Session.Session Int64 -> m ()
-countQuery conn name session = do
-  result <- liftIO $ try $ Session.run session conn
-  case result of
-    Left (e :: SomeException) ->
-      Log.logAttention "Count failed" $ Aeson.object ["category" .= name, "error" .= show e]
-    Right (Left sessionErr) ->
-      Log.logAttention "Count error" $ Aeson.object ["category" .= name, "error" .= show sessionErr]
-    Right (Right count) ->
+countQuery :: String -> Hasql.Statement () Int64 -> JobM ()
+countQuery name statement =
+  execQuery statement >>= \case
+    Left err ->
+      Log.logAttention "Count error" $ Aeson.object ["category" .= name, "error" .= show err]
+    Right count ->
       Log.logInfo "Would delete" $ Aeson.object ["category" .= name, "count" .= count]
 
 --------------------------------------------------------------------------------
 -- Delete queries
 
-deleteExpiredVerificationTokens :: Session.Session ()
+deleteExpiredVerificationTokens :: Hasql.Statement () ()
 deleteExpiredVerificationTokens =
-  Session.statement () $
-    Statement.Statement
-      "DELETE FROM email_verification_tokens WHERE expires_at < NOW() AND status = 'pending'"
-      Encoders.noParams
-      Decoders.noResult
-      True
+  interp
+    True
+    [sql|
+    DELETE FROM email_verification_tokens WHERE expires_at < NOW() AND status = 'pending'
+  |]
 
-deleteExpiredPasswordResetTokens :: Session.Session ()
+deleteExpiredPasswordResetTokens :: Hasql.Statement () ()
 deleteExpiredPasswordResetTokens =
-  Session.statement () $
-    Statement.Statement
-      "DELETE FROM password_reset_tokens WHERE expires_at < NOW() AND status = 'pending'"
-      Encoders.noParams
-      Decoders.noResult
-      True
+  interp
+    True
+    [sql|
+    DELETE FROM password_reset_tokens WHERE expires_at < NOW() AND status = 'pending'
+  |]
 
-deleteOldVerificationTokens :: Int64 -> Session.Session ()
+deleteOldVerificationTokens :: Int64 -> Hasql.Statement () ()
 deleteOldVerificationTokens days =
-  Session.statement days $
-    Statement.Statement
-      "DELETE FROM email_verification_tokens WHERE created_at < NOW() - make_interval(days => $1 :: int)"
-      (Encoders.param (Encoders.nonNullable Encoders.int8))
-      Decoders.noResult
-      True
+  interp
+    True
+    [sql|
+    DELETE FROM email_verification_tokens WHERE created_at < NOW() - make_interval(days => #{days} :: int)
+  |]
 
-deleteOldPasswordResetTokens :: Int64 -> Session.Session ()
+deleteOldPasswordResetTokens :: Int64 -> Hasql.Statement () ()
 deleteOldPasswordResetTokens days =
-  Session.statement days $
-    Statement.Statement
-      "DELETE FROM password_reset_tokens WHERE created_at < NOW() - make_interval(days => $1 :: int)"
-      (Encoders.param (Encoders.nonNullable Encoders.int8))
-      Decoders.noResult
-      True
+  interp
+    True
+    [sql|
+    DELETE FROM password_reset_tokens WHERE created_at < NOW() - make_interval(days => #{days} :: int)
+  |]
 
 --------------------------------------------------------------------------------
 -- Count queries (for dry-run)
 
-countExpiredVerificationTokens :: Session.Session Int64
+-- | Read the one row of a @SELECT COUNT(*)@.
+--
+-- A count with no @GROUP BY@ always returns one row, so the 0 is never used.
+countRow :: Hasql.Statement () (Maybe (OneColumn Int64)) -> Hasql.Statement () Int64
+countRow = fmap (maybe 0 getOneColumn)
+
+countExpiredVerificationTokens :: Hasql.Statement () Int64
 countExpiredVerificationTokens =
-  Session.statement () $
-    Statement.Statement
-      "SELECT COUNT(*) FROM email_verification_tokens WHERE expires_at < NOW() AND status = 'pending'"
-      Encoders.noParams
-      (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8)))
+  countRow $
+    interp
       True
+      [sql|
+      SELECT COUNT(*) FROM email_verification_tokens WHERE expires_at < NOW() AND status = 'pending'
+    |]
 
-countExpiredPasswordResetTokens :: Session.Session Int64
+countExpiredPasswordResetTokens :: Hasql.Statement () Int64
 countExpiredPasswordResetTokens =
-  Session.statement () $
-    Statement.Statement
-      "SELECT COUNT(*) FROM password_reset_tokens WHERE expires_at < NOW() AND status = 'pending'"
-      Encoders.noParams
-      (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8)))
+  countRow $
+    interp
       True
+      [sql|
+      SELECT COUNT(*) FROM password_reset_tokens WHERE expires_at < NOW() AND status = 'pending'
+    |]
 
-countOldVerificationTokens :: Int64 -> Session.Session Int64
+countOldVerificationTokens :: Int64 -> Hasql.Statement () Int64
 countOldVerificationTokens days =
-  Session.statement days $
-    Statement.Statement
-      "SELECT COUNT(*) FROM email_verification_tokens WHERE created_at < NOW() - make_interval(days => $1 :: int)"
-      (Encoders.param (Encoders.nonNullable Encoders.int8))
-      (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8)))
+  countRow $
+    interp
       True
+      [sql|
+      SELECT COUNT(*) FROM email_verification_tokens WHERE created_at < NOW() - make_interval(days => #{days} :: int)
+    |]
 
-countOldPasswordResetTokens :: Int64 -> Session.Session Int64
+countOldPasswordResetTokens :: Int64 -> Hasql.Statement () Int64
 countOldPasswordResetTokens days =
-  Session.statement days $
-    Statement.Statement
-      "SELECT COUNT(*) FROM password_reset_tokens WHERE created_at < NOW() - make_interval(days => $1 :: int)"
-      (Encoders.param (Encoders.nonNullable Encoders.int8))
-      (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8)))
+  countRow $
+    interp
       True
+      [sql|
+      SELECT COUNT(*) FROM password_reset_tokens WHERE created_at < NOW() - make_interval(days => #{days} :: int)
+    |]
