@@ -97,7 +97,7 @@ desktopMusicPlayer =
             ]
       -- Line 2: Now playing info
       Lucid.div_ [class_ $ base ["flex", "items-center", "justify-center", Tokens.gap4, Tokens.textSm, "font-mono"]] $ do
-        Lucid.div_ [xText_ "currentShow || 'NOW PLAYING: KPBJ 95.9 FM'"] "NOW PLAYING: KPBJ 95.9 FM"
+        Lucid.a_ (xText_ "currentShow || 'NOW PLAYING: KPBJ 95.9 FM'" : nowPlayingLinkAttrs) "NOW PLAYING: KPBJ 95.9 FM"
         -- Back to Live button (only visible when in episode mode)
         Lucid.span_ [xShow_ "mode === 'episode'", Lucid.class_ Tokens.fgMuted] "|"
         Lucid.button_
@@ -135,19 +135,38 @@ mobileMusicPlayer =
         $ do
           Lucid.div_ [Lucid.class_ "marquee-track", xBindClass_ "{ 'scrolling': needsScroll }"] $ do
             -- First copy of text
-            Lucid.span_
-              [ xRef_ "text",
-                xText_ "currentShow || 'KPBJ 95.9 FM'",
-                class_ $ base [Tokens.fontBold, "marquee-text"]
-              ]
+            Lucid.a_
+              ( [ xRef_ "text",
+                  xText_ "currentShow || 'KPBJ 95.9 FM'",
+                  class_ $ base [Tokens.fontBold, "marquee-text"]
+                ]
+                  <> nowPlayingLinkAttrs
+              )
               "KPBJ 95.9 FM"
             -- Second copy (only visible when scrolling)
-            Lucid.span_
-              [ xShow_ "needsScroll",
-                xText_ "currentShow || 'KPBJ 95.9 FM'",
-                class_ $ base [Tokens.fontBold, "marquee-text"]
-              ]
+            Lucid.a_
+              ( [ xShow_ "needsScroll",
+                  xText_ "currentShow || 'KPBJ 95.9 FM'",
+                  class_ $ base [Tokens.fontBold, "marquee-text"]
+                ]
+                  <> nowPlayingLinkAttrs
+              )
               "KPBJ 95.9 FM"
+
+-- | The attributes that make the now-playing text a link to @currentUrl@.
+--
+-- With no URL the anchor has no @href@, and the browser shows it as plain
+-- text. The URL changes after page load, and HTMX reads a static @hx-get@
+-- only once, so the click starts the request with @htmx.ajax@. HTMX takes the
+-- target and the URL push from the anchor.
+nowPlayingLinkAttrs :: [Lucid.Attributes]
+nowPlayingLinkAttrs =
+  [ xBindHref_ "currentUrl || null",
+    xBindClass_ "{ 'hover:opacity-70': currentUrl }",
+    hxTarget_ "#main-content",
+    hxPushUrl_ "true",
+    xOnClick_ "if (currentUrl) { $event.preventDefault(); htmx.ajax('GET', currentUrl, { source: $el }); }"
+  ]
 
 -- | Banner above mobile player when playing archived episode (entire banner is clickable)
 mobileArchiveBanner :: Lucid.Html ()
@@ -174,6 +193,7 @@ musicPlayerWrapper cfg content =
     content
   where
     streamUrl = scStreamUrl cfg
+    nowPlayingUrl = rootLink apiLinks.streamNowPlaying
     playerData =
       [i|{
       playerId: 'navbar-player',
@@ -186,10 +206,11 @@ musicPlayerWrapper cfg content =
       episodeUrl: '',
       episodeTitle: '',
 
-      // Metadata (for live stream)
+      // What plays now: the text, and the page of the episode ('' for no link)
       currentShow: '',
-      currentTrack: '',
-      currentArtist: '',
+      currentUrl: '',
+      // Counts the fetches, so that an old response cannot replace a newer one
+      fetchCount: 0,
       errorMessage: '',
       metadataInterval: null,
 
@@ -227,8 +248,10 @@ musicPlayerWrapper cfg content =
           .then(() => {
             console.log('Navbar player: Playing in ' + this.mode + ' mode');
             this.isPlaying = true;
-            // Only poll metadata for live stream
+            // Only poll metadata for live stream. The first poll is 30 seconds
+            // away, so fetch now. The text can be old after a pause.
             if (this.mode === 'stream') {
+              this.fetchMetadata();
               this.startMetadataPolling();
             }
           })
@@ -248,7 +271,7 @@ musicPlayerWrapper cfg content =
       },
 
       // Play an episode (called from episode cards via playInNavbar global function)
-      playEpisode(url, title, episodeId) {
+      playEpisode(url, title, episodeId, pageUrl) {
         console.log('Navbar player: Switching to episode mode', title);
 
         // Stop current playback
@@ -259,6 +282,7 @@ musicPlayerWrapper cfg content =
         this.episodeUrl = url;
         this.episodeTitle = title;
         this.currentShow = title;
+        this.currentUrl = pageUrl || '';
 
         // Clear and reload audio source
         const audio = this.$refs.audio;
@@ -289,12 +313,14 @@ musicPlayerWrapper cfg content =
         this.episodeUrl = '';
         this.episodeTitle = '';
         this.currentShow = '';
+        this.currentUrl = '';
 
         // Clear and reload audio source with cache-bust
         const audio = this.$refs.audio;
         audio.src = this.streamUrl + '?t=' + Date.now();
 
-        // Start playing and fetch metadata
+        // Start playing and fetch metadata. The fetch here shows the text also
+        // when the stream does not start
         this.fetchMetadata();
         this.play();
       },
@@ -307,44 +333,28 @@ musicPlayerWrapper cfg content =
         }
       },
 
-      // Decode HTML entities from Icecast metadata into plain text
-      decodeEntities(str) {
-        const el = document.createElement('textarea');
-        el.innerHTML = str;
-        return el.value;
-      },
-
+      // Read what the stream plays now. Any failure gives the station name
+      // and no link.
       async fetchMetadata() {
+        const fetchNumber = ++this.fetchCount;
+        let title = 'KPBJ 95.9 FM';
+        let url = '';
         try {
-          const response = await fetch('/api/stream/metadata');
-          const data = await response.json();
-
-          // Parse Icecast status-json.xsl format
-          const source = data.icestats?.source;
-          if (source) {
-            // Icecast combines metadata as "artist - title" in the title field
-            // Or we may have separate artist field
-            if (source.artist && source.title) {
-              const artist = this.decodeEntities(source.artist);
-              const title = this.decodeEntities(source.title);
-              this.currentShow = artist + ' - ' + title;
-              this.currentArtist = artist;
-              this.currentTrack = title;
-            } else if (source.title) {
-              const title = this.decodeEntities(source.title);
-              this.currentShow = title;
-              this.currentTrack = title;
-            } else {
-              this.currentShow = source.server_name ? this.decodeEntities(source.server_name) : 'KPBJ 95.9 FM';
-            }
-          } else {
-            this.currentShow = 'KPBJ 95.9 FM';
+          const response = await fetch('#{nowPlayingUrl}');
+          if (response.ok) {
+            const data = await response.json();
+            title = data.title || title;
+            url = data.url || '';
           }
-          this.errorMessage = '';
         } catch (error) {
-          console.log('Metadata fetch failed:', error);
-          this.currentShow = 'KPBJ 95.9 FM';
+          console.log('Now playing fetch failed:', error);
         }
+
+        // A slow response must not replace the text of an archived episode, or
+        // the result of a newer fetch
+        if (this.mode !== 'stream' || fetchNumber !== this.fetchCount) return;
+        this.currentShow = title;
+        this.currentUrl = url;
       },
 
       startMetadataPolling() {
@@ -394,13 +404,13 @@ playerScript =
     }
 
     // Play an episode in the navbar player (called by episode cards)
-    function playInNavbar(episodeAudioUrl, episodeTitle, episodeId) {
+    function playInNavbar(episodeAudioUrl, episodeTitle, episodeId, episodePageUrl) {
       // Find navbar player component
       const navbarPlayerEl = document.querySelector('[x-data*="navbar-player"]');
       if (navbarPlayerEl) {
         const navbarPlayer = Alpine.$data(navbarPlayerEl);
         if (navbarPlayer && typeof navbarPlayer.playEpisode === 'function') {
-          navbarPlayer.playEpisode(episodeAudioUrl, episodeTitle, episodeId);
+          navbarPlayer.playEpisode(episodeAudioUrl, episodeTitle, episodeId, episodePageUrl);
         }
       }
     }
@@ -419,7 +429,7 @@ playerScript =
     }
 
     // Toggle episode playback in navbar (pause if playing this episode, play if not)
-    function toggleEpisodeInNavbar(episodeAudioUrl, episodeTitle, episodeId) {
+    function toggleEpisodeInNavbar(episodeAudioUrl, episodeTitle, episodeId, episodePageUrl) {
       const navbarPlayerEl = document.querySelector('[x-data*="navbar-player"]');
       if (navbarPlayerEl) {
         const navbarPlayer = Alpine.$data(navbarPlayerEl);
@@ -432,7 +442,7 @@ playerScript =
             navbarPlayer.play();
           } else {
             // Different episode or stream mode — load and play
-            navbarPlayer.playEpisode(episodeAudioUrl, episodeTitle, episodeId);
+            navbarPlayer.playEpisode(episodeAudioUrl, episodeTitle, episodeId, episodePageUrl);
           }
         }
       }

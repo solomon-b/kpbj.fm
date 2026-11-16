@@ -219,7 +219,7 @@ import API.Store.List.Get.Route qualified as Store.List.Get
 import API.Store.Orders.Confirmation.Get.Route qualified as Store.Orders.Confirmation.Get
 import API.Store.Products.Slug.Get.Route qualified as Store.Products.Slug.Get
 import API.Store.ShippingRates.Post.Route qualified as Store.ShippingRates.Post
-import API.Stream.Metadata.Get.Route qualified as Stream.Metadata.Get
+import API.Stream.NowPlaying.Get.Route qualified as Stream.NowPlaying.Get
 import API.TermsOfService.Get.Route qualified as TermsOfService.Get
 import API.Uploads.Audio.Post.Route qualified as Uploads.Audio.Post
 import API.User.ForgotPassword.Get.Route qualified as User.ForgotPassword.Get
@@ -294,8 +294,8 @@ data Routes mode = Routes
     storeApi :: mode :- NamedRoutes StoreApiRoutes,
     -- | @/api/webhooks/...@ - Webhook routes
     webhooks :: mode :- NamedRoutes WebhookRoutes,
-    -- | @GET /api/stream/metadata@ - Stream metadata proxy (avoids CORS)
-    streamMetadata :: mode :- Stream.Metadata.Get.Route,
+    -- | @GET /api/stream/now-playing@ - What the stream plays now, for the top player
+    streamNowPlaying :: mode :- Stream.NowPlaying.Get.Route,
     -- | @POST /api/newsletter/subscribe@ - Newsletter signup
     newsletterSubscribePost :: mode :- Newsletter.Subscribe.Post.Route,
     -- | @GET /debug/version@ - Version info for debugging

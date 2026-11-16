@@ -388,6 +388,8 @@ encodesEachContentKind = do
           EpisodeCandidate
             { ecId = Episodes.Id 7,
               ecShowTitle = "Now Show",
+              ecShowSlug = Slug "now-show",
+              ecEpisodeNumber = Episodes.EpisodeNumber 1,
               ecAudioKey = "audio/episodes/now.mp3",
               ecSeconds = 3500
             }

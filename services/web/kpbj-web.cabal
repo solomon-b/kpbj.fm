@@ -569,8 +569,8 @@ library
     API.Playout.Played.Post.Handler
     API.Analytics.EpisodePlay.Post.Route
     API.Analytics.EpisodePlay.Post.Handler
-    API.Stream.Metadata.Get.Route
-    API.Stream.Metadata.Get.Handler
+    API.Stream.NowPlaying.Get.Route
+    API.Stream.NowPlaying.Get.Handler
     API.Uploads.Shared
     API.Uploads.Types
     API.Uploads.Audio.Post.Handler
@@ -856,6 +856,7 @@ test-suite kpbj-web-test
        API.Store.Cart.Validate.Post.HandlerSpec
        API.Store.List.Get.HandlerSpec
        API.Store.Products.Slug.Get.HandlerSpec
+       API.Stream.NowPlaying.Get.HandlerSpec
        Store.Checkout.EmailsSpec
        Store.Checkout.LogicSpec
        Store.Checkout.ShippingErrorsSpec

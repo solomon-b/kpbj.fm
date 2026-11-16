@@ -102,11 +102,11 @@ The first release of the timeline needs these steps, in this order:
 
 ## Environments
 
-| Environment | Web Service             | Stream                                | Stream Metadata                              |
-|-------------|-------------------------|---------------------------------------|----------------------------------------------|
-| Production  | https://www.kpbj.fm     | https://stream.kpbj.fm/stream         | https://www.kpbj.fm/api/stream/metadata      |
-| Staging     | https://staging.kpbj.fm | https://stream.staging.kpbj.fm/stream | https://staging.kpbj.fm/api/stream/metadata  |
-| Local       | http://localhost:4000   | http://localhost:8000/stream          | http://localhost:4000/api/stream/metadata    |
+| Environment | Web Service             | Stream                                | Now Playing                                    |
+|-------------|-------------------------|---------------------------------------|------------------------------------------------|
+| Production  | https://www.kpbj.fm     | https://stream.kpbj.fm/stream         | https://www.kpbj.fm/api/stream/now-playing     |
+| Staging     | https://staging.kpbj.fm | https://stream.staging.kpbj.fm/stream | https://staging.kpbj.fm/api/stream/now-playing |
+| Local       | http://localhost:4000   | http://localhost:8000/stream          | http://localhost:4000/api/stream/now-playing   |
 
 ## CI/CD
 

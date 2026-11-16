@@ -101,6 +101,7 @@ import API.Shows.Slug.Get.HandlerSpec qualified as ShowDetailHandler
 import API.Store.Cart.Validate.Post.HandlerSpec qualified as StoreCartValidateHandler
 import API.Store.List.Get.HandlerSpec qualified as StoreListHandler
 import API.Store.Products.Slug.Get.HandlerSpec qualified as StoreProductHandler
+import API.Stream.NowPlaying.Get.HandlerSpec qualified as StreamNowPlayingGetHandler
 import API.Uploads.Audio.Post.HandlerSpec qualified as AudioUploadHandler
 import API.User.ForgotPassword.Post.HandlerSpec qualified as UserForgotPasswordHandler
 import API.User.Login.Post.HandlerSpec qualified as UserLoginHandler
@@ -190,6 +191,7 @@ main = do
     HomeHandler.spec
     PlayoutNowGetHandler.spec
     PlayoutPlayedPostHandler.spec
+    StreamNowPlayingGetHandler.spec
     UnderwritersTable.spec
     BreakPlanEffects.spec
     TimelineEffects.spec

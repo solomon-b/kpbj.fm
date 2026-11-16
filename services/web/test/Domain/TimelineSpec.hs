@@ -12,6 +12,7 @@ import Data.Text (Text)
 import Data.Time (Day, LocalTime (..), NominalDiffTime, TimeOfDay (..), UTCTime, addUTCTime, diffUTCTime, fromGregorian)
 import Domain.BreakPlanner (breakSeconds)
 import Domain.Timeline
+import Domain.Types.Slug (Slug (..))
 import Domain.Types.Timezone (pacificToUtc)
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -50,6 +51,8 @@ episodeOf seconds =
   EpisodeCandidate
     { ecId = Episodes.Id 1,
       ecShowTitle = "Test Show",
+      ecShowSlug = Slug "test-show",
+      ecEpisodeNumber = Episodes.EpisodeNumber 1,
       ecAudioKey = "audio/episodes/test.mp3",
       ecSeconds = seconds
     }
@@ -494,3 +497,22 @@ spec = describe "Domain.Timeline" $ do
       fmap segStart (segmentContaining (pacificAt 17 0) segments) `shouldBe` Nothing
       fmap segStart (segmentStartingAt (pacificAt 16 0) segments) `shouldBe` Just (pacificAt 16 0)
       fmap segStart (segmentStartingAt (pacificAt 16 30) segments) `shouldBe` Nothing
+
+  describe "itemAt" $ do
+    it "returns the item whose time range holds the instant" $ do
+      let segments = buildTimeline (hourInput (Just (episodeOf 3420)) exampleBreak [])
+      for_ (concatMap segItems segments) $ \item -> do
+        fmap itemPlannedStart (itemAt (itemStart item) segments) `shouldBe` Just (itemPlannedStart item)
+        fmap itemPlannedStart (itemAt (plusSeconds (-1) (itemEnd item)) segments) `shouldBe` Just (itemPlannedStart item)
+
+    it "returns the item that starts at an edge between two items" $ do
+      segment <- onlySegment (hourInput (Just (episodeOf 3420)) exampleBreak [])
+      case segItems segment of
+        firstItem : secondItem : _ ->
+          fmap itemPlannedStart (itemAt (itemEnd firstItem) [segment]) `shouldBe` Just (itemPlannedStart secondItem)
+        _ -> expectationFailure "expected at least two items"
+
+    it "returns Nothing outside all segments" $ do
+      let segments = buildTimeline (hourInput (Just (episodeOf 3420)) exampleBreak [])
+      itemAt (pacificAt 15 59) segments `shouldBe` Nothing
+      itemAt (pacificAt 17 0) segments `shouldBe` Nothing
