@@ -30,11 +30,11 @@ spec =
           `shouldBe` Left "Break items can run at most 30 seconds. This file runs 42."
 
     describe "break items with a category" $ do
-      it "accepts a show promo at the 10 second limit" $
-        checkUploadLength StagedUploads.BreakItemAudio (Just BreakItems.ShowPromo) 10 `shouldBe` Right ()
+      it "accepts a show promo at the 30 second limit" $
+        checkUploadLength StagedUploads.BreakItemAudio (Just BreakItems.ShowPromo) 30 `shouldBe` Right ()
       it "refuses a show promo one second over the limit" $
-        checkUploadLength StagedUploads.BreakItemAudio (Just BreakItems.ShowPromo) 11
-          `shouldBe` Left "Show promos can run at most 10 seconds. This file runs 11."
+        checkUploadLength StagedUploads.BreakItemAudio (Just BreakItems.ShowPromo) 31
+          `shouldBe` Left "Show promos can run at most 30 seconds. This file runs 31."
       it "accepts a PSA at the 30 second limit" $
         checkUploadLength StagedUploads.BreakItemAudio (Just BreakItems.Psa) 30 `shouldBe` Right ()
 

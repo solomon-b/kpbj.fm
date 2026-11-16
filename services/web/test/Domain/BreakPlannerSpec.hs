@@ -195,12 +195,12 @@ genStationAnnouncements = do
   announcementCount <- Gen.int64 (Range.linear 0 4)
   traverse (genShortItem BreakItems.Announcement 10 30) [200 .. 199 + announcementCount]
 
--- | Up to 4 show promos, with ids from 300 up. Each is 3 to 10 seconds,
+-- | Up to 4 show promos, with ids from 300 up. Each is 3 to 30 seconds,
 -- because the upload refuses a longer file.
 genShowPromos :: Gen [BreakItemCandidate]
 genShowPromos = do
   promoCount <- Gen.int64 (Range.linear 0 4)
-  traverse (genShortItem BreakItems.ShowPromo 3 10) [300 .. 299 + promoCount]
+  traverse (genShortItem BreakItems.ShowPromo 3 30) [300 .. 299 + promoCount]
 
 -- | One break item with no underwriter, between the given lengths.
 genShortItem ::
@@ -474,20 +474,20 @@ spec = describe "Domain.BreakPlanner.planDay" $ do
                    ]
 
     it "takes its time before the PSAs" $ do
-      -- 10 + 30 + 30 + 10 = 80 seconds leave 40. The first 30 second PSA fits.
-      -- The second does not, so the 10 second PSA goes in.
+      -- 10 + 30 + 30 + 30 = 100 seconds leave 20. No 30 second PSA fits, so
+      -- only the 10 second PSA goes in.
       let fullSpot = (creative 5 1) {bicSeconds = 30}
           items =
             [ psa 100 30,
               psa 101 30,
               psa 102 10,
               stationAnnouncement 200 30,
-              showPromo 300 10,
+              showPromo 300 30,
               fullSpot
             ]
           entries = planDay (inputWithItems (showBreaks 1) items)
       itemsPerBreak entries
-        `shouldBe` [map BreakItems.Id [5, 200, 300, 100, 102]]
+        `shouldBe` [map BreakItems.Id [5, 200, 300, 102]]
 
     it "places at most one announcement and one promo in a break" $ do
       let announcements = [stationAnnouncement i 10 | i <- [200 .. 202]]
