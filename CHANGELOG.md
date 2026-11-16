@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.13.4] - 2026-11-16
+
 ### Added
 - **The top player links to the episode that plays.** When an episode airs on the stream, the player text is `<show title> - Episode <n>`, and it links to the page of that episode. An archived episode played from an episode card gets the same link. A click on the link does not stop the audio. A break track, an ephemeral upload, and the filler show as plain text with no link. The stream text now comes from the playout timeline, through the new `GET /api/stream/now-playing`. The route returns a title and a page URL, so the text and the link always agree. Before, the text came from Icecast and had only the show title. The player also reads the text when the stream starts again after a pause. `/api/stream/metadata` is removed, because the player was its only caller (#142).
 
