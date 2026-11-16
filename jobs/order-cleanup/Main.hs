@@ -60,7 +60,7 @@ main = do
 runDryRun :: (MonadIO m, Log.MonadLog m) => Connection.Connection -> m ()
 runDryRun conn = do
   Log.logInfo "DRY RUN — no orders will be cancelled" ()
-  result <- liftIO $ try $ Session.run (Session.statement () Orders.cancelStalePendingOrders) conn
+  result <- liftIO $ try $ Session.run (Session.statement () Orders.getStalePendingOrderIds) conn
   case result of
     Left (e :: SomeException) ->
       Log.logAttention "Query failed" $ Aeson.object ["error" .= show e]

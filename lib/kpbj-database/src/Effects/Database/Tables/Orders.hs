@@ -34,6 +34,7 @@ module Effects.Database.Tables.Orders
     updateNotes,
     listOrders,
     cancelStalePendingOrders,
+    getStalePendingOrderIds,
     nextOrderNumber,
   )
 where
@@ -508,6 +509,20 @@ cancelStalePendingOrders =
     SET status = 'cancelled', updated_at = NOW()
     WHERE status = 'pending' AND created_at < NOW() - INTERVAL '30 minutes'
     RETURNING id
+  |]
+
+-- | Get the IDs of the pending orders older than 30 minutes.
+--
+-- These are the orders that 'cancelStalePendingOrders' cancels. The dry run
+-- of the @order-cleanup@ job uses this statement. It changes no row.
+getStalePendingOrderIds :: Hasql.Statement () [Id]
+getStalePendingOrderIds =
+  interp
+    True
+    [sql|
+    SELECT id
+    FROM orders
+    WHERE status = 'pending' AND created_at < NOW() - INTERVAL '30 minutes'
   |]
 
 -- | Get the next order number from the sequence, formatted as KPBJ-NNNN.
