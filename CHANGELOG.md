@@ -16,6 +16,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
   - When more than one environment variable is missing, a job can report a different one first.
 
 ### Fixed
+- **The batch job alert now covers `mailchimp-reconcile`.** The `batch-job-errors` alert in Grafana did not list the `kpbj-mailchimp-reconcile` unit, so an `ATTENTION` line from that job raised no alert. The job logs "MC-only signup; manual review required" at `ATTENTION` level for each Mailchimp member that is not in Postgres, so the alert now fires for those members too.
 - **The dry run of `order-cleanup` no longer cancels orders.** `order-cleanup --dry-run` ran the same `UPDATE` as the real run. It cancelled each pending order older than 30 minutes and did not restore the inventory of that order. The dry run now reads the orders with the new `getStalePendingOrderIds` statement and changes no row.
 - **A show promo can run 30 seconds.** The limit was 10 seconds, but the plan for show promos set 30 (#103). The upload field, the form hint, and the save handler all read one constant, so all three now use 30. A break with one item of each category at full length now has 20 seconds left, so it carries no 30 second PSA. A shorter PSA still fits.
 
