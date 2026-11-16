@@ -14,16 +14,19 @@ executable ga-poller
                   , crypton-x509
                   , crypton-x509-store
                   , hasql
+                  , hasql-interpolate
                   , http-client
                   , http-conduit
                   , http-types
                   , jose               >= 0.11 && < 0.12
                   , kpbj-database
+                  , kpbj-job
                   , log-base
                   , string-interpolate
                   , text
                   , time
                   , transformers
+                  , web-server-core
   hs-source-dirs:   .
   default-language: Haskell2010
   default-extensions:
