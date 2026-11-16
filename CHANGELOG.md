@@ -8,6 +8,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **Every ephemeral upload and every episode with audio must have a length.** `ephemeral_uploads.duration_seconds` is now `NOT NULL`. The new `episodes_audio_has_duration` CHECK refuses an episode that has audio and no `duration_seconds`. An episode with no audio can still have no length. Both migrations fail if a row breaks the rule, and the backfills with `scripts/audio-durations-sql.sh` filled every such row in prod. The new-episode and edit-episode forms now refuse staged audio with no length, as the ephemeral forms do. Before, they saved it with no length, and the episode did not air. Three tests of a NULL length on an episode with audio are removed, because that row can no longer exist (#173).
 
 ### Fixed
+- **The dry run of `order-cleanup` no longer cancels orders.** `order-cleanup --dry-run` ran the same `UPDATE` as the real run. It cancelled each pending order older than 30 minutes and did not restore the inventory of that order. The dry run now reads the orders with the new `getStalePendingOrderIds` statement and changes no row.
 - **A show promo can run 30 seconds.** The limit was 10 seconds, but the plan for show promos set 30 (#103). The upload field, the form hint, and the save handler all read one constant, so all three now use 30. A break with one item of each category at full length now has 20 seconds left, so it carries no 30 second PSA. A shorter PSA still fits.
 
 ---

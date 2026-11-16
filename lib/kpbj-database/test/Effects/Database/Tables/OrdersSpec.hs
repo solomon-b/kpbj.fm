@@ -1,3 +1,4 @@
+{-# LANGUAGE QuasiQuotes #-}
 {-# OPTIONS_GHC -Wno-x-partial #-}
 
 module Effects.Database.Tables.OrdersSpec where
@@ -6,6 +7,8 @@ module Effects.Database.Tables.OrdersSpec where
 
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.Orders qualified as UUT
+import Hasql.Interpolate (interp, sql)
+import Hasql.Statement qualified as Hasql
 import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import Hedgehog (PropertyT, (===))
@@ -55,6 +58,12 @@ spec =
         runs 10 . it "listOrders (Just status): filters by status" $
           hedgehog . prop_listOrdersFiltered
 
+      describe "Stale pending orders" $ do
+        runs 10 . it "getStalePendingOrderIds: returns a stale pending order and leaves it pending" $
+          hedgehog . prop_getStalePendingOrderIds
+        runs 10 . it "getStalePendingOrderIds: skips a pending order younger than 30 minutes" $
+          hedgehog . prop_getStalePendingOrderIdsSkipsFresh
+
 --------------------------------------------------------------------------------
 -- Helpers
 
@@ -100,7 +109,6 @@ prop_insertGetById cfg = do
         assertInsertFieldsMatch template selected
         UUT.oId selected === orderId
 
-
 prop_insertGetByOrderNumber :: TestDBConfig -> PropertyT IO ()
 prop_insertGetByOrderNumber cfg = do
   arrange (bracketConn cfg) $ do
@@ -142,7 +150,6 @@ prop_getByStripeCheckoutSessionId cfg = do
         found <- assertJust mFound
         UUT.oId found === orderId
         assertNothing mNotFound
-
 
 prop_getByStripePaymentIntentId :: TestDBConfig -> PropertyT IO ()
 prop_getByStripePaymentIntentId cfg = do
@@ -186,7 +193,6 @@ prop_updateStatus cfg = do
         updated <- assertJust mUpdated
         UUT.oStatus updated === newStatus
 
-
 prop_updateStripeCheckoutSessionId :: TestDBConfig -> PropertyT IO ()
 prop_updateStripeCheckoutSessionId cfg = do
   arrange (bracketConn cfg) $ do
@@ -206,7 +212,6 @@ prop_updateStripeCheckoutSessionId cfg = do
         selected <- assertJust mSelected
         UUT.oStripeCheckoutSessionId selected === Just sessionId
 
-
 prop_updateStripePaymentIntentId :: TestDBConfig -> PropertyT IO ()
 prop_updateStripePaymentIntentId cfg = do
   arrange (bracketConn cfg) $ do
@@ -225,7 +230,6 @@ prop_updateStripePaymentIntentId cfg = do
         mSelected <- assertRight result
         selected <- assertJust mSelected
         UUT.oStripePaymentIntentId selected === Just paymentIntentId
-
 
 prop_updateTracking :: TestDBConfig -> PropertyT IO ()
 prop_updateTracking cfg = do
@@ -249,7 +253,6 @@ prop_updateTracking cfg = do
         UUT.oTrackingNumber selected === Just trackingNumber
         UUT.oEasypostShipmentId selected === Just shipmentId
         UUT.oLabelUrl selected === Just labelUrl
-
 
 prop_updateNotes :: TestDBConfig -> PropertyT IO ()
 prop_updateNotes cfg = do
@@ -298,7 +301,6 @@ prop_listOrdersAll cfg = do
         elem id1 returnedIds === True
         elem id2 returnedIds === True
 
-
 prop_listOrdersFiltered :: TestDBConfig -> PropertyT IO ()
 prop_listOrdersFiltered cfg = do
   arrange (bracketConn cfg) $ do
@@ -326,3 +328,53 @@ prop_listOrdersFiltered cfg = do
         UUT.oId (head pendingOrders) === id1
         length paidOrders === 1
         UUT.oId (head paidOrders) === id2
+
+--------------------------------------------------------------------------------
+-- Stale pending orders
+
+-- | Move the creation time of an order 31 minutes into the past.
+backdateOrder :: UUT.Id -> Hasql.Statement () ()
+backdateOrder orderId =
+  interp
+    False
+    [sql|
+    UPDATE orders
+    SET created_at = NOW() - INTERVAL '31 minutes'
+    WHERE id = #{orderId}
+  |]
+
+prop_getStalePendingOrderIds :: TestDBConfig -> PropertyT IO ()
+prop_getStalePendingOrderIds cfg = do
+  arrange (bracketConn cfg) $ do
+    template <- forAllT orderInsertGen
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        orderId <- unwrapInsert (UUT.insertOrder template)
+        TRX.statement () (backdateOrder orderId)
+        staleIds <- TRX.statement () UUT.getStalePendingOrderIds
+        selected <- TRX.statement () (UUT.getById orderId)
+        TRX.condemn
+        pure (orderId, staleIds, selected)
+
+      assert $ do
+        (orderId, staleIds, mSelected) <- assertRight result
+        staleIds === [orderId]
+        selected <- assertJust mSelected
+        UUT.oStatus selected === UUT.Pending
+
+prop_getStalePendingOrderIdsSkipsFresh :: TestDBConfig -> PropertyT IO ()
+prop_getStalePendingOrderIdsSkipsFresh cfg = do
+  arrange (bracketConn cfg) $ do
+    template <- forAllT orderInsertGen
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        _ <- unwrapInsert (UUT.insertOrder template)
+        staleIds <- TRX.statement () UUT.getStalePendingOrderIds
+        TRX.condemn
+        pure staleIds
+
+      assert $ do
+        staleIds <- assertRight result
+        staleIds === []
