@@ -88,7 +88,7 @@ action userMetadata invitationId = do
   -- The slot may have been taken since the original invitation was created.
   slot <- either throwValidationError pure (parseInvitationSchedules inv.hiScheduleData)
   today <- pacificDay <$> lift currentSystemTime
-  checkInvitationConflicts slot (max inv.hiStartsOn today)
+  checkInvitationConflicts Nothing slot (max inv.hiStartsOn today)
 
   -- Generate a new human-readable token
   token <- liftIO HostInvitation.generateInviteCode

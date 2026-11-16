@@ -198,10 +198,9 @@ library
     API.Dashboard.Invitations.New.Post.Handler
     API.Dashboard.Invitations.Id.Edit.Get.Route
     API.Dashboard.Invitations.Id.Edit.Get.Handler
+    API.Dashboard.Invitations.Id.Edit.Get.Templates.Form
     API.Dashboard.Invitations.Id.Edit.Post.Route
     API.Dashboard.Invitations.Id.Edit.Post.Handler
-    API.Dashboard.Invitations.Id.Row.Get.Route
-    API.Dashboard.Invitations.Id.Row.Get.Handler
     API.Dashboard.Invitations.Id.Resend.Post.Route
     API.Dashboard.Invitations.Id.Resend.Post.Handler
     API.Dashboard.Invitations.Delete.Route
@@ -797,6 +796,7 @@ test-suite kpbj-web-test
        API.Dashboard.Events.Slug.Get.HandlerSpec
        API.Dashboard.Episodes.Get.HandlerSpec
        API.Dashboard.Invitations.ConflictSpec
+       API.Dashboard.Invitations.Id.Edit.Post.HandlerSpec
        API.Dashboard.Invitations.New.Post.HandlerSpec
        API.Dashboard.Invitations.Regenerate.HandlerSpec
        API.Invite.Token.Post.HandlerSpec

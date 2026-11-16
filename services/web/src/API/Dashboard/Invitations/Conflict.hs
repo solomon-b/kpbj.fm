@@ -2,8 +2,8 @@
 
 -- | Schedule conflict check for host invitations.
 --
--- New and regenerated invitations use this check. It runs before the invitation
--- is stored, so staff see a conflict before they send the link.
+-- New, regenerated, and edited invitations use this check. It runs before the
+-- invitation is stored, so staff see a conflict before they send the link.
 module API.Dashboard.Invitations.Conflict
   ( checkInvitationConflicts,
   )
@@ -39,19 +39,24 @@ import Utils (fromRightM)
 -- before that date is not a conflict. A live invitation has no end date, so any
 -- live invitation that holds an overlapping slot is a conflict, whatever its
 -- start date.
+--
+-- An edit passes the invitation that it changes. That invitation holds its old
+-- slot until the save, so the check ignores it.
 checkInvitationConflicts ::
-  -- | The slot the new invitation holds
+  -- | The invitation that an edit changes, which the check ignores
+  Maybe HostInvitation.Id ->
+  -- | The slot the invitation holds after the save
   Maybe ParsedScheduleSlot ->
   -- | The date the slot takes effect
   Day ->
   ExceptT HandlerError AppM ()
-checkInvitationConflicts Nothing _ = pure ()
-checkInvitationConflicts (Just slot) startsOn = do
+checkInvitationConflicts _ Nothing _ = pure ()
+checkInvitationConflicts edited (Just slot) startsOn = do
   showConflict <- lift $ checkScheduleConflicts (Shows.Id 0) (Just slot) startsOn
   either throwValidationError pure showConflict
 
   live <- fromRightM throwDatabaseError $ execQuery HostInvitation.getLive
-  let candidates = mapMaybe invitationCandidate live
+  let candidates = mapMaybe invitationCandidate (filter (\inv -> Just inv.hiId /= edited) live)
       checkRange prefix start end = do
         mLabel <-
           fromRightM throwDatabaseError $

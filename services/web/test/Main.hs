@@ -47,6 +47,7 @@ import API.Dashboard.Events.Slug.Edit.Post.HandlerSpec qualified as DashboardEve
 import API.Dashboard.Events.Slug.Feature.HandlerSpec qualified as DashboardEventsFeatureHandler
 import API.Dashboard.Events.Slug.Get.HandlerSpec qualified as DashboardEventsSlugGetHandler
 import API.Dashboard.Invitations.ConflictSpec qualified as DashboardInvitationsConflict
+import API.Dashboard.Invitations.Id.Edit.Post.HandlerSpec qualified as DashboardInvitationsIdEditPostHandler
 import API.Dashboard.Invitations.New.Post.HandlerSpec qualified as DashboardInvitationsNewPostHandler
 import API.Dashboard.Invitations.Regenerate.HandlerSpec qualified as DashboardInvitationsRegenerateHandler
 import API.Dashboard.MissingEpisodes.Get.HandlerSpec qualified as DashboardMissingEpisodesGetHandler
@@ -212,6 +213,7 @@ main = do
     DashboardEpisodesDeleteHandler.spec
     DashboardEpisodesGetHandler.spec
     DashboardInvitationsConflict.spec
+    DashboardInvitationsIdEditPostHandler.spec
     DashboardInvitationsNewPostHandler.spec
     DashboardInvitationsRegenerateHandler.spec
     InviteTokenPostHandler.spec

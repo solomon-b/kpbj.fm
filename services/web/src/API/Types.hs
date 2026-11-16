@@ -126,7 +126,6 @@ import API.Dashboard.Invitations.Get.Route qualified as Dashboard.Invitations.Ge
 import API.Dashboard.Invitations.Id.Edit.Get.Route qualified as Dashboard.Invitations.Id.Edit.Get
 import API.Dashboard.Invitations.Id.Edit.Post.Route qualified as Dashboard.Invitations.Id.Edit.Post
 import API.Dashboard.Invitations.Id.Resend.Post.Route qualified as Dashboard.Invitations.Id.Resend.Post
-import API.Dashboard.Invitations.Id.Row.Get.Route qualified as Dashboard.Invitations.Id.Row.Get
 import API.Dashboard.Invitations.New.Get.Route qualified as Dashboard.Invitations.New.Get
 import API.Dashboard.Invitations.New.Post.Route qualified as Dashboard.Invitations.New.Post
 import API.Dashboard.Invitations.Regenerate.Route qualified as Dashboard.Invitations.Regenerate
@@ -822,11 +821,9 @@ data DashboardInvitationsRoutes mode = DashboardInvitationsRoutes
     newGet :: mode :- Dashboard.Invitations.New.Get.Route,
     -- | @POST /dashboard/invitations/new@ - Create invitation
     newPost :: mode :- Dashboard.Invitations.New.Post.Route,
-    -- | @GET /dashboard/invitations/:invitationId/row@ - Render normal row fragment (HTMX cancel)
-    rowGet :: mode :- Dashboard.Invitations.Id.Row.Get.Route,
-    -- | @GET /dashboard/invitations/:invitationId/edit@ - Inline edit-form row
+    -- | @GET /dashboard/invitations/:invitationId/edit@ - Edit invitation form
     editGet :: mode :- Dashboard.Invitations.Id.Edit.Get.Route,
-    -- | @POST /dashboard/invitations/:invitationId/edit@ - Update recipient email
+    -- | @POST /dashboard/invitations/:invitationId/edit@ - Update recipient, schedule, and start date
     editPost :: mode :- Dashboard.Invitations.Id.Edit.Post.Route,
     -- | @POST /dashboard/invitations/:invitationId/resend@ - Re-send invitation email
     resendPost :: mode :- Dashboard.Invitations.Id.Resend.Post.Route,

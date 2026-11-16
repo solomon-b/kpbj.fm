@@ -1,7 +1,13 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Dashboard.Invitations.New.Post.Handler (handler, action) where
+module API.Dashboard.Invitations.New.Post.Handler
+  ( handler,
+    action,
+    validateRecipientEmail,
+    validateSchedulesJson,
+  )
+where
 
 --------------------------------------------------------------------------------
 
@@ -92,39 +98,26 @@ action ::
   NewInvitationForm ->
   ExceptT HandlerError AppM (HostInvitation.Token, EmailAddress)
 action userMetadata form = do
-  -- 1. Validate recipient email format.
-  let trimmedEmail = Text.strip (nifRecipientEmail form)
-  validatedEmail <- case EmailAddress.validate (mkEmailAddress trimmedEmail) of
-    Left _ -> throwValidationError "Recipient email is not a valid email address."
-    Right addr -> pure addr
+  -- 1. Validate the recipient. The email must not match an existing KPBJ user.
+  validatedEmail <- validateRecipientEmail (nifRecipientEmail form)
 
-  -- 2. Block creation when the email matches an existing KPBJ user.
-  existing <- execQuery (User.getUserByEmail validatedEmail)
-  case existing of
-    Left dbErr -> throwDatabaseError dbErr
-    Right (Just _) ->
-      throwValidationError
-        "That email belongs to an existing KPBJ account. \
-        \Use the user's host-management screen instead."
-    Right Nothing -> pure ()
-
-  -- 3. Validate that schedulesJson is non-empty valid JSON
+  -- 2. Validate that schedulesJson is non-empty valid JSON
   (scheduleData, slot) <- validateSchedulesJson (nifSchedulesJson form)
 
-  -- 4. Validate the start date. The form requires one.
+  -- 3. Validate the start date. The form requires one.
   today <- pacificDay <$> lift currentSystemTime
   startsOn <- case Text.strip (nifScheduleStartDate form) of
     "" -> throwValidationError "Schedule start date is required."
     dateText -> either throwValidationError pure (parseScheduleStartDate today dateText)
 
-  -- 5. Reject a slot that a show holds on the start date, or that another
+  -- 4. Reject a slot that a show holds on the start date, or that another
   --    live invitation holds.
-  checkInvitationConflicts (Just slot) startsOn
+  checkInvitationConflicts Nothing (Just slot) startsOn
 
-  -- 6. Generate a human-readable invite code (INV-XXXX-XXXX).
+  -- 5. Generate a human-readable invite code (INV-XXXX-XXXX).
   token <- liftIO HostInvitation.generateInviteCode
 
-  -- 7. Insert into host_invitations
+  -- 6. Insert into host_invitations
   let insertData =
         HostInvitation.Insert
           { HostInvitation.iToken = token,
@@ -141,6 +134,27 @@ action userMetadata form = do
     Right (Just _invitationId) -> pure (token, validatedEmail)
 
 --------------------------------------------------------------------------------
+
+-- | Validate the recipient email of an invitation.
+--
+-- The email must have a valid format, and it must not belong to an existing
+-- KPBJ user. An existing user gets a show through the host-management screen.
+validateRecipientEmail ::
+  Text ->
+  ExceptT HandlerError AppM EmailAddress
+validateRecipientEmail recipientEmail = do
+  validatedEmail <- case EmailAddress.validate (mkEmailAddress (Text.strip recipientEmail)) of
+    Left _ -> throwValidationError "Recipient email is not a valid email address."
+    Right addr -> pure addr
+
+  existing <- execQuery (User.getUserByEmail validatedEmail)
+  case existing of
+    Left dbErr -> throwDatabaseError dbErr
+    Right (Just _) ->
+      throwValidationError
+        "That email belongs to an existing KPBJ account. \
+        \Use the user's host-management screen instead."
+    Right Nothing -> pure validatedEmail
 
 -- | Validate the schedules JSON and return it for storage on the invitation.
 --

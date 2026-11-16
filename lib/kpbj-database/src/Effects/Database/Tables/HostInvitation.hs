@@ -40,7 +40,7 @@ module Effects.Database.Tables.HostInvitation
     getByTokenWithCreator,
     claimInvitation,
     revokeInvitation,
-    updateRecipientEmail,
+    updatePending,
     getById,
     getLive,
 
@@ -466,19 +466,31 @@ getLive =
 
 --------------------------------------------------------------------------------
 
--- | Update the recipient email of a pending invitation.
+-- | Update the recipient, the schedule, and the start date of a live invitation.
 --
--- Returns the updated model if the invitation exists and is in 'pending'
--- status. Returns Nothing otherwise.
-updateRecipientEmail :: Id -> EmailAddress -> Hasql.Statement () (Maybe Model)
-updateRecipientEmail invitationId newEmail =
+-- Returns the updated model if the invitation is pending and not past
+-- @expires_at@. Returns Nothing otherwise. The token and the expiry stay the
+-- same, so the link that the host has still works.
+updatePending ::
+  Id ->
+  -- | The new recipient
+  EmailAddress ->
+  -- | The new schedule data
+  Value ->
+  -- | The new start date
+  Day ->
+  Hasql.Statement () (Maybe Model)
+updatePending invitationId newEmail newScheduleData newStartsOn =
   interp
     False
     [sql|
     UPDATE host_invitations
-    SET recipient_email = #{newEmail}
+    SET recipient_email = #{newEmail},
+        schedule_data = #{newScheduleData},
+        starts_on = #{newStartsOn}
     WHERE id = #{invitationId}
       AND status = 'pending'
+      AND expires_at > NOW()
     RETURNING id, token, status, schedule_data, recipient_email,
               created_by, claimed_by, claimed_at, created_at, expires_at, starts_on
   |]
