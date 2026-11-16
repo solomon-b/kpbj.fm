@@ -79,6 +79,19 @@ spec = do
           result
           "Schedule conflict: Sunday 00:00-01:00 overlaps with a pending invitation for late-saturday@example.com"
 
+      it "ignores the invitation that an edit changes" $ \cfg -> do
+        invId <- insertInvitation cfg "edited-monday" (slotJson "monday" [2] "08:00" 120) keep
+        result <- runEditCheck cfg (Just invId) (slotJson "monday" [2] "09:00" 60) farFuture
+        expectNoConflict result
+
+      it "rejects an edit into a slot that another live invitation holds" $ \cfg -> do
+        _ <- insertInvitation cfg "other-tuesday" (slotJson "tuesday" [2] "08:00" 120) keep
+        invId <- insertInvitation cfg "edited-tuesday" (slotJson "tuesday" [4] "08:00" 120) keep
+        result <- runEditCheck cfg (Just invId) (slotJson "tuesday" [2] "09:00" 60) farFuture
+        expectValidationError
+          result
+          "Schedule conflict: Tuesday 09:00-10:00 overlaps with a pending invitation for other-tuesday@example.com"
+
       it "allows a slot that a show leaves before the start date" $ \cfg -> do
         bookShowUntil cfg Thursday (TimeOfDay 20 0 0) (TimeOfDay 22 0 0) farFuture
         onStart <- runCheck cfg (slotJson "thursday" weekly "20:00" 120) farFuture
@@ -140,11 +153,15 @@ slotJsonWithReplay day weeks start duration replay =
 parseSlot :: Aeson.Value -> IO (Maybe ParsedScheduleSlot)
 parseSlot json = either (fail . show) pure (parseInvitationSchedules json)
 
--- | Run the conflict check for this slot and start date.
+-- | Run the conflict check for a new invitation with this slot and start date.
 runCheck :: TestDBConfig -> Aeson.Value -> Day -> IO (Either HandlerError ())
-runCheck cfg json startsOn = do
+runCheck cfg = runEditCheck cfg Nothing
+
+-- | Run the conflict check for an edit of this invitation.
+runEditCheck :: TestDBConfig -> Maybe HostInvitation.Id -> Aeson.Value -> Day -> IO (Either HandlerError ())
+runEditCheck cfg edited json startsOn = do
   slot <- parseSlot json
-  bracketAppM cfg $ runExceptT (checkInvitationConflicts slot startsOn)
+  bracketAppM cfg $ runExceptT (checkInvitationConflicts edited slot startsOn)
 
 -- | Insert a pending invitation for @<name>@example.com@, then apply the change.
 insertInvitation ::

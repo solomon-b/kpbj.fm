@@ -107,7 +107,6 @@ import API.Dashboard.Invitations.Get.Handler qualified as Dashboard.Invitations.
 import API.Dashboard.Invitations.Id.Edit.Get.Handler qualified as Dashboard.Invitations.Id.Edit.Get
 import API.Dashboard.Invitations.Id.Edit.Post.Handler qualified as Dashboard.Invitations.Id.Edit.Post
 import API.Dashboard.Invitations.Id.Resend.Post.Handler qualified as Dashboard.Invitations.Id.Resend.Post
-import API.Dashboard.Invitations.Id.Row.Get.Handler qualified as Dashboard.Invitations.Id.Row.Get
 import API.Dashboard.Invitations.New.Get.Handler qualified as Dashboard.Invitations.New.Get
 import API.Dashboard.Invitations.New.Post.Handler qualified as Dashboard.Invitations.New.Post
 import API.Dashboard.Invitations.Regenerate.Handler qualified as Dashboard.Invitations.Regenerate
@@ -522,7 +521,6 @@ server =
         { list = Dashboard.Invitations.Get.handler,
           newGet = Dashboard.Invitations.New.Get.handler,
           newPost = Dashboard.Invitations.New.Post.handler,
-          rowGet = Dashboard.Invitations.Id.Row.Get.handler,
           editGet = Dashboard.Invitations.Id.Edit.Get.handler,
           editPost = Dashboard.Invitations.Id.Edit.Post.handler,
           resendPost = Dashboard.Invitations.Id.Resend.Post.handler,

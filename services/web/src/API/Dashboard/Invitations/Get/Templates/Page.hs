@@ -143,11 +143,12 @@ renderActions appBaseUrl invitation =
           $ do
             Lucid.span_ [xShow_ "!copied"] "Copy Link"
             Lucid.span_ [xShow_ "copied"] "Copied!"
-        -- Edit button
-        Lucid.button_
-          [ hxGet_ editGetUrl,
-            hxTarget_ rowSelector,
-            hxSwap_ "outerHTML",
+        -- Edit link
+        Lucid.a_
+          [ Lucid.href_ editGetUrl,
+            hxGet_ editGetUrl,
+            hxTarget_ "#main-content",
+            hxPushUrl_ "true",
             class_ $ base [Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, Tokens.bgAlt, Tokens.fgPrimary, "border", Tokens.borderMuted, "hover:opacity-80"]
           ]
           "Edit"
@@ -199,9 +200,7 @@ renderActions appBaseUrl invitation =
        in [i|/#{link}|]
 
     editGetUrl :: Text
-    editGetUrl =
-      let link = Links.linkURI $ dashboardInvitationsLinks.editGet invitation.mwcId
-       in [i|/#{link}|]
+    editGetUrl = rootLink $ dashboardInvitationsLinks.editGet invitation.mwcId
 
     resendUrl :: Text
     resendUrl =

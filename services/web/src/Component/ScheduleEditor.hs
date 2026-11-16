@@ -23,6 +23,7 @@ module Component.ScheduleEditor
 
     -- * Conversion
     schedulesToEditorJson,
+    slotToEditorJson,
   )
 where
 
@@ -37,7 +38,7 @@ import Data.Text.Encoding qualified as Text
 import Data.Time (TimeOfDay (..))
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
-import Domain.Types.Recurrence (frequencyLabel, recurrenceDay, recurrenceFromRow, weekNumbers)
+import Domain.Types.Recurrence (Recurrence, frequencyLabel, recurrenceDay, recurrenceFromRow, weekNumbers)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Lucid qualified
 import Lucid.Alpine
@@ -70,18 +71,38 @@ data ScheduleEditorData = ScheduleEditorData
 schedulesToEditorJson :: Maybe (ShowSchedule.ScheduleTemplate Result) -> Text
 schedulesToEditorJson Nothing = "null"
 schedulesToEditorJson (Just sched) =
+  slotToEditorJson
+    (recurrenceFromRow sched.stDayOfWeek sched.stWeeksOfMonth)
+    sched.stStartTime
+    sched.stEndTime
+    sched.stReplayStartTime
+
+-- | Convert one slot to Alpine.js editor JSON.
+--
+-- The show edit form and the invitation edit form both use this, so the editor
+-- reads one format.
+--
+-- Duration is computed as minutes between start and end times.
+slotToEditorJson ::
+  Recurrence ->
+  -- | Start time
+  TimeOfDay ->
+  -- | End time
+  TimeOfDay ->
+  -- | Replay start time
+  Maybe TimeOfDay ->
+  Text
+slotToEditorJson recurrence startTime endTime replayStartTime =
   Text.decodeUtf8 $ BSL.toStrict $ Aeson.encode editorSlot
   where
-    recurrence = recurrenceFromRow sched.stDayOfWeek sched.stWeeksOfMonth
-
     editorSlot =
       Aeson.object
         [ "frequency" Aeson..= frequencyLabel recurrence,
           "weeks" Aeson..= weekNumbers recurrence,
           "day" Aeson..= dayOfWeekToPostgres (recurrenceDay recurrence),
-          "time" Aeson..= Text.take 5 (Text.pack $ show sched.stStartTime),
-          "duration" Aeson..= computeDuration sched.stStartTime sched.stEndTime,
-          "replayTime" Aeson..= case sched.stReplayStartTime of
+          "time" Aeson..= Text.take 5 (Text.pack $ show startTime),
+          "duration" Aeson..= computeDuration startTime endTime,
+          "replayTime" Aeson..= case replayStartTime of
             Just rt -> Text.take 5 (Text.pack $ show rt)
             Nothing -> "" :: Text
         ]

@@ -3,6 +3,7 @@ module API.Dashboard.Invitations.Id.Edit.Get.Route where
 --------------------------------------------------------------------------------
 
 import Domain.Types.Cookie (Cookie)
+import Domain.Types.HxRequest (HxRequest)
 import Effects.Database.Tables.HostInvitation qualified as HostInvitation
 import Lucid qualified
 import Servant ((:>))
@@ -13,12 +14,12 @@ import Text.HTML (HTML)
 
 -- | "GET /dashboard/invitations/:invitationId/edit"
 --
--- Returns an inline edit-form row fragment for a pending invitation.
--- The row swaps over the normal row via HTMX outerHTML.
+-- The edit form page for a pending invitation.
 type Route =
   "dashboard"
     :> "invitations"
     :> Servant.Capture "invitationId" HostInvitation.Id
     :> "edit"
     :> Servant.Header "Cookie" Cookie
+    :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

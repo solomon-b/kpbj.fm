@@ -10,7 +10,7 @@ import Data.Aeson qualified as Aeson
 import Data.List qualified as List
 import Data.Text (Text)
 import Data.Time (Day, fromGregorian)
-import Domain.Types.EmailAddress (mkEmailAddress)
+import Domain.Types.EmailAddress (EmailAddress, mkEmailAddress)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.HostInvitation qualified as UUT
 import Effects.Database.Tables.User qualified as User
@@ -38,6 +38,8 @@ spec =
       runs 3 . it "getById reads a pending row past expires_at as Expired" $ hedgehog . prop_getByIdExpired
       runs 3 . it "getAllWithCreator reads a pending row past expires_at as Expired" $ hedgehog . prop_getAllWithCreatorExpired
       runs 3 . it "getLive excludes expired, revoked, and claimed rows" $ hedgehog . prop_getLiveExcludesDeadRows
+      runs 3 . it "updatePending writes the recipient, schedule, and start date" $ hedgehog . prop_updatePendingRoundTrip
+      runs 3 . it "updatePending skips expired, revoked, and claimed rows" $ hedgehog . prop_updatePendingSkipsDeadRows
 
 --------------------------------------------------------------------------------
 -- Helpers
@@ -144,7 +146,75 @@ prop_getLiveExcludesDeadRows cfg =
         Hedgehog.assert (liveId `elem` liveIds)
         filter (`elem` liveIds) deadIds === []
 
+prop_updatePendingRoundTrip :: TestDBConfig -> PropertyT IO ()
+prop_updatePendingRoundTrip cfg =
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    act $ do
+      token <- liftIO UUT.generateInviteCode
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        invId <- unwrapInsert (UUT.insert (mkInsert token userId))
+        mUpdated <- TRX.statement () (UUT.updatePending invId newEmail newSchedule newStartsOn)
+        mModel <- TRX.statement () (UUT.getById invId)
+        TRX.condemn
+        pure (mUpdated, mModel)
+      assert $ do
+        (mUpdated, mModel) <- assertRight result
+        updated <- assertJust mUpdated
+        model <- assertJust mModel
+        updated === model
+        model.hiRecipientEmail === newEmail
+        model.hiScheduleData === newSchedule
+        model.hiStartsOn === newStartsOn
+        model.hiToken === token
+        model.hiStatus === UUT.Pending
+
+prop_updatePendingSkipsDeadRows :: TestDBConfig -> PropertyT IO ()
+prop_updatePendingSkipsDeadRows cfg =
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    act $ do
+      tokens <- liftIO $ traverse (const UUT.generateInviteCode) [1 :: Int .. 3]
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        ids <- traverse (\t -> unwrapInsert (UUT.insert (mkInsert t userId))) tokens
+        case (ids, tokens) of
+          ([expiredId, revokedId, _claimedId], [_, _, claimedToken]) -> do
+            expireInvitation expiredId
+            _ <- TRX.statement () (UUT.revokeInvitation revokedId)
+            _ <- TRX.statement () (UUT.claimInvitation claimedToken userId)
+            updates <- traverse (\invId -> TRX.statement () (UUT.updatePending invId newEmail newSchedule newStartsOn)) ids
+            models <- traverse (TRX.statement () . UUT.getById) ids
+            TRX.condemn
+            pure (updates, models)
+          _ -> error "expected three invitations"
+      assert $ do
+        (updates, models) <- assertRight result
+        updates === [Nothing, Nothing, Nothing]
+        map (fmap (.hiStartsOn)) models === replicate 3 (Just testStartsOn)
+
 --------------------------------------------------------------------------------
+
+-- | The recipient that the update tests write.
+newEmail :: EmailAddress
+newEmail = mkEmailAddress "moved@example.com"
+
+-- | The schedule that the update tests write.
+newSchedule :: Aeson.Value
+newSchedule =
+  Aeson.toJSON
+    [ Aeson.object
+        [ "dayOfWeek" Aeson..= ("tuesday" :: Text),
+          "weeksOfMonth" Aeson..= ([1, 3] :: [Int]),
+          "startTime" Aeson..= ("20:00" :: Text),
+          "duration" Aeson..= (60 :: Int)
+        ]
+    ]
+
+-- | The start date that the update tests write.
+newStartsOn :: Day
+newStartsOn = fromGregorian 2027 2 1
 
 -- | An invitation insert with a fixed recipient, schedule, and start date.
 mkInsert :: UUT.Token -> User.Id -> UUT.Insert

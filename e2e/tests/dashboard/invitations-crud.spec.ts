@@ -4,7 +4,7 @@ import { STAFF_AUTH } from "../../playwright.config";
 // ---------------------------------------------------------------------------
 // Invitations CRUD tests
 //
-// Covers list, create, inline edit, resend, revoke, and regenerate for
+// Covers list, create, edit, resend, revoke, and regenerate for
 // host invitations. Uses STAFF_AUTH (only staff+ can manage invitations).
 //
 // The create form embeds an Alpine.js ScheduleEditor that's awkward to
@@ -58,13 +58,15 @@ const CRUD_SCHEDULE = [
   },
 ];
 
-// POST directly to the create endpoint. Server returns HX-Redirect on
-// success, or an OOB error banner on validation failure.
+// POST directly to the create endpoint, or to the edit endpoint of one
+// invitation. Server returns HX-Redirect on success, or an OOB error banner
+// on validation failure.
 async function postInvitation(
   page: Page,
   recipientEmail: string,
   schedule: object[],
   startDate: string,
+  postUrl: string = NEW_POST_URL,
 ): Promise<CreateResult> {
   const schedulesJson = JSON.stringify(schedule);
   return await page.evaluate(
@@ -83,7 +85,7 @@ async function postInvitation(
         body: await resp.text(),
       };
     },
-    { recipientEmail, schedulesJson, startDate, postUrl: NEW_POST_URL },
+    { recipientEmail, schedulesJson, startDate, postUrl },
   );
 }
 
@@ -257,10 +259,10 @@ test.describe("Invitations CRUD", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Inline edit
+  // Edit page
   // -------------------------------------------------------------------------
 
-  test("inline edit updates recipient email", async ({ page }) => {
+  test("edit page saves a new recipient email", async ({ page }) => {
     const origEmail = `e2e-edit-${Date.now()}@example.com`;
     const newEmail = `e2e-edit-${Date.now()}-updated@example.com`;
 
@@ -268,68 +270,109 @@ test.describe("Invitations CRUD", () => {
     await createInvitation(page, origEmail);
     await page.goto(LIST_URL);
 
-    const row = rowForRecipient(page, origEmail);
-    await row.getByRole("button", { name: /^Edit$/ }).click();
+    await rowForRecipient(page, origEmail)
+      .getByRole("link", { name: /^Edit$/ })
+      .click();
 
-    // After the row swap the input is in place of the row cells.
+    // The form shows the stored email. The schedule editor holds the stored
+    // slot and start date, so a save with no schedule change must pass.
+    await expect(page.getByText(/EDIT HOST INVITATION/i)).toBeVisible();
     const emailInput = page.locator('input[name="recipient_email"]');
-    await expect(emailInput).toBeVisible();
+    await expect(emailInput).toHaveValue(origEmail);
+    await expect(
+      page.locator('input[name="schedule_start_date"]'),
+    ).toHaveValue(DEFAULT_START);
     await emailInput.fill(newEmail);
-    await page.getByRole("button", { name: /^SAVE$/ }).click();
+    await page.getByRole("button", { name: /SAVE INVITATION/i }).click();
 
-    // Server returns the new row + OOB banner.
-    await expect(page.getByText(/Recipient email saved/i)).toBeVisible();
-    await expect(rowForRecipient(page, newEmail)).toBeVisible();
+    // The server redirects to the list with a flash message.
+    await expect(page.getByText(/Invitation updated/i)).toBeVisible();
+    const row = rowForRecipient(page, newEmail);
+    await expect(row).toBeVisible();
+    await expect(row).toContainText(listDate(DEFAULT_START));
 
     // Cleanup
     page.on("dialog", (d) => d.accept());
-    await rowForRecipient(page, newEmail)
-      .getByRole("button", { name: /Revoke/i })
-      .click();
-    await expect(rowForRecipient(page, newEmail)).toBeHidden();
+    await row.getByRole("button", { name: /Revoke/i }).click();
+    await expect(row).toBeHidden();
   });
 
-  test("inline edit cancel restores the original row", async ({ page }) => {
+  test("edit changes the schedule and the start date", async ({ page }) => {
+    const email = `e2e-edit-schedule-${Date.now()}@example.com`;
+    const newStart = isoDate(35);
+    await page.goto(NEW_URL);
+    await createInvitation(page, email);
+    await page.goto(LIST_URL);
+
+    // The new slot is inside the old slot of the same invitation. The
+    // conflict check must ignore the invitation that the edit changes.
+    const editUrl = await rowForRecipient(page, email)
+      .getByRole("link", { name: /^Edit$/ })
+      .getAttribute("href");
+    expect(editUrl).toMatch(/^\/dashboard\/invitations\/\d+\/edit$/);
+    const result = await postInvitation(
+      page,
+      email,
+      [{ ...CRUD_SCHEDULE[0], weeksOfMonth: [1, 3] }],
+      newStart,
+      editUrl!,
+    );
+    expect(result.hxRedirect).toBe(LIST_URL);
+
+    await page.goto(LIST_URL);
+    const row = rowForRecipient(page, email);
+    await expect(row).toContainText("1st & 3rd");
+    await expect(row).toContainText(listDate(newStart));
+
+    // Cleanup
+    page.on("dialog", (d) => d.accept());
+    await row.getByRole("button", { name: /Revoke/i }).click();
+    await expect(row).toBeHidden();
+  });
+
+  test("edit cancel returns to the list", async ({ page }) => {
     const email = `e2e-edit-cancel-${Date.now()}@example.com`;
     await page.goto(NEW_URL);
     await createInvitation(page, email);
     await page.goto(LIST_URL);
 
-    const row = rowForRecipient(page, email);
-    await row.getByRole("button", { name: /^Edit$/ }).click();
+    await rowForRecipient(page, email)
+      .getByRole("link", { name: /^Edit$/ })
+      .click();
     await expect(
       page.locator('input[name="recipient_email"]'),
     ).toBeVisible();
-    await page.getByRole("button", { name: /^CANCEL$/ }).click();
+    await page.getByRole("link", { name: /^CANCEL$/ }).click();
 
-    // The normal row fragment comes back; Edit button visible again.
-    await expect(
-      rowForRecipient(page, email).getByRole("button", { name: /^Edit$/ }),
-    ).toBeVisible();
+    // The list comes back with the row as it was.
+    const row = rowForRecipient(page, email);
+    await expect(row.getByRole("link", { name: /^Edit$/ })).toBeVisible();
 
     // Cleanup
     page.on("dialog", (d) => d.accept());
-    await rowForRecipient(page, email)
-      .getByRole("button", { name: /Revoke/i })
-      .click();
-    await expect(rowForRecipient(page, email)).toBeHidden();
+    await row.getByRole("button", { name: /Revoke/i }).click();
+    await expect(row).toBeHidden();
   });
 
-  test("inline edit rejects existing-user email", async ({ page }) => {
+  test("edit rejects existing-user email", async ({ page }) => {
     const email = `e2e-edit-existing-${Date.now()}@example.com`;
     await page.goto(NEW_URL);
     await createInvitation(page, email);
     await page.goto(LIST_URL);
 
-    const row = rowForRecipient(page, email);
-    await row.getByRole("button", { name: /^Edit$/ }).click();
+    await rowForRecipient(page, email)
+      .getByRole("link", { name: /^Edit$/ })
+      .click();
     await page
       .locator('input[name="recipient_email"]')
       .fill("listener@example.com");
-    await page.getByRole("button", { name: /^SAVE$/ }).click();
+    await page.getByRole("button", { name: /SAVE INVITATION/i }).click();
 
-    // Error banner appears.
-    await expect(page.getByText(/existing KPBJ account/i)).toBeVisible();
+    // Error banner appears. The field hint also names an existing KPBJ
+    // account, so the text must be that of the banner.
+    await expect(
+      page.getByText(/That email belongs to an existing KPBJ account/i),
+    ).toBeVisible();
 
     // Cleanup — full reload, then revoke the row.
     await page.goto(LIST_URL);

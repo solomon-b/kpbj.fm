@@ -1,121 +1,79 @@
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ViewPatterns #-}
 
-module API.Dashboard.Invitations.Id.Edit.Get.Handler (handler, renderEditRow) where
+module API.Dashboard.Invitations.Id.Edit.Get.Handler (handler) where
 
 --------------------------------------------------------------------------------
 
+import API.Dashboard.Invitations.Id.Edit.Get.Templates.Form (template)
+import API.Dashboard.Shows.Slug.Edit.Post.Handler (ParsedScheduleSlot (..))
+import API.Invite.Token.Post.Handler (parseInvitationSchedules)
 import API.Links (dashboardInvitationsLinks)
 import API.Types (DashboardInvitationsRoutes (..))
+import App.Common (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
-import App.Handler.Error (handleBannerErrors, throwDatabaseError, throwNotFound, throwValidationError)
+import App.Handler.Error (handleHtmlErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import App.Monad (AppM)
-import Data.String.Interpolate (i)
+import Component.DashboardFrame (DashboardNav (..))
+import Component.ScheduleEditor (ScheduleEditorData (..), slotToEditorJson)
+import Control.Monad.Trans (lift)
 import Data.Text (Text)
-import Data.Text.Display (display)
-import Design (base, class_)
-import Design.Tokens qualified as Tokens
+import Data.Text qualified as Text
+import Data.Time (Day, showGregorian)
 import Domain.Types.Cookie (Cookie)
-import Domain.Types.EmailAddress (EmailAddress)
+import Domain.Types.HxRequest (HxRequest, foldHxReq)
+import Domain.Types.Timezone (pacificDay)
+import Effects.Clock (currentSystemTime)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.HostInvitation qualified as HostInvitation
 import Lucid qualified
-import Lucid.HTMX
-import Servant.Links qualified as Links
 import Utils (fromRightM)
-
---------------------------------------------------------------------------------
-
--- | Total number of columns rendered by 'renderInvitationRow'.
---
--- Schedule, Recipient, Status, Created By, Expires, Actions = 6.
-rowColumnCount :: Int
-rowColumnCount = 7
 
 --------------------------------------------------------------------------------
 
 -- | Handler for GET /dashboard/invitations/:invitationId/edit.
 --
--- Returns an inline edit-form row fragment for the given pending invitation.
+-- Shows the edit form for a pending invitation, with its recipient, its
+-- schedule, and its start date filled in.
 handler ::
   HostInvitation.Id ->
   Maybe Cookie ->
+  Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler invitationId cookie =
-  handleBannerErrors "Edit invitation form" $ do
+handler invitationId cookie (foldHxReq -> hxRequest) =
+  handleHtmlErrors "Edit invitation form" dashboardInvitationsLinks.list $ do
     (_user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "Only staff can edit invitations." userMetadata
+
     inv <- fromRightM throwDatabaseError $ execQuery (HostInvitation.getById invitationId)
-    case inv of
+    invitation <- case inv of
       Nothing -> throwNotFound "Invitation"
       Just m
         | m.hiStatus /= HostInvitation.Pending ->
             throwValidationError "Only pending invitations can be edited."
-        | otherwise ->
-            pure (renderEditRow m.hiId m.hiRecipientEmail)
+        | otherwise -> pure m
+
+    slot <- either throwValidationError pure (parseInvitationSchedules invitation.hiScheduleData)
+    today <- pacificDay <$> lift currentSystemTime
+    let editorData =
+          ScheduleEditorData
+            { sedExistingJson = maybe "null" slotEditorJson slot,
+              sedStartDate = dateText invitation.hiStartsOn,
+              -- A stored start date can be in the past. The picker must accept
+              -- it, or the browser refuses to submit the form.
+              sedMinDate = dateText (min today invitation.hiStartsOn)
+            }
+    lift $
+      renderDashboardTemplate hxRequest userMetadata [] Nothing NavInvitations Nothing Nothing $
+        template invitation.hiId invitation.hiRecipientEmail editorData
 
 --------------------------------------------------------------------------------
 
--- | Render an inline edit-form @\<tr\>@ for an invitation.
---
--- Replaces the normal row in-place via HTMX. Save targets the edit POST;
--- Cancel targets the row-get fragment.
-renderEditRow ::
-  HostInvitation.Id ->
-  EmailAddress ->
-  Lucid.Html ()
-renderEditRow invitationId currentEmail =
-  Lucid.tr_
-    [ Lucid.id_ rowId,
-      class_ $ base ["border-b-2", Tokens.borderMuted]
-    ]
-    $ Lucid.td_
-      [ Lucid.colspan_ (display rowColumnCount),
-        class_ $ base [Tokens.p4]
-      ]
-    $ Lucid.div_ [class_ $ base ["flex", "gap-2", "items-center"]]
-    $ do
-      Lucid.input_
-        [ Lucid.type_ "email",
-          Lucid.name_ "recipient_email",
-          Lucid.value_ (display currentEmail),
-          Lucid.required_ "required",
-          class_ $ base ["flex-1", Tokens.px3, "py-1", Tokens.textSm, Tokens.bgAlt, Tokens.fgPrimary, "border", Tokens.borderMuted]
-        ]
-      Lucid.button_
-        [ hxPost_ editPostUrl,
-          hxInclude_ saveIncludeSelector,
-          hxTarget_ rowSelector,
-          hxSwap_ "outerHTML",
-          class_ $ base [Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, Tokens.successBg, Tokens.successText, "border", Tokens.borderMuted, "hover:opacity-80"]
-        ]
-        "SAVE"
-      Lucid.button_
-        [ hxGet_ rowGetUrl,
-          hxTarget_ rowSelector,
-          hxSwap_ "outerHTML",
-          class_ $ base [Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, Tokens.bgAlt, Tokens.fgPrimary, "border", Tokens.borderMuted, "hover:opacity-80"]
-        ]
-        "CANCEL"
-  where
-    invitationIdText :: Text
-    invitationIdText = display invitationId
+-- | The stored slot in the JSON format that the schedule editor reads.
+slotEditorJson :: ParsedScheduleSlot -> Text
+slotEditorJson slot =
+  slotToEditorJson (pssRecurrence slot) (pssStart slot) (pssEnd slot) (pssReplayStartTime slot)
 
-    rowId :: Text
-    rowId = "invitation-row-" <> invitationIdText
-
-    rowSelector :: Text
-    rowSelector = "#" <> rowId
-
-    saveIncludeSelector :: Text
-    saveIncludeSelector = rowSelector <> " input[name='recipient_email']"
-
-    editPostUrl :: Text
-    editPostUrl =
-      let link = Links.linkURI $ dashboardInvitationsLinks.editPost invitationId
-       in [i|/#{link}|]
-
-    rowGetUrl :: Text
-    rowGetUrl =
-      let link = Links.linkURI $ dashboardInvitationsLinks.rowGet invitationId
-       in [i|/#{link}|]
+-- | A date in the @YYYY-MM-DD@ format of the date picker.
+dateText :: Day -> Text
+dateText = Text.pack . showGregorian
