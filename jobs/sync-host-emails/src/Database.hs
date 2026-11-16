@@ -7,25 +7,18 @@
 --
 -- These are intentionally slim — only the columns needed for the sync query.
 module Database
-  ( -- * Connection
-    withConnection,
-
-    -- * Query
+  ( -- * Query
     fetchHostEmails,
   )
 where
 
 --------------------------------------------------------------------------------
 
-import Control.Exception (bracket)
 import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Time (UTCTime)
 import GHC.Generics (Generic)
-import Hasql.Connection qualified as Connection
-import Hasql.Connection.Setting qualified as Setting
-import Hasql.Connection.Setting.Connection qualified as Setting.Connection
-import Hasql.Session qualified as Session
+import Hasql.Statement qualified as Hasql
 import Rel8
 
 --------------------------------------------------------------------------------
@@ -91,18 +84,6 @@ showHostsSchema =
     }
 
 --------------------------------------------------------------------------------
--- Connection
-
--- | Connect to the database and run an action, releasing the connection after.
-withConnection :: Text -> (Connection.Connection -> IO a) -> IO (Either String a)
-withConnection dbUrl action = do
-  connResult <- Connection.acquire [Setting.connection (Setting.Connection.string dbUrl)]
-  case connResult of
-    Left err -> pure $ Left $ "Failed to connect to database: " <> show err
-    Right conn ->
-      Right <$> bracket (pure conn) Connection.release action
-
---------------------------------------------------------------------------------
 -- Query
 
 -- | Fetch distinct emails for all users considered "hosts".
@@ -113,11 +94,8 @@ withConnection dbUrl action = do
 -- - They are actively assigned to a show via @show_hosts@ (where @left_at IS NULL@).
 --
 -- Only non-deleted users are included.
-fetchHostEmails :: Session.Session [Text]
-fetchHostEmails =
-  Session.statement () $
-    run $
-      select hostEmailsQuery
+fetchHostEmails :: Hasql.Statement () [Text]
+fetchHostEmails = run $ select hostEmailsQuery
 
 -- | rel8 query: distinct emails of active hosts.
 hostEmailsQuery :: Query (Expr Text)

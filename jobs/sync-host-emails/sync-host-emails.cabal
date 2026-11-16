@@ -49,11 +49,12 @@ executable sync-host-emails
   main-is:          Main.hs
   build-depends:    base
                   , aeson
-                  , hasql
+                  , kpbj-job
                   , log-base
                   , optparse-applicative
                   , sync-host-emails
                   , text
+                  , web-server-core
   hs-source-dirs:   .
   ghc-options:      -Wall -threaded -fwrite-ide-info
 
