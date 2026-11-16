@@ -21,8 +21,8 @@ module Main (main) where
 
 --------------------------------------------------------------------------------
 
-import Control.Exception (SomeException, bracket, try)
-import Control.Monad (forM_, when)
+import Control.Exception (SomeException, try)
+import Control.Monad (forM_, void, when)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
@@ -36,13 +36,10 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Domain.Types.EmailAddress (EmailAddress)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.NewsletterSubscribers qualified as NewsletterSubscribers
-import Hasql.Connection qualified as Connection
-import Hasql.Connection.Setting qualified as Setting
-import Hasql.Connection.Setting.Connection qualified as Setting.Connection
-import Hasql.Session qualified as Session
+import Job (JobM, exitWithError, requireEnv, runJob)
 import Log qualified
-import Log.Backend.StandardOutput qualified as Log
 import Mailchimp.Client (MailchimpClient (..), MailchimpError (..), mkClient)
 import Mailchimp.Config (MailchimpApiKey (..), MailchimpAudienceId (..))
 import Mailchimp.Types
@@ -53,9 +50,7 @@ import Mailchimp.Types
   )
 import Network.HTTP.Client.TLS qualified as TLS
 import Options.Applicative
-import System.Environment (lookupEnv)
 import System.Exit (exitFailure)
-import System.IO (hPutStrLn, stderr)
 
 --------------------------------------------------------------------------------
 
@@ -85,50 +80,24 @@ main = do
               <> progDesc "Reconcile Mailchimp audience with newsletter_subscribers."
           )
       )
-  mDbUrl <- lookupEnv "DATABASE_URL"
-  mApiKey <- lookupEnv "MAILCHIMP_API_KEY"
-  mAudienceId <- lookupEnv "MAILCHIMP_AUDIENCE_ID"
-  case (mDbUrl, mApiKey, mAudienceId) of
-    (Nothing, _, _) -> die "DATABASE_URL environment variable is required"
-    (_, Nothing, _) -> die "MAILCHIMP_API_KEY environment variable is required"
-    (_, _, Nothing) -> die "MAILCHIMP_AUDIENCE_ID environment variable is required"
-    (Just dbUrl, Just apiKey, Just audienceId) -> do
-      mgr <- TLS.newTlsManager
-      let mcKey = MailchimpApiKey (BS8.pack apiKey)
-          mcAudience = MailchimpAudienceId (Text.pack audienceId)
-      client <- case mkClient mgr mcKey mcAudience of
-        Left err -> die [i|Failed to construct Mailchimp client: #{Text.unpack err}|]
-        Right c -> pure c
-      connResult <-
-        Connection.acquire
-          [Setting.connection (Setting.Connection.string (Text.pack dbUrl))]
-      case connResult of
-        Left err -> die [i|Failed to connect to database: #{show err}|]
-        Right conn ->
-          bracket (pure conn) Connection.release $ \c ->
-            Log.withStdOutLogger $ \logger ->
-              Log.runLogT "mailchimp-reconcile" logger Log.LogInfo $
-                runCommand c client cmd
-
--- | Print an error to stderr and exit with a non-zero status.
-die :: String -> IO a
-die msg = do
-  hPutStrLn stderr [i|ERROR: #{msg}|]
-  exitFailure
+  apiKey <- requireEnv "MAILCHIMP_API_KEY"
+  audienceId <- requireEnv "MAILCHIMP_AUDIENCE_ID"
+  mgr <- TLS.newTlsManager
+  let mcKey = MailchimpApiKey (BS8.pack apiKey)
+      mcAudience = MailchimpAudienceId (Text.pack audienceId)
+  client <- case mkClient mgr mcKey mcAudience of
+    Left err -> exitWithError [i|Failed to construct Mailchimp client: #{Text.unpack err}|]
+    Right c -> pure c
+  runJob "mailchimp-reconcile" (runCommand client cmd)
 
 --------------------------------------------------------------------------------
 -- Command dispatch
 
 -- | Dispatch on the parsed 'Command'.
-runCommand ::
-  (MonadIO m, Log.MonadLog m) =>
-  Connection.Connection ->
-  MailchimpClient ->
-  Command ->
-  m ()
-runCommand conn client = \case
-  Bootstrap -> runBootstrap conn client
-  Reconcile -> runReconcile conn client
+runCommand :: MailchimpClient -> Command -> JobM ()
+runCommand client = \case
+  Bootstrap -> runBootstrap client
+  Reconcile -> runReconcile client
 
 --------------------------------------------------------------------------------
 -- Bootstrap mode
@@ -136,12 +105,8 @@ runCommand conn client = \case
 -- | Pull every @subscribed@ Mailchimp member into Postgres.
 --
 -- Skips conflicts on email so this can be re-run safely.
-runBootstrap ::
-  (MonadIO m, Log.MonadLog m) =>
-  Connection.Connection ->
-  MailchimpClient ->
-  m ()
-runBootstrap conn client = do
+runBootstrap :: MailchimpClient -> JobM ()
+runBootstrap client = do
   Log.logInfo_ "Bootstrap: fetching Mailchimp members"
   members <- fetchAllMembers client
   let isSubscribed Member {mStatus} = mStatus == Subscribed
@@ -151,7 +116,7 @@ runBootstrap conn client = do
       [ "total" .= length members,
         "subscribed" .= length subscribed
       ]
-  (inserted, skipped) <- foldInsertCounts conn subscribed
+  (inserted, skipped) <- foldInsertCounts subscribed
   Log.logInfo "Bootstrap: complete" $
     Aeson.object
       [ "inserted" .= inserted,
@@ -161,46 +126,27 @@ runBootstrap conn client = do
 -- | Insert each member via 'upsertFromMailchimp', counting fresh inserts vs
 -- conflicts. Errors crash the job because bootstrap is rare and we want
 -- loud failures.
-foldInsertCounts ::
-  (MonadIO m, Log.MonadLog m) =>
-  Connection.Connection ->
-  [Member] ->
-  m (Int, Int)
-foldInsertCounts conn = go (0, 0)
+foldInsertCounts :: [Member] -> JobM (Int, Int)
+foldInsertCounts = go (0, 0)
   where
     go acc [] = pure acc
-    go (!ins, !skip) (Member {mEmailAddress, mId} : rest) = do
-      let stmt =
-            Session.statement () $
-              NewsletterSubscribers.upsertFromMailchimp
-                mEmailAddress
-                mId
-                "subscribed"
-      result <- liftIO $ try @SomeException $ Session.run stmt conn
-      case result of
-        Left e -> do
-          Log.logAttention "Bootstrap upsert raised" $
-            Aeson.object ["email" .= display mEmailAddress, "error" .= show e]
-          liftIO exitFailure
-        Right (Left sessionErr) -> do
+    go (!ins, !skip) (Member {mEmailAddress, mId} : rest) =
+      execQuery (NewsletterSubscribers.upsertFromMailchimp mEmailAddress mId "subscribed") >>= \case
+        Left err -> do
           Log.logAttention "Bootstrap upsert session error" $
             Aeson.object
-              ["email" .= display mEmailAddress, "error" .= show sessionErr]
+              ["email" .= display mEmailAddress, "error" .= show err]
           liftIO exitFailure
-        Right (Right Nothing) -> go (ins, skip + 1) rest
-        Right (Right (Just _)) -> go (ins + 1, skip) rest
+        Right Nothing -> go (ins, skip + 1) rest
+        Right (Just _) -> go (ins + 1, skip) rest
 
 --------------------------------------------------------------------------------
 -- Reconcile mode
 
 -- | Compare every Mailchimp member against every Postgres row and apply
 -- the divergence rules described in the module header.
-runReconcile ::
-  (MonadIO m, Log.MonadLog m) =>
-  Connection.Connection ->
-  MailchimpClient ->
-  m ()
-runReconcile conn client = do
+runReconcile :: MailchimpClient -> JobM ()
+runReconcile client = do
   Log.logInfo_ "Reconcile: fetching Mailchimp members"
   mcMembers <- fetchAllMembers client
   -- 'EmailAddress' is not in 'Ord', so we key by the displayed Text.
@@ -214,7 +160,7 @@ runReconcile conn client = do
     Aeson.object ["mc_members" .= Map.size mcByEmail]
 
   Log.logInfo_ "Reconcile: streaming Postgres subscribers"
-  pgRows <- streamPgSubscribers conn
+  pgRows <- streamPgSubscribers
   Log.logInfo "Reconcile: Postgres side ready" $
     Aeson.object ["pg_rows" .= length pgRows]
 
@@ -225,7 +171,7 @@ runReconcile conn client = do
         Set.fromList (map (display . NewsletterSubscribers.mEmail) pgRows)
 
   (pushedN, removedN, errorsN) <-
-    foldPgRows conn client mcByEmail pgRows
+    foldPgRows client mcByEmail pgRows
 
   -- Walk MC: log MC-only memberships.
   let mcOnly =
@@ -249,13 +195,11 @@ runReconcile conn client = do
 
 -- | Walk the Postgres rows and apply each divergence rule.
 foldPgRows ::
-  (MonadIO m, Log.MonadLog m) =>
-  Connection.Connection ->
   MailchimpClient ->
   Map Text (EmailAddress, Text, MemberStatus) ->
   [NewsletterSubscribers.Model] ->
-  m (Int, Int, Int)
-foldPgRows conn client mcByEmail = go (0, 0, 0)
+  JobM (Int, Int, Int)
+foldPgRows client mcByEmail = go (0, 0, 0)
   where
     go acc [] = pure acc
     go (!pushed, !removed, !errors) (row : rest) =
@@ -267,7 +211,7 @@ foldPgRows conn client mcByEmail = go (0, 0, 0)
        in case mcEntry of
             Nothing -> do
               -- PG-only: push to MC.
-              didPush <- pushUpsert conn client email subId
+              didPush <- pushUpsert client email subId
               go
                 ( if didPush then pushed + 1 else pushed,
                   removed,
@@ -276,7 +220,7 @@ foldPgRows conn client mcByEmail = go (0, 0, 0)
                 rest
             Just (_, _, Unsubscribed) -> do
               -- MC says opted out: hard-delete the local row.
-              didDelete <- deletePgRow conn email subId
+              didDelete <- deletePgRow email subId
               go
                 ( pushed,
                   if didDelete then removed + 1 else removed,
@@ -285,7 +229,7 @@ foldPgRows conn client mcByEmail = go (0, 0, 0)
                 rest
             Just (_, _, Cleaned) -> do
               -- Hard bounce: same handling as Unsubscribed.
-              didDelete <- deletePgRow conn email subId
+              didDelete <- deletePgRow email subId
               go
                 ( pushed,
                   if didDelete then removed + 1 else removed,
@@ -297,7 +241,7 @@ foldPgRows conn client mcByEmail = go (0, 0, 0)
                   || isNothing rowStatus
                   || rowMemberId /= Just mcId -> do
                   -- Sync metadata is wrong or stale: re-push to MC.
-                  didPush <- pushUpsert conn client email subId
+                  didPush <- pushUpsert client email subId
                   go
                     ( if didPush then pushed + 1 else pushed,
                       removed,
@@ -308,83 +252,56 @@ foldPgRows conn client mcByEmail = go (0, 0, 0)
 
 -- | Run an upsert outbound and stamp the row with the response.
 pushUpsert ::
-  (MonadIO m, Log.MonadLog m) =>
-  Connection.Connection ->
   MailchimpClient ->
   EmailAddress ->
   NewsletterSubscribers.Id ->
-  m Bool
-pushUpsert conn MailchimpClient {..} email subId = do
+  JobM Bool
+pushUpsert MailchimpClient {..} email subId = do
   result <- liftIO $ try @SomeException (mcUpsertMember email)
   case result of
     Left e -> do
       Log.logAttention "Reconcile upsert raised" $
         Aeson.object ["email" .= display email, "error" .= show e]
-      _ <- liftIO $ try @SomeException $ Session.run (markErrorStmt subId) conn
+      void $ execQuery (NewsletterSubscribers.markError subId)
       pure False
     Right (Left (MailchimpError clientErr)) -> do
       Log.logAttention "Reconcile upsert failed" $
         Aeson.object ["email" .= display email, "error" .= show clientErr]
-      _ <- liftIO $ try @SomeException $ Session.run (markErrorStmt subId) conn
+      void $ execQuery (NewsletterSubscribers.markError subId)
       pure False
-    Right (Right Member {mId, mStatus}) -> do
-      let stmt = markSyncedStmt subId mId (memberStatusTag mStatus)
-      runResult <- liftIO $ try @SomeException $ Session.run stmt conn
-      case runResult of
-        Left e -> do
-          Log.logAttention "Reconcile markSynced raised" $
-            Aeson.object ["email" .= display email, "error" .= show e]
-          pure False
-        Right (Left sessionErr) -> do
+    Right (Right Member {mId, mStatus}) ->
+      execQuery (NewsletterSubscribers.markSynced subId mId (memberStatusTag mStatus)) >>= \case
+        Left err -> do
           Log.logAttention "Reconcile markSynced session error" $
-            Aeson.object ["email" .= display email, "error" .= show sessionErr]
+            Aeson.object ["email" .= display email, "error" .= show err]
           pure False
-        Right (Right ()) -> do
+        Right () -> do
           Log.logInfo "Reconcile pushed upsert" $
             Aeson.object ["email" .= display email]
           pure True
 
 -- | Delete the local row.
-deletePgRow ::
-  (MonadIO m, Log.MonadLog m) =>
-  Connection.Connection ->
-  EmailAddress ->
-  NewsletterSubscribers.Id ->
-  m Bool
-deletePgRow conn email subId = do
-  let stmt = Session.statement () (NewsletterSubscribers.deleteById subId)
-  result <- liftIO $ try @SomeException $ Session.run stmt conn
-  case result of
-    Left e -> do
-      Log.logAttention "Reconcile delete raised" $
-        Aeson.object ["email" .= display email, "error" .= show e]
-      pure False
-    Right (Left sessionErr) -> do
+deletePgRow :: EmailAddress -> NewsletterSubscribers.Id -> JobM Bool
+deletePgRow email subId =
+  execQuery (NewsletterSubscribers.deleteById subId) >>= \case
+    Left err -> do
       Log.logAttention "Reconcile delete session error" $
-        Aeson.object ["email" .= display email, "error" .= show sessionErr]
+        Aeson.object ["email" .= display email, "error" .= show err]
       pure False
-    Right (Right _) -> do
+    Right _ -> do
       Log.logInfo "Reconcile removed PG row (Mailchimp opted out)" $
         Aeson.object ["email" .= display email]
       pure True
 
 -- | Pull every row from @newsletter_subscribers@ in id order.
-streamPgSubscribers ::
-  (MonadIO m, Log.MonadLog m) =>
-  Connection.Connection ->
-  m [NewsletterSubscribers.Model]
-streamPgSubscribers conn = do
-  let stmt = Session.statement () NewsletterSubscribers.streamAll
-  result <- liftIO $ try @SomeException $ Session.run stmt conn
-  case result of
-    Left e -> do
-      Log.logAttention "streamAll raised" $ Aeson.object ["error" .= show e]
-      liftIO exitFailure
-    Right (Left sessionErr) -> do
+streamPgSubscribers :: JobM [NewsletterSubscribers.Model]
+streamPgSubscribers =
+  execQuery NewsletterSubscribers.streamAll >>= \case
+    Left err -> do
       Log.logAttention "streamAll session error" $
-        Aeson.object ["error" .= show sessionErr]
+        Aeson.object ["error" .= show err]
       liftIO exitFailure
-    Right (Right rows) -> pure rows
+    Right rows -> pure rows
 
 --------------------------------------------------------------------------------
 -- Mailchimp paging
@@ -418,21 +335,3 @@ fetchAllMembers MailchimpClient {..} = go 0 []
           if nextOffset >= lmrTotalItems || null lmrMembers
             then pure nextAcc
             else go nextOffset nextAcc
-
---------------------------------------------------------------------------------
--- Statement constructors (re-exposed)
-
--- | Wrap 'NewsletterSubscribers.markSynced' in a 'Session.statement ()'.
-markSyncedStmt ::
-  NewsletterSubscribers.Id ->
-  Text ->
-  Text ->
-  Session.Session ()
-markSyncedStmt subId memberId status =
-  Session.statement () (NewsletterSubscribers.markSynced subId memberId status)
-
--- | Wrap 'NewsletterSubscribers.markError' in a 'Session.statement ()'.
-markErrorStmt :: NewsletterSubscribers.Id -> Session.Session ()
-markErrorStmt subId =
-  Session.statement () (NewsletterSubscribers.markError subId)
-
