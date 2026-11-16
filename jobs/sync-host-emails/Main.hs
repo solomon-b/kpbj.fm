@@ -9,13 +9,12 @@ import Data.Aeson qualified as Aeson
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Database qualified
+import Effects.Database.Execute (execQuery)
 import GoogleGroups
-import Hasql.Session qualified as Session
+import Job (runJob)
 import Log qualified
-import Log.Backend.StandardOutput qualified as Log
 import Options.Applicative
 import Sync (SyncPlan (..), computeSyncPlan)
-import System.Environment (lookupEnv)
 import System.Exit (exitFailure)
 
 --------------------------------------------------------------------------------
@@ -40,79 +39,64 @@ optionsParser =
 main :: IO ()
 main = do
   opts <- execParser (info (optionsParser <**> helper) (fullDesc <> progDesc "Sync host email membership"))
-  Log.withStdOutLogger $ \logger ->
-    Log.runLogT "sync-host-emails" logger Log.LogInfo $ do
-      let ggConfig =
-            GoogleGroupsConfig
-              { ggSaEmail = Text.pack (optSaEmail opts),
-                ggSaKey = Text.pack (optSaPrivateKey opts),
-                ggDelegatedUser = Text.pack (optDelegatedUser opts),
-                ggGroupEmail = Text.pack (optGroupEmail opts)
-              }
-          groupEmail = Text.pack (optGroupEmail opts)
-          dryRun = optDryRun opts
+  runJob "sync-host-emails" $ do
+    let ggConfig =
+          GoogleGroupsConfig
+            { ggSaEmail = Text.pack (optSaEmail opts),
+              ggSaKey = Text.pack (optSaPrivateKey opts),
+              ggDelegatedUser = Text.pack (optDelegatedUser opts),
+              ggGroupEmail = Text.pack (optGroupEmail opts)
+            }
+        groupEmail = Text.pack (optGroupEmail opts)
+        dryRun = optDryRun opts
 
-      when dryRun $
-        Log.logInfo "Running in dry-run mode" ()
+    when dryRun $
+      Log.logInfo "Running in dry-run mode" ()
 
-      -- Acquire a single OAuth2 token for all API calls
-      Log.logInfo "Acquiring Google API token" ()
-      token <- case' =<< liftIO (acquireToken ggConfig)
+    -- Acquire a single OAuth2 token for all API calls
+    Log.logInfo "Acquiring Google API token" ()
+    token <- case' =<< liftIO (acquireToken ggConfig)
 
-      -- Fetch Google Group members
-      Log.logInfo "Fetching Google Group members" ()
-      groupMembers <- case' =<< liftIO (listGroupMembers token groupEmail)
-      Log.logInfo "Found Google Group members" $ Aeson.object ["count" .= length groupMembers]
+    -- Fetch Google Group members
+    Log.logInfo "Fetching Google Group members" ()
+    groupMembers <- case' =<< liftIO (listGroupMembers token groupEmail)
+    Log.logInfo "Found Google Group members" $ Aeson.object ["count" .= length groupMembers]
 
-      -- Fetch host emails from the database
-      Log.logInfo "Fetching host emails from database" ()
-      mDbUrl <- liftIO $ lookupEnv "DATABASE_URL"
-      dbUrl <- case mDbUrl of
-        Nothing -> do
-          Log.logAttention "DATABASE_URL environment variable is required" ()
-          liftIO exitFailure
-        Just url -> pure (Text.pack url)
-
-      hostEmails <-
-        liftIO $
-          Database.withConnection dbUrl $ \conn ->
-            Session.run Database.fetchHostEmails conn
-
-      emails <- case hostEmails of
+    -- Fetch host emails from the database
+    Log.logInfo "Fetching host emails from database" ()
+    emails <-
+      execQuery Database.fetchHostEmails >>= \case
         Left err -> do
-          Log.logAttention "Database connection error" $ Aeson.object ["error" .= err]
+          Log.logAttention "Database query failed" $ Aeson.object ["error" .= show err]
           liftIO exitFailure
-        Right (Left sessionErr) -> do
-          Log.logAttention "Database query failed" $ Aeson.object ["error" .= show sessionErr]
-          liftIO exitFailure
-        Right (Right es) -> do
+        Right es -> do
           Log.logInfo "Found hosts in database" $ Aeson.object ["count" .= length es]
           pure es
 
-      -- Compute the reconciliation plan (case-insensitive, manager-protected)
-      let plan = computeSyncPlan groupMembers emails
+    -- Compute the reconciliation plan (case-insensitive, manager-protected)
+    let plan = computeSyncPlan groupMembers emails
 
-      Log.logInfo "Computed diff" $
-        Aeson.object
-          [ "to_remove" .= length (spToRemove plan),
-            "to_add" .= length (spToAdd plan),
-            "protected" .= length (spProtected plan)
-          ]
+    Log.logInfo "Computed diff" $
+      Aeson.object
+        [ "to_remove" .= length (spToRemove plan),
+          "to_add" .= length (spToAdd plan),
+          "protected" .= length (spProtected plan)
+        ]
 
-      -- Perform the sync
-      if dryRun
-        then liftIO $ do
-          printSection "WOULD REMOVE FROM GOOGLE GROUP" (spToRemove plan)
-          printSection "WOULD ADD TO GOOGLE GROUP" (spToAdd plan)
-          printSection "PROTECTED (skipped)" (spProtected plan)
-        else do
-          -- Remove non-host MEMBERs (managers/owners are excluded by the plan)
-          mapM_ (removeMember token groupEmail) (spToRemove plan)
+    -- Perform the sync
+    if dryRun
+      then liftIO $ do
+        printSection "WOULD REMOVE FROM GOOGLE GROUP" (spToRemove plan)
+        printSection "WOULD ADD TO GOOGLE GROUP" (spToAdd plan)
+        printSection "PROTECTED (skipped)" (spProtected plan)
+      else do
+        -- Remove non-host MEMBERs (managers/owners are excluded by the plan)
+        mapM_ (removeMember token groupEmail) (spToRemove plan)
 
-          -- Add hosts missing from the group
-          mapM_ (addMember token groupEmail) (spToAdd plan)
+        -- Add hosts missing from the group
+        mapM_ (addMember token groupEmail) (spToAdd plan)
 
-          Log.logInfo "Sync complete" ()
+        Log.logInfo "Sync complete" ()
 
 --------------------------------------------------------------------------------
 -- Helpers
