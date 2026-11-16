@@ -10,6 +10,7 @@ packages:
   lib/kpbj-storage/kpbj-storage.cabal
   lib/kpbj-database/kpbj-database.cabal
   lib/kpbj-email/kpbj-email.cabal
+  lib/kpbj-job/kpbj-job.cabal
   lib/stripe-http/stripe-http.cabal
   lib/easypost-http/easypost-http.cabal
   lib/mailchimp-http/mailchimp-http.cabal

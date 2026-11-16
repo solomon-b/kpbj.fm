@@ -1,0 +1,63 @@
+cabal-version:      3.0
+name:               kpbj-job
+version:            0.1.0
+license:            Apache-2.0
+author:             Solomon Bothwell
+maintainer:         ssbothwell@gmail.com
+build-type:         Simple
+
+--------------------------------------------------------------------------------
+
+common common-extensions
+  default-extensions:
+      DerivingStrategies
+      DerivingVia
+      ImportQualifiedPost
+      InstanceSigs
+      LambdaCase
+      OverloadedStrings
+      RecordWildCards
+      ScopedTypeVariables
+      StrictData
+
+--------------------------------------------------------------------------------
+
+library
+  import: common-extensions
+  build-depends:
+      aeson
+    , base
+    , exceptions
+    , hasql
+    , hasql-pool
+    , hasql-transaction
+    , log-base
+    , mtl
+    , text
+    , unliftio-core
+    , web-server-core
+  exposed-modules:
+    Job
+  hs-source-dirs: src
+  default-language: Haskell2010
+  ghc-options: -Wall -fwrite-ide-info
+
+--------------------------------------------------------------------------------
+
+test-suite kpbj-job-test
+  import:           common-extensions
+  default-language: Haskell2010
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          Main.hs
+  ghc-options:      -Wall -threaded -O0 -fwrite-ide-info
+  build-depends:
+      base
+    , kpbj-job
+    , kpbj-database:kpbj-database-test-lib
+    , web-server-core
+    , directory
+    , filepath
+    , hasql
+    , hasql-interpolate
+    , hspec
