@@ -68,6 +68,57 @@ Audio automation daemon. Asks the web service for the next timeline segment befo
 
 Streaming server behind NixOS-managed Nginx (automatic Let's Encrypt via ACME). Accepts audio from Liquidsoap and serves up to 100 concurrent listeners on `/stream`.
 
+## Scheduled Jobs
+
+Eight small Haskell programs in `jobs/` do the periodic work. Each one is its own cabal package and its own binary. On the VPS, each job is a systemd `oneshot` service named `kpbj-<job>`, and a systemd timer with the same name starts it. A job starts, does its work, and exits. The diagram above does not show the jobs.
+
+| Job                     | Default schedule   | What it does                                                                                   | Talks to                     |
+|-------------------------|--------------------|------------------------------------------------------------------------------------------------|------------------------------|
+| `listener-snapshots`    | Every minute       | Reads the listener count from Icecast and adds a row to `listener_snapshots`.                  | Icecast, PostgreSQL          |
+| `order-cleanup`         | Every 30 minutes   | Cancels pending orders older than 30 minutes and restores their inventory.                     | PostgreSQL                   |
+| `token-cleanup`         | Hourly             | Deletes expired email verification and password reset tokens, and all tokens older than 90 days. | PostgreSQL                 |
+| `staged-upload-cleanup` | Hourly             | Deletes expired staged uploads: the file first, then the row.                                  | PostgreSQL, storage          |
+| `sync-host-emails`      | Hourly             | Makes the members of the hosts Google Group match the hosts in the database.                   | PostgreSQL, Google Groups    |
+| `episode-check`         | Daily              | Emails each host whose show airs in 5, 3, or 1 days and has no episode audio.                  | PostgreSQL, SMTP             |
+| `ga-poller`             | Daily at 01:30     | Copies the top session sources, countries, and cities of the previous day from Google Analytics into `ga_snapshots`. The first run fills the past 90 days. | PostgreSQL, Google Analytics |
+| `mailchimp-reconcile`   | Daily at 02:30     | Compares `newsletter_subscribers` with the Mailchimp audience and repairs the differences.     | PostgreSQL, Mailchimp        |
+
+The schedule of a job is the `timerInterval` option in `nixos/<job>.nix`. The timers use the system time zone of the VPS. `mailchimp-reconcile` also has a `kpbj-mailchimp-reconcile-bootstrap` service with no timer. Start it by hand one time to import the Mailchimp audience into PostgreSQL.
+
+Five jobs have a `--dry-run` flag, which logs what the job would do and changes nothing: `token-cleanup`, `order-cleanup`, `staged-upload-cleanup`, `episode-check`, and `sync-host-emails`. `nixos/prod.nix` and `nixos/staging.nix` set the flag for each host. Staging runs `sync-host-emails` and `episode-check` as dry runs, so it sends no email and changes no Google Group. `staged-upload-cleanup` is a dry run on both hosts on purpose, so it deletes nothing yet.
+
+### The job monad
+
+Every job runs in `JobM` from the `kpbj-job` library (`lib/kpbj-job/src/Job.hs`). `JobM` holds one database connection for the whole run and has a `MonadDB` instance. A job therefore runs statements with `execQuery`, as the web service does.
+
+`main` of a job reads its own environment variables, then calls `runJob "<job name>"`. `runJob` does the common setup:
+
+1. It reads `DATABASE_URL` and opens the connection.
+2. It starts a stdout logger with the job name as the component.
+3. It runs the job.
+4. It closes the connection.
+
+HTTP clients, tokens, and configs are not in `JobM`. A job passes them to its functions as arguments.
+
+### Failures and alerts
+
+The log lines of a job go to the systemd journal, and Loki collects them.
+
+- A setup failure, such as a missing environment variable or a refused connection, writes an `ERROR:` line to stderr. The job exits with code 1.
+- `execQuery` returns a failed statement as a `Left`. The job logs it at `ATTENTION` level with its own message. Then it stops with code 1 or continues, as that job needs.
+- An exception that escapes the job is logged at `ATTENTION` level as "Job failed with an exception". The job exits with code 1.
+- `execQuery` also writes one `db query` line at info level for each statement.
+
+The `batch-job-errors` alert in `nixos/monitoring.nix` fires when a job unit logs `ATTENTION`, `ERROR`, or `FATAL` in a 5 minute window. Keep the message of an `ATTENTION` line stable, because the alert and the dashboards read these lines. The alert lists all eight jobs by unit name.
+
+### Add a job
+
+1. Create `jobs/<job>/` with a cabal file and `Main.hs`. Depend on `kpbj-job` and `web-server-core`.
+2. Add the package to `cabal.project`.
+3. Add the package to the overlay and to `packages` in `flake.nix`.
+4. Write `nixos/<job>.nix` with the service and the timer, and import it in `nixos/prod.nix` and `nixos/staging.nix`.
+5. Add the unit name to the `batch-job-errors` alert in `nixos/monitoring.nix`.
+
 ## Playout API
 
 Liquidsoap communicates with the web service via two endpoints. `POST /api/playout/played` is authenticated with a shared secret (`X-Playout-Secret` header). `GET /api/playout/now` is not.
@@ -136,6 +187,14 @@ nixos/
   web.nix                 # Web service (native systemd)
   nginx.nix               # Reverse proxy + ACME (Let's Encrypt)
   sync-host-emails.nix    # Host email sync job (Google Groups)
+  token-cleanup.nix       # Expired token cleanup job
+  order-cleanup.nix       # Stale pending order cleanup job
+  staged-upload-cleanup.nix  # Expired staged upload cleanup job
+  episode-check.nix       # Missing episode reminder job
+  listener-snapshots.nix  # Icecast listener count job
+  ga-poller.nix           # Google Analytics poller job
+  mailchimp-reconcile.nix # Mailchimp reconcile job
+  monitoring.nix          # Grafana, Loki, and alert rules
   sops.nix                # sops-nix secrets (per-service env files + secret paths)
   prod.nix                # Production host config
   staging.nix             # Staging host config
