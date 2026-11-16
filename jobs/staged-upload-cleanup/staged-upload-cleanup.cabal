@@ -11,8 +11,8 @@ executable staged-upload-cleanup
   build-depends:    base
                   , aeson
                   , amazonka
-                  , hasql
                   , kpbj-database
+                  , kpbj-job
                   , kpbj-storage
                   , kpbj-types
                   , log-base
