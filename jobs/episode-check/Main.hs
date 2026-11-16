@@ -2,32 +2,27 @@ module Main (main) where
 
 --------------------------------------------------------------------------------
 
-import Control.Exception (SomeException, bracket, try)
+import Control.Exception (SomeException, try)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
+import Data.Functor ((<&>))
 import Data.Int (Int32)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Functor ((<&>))
 import Data.Text.Display (display)
 import Data.Text.Lazy qualified as LT
 import Data.Time (TimeOfDay, defaultTimeLocale, formatTime)
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Email.Config (SmtpConfig, loadSmtpConfig)
 import Effects.Email.Send qualified as Email
-import Hasql.Connection qualified as Connection
-import Hasql.Connection.Setting qualified as Setting
-import Hasql.Connection.Setting.Connection qualified as Setting.Connection
-import Hasql.Session qualified as Session
+import Job (JobM, runJob)
 import Log qualified
-import Log.Backend.StandardOutput qualified as Log
-import OrphanInstances.DayOfWeek ()
 import Options.Applicative
-import System.Environment (lookupEnv)
+import OrphanInstances.DayOfWeek ()
 import System.Exit (exitFailure)
-import System.IO (hPutStrLn, stderr)
 
 --------------------------------------------------------------------------------
 
@@ -59,51 +54,33 @@ optionsParser =
 main :: IO ()
 main = do
   opts <- execParser (info (optionsParser <**> helper) (fullDesc <> progDesc "Check for shows with upcoming episodes missing audio"))
-  mDbUrl <- lookupEnv "DATABASE_URL"
-  case mDbUrl of
-    Nothing -> do
-      hPutStrLn stderr "ERROR: DATABASE_URL environment variable is required"
-      exitFailure
-    Just dbUrl -> do
-      connResult <- Connection.acquire [Setting.connection (Setting.Connection.string (Text.pack dbUrl))]
-      case connResult of
-        Left err -> do
-          hPutStrLn stderr $ "ERROR: Failed to connect to database: " <> show err
-          exitFailure
-        Right conn ->
-          bracket (pure conn) Connection.release $ \c ->
-            Log.withStdOutLogger $ \logger ->
-              Log.runLogT "episode-check" logger Log.LogInfo $
-                if optDryRun opts
-                  then mapM_ (runDryRun c) (optDays opts)
-                  else runNotify c (optDays opts)
+  runJob "episode-check" $
+    if optDryRun opts
+      then mapM_ runDryRun (optDays opts)
+      else runNotify (optDays opts)
 
 --------------------------------------------------------------------------------
 -- Query
 
-queryHosts :: (MonadIO m, Log.MonadLog m) => Connection.Connection -> Int32 -> m (Maybe [ShowSchedule.HostMissingEpisode])
-queryHosts conn days = do
-  result <- liftIO $ try $ Session.run (Session.statement () (ShowSchedule.getHostsMissingEpisodesOnDay days)) conn
-  case result of
-    Left (e :: SomeException) -> do
-      Log.logAttention "Query failed" $ Aeson.object ["error" .= show e]
+queryHosts :: Int32 -> JobM (Maybe [ShowSchedule.HostMissingEpisode])
+queryHosts days =
+  execQuery (ShowSchedule.getHostsMissingEpisodesOnDay days) >>= \case
+    Left err -> do
+      Log.logAttention "Session error" $ Aeson.object ["error" .= show err]
       liftIO exitFailure
-    Right (Left sessionErr) -> do
-      Log.logAttention "Session error" $ Aeson.object ["error" .= show sessionErr]
-      liftIO exitFailure
-    Right (Right []) -> do
+    Right [] -> do
       Log.logInfo "No hosts to notify" $ Aeson.object ["days" .= days]
       pure Nothing
-    Right (Right hosts) ->
+    Right hosts ->
       pure (Just hosts)
 
 --------------------------------------------------------------------------------
 -- Dry run (log only)
 
-runDryRun :: (MonadIO m, Log.MonadLog m) => Connection.Connection -> Int32 -> m ()
-runDryRun conn days = do
+runDryRun :: Int32 -> JobM ()
+runDryRun days = do
   Log.logInfo "DRY RUN — no emails will be sent" ()
-  queryHosts conn days >>= \case
+  queryHosts days >>= \case
     Nothing -> pure ()
     Just hosts -> do
       Log.logInfo "Would send notifications" $ Aeson.object ["count" .= length hosts]
@@ -124,24 +101,24 @@ printHostNotification ep =
 --------------------------------------------------------------------------------
 -- Notify (send emails)
 
-runNotify :: (MonadIO m, Log.MonadLog m) => Connection.Connection -> [Int32] -> m ()
-runNotify conn daysList = do
+runNotify :: [Int32] -> JobM ()
+runNotify daysList = do
   mSmtpConfig <- liftIO loadSmtpConfig
   case mSmtpConfig of
     Nothing -> do
       Log.logAttention "SMTP not configured. Set APP_SMTP_* env vars or use --dry-run." ()
       liftIO exitFailure
     Just smtpConfig -> do
-      totalFailures <- sum <$> mapM (runNotifyForDay smtpConfig conn) daysList
+      totalFailures <- sum <$> mapM (runNotifyForDay smtpConfig) daysList
       if totalFailures > 0
         then do
           Log.logAttention "Some notifications failed" $ Aeson.object ["failed" .= totalFailures]
           liftIO exitFailure
         else Log.logInfo "All notifications sent successfully" ()
 
-runNotifyForDay :: (MonadIO m, Log.MonadLog m) => SmtpConfig -> Connection.Connection -> Int32 -> m Int
-runNotifyForDay smtpConfig conn days =
-  queryHosts conn days >>= \case
+runNotifyForDay :: SmtpConfig -> Int32 -> JobM Int
+runNotifyForDay smtpConfig days =
+  queryHosts days >>= \case
     Nothing -> pure 0
     Just hosts -> do
       Log.logInfo "Sending notifications" $ Aeson.object ["days" .= days, "count" .= length hosts]

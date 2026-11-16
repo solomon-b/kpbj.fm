@@ -10,9 +10,9 @@ executable episode-check
   main-is:          Main.hs
   build-depends:    base
                   , aeson
-                  , hasql
                   , kpbj-database
                   , kpbj-email
+                  , kpbj-job
                   , kpbj-types
                   , log-base
                   , optparse-applicative
@@ -20,6 +20,7 @@ executable episode-check
                   , text
                   , text-display
                   , time
+                  , web-server-core
   hs-source-dirs:   .
   default-language: Haskell2010
   default-extensions:
