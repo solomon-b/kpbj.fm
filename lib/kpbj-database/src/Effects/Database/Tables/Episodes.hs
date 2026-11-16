@@ -695,11 +695,11 @@ getEpisodesByUser userId (Limit lim) (Offset off) =
 -- airing      = currentTime >= window_start AND currentTime < window_stop
 -- @
 --
--- @LEAST@ skips a NULL, so an episode with no @duration_seconds@ runs to
--- @window_end@. The upload handler now measures @duration_seconds@ with
--- @ffprobe@. An older row can hold a value that the browser read at upload, and
--- nothing validated that value. A value of 0 or less therefore reads as NULL
--- here, and the episode runs to @window_end@. Without that guard a value
+-- The @episodes_audio_has_duration@ CHECK gives every episode with audio a
+-- @duration_seconds@. The upload handler now measures it with @ffprobe@. An
+-- older row can hold a value that the browser read at upload, and nothing
+-- validated that value. A value of 0 or less therefore reads as NULL here.
+-- @LEAST@ skips a NULL, so the episode runs to @window_end@. Without that guard a value
 -- of 0 makes @window_stop@ equal @window_start@, and a negative value puts it
 -- before @window_start@, so the episode never airs and the hour is dead air.
 --
@@ -761,8 +761,8 @@ getAiringEpisodes currentTime =
         w.is_replay,
         w.window_start,
         -- The episode stops at the end of its slot or at the end of its audio,
-        -- whichever comes first. LEAST skips a NULL duration, and a duration of
-        -- 0 or less reads as NULL, so such an episode runs to the end of its slot.
+        -- whichever comes first. A duration of 0 or less reads as NULL, and
+        -- LEAST skips a NULL, so such an episode runs to the end of its slot.
         LEAST(
           w.window_end,
           CASE
@@ -899,7 +899,7 @@ instance DecodeRow SlotWindow where
 -- live episode per show per date. So in valid data the id never decides.
 --
 -- The window holds the chosen episode only when its @duration_seconds@ is more
--- than 0. A NULL, 0, or negative length gives 'swEpisode' Nothing, because the
+-- than 0. A length of 0 or less gives 'swEpisode' Nothing, because the
 -- timeline cannot place audio of unknown length. 'getAiringEpisodes' differs here. It plays such an episode to the
 -- end of its slot.
 --

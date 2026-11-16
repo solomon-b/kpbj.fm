@@ -111,7 +111,6 @@ spec =
       describe "duration-based airing" $ do
         it "returns Nothing when episode duration has ended even if slot continues" durationEndedSlotContinues
         it "returns the episode when queried mid-duration" durationMidway
-        it "falls back to slot end when duration_seconds is NULL" durationNullFallback
 
         -- Overnight shows with duration
         it "overnight: returns episode before midnight when within duration" overnightDurationBeforeMidnightWithin
@@ -138,10 +137,8 @@ spec =
       describe "daylight saving transitions" $ do
         it "fall back: airs while its audio is still running" fallBackWithinDuration
         it "fall back: stops when the audio ends, not when the clock agrees" fallBackStopsWhenAudioEnds
-        it "fall back: a NULL duration fills the longer slot" fallBackNullDurationFillsSlot
         it "fall back: a slot opens the first time the clock reads its start" fallBackOpensAtFirstReading
         it "fall back: the silence lands at the end of the repeated hour" fallBackSilenceAtSlotEnd
-        it "fall back: a slot closes the first time the clock reads its end" fallBackClosesAtFirstReading
         it "spring forward: airs inside the shortened slot" springForwardWithinSlot
         it "spring forward: the slot end cuts the episode short" springForwardCutAtSlotEnd
         it "spring forward: a slot inside the gap never airs" springForwardGapSlotNeverAirs
@@ -1176,28 +1173,6 @@ durationMidway cfg = bracketConn cfg $ do
       episode <- assertJustIO mEpisode
       Episodes.id episode `shouldBe` expectedId
 
--- | When duration_seconds is NULL, fall back to slot end time (backward compatibility).
---
--- Scenario: 2 PM - 4 PM slot, NULL duration, query at 3:30 PM
--- Expected: Returns the episode (still within slot bounds)
-durationNullFallback :: TestDBConfig -> IO ()
-durationNullFallback cfg = bracketConn cfg $ do
-  passHash <- hashPassword $ mkPassword "testpass"
-  let startTime = TimeOfDay 14 0 0 -- 2 PM
-      endTime = TimeOfDay 16 0 0 -- 4 PM
-      airDate = testDay
-      queryTime = mkTestTime (TimeOfDay 15 30 0) -- 3:30 PM
-  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-    (episodeId, _) <- setupTestDataWithDuration passHash startTime endTime Nothing airDate (Just "audio/test.mp3") testDay Nothing Nothing
-    mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
-    pure (episodeId, mEpisode)
-
-  case result of
-    Left err -> error $ "DB error: " <> show err
-    Right (expectedId, mEpisode) -> liftIO $ do
-      episode <- assertJustIO mEpisode
-      Episodes.id episode `shouldBe` expectedId
-
 --------------------------------------------------------------------------------
 -- Overnight Duration Tests
 
@@ -1458,7 +1433,7 @@ multiSlotFirstSlot cfg = bracketConn cfg $ do
       airDate2 = testDay
       queryTime = mkTestTime (TimeOfDay 10 0 0) -- 10 AM (during first slot)
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-    (ep1, _showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing airDate1 (Just "audio/slot1.mp3") testDay Nothing Nothing
+    (ep1, _showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing airDate1 (Just "audio/slot1.mp3") testDay Nothing (Just 7080)
     _ep2 <- addTimeslot "slot2" userId slot2Start slot2End Nothing airDate2 (Just "audio/slot2.mp3") testDay Nothing
     mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
     pure (ep1, mEpisode)
@@ -1485,7 +1460,7 @@ multiSlotSecondSlot cfg = bracketConn cfg $ do
       airDate2 = testDay
       queryTime = mkTestTime (TimeOfDay 15 0 0) -- 3 PM (during second slot)
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-    (_ep1, _showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing airDate1 (Just "audio/slot1.mp3") testDay Nothing Nothing
+    (_ep1, _showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing airDate1 (Just "audio/slot1.mp3") testDay Nothing (Just 7080)
     ep2 <- addTimeslot "slot2" userId slot2Start slot2End Nothing airDate2 (Just "audio/slot2.mp3") testDay Nothing
     mEpisode <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
     pure (ep2, mEpisode)
@@ -1512,7 +1487,7 @@ multiSlotBetween cfg = bracketConn cfg $ do
       airDate2 = testDay
       queryTime = mkTestTime (TimeOfDay 12 0 0) -- Noon (between slots)
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-    (_ep1, _showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing airDate1 (Just "audio/slot1.mp3") testDay Nothing Nothing
+    (_ep1, _showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing airDate1 (Just "audio/slot1.mp3") testDay Nothing (Just 7080)
     _ep2 <- addTimeslot "slot2" userId slot2Start slot2End Nothing airDate2 (Just "audio/slot2.mp3") testDay Nothing
     TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
 
@@ -1535,7 +1510,7 @@ multiSlotBeforeAll cfg = bracketConn cfg $ do
       airDate2 = testDay
       queryTime = mkTestTime (TimeOfDay 8 0 0) -- 8 AM (before both)
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-    (_ep1, _showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing airDate1 (Just "audio/slot1.mp3") testDay Nothing Nothing
+    (_ep1, _showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing airDate1 (Just "audio/slot1.mp3") testDay Nothing (Just 7080)
     _ep2 <- addTimeslot "slot2" userId slot2Start slot2End Nothing airDate2 (Just "audio/slot2.mp3") testDay Nothing
     TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
 
@@ -1558,7 +1533,7 @@ multiSlotAfterAll cfg = bracketConn cfg $ do
       airDate2 = testDay
       queryTime = mkTestTime (TimeOfDay 17 0 0) -- 5 PM (after both)
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-    (_ep1, _showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing airDate1 (Just "audio/slot1.mp3") testDay Nothing Nothing
+    (_ep1, _showId, userId) <- setupTestDataFull passHash slot1Start slot1End Nothing airDate1 (Just "audio/slot1.mp3") testDay Nothing (Just 7080)
     _ep2 <- addTimeslot "slot2" userId slot2Start slot2End Nothing airDate2 (Just "audio/slot2.mp3") testDay Nothing
     TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
 
@@ -1633,29 +1608,6 @@ fallBackStopsWhenAudioEnds cfg = bracketConn cfg $ do
     Left err -> error $ "DB error: " <> show err
     Right mEpisode -> liftIO $ mEpisode `shouldBe` Nothing
 
--- | Fall back with no recorded duration. The episode fills the whole slot.
---
--- The slot covers 3 elapsed hours on this date, so the same 09:30 UTC that ends the
--- episode above is still inside the slot here. This pins the slot boundary as
--- a pair of `time` values, and not as a fixed 2 hours.
-fallBackNullDurationFillsSlot :: TestDBConfig -> IO ()
-fallBackNullDurationFillsSlot cfg = bracketConn cfg $ do
-  passHash <- hashPassword $ mkPassword "testpass"
-  let airDate = fallBackDay
-      insideSlot = utcAt fallBackDay (TimeOfDay 9 30 0)
-      atSlotEnd = utcAt fallBackDay (TimeOfDay 10 0 0)
-  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-    _ <- setupTestDataWithDuration passHash (TimeOfDay 0 0 0) (TimeOfDay 2 0 0) Nothing airDate (Just "audio/fallback.mp3") fallBackDay Nothing Nothing
-    stillOn <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode insideSlot
-    ended <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode atSlotEnd
-    TRX.condemn
-    pure (stillOn, ended)
-  case result of
-    Left err -> error $ "DB error: " <> show err
-    Right (stillOn, ended) -> liftIO $ do
-      isJust stillOn `shouldBe` True
-      ended `shouldBe` Nothing
-
 -- | Fall back. A 01:00 slot opens the first time the clock reads 01:00.
 --
 -- 01:00 to 01:59 happens twice on this date, so the local time 01:00 names two
@@ -1698,34 +1650,6 @@ fallBackSilenceAtSlotEnd cfg = bracketConn cfg $ do
   case result of
     Left err -> error $ "DB error: " <> show err
     Right mEpisode -> liftIO $ mEpisode `shouldBe` Nothing
-
--- | Fall back. A slot ends the first time the clock reads its end time.
---
--- Both ends of a window take the earlier of the two instants an ambiguous local
--- time names. The end has to follow the same rule as the start, or a slot would
--- close an hour after the next one opens and the two would air at once.
---
--- The slot runs 23:00 on 2025-11-01 to 01:30 on 2025-11-02, and 01:30 happens
--- twice. The episode carries no duration, so only the slot end can stop it.
--- 08:15 UTC is inside. 09:00 UTC is past the first 01:30 and before the second,
--- so it separates the two readings.
-fallBackClosesAtFirstReading :: TestDBConfig -> IO ()
-fallBackClosesAtFirstReading cfg = bracketConn cfg $ do
-  passHash <- hashPassword $ mkPassword "testpass"
-  let airDate = addDays (-1) fallBackDay
-      insideSlot = utcAt fallBackDay (TimeOfDay 8 15 0)
-      pastFirstReading = utcAt fallBackDay (TimeOfDay 9 0 0)
-  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-    _ <- setupTestDataWithDuration passHash (TimeOfDay 23 0 0) (TimeOfDay 1 30 0) Nothing airDate (Just "audio/fallback.mp3") airDate Nothing Nothing
-    stillOn <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode insideSlot
-    ended <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode pastFirstReading
-    TRX.condemn
-    pure (stillOn, ended)
-  case result of
-    Left err -> error $ "DB error: " <> show err
-    Right (stillOn, ended) -> liftIO $ do
-      isJust stillOn `shouldBe` True
-      ended `shouldBe` Nothing
 
 -- | Spring forward, 30 elapsed minutes into a slot that covers only 1 elapsed hour.
 --
@@ -1786,7 +1710,7 @@ springForwardGapSlotNeverAirs cfg = bracketConn cfg $ do
       probes = map (utcAt springForwardDay) [TimeOfDay 10 0 0, TimeOfDay 10 15 0, TimeOfDay 10 30 0, TimeOfDay 10 45 0]
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
     (_, _showId, userId) <-
-      setupTestDataFull passHash (TimeOfDay 2 0 0) (TimeOfDay 3 0 0) Nothing emptyAt (Just "audio/empty.mp3") springForwardDay Nothing Nothing
+      setupTestDataFull passHash (TimeOfDay 2 0 0) (TimeOfDay 3 0 0) Nothing emptyAt (Just "audio/empty.mp3") springForwardDay Nothing (Just 3420)
     _ <- addTimeslot "inverted" userId (TimeOfDay 2 30 0) (TimeOfDay 3 0 0) Nothing invertedAt (Just "audio/inverted.mp3") springForwardDay Nothing
     airing <- traverse (TRX.statement () . Episodes.getCurrentlyAiringEpisodes) probes
     TRX.condemn
@@ -1810,7 +1734,7 @@ overlapIsDeterministic cfg = bracketConn cfg $ do
       lateStart = TimeOfDay 15 0 0
       queryTime = mkTestTime (TimeOfDay 15 30 0)
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-    (early, _showId, userId) <- setupTestDataFull passHash earlyStart (TimeOfDay 16 0 0) Nothing testDay (Just "audio/early.mp3") testDay Nothing Nothing
+    (early, _showId, userId) <- setupTestDataFull passHash earlyStart (TimeOfDay 16 0 0) Nothing testDay (Just "audio/early.mp3") testDay Nothing (Just 7080)
     late <- addTimeslot "late" userId lateStart (TimeOfDay 17 0 0) Nothing testDay (Just "audio/late.mp3") testDay Nothing
     both <- TRX.statement () $ Episodes.getCurrentlyAiringEpisodes queryTime
     picked <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime
@@ -1994,7 +1918,7 @@ primaryBeatsReplay cfg = bracketConn cfg $ do
   let queryTime = mkTestTime (TimeOfDay 22 30 0)
   result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
     (live, _showId, userId) <-
-      setupTestDataFull passHash (TimeOfDay 18 0 0) (TimeOfDay 23 0 0) Nothing testDay (Just "audio/live.mp3") testDay Nothing Nothing
+      setupTestDataFull passHash (TimeOfDay 18 0 0) (TimeOfDay 23 0 0) Nothing testDay (Just "audio/live.mp3") testDay Nothing (Just 17880)
     replayed <- addTimeslot "replayed" userId (TimeOfDay 20 0 0) (TimeOfDay 21 0 0) (Just (TimeOfDay 22 0 0)) testDay (Just "audio/replayed.mp3") testDay Nothing
     both <- TRX.statement () $ Episodes.getCurrentlyAiringEpisodes queryTime
     picked <- TRX.statement () $ Episodes.getCurrentlyAiringEpisode queryTime

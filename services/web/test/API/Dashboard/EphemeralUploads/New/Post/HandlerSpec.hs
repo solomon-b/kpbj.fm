@@ -60,7 +60,7 @@ test_storesMeasuredLength cfg = do
       Left err -> expectationFailure $ "Expected the upload to save, got " <> show err
 
     rows <- findRowsByTitle name
-    liftIO $ map EphemeralUploads.euwcDurationSeconds rows `shouldBe` [Just 1830]
+    liftIO $ map EphemeralUploads.euwcDurationSeconds rows `shouldBe` [1830]
 
 test_rejectsNoLength :: TestDBConfig -> IO ()
 test_rejectsNoLength cfg = do

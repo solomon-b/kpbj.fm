@@ -45,7 +45,7 @@ test_storesReplacementLength cfg = do
   let name = "eu-edit-replacement"
   userInsert <- mkUserInsert name UserMetadata.Staff
   bracketAppM cfg $ do
-    (userModel, userMetaModel, ephemeralId) <- setup name Nothing (Just (name, Just 95)) userInsert
+    (userModel, userMetaModel, ephemeralId) <- setup name 600 (Just (name, Just 95)) userInsert
 
     -- The claim moves the staged file, so it has to exist.
     let stagingFilePath = "/tmp/kpbj/" <> Text.unpack (stagingPath name)
@@ -59,14 +59,14 @@ test_storesReplacementLength cfg = do
       Left err -> expectationFailure $ "Expected the edit to save, got " <> show err
 
     row <- fetchRow ephemeralId
-    liftIO $ EphemeralUploads.eumDurationSeconds row `shouldBe` Just 95
+    liftIO $ EphemeralUploads.eumDurationSeconds row `shouldBe` 95
 
 test_keepsLengthWithoutNewAudio :: TestDBConfig -> IO ()
 test_keepsLengthWithoutNewAudio cfg = do
   let name = "eu-edit-keeps-length"
   userInsert <- mkUserInsert name UserMetadata.Staff
   bracketAppM cfg $ do
-    (userModel, userMetaModel, ephemeralId) <- setup name (Just 600) Nothing userInsert
+    (userModel, userMetaModel, ephemeralId) <- setup name 600 Nothing userInsert
 
     result <- runExceptT (action userModel userMetaModel ephemeralId (form name ""))
     liftIO $ case result of
@@ -74,7 +74,7 @@ test_keepsLengthWithoutNewAudio cfg = do
       Left err -> expectationFailure $ "Expected the edit to save, got " <> show err
 
     row <- fetchRow ephemeralId
-    liftIO $ EphemeralUploads.eumDurationSeconds row `shouldBe` Just 600
+    liftIO $ EphemeralUploads.eumDurationSeconds row `shouldBe` 600
 
 test_rejectsNoLength :: TestDBConfig -> IO ()
 test_rejectsNoLength cfg = do
@@ -82,7 +82,7 @@ test_rejectsNoLength cfg = do
   userInsert <- mkUserInsert name UserMetadata.Staff
   bracketAppM cfg $ do
     -- The length check runs before the claim, so no file needs to be on disk.
-    (userModel, userMetaModel, ephemeralId) <- setup name (Just 600) (Just (name, Nothing)) userInsert
+    (userModel, userMetaModel, ephemeralId) <- setup name 600 (Just (name, Nothing)) userInsert
 
     result <- runExceptT (action userModel userMetaModel ephemeralId (form name name))
     liftIO $ case result of
@@ -93,7 +93,7 @@ test_rejectsNoLength cfg = do
     row <- fetchRow ephemeralId
     liftIO $ do
       EphemeralUploads.eumAudioFilePath row `shouldBe` originalPath name
-      EphemeralUploads.eumDurationSeconds row `shouldBe` Just 600
+      EphemeralUploads.eumDurationSeconds row `shouldBe` 600
 
 --------------------------------------------------------------------------------
 
@@ -115,7 +115,7 @@ description =
 -- replacement with this token and length.
 setup ::
   Text ->
-  Maybe Int64 ->
+  Int64 ->
   Maybe (Text, Maybe Int64) ->
   UserMetadata.UserWithMetadataInsert ->
   AppM (User.Model, UserMetadata.Model, EphemeralUploads.Id)
@@ -144,7 +144,7 @@ fetchRow ephemeralId = do
     Nothing -> liftIO $ fail "The ephemeral upload is missing."
 
 -- | The ephemeral upload that exists before the edit.
-existingUpload :: Text -> Maybe Int64 -> User.Model -> EphemeralUploads.Insert
+existingUpload :: Text -> Int64 -> User.Model -> EphemeralUploads.Insert
 existingUpload name existingLength userModel =
   EphemeralUploads.Insert
     { EphemeralUploads.euiTitle = name,

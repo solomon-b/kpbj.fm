@@ -105,8 +105,8 @@ spec =
           hedgehog . prop_slotWindowWithNoEpisode
         runs 10 . it "returns the primary and the replay window" $
           hedgehog . prop_slotWindowsPrimaryAndReplay
-        runs 10 . it "gives no episode when the episode length is unknown" $
-          hedgehog . prop_slotWindowUnknownLength
+        runs 10 . it "gives no episode when the episode length is 0 or less" $
+          hedgehog . prop_slotWindowNonPositiveLength
         runs 1 . it "opens a 01:00 slot on the fall-back date when getAiringEpisodes does" $
           hedgehog . prop_slotWindowOnFallBackDate
 
@@ -701,7 +701,8 @@ prop_feedQueriesListAiredEpisodesWithAudio cfg = do
                   UUT.eiCreatedBy = userId,
                   UUT.eiAudioFilePath = Just "audio/episodes/2025/01/06/feed-fixture_2025-01-06_0b7c.mp3",
                   UUT.eiAudioFileSize = Just 57671680,
-                  UUT.eiAudioMimeType = Just "audio/mpeg"
+                  UUT.eiAudioMimeType = Just "audio/mpeg",
+                  UUT.eiDurationSeconds = Just 3420
                 }
             withoutAudio showId templateId airDay =
               (withAudio showId templateId airDay)
@@ -2508,7 +2509,8 @@ prop_audioPathFindsDeletedEpisode cfg = do
                   UUT.eiScheduleTemplateId = Just templateId,
                   UUT.eiAirDate = Just (airDayForTemplate scheduleTemplate fixtureBaseDay),
                   UUT.eiCreatedBy = userId,
-                  UUT.eiAudioFilePath = Just audioPath
+                  UUT.eiAudioFilePath = Just audioPath,
+                  UUT.eiDurationSeconds = Just 3420
                 }
 
         episodeId <- unwrapInsert (UUT.insertEpisode episodeInsert)
@@ -2814,15 +2816,15 @@ prop_slotWindowsPrimaryAndReplay cfg = do
                 window (slotTestTime 0 (TimeOfDay 22 0 0)) (slotTestTime 1 (TimeOfDay 0 0 0))
               ]
 
--- | An episode with audio but a NULL, 0, or negative length gives a window with
--- no episode.
-prop_slotWindowUnknownLength :: TestDBConfig -> PropertyT IO ()
-prop_slotWindowUnknownLength cfg = do
+-- | An episode with audio but a length of 0 or less gives a window with no
+-- episode.
+prop_slotWindowNonPositiveLength :: TestDBConfig -> PropertyT IO ()
+prop_slotWindowNonPositiveLength cfg = do
   arrange (bracketConn cfg) $ do
     userWithMetadata <- forAllT userWithMetadataInsertGen
     showInsert <- forAllT showInsertGen
     episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
-    badLength <- forAllT $ Gen.element [Nothing, Just 0, Just (-60)]
+    badLength <- forAllT $ Gen.element [Just 0, Just (-60)]
 
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do

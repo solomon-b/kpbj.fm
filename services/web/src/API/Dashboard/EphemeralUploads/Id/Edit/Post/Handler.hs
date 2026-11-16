@@ -80,13 +80,11 @@ action user _userMetadata ephemeralUploadId form = do
 
   -- 4. Process audio replacement or keep existing
   let audioToken = fdAudioToken form
-  -- Without new audio, the stored length stays as it is. An old row can have none.
+  -- Without new audio, the stored length stays as it is.
   (storagePath, mimeType, fileSize, durationSeconds) <-
     if Text.null audioToken
       then pure (ephemeralUpload.eumAudioFilePath, ephemeralUpload.eumMimeType, ephemeralUpload.eumFileSize, ephemeralUpload.eumDurationSeconds)
-      else do
-        (newPath, newMimeType, newFileSize, newDurationSeconds) <- processNewAudio user ephemeralUpload title audioToken
-        pure (newPath, newMimeType, newFileSize, Just newDurationSeconds)
+      else processNewAudio user ephemeralUpload title audioToken
 
   -- 5. Update the database record
   _ <-

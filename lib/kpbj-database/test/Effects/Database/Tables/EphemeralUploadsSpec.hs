@@ -47,8 +47,8 @@ spec =
         runs 10 . it "unflagEphemeralUpload: clears flagged fields" $ hedgehog . prop_unflagEphemeralUpload
         runs 10 . it "getAllEphemeralUploads excludes flagged when includeFlagged=False" $ hedgehog . prop_getAllExcludesFlagged
         runs 10 . it "getAllEphemeralUploads includes flagged when includeFlagged=True" $ hedgehog . prop_getAllIncludesFlagged
-        runs 10 . it "getPlayableEphemeralUploads leaves out a flagged upload and an upload with no length" $
-          hedgehog . prop_playableExcludesFlaggedAndUnknownLength
+        runs 10 . it "getPlayableEphemeralUploads leaves out a flagged upload and an upload of length 0" $
+          hedgehog . prop_playableExcludesFlaggedAndZeroLength
 
 --------------------------------------------------------------------------------
 -- Lens Laws
@@ -148,7 +148,7 @@ prop_updateEphemeralUpload cfg = do
         let newPath = "/updated/path.mp3"
         let newMime = "audio/wav"
         let newSize = 42000
-        mUpdated <- TRX.statement () (UUT.updateEphemeralUpload insertedId newTitle newDescription newPath newMime newSize Nothing)
+        mUpdated <- TRX.statement () (UUT.updateEphemeralUpload insertedId newTitle newDescription newPath newMime newSize (UUT.euiDurationSeconds uploadInsert))
 
         TRX.condemn
         pure (insertedId, mUpdated)
@@ -181,7 +181,7 @@ prop_updateStoresDuration cfg = do
         mUpdated <-
           TRX.statement
             ()
-            (UUT.updateEphemeralUpload insertedId "Title" "Description" "/path.mp3" "audio/mpeg" 1000 (Just 321))
+            (UUT.updateEphemeralUpload insertedId "Title" "Description" "/path.mp3" "audio/mpeg" 1000 321)
 
         TRX.condemn
         pure mUpdated
@@ -189,7 +189,7 @@ prop_updateStoresDuration cfg = do
       assert $ do
         mUpdated <- assertRight result
         updated <- assertJust mUpdated
-        UUT.eumDurationSeconds updated === Just 321
+        UUT.eumDurationSeconds updated === 321
         pure ()
 
 -- | deleteEphemeralUpload: removes upload, returns its ID.
@@ -353,11 +353,10 @@ prop_getAllIncludesFlagged cfg = do
         length allItems === 2
         pure ()
 
--- | getPlayableEphemeralUploads leaves out a flagged upload, an upload with a
--- NULL length, and an upload with a length of 0. It returns the rest in id
--- order.
-prop_playableExcludesFlaggedAndUnknownLength :: TestDBConfig -> PropertyT IO ()
-prop_playableExcludesFlaggedAndUnknownLength cfg = do
+-- | getPlayableEphemeralUploads leaves out a flagged upload and an upload with
+-- a length of 0. It returns the rest in id order.
+prop_playableExcludesFlaggedAndZeroLength :: TestDBConfig -> PropertyT IO ()
+prop_playableExcludesFlaggedAndZeroLength cfg = do
   arrange (bracketConn cfg) $ do
     userWithMetadata <- forAllT userWithMetadataInsertGen
     template <- forAllT $ ephemeralUploadInsertGen (User.Id 1)
@@ -367,11 +366,10 @@ prop_playableExcludesFlaggedAndUnknownLength cfg = do
         userId <- insertTestUser userWithMetadata
 
         let withLength seconds = template {UUT.euiCreatorId = userId, UUT.euiDurationSeconds = seconds}
-        firstPlayableId <- unwrapInsert (UUT.insertEphemeralUpload (withLength (Just 120)))
-        flaggedId <- unwrapInsert (UUT.insertEphemeralUpload (withLength (Just 120)))
-        _ <- unwrapInsert (UUT.insertEphemeralUpload (withLength Nothing))
-        _ <- unwrapInsert (UUT.insertEphemeralUpload (withLength (Just 0)))
-        secondPlayableId <- unwrapInsert (UUT.insertEphemeralUpload (withLength (Just 300)))
+        firstPlayableId <- unwrapInsert (UUT.insertEphemeralUpload (withLength 120))
+        flaggedId <- unwrapInsert (UUT.insertEphemeralUpload (withLength 120))
+        _ <- unwrapInsert (UUT.insertEphemeralUpload (withLength 0))
+        secondPlayableId <- unwrapInsert (UUT.insertEphemeralUpload (withLength 300))
         _ <- TRX.statement () (UUT.flagEphemeralUpload flaggedId userId UUT.CopyrightConcern)
 
         playable <- TRX.statement () UUT.getPlayableEphemeralUploads
