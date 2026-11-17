@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-# pgBackRest — PostgreSQL backup with WAL archiving (PITR)
+# pgBackRest: PostgreSQL backup with WAL archiving (PITR)
 # ──────────────────────────────────────────────────────────────
 #
 # Daily full backups + continuous WAL archiving for point-in-time
@@ -206,7 +206,7 @@ in
               set -euo pipefail
               ${pkgs.pgbackrest}/bin/pgbackrest backup --stanza=${cfg.stanzaName} --type=full --repo=1
               ${pkgs.pgbackrest}/bin/pgbackrest backup --stanza=${cfg.stanzaName} --type=full --repo=2 \
-                || echo "WARNING: S3 backup (repo2) failed — local backup succeeded"
+                || echo "WARNING: S3 backup (repo2) failed. Local backup succeeded"
             ''
           else
             "${pkgs.pgbackrest}/bin/pgbackrest backup --stanza=${cfg.stanzaName} --type=full";

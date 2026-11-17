@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-# Google Analytics poller — systemd timer
+# Google Analytics poller: systemd timer
 # ──────────────────────────────────────────────────────────────
 #
 # Runs the ga-poller CLI as a oneshot systemd service on a daily
@@ -9,7 +9,7 @@
 # kpbj-ga-poller.env SOPS template (rendered in web.nix).
 #
 # GA's runReport endpoint resolves to whole UTC days, so polling
-# is daily — not hourly. The default schedule fires shortly after
+# is daily, not hourly. The default schedule fires shortly after
 # midnight UTC to capture the previous day.
 # ──────────────────────────────────────────────────────────────
 { config, lib, pkgs, ga-poller, ... }:

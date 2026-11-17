@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-# Staged upload cleanup job — systemd timer (hourly)
+# Staged upload cleanup job: systemd timer (hourly)
 # ──────────────────────────────────────────────────────────────
 #
 # Deletes expired pending staged uploads and their files in the

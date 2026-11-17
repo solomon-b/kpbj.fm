@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-# SOPS secrets — decrypts streaming secrets at deploy time
+# SOPS secrets: decrypts streaming secrets at deploy time
 # ──────────────────────────────────────────────────────────────
 #
 # Declares all streaming secrets and renders per-service env

@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-# Episode check job — daily systemd timer
+# Episode check job: daily systemd timer
 # ──────────────────────────────────────────────────────────────
 #
 # Runs the episode-check CLI as a oneshot systemd service on a
@@ -39,7 +39,7 @@ in
   config = lib.mkIf cfg.enable {
     # ── Systemd service ─────────────────────────────────────────
     systemd.services.kpbj-episode-check = {
-      description = "KPBJ episode check — remind hosts about missing episodes";
+      description = "KPBJ episode check (remind hosts about missing episodes)";
 
       # Wait for postgresql to be available
       after = [ "postgresql.service" ];

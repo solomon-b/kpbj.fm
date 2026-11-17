@@ -10,6 +10,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 ### Changed
 - **A job can set its log level.** The `kpbj-job` library has a new `runJobWith`, which takes the maximum log level of the run. `runJob` stays at info level, so the other jobs log as before. `sync-schedule-calendar` uses it for its `--verbose` flag.
 - **The Google service account token flow is in one library.** The new `google-service-account` library in `lib/` gets an OAuth2 access token for a service account, with an optional Workspace user to act as. `sync-host-emails` and `sync-schedule-calendar` each had a copy of this code, and both now use the library. One log line changes. When the token request of `sync-host-emails` fails with an HTTP error, the line now gives the cause.
+- **The nix files have no em-dashes.** The comments in `nixos/*.nix` now use a colon, a comma, or a new sentence. Four strings change with them: the systemd descriptions of the `episode-check` and `watchdog` units, the description of the root disk alert, and the pgBackRest warning for a failed S3 backup.
 
 ### Fixed
 - **A Google token response that is not JSON is a token error.** `sync-host-emails` and `sync-schedule-calendar` read the response of the token request as JSON, and a body in another format raised an exception. The job then logged only "Job failed with an exception". The error line now says "Token exchange: unexpected response body" and gives the first 500 characters of the body.

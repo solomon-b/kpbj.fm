@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-# Dev VM — local streaming stack via QEMU
+# Dev VM: local streaming stack via QEMU
 # ──────────────────────────────────────────────────────────────
 #
 # Runs the exact same streaming.nix + sops.nix configuration as

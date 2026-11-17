@@ -1,12 +1,12 @@
 # ──────────────────────────────────────────────────────────────
-# Monitoring — Grafana + Loki + Promtail
+# Monitoring: Grafana + Loki + Promtail
 # ──────────────────────────────────────────────────────────────
 #
 # Centralized log aggregation for all KPBJ services. Promtail
 # scrapes journald for kpbj-* units and postgresql, ships to
 # Loki. Grafana provides the query/dashboard UI.
 #
-# All services bind to localhost only — access via SSH tunnel:
+# All services bind to localhost only. Access via SSH tunnel:
 #   ssh -N -L 3000:127.0.0.1:3000 root@<host>
 # ──────────────────────────────────────────────────────────────
 { config, lib, pkgs, ... }:
@@ -123,7 +123,7 @@ in
 
   config = lib.mkIf cfg.enable (lib.mkMerge [
     {
-      # ── Loki — log storage backend ─────────────────────────────
+      # ── Loki: log storage backend ──────────────────────────────
       services.loki = {
         enable = true;
         configuration = {
@@ -175,9 +175,9 @@ in
         };
       };
 
-      # ── Promtail — scrapes journald, ships to Loki ─────────────
+      # ── Promtail: scrapes journald, ships to Loki ──────────────
       #
-      # Disable namespace sandboxing — the NixOS module enables
+      # Disable namespace sandboxing. The NixOS module enables
       # PrivateTmp / ProtectSystem by default, which requires
       # user-namespace support.  Some VPS kernels block this,
       # causing ExecStartPre to exit 226/NAMESPACE.
@@ -221,7 +221,7 @@ in
         };
       };
 
-      # ── Prometheus — metrics collection ─────────────────────────
+      # ── Prometheus: metrics collection ──────────────────────────
       services.prometheus = {
         enable = true;
         listenAddress = "127.0.0.1";
@@ -242,7 +242,7 @@ in
         }];
       };
 
-      # ── Grafana — dashboards & query UI ────────────────────────
+      # ── Grafana: dashboards & query UI ─────────────────────────
       services.grafana = {
         enable = true;
         settings = {
@@ -285,7 +285,7 @@ in
       };
     }
 
-    # ── Alerting — Discord notifications ───────────────────────
+    # ── Alerting: Discord notifications ────────────────────────
     (lib.mkIf cfg.alerting.enable {
       services.grafana.provision.alerting = {
         contactPoints.settings = {
@@ -432,7 +432,7 @@ in
                 (mkPromAlertRule {
                   uid = "low-disk-critical";
                   title = "Low Disk Space (Critical)";
-                  description = "Root filesystem has less than 5% free space. Services may fail to write — act immediately.";
+                  description = "Root filesystem has less than 5% free space. Services may fail to write. Act immediately.";
                   expr = ''(node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) * 100'';
                   threshold = 5;
                   op = "lt";

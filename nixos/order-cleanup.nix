@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-# Order cleanup job — systemd timer (every 30 minutes)
+# Order cleanup job: systemd timer (every 30 minutes)
 # ──────────────────────────────────────────────────────────────
 #
 # Cancels stale pending orders (>30 min) and restores their

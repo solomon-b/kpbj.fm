@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-# Token cleanup job — hourly systemd timer
+# Token cleanup job: hourly systemd timer
 # ──────────────────────────────────────────────────────────────
 #
 # Runs the token-cleanup CLI as a oneshot systemd service on a

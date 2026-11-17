@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-# Schedule calendar sync job — systemd timer, every 5 minutes
+# Schedule calendar sync job: systemd timer, every 5 minutes
 # ──────────────────────────────────────────────────────────────
 #
 # Runs the sync-schedule-calendar CLI as a oneshot systemd service

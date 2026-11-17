@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-# Native systemd services — Icecast, Liquidsoap, Webhook
+# Native systemd services: Icecast, Liquidsoap, Webhook
 # ──────────────────────────────────────────────────────────────
 #
 # Runs all three streaming services as native systemd units with
@@ -230,7 +230,7 @@ in
         Restart = "on-failure";
         RestartSec = 5;
 
-        # Hardening (NoNewPrivileges omitted — sudo needs setuid)
+        # Hardening (NoNewPrivileges omitted, because sudo needs setuid)
         ProtectSystem = "strict";
         ProtectHome = true;
         PrivateTmp = true;

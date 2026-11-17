@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-# Staging host — staging.kpbj.fm + stream.staging.kpbj.fm
+# Staging host: staging.kpbj.fm + stream.staging.kpbj.fm
 # ──────────────────────────────────────────────────────────────
 { config, lib, pkgs, ... }:
 {
@@ -218,7 +218,7 @@
   };
 
   # ── pgBackRest (PG backups + WAL archiving) ──────────────────
-  # Disabled on staging entirely — no local or S3 backups, no WAL archiving.
+  # Disabled on staging entirely. No local or S3 backups, no WAL archiving.
   # Staging data is disposable: it's rebuilt from production on demand via
   # `just prod-to-staging`, so there's nothing worth backing up. Production
   # keeps full pgBackRest (repo1 local + repo2 S3).

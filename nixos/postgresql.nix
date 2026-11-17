@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-# PostgreSQL — local database for the KPBJ web service
+# PostgreSQL: local database for the KPBJ web service
 # ──────────────────────────────────────────────────────────────
 #
 # Each host MUST set pgPackage explicitly to prevent accidental

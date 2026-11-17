@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-# Mailchimp reconcile — systemd timer + bootstrap unit
+# Mailchimp reconcile: systemd timer + bootstrap unit
 # ──────────────────────────────────────────────────────────────
 #
 # Runs the kpbj-mailchimp-reconcile CLI as a oneshot systemd

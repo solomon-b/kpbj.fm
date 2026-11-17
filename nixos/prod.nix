@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-# Production host — www.kpbj.fm + stream.kpbj.fm
+# Production host: www.kpbj.fm + stream.kpbj.fm
 # ──────────────────────────────────────────────────────────────
 { config, lib, pkgs, ... }:
 {

@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-# Web service — Haskell/Servant application
+# Web service: Haskell/Servant application
 # ──────────────────────────────────────────────────────────────
 #
 # Runs the kpbj-web binary as a native systemd service with
@@ -129,7 +129,7 @@ in
         Enable Mailchimp newsletter sync. Requires mailchimp_api_key,
         mailchimp_audience_id, and mailchimp_webhook_secret in the secrets file.
         When false, the web service still boots and the homepage signup form
-        still writes locally — only the outbound MC sync and the inbound
+        still writes locally. Only the outbound MC sync and the inbound
         webhook are disabled. Pair with kpbj.mailchimpReconcile.enable = false
         to also skip the daily reconcile timer.
       '';
@@ -234,7 +234,7 @@ in
 
     # ── SOPS template (mailchimp-reconcile env) ──────────────────
     # The reconcile job only needs DATABASE_URL + the two outbound
-    # credentials (no webhook secret — that's a webhook concern).
+    # credentials (no webhook secret, because that is a webhook concern).
     sops.templates."kpbj-mailchimp-reconcile.env" = lib.mkIf cfg.mailchimp.enable {
       content = ''
         DATABASE_URL=postgres://${pgCfg.dbUser}:${config.sops.placeholder.db_password}@127.0.0.1:5432/${pgCfg.dbName}

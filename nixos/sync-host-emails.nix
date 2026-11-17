@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-# Host email sync job — hourly systemd timer
+# Host email sync job: hourly systemd timer
 # ──────────────────────────────────────────────────────────────
 #
 # Runs the sync-host-emails CLI as a oneshot systemd service on a

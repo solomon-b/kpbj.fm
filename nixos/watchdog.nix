@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-# Watchdog — LLM-powered log anomaly detection timer
+# Watchdog: LLM-powered log anomaly detection timer
 # ──────────────────────────────────────────────────────────────
 #
 # Runs the watchdog bash script as a oneshot systemd service on
@@ -100,7 +100,7 @@ in
 
     # ── Systemd service ─────────────────────────────────────────
     systemd.services.kpbj-watchdog = {
-      description = "KPBJ watchdog — LLM log anomaly detection";
+      description = "KPBJ watchdog (LLM log anomaly detection)";
 
       serviceConfig = {
         Type = "oneshot";

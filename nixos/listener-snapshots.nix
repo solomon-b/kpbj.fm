@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-# Listener snapshot poller — systemd timer
+# Listener snapshot poller: systemd timer
 # ──────────────────────────────────────────────────────────────
 #
 # Runs the listener-snapshots CLI as a oneshot systemd service on

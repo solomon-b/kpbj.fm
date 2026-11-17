@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-# fail2ban — intrusion prevention
+# fail2ban: intrusion prevention
 # ──────────────────────────────────────────────────────────────
 #
 # Watches nginx access logs and sshd journal for malicious
@@ -18,7 +18,7 @@ let
   cfg = config.kpbj.fail2ban;
 
   # Custom filter: known-bad paths that only scanners/bots request.
-  # Two hits and you're banned — legitimate users never touch these.
+  # Two hits and you're banned. Legitimate users never touch these.
   badPathsFilter = pkgs.writeText "nginx-bad-paths.conf" ''
     [Definition]
     failregex = ^<HOST> - \S+ \[.*\] "(GET|POST|HEAD|PUT|DELETE|OPTIONS) /(?:wp-login|wp-admin|wp-content|wp-includes|xmlrpc\.php|\.env|\.git|\.htaccess|\.aws|phpmy|phpmyadmin|PMA|admin/config|cgi-bin|setup\.php|administrator|config\.php|actuator|api/v1/pods|solr|telescope|debug|_profiler|eval-stdin).*" \d+ \d+
@@ -46,14 +46,14 @@ in
       };
 
       jails = {
-        # SSH brute force — uses built-in sshd filter
+        # SSH brute force. Uses the built-in sshd filter
         sshd.settings = {
           enabled = true;
           maxretry = 3;
         };
 
         # Known-bad paths (wp-admin, .env, phpMyAdmin, etc.)
-        # Only scanners hit these — low retry threshold
+        # Only scanners hit these, so the retry threshold is low
         nginx-bad-paths.settings = {
           enabled = true;
           port = "http,https";
@@ -63,7 +63,7 @@ in
           bantime = "24h";
         };
 
-        # Too many 404s — uses built-in nginx-botsearch filter
+        # Too many 404s. Uses the built-in nginx-botsearch filter
         nginx-botsearch.settings = {
           enabled = true;
           port = "http,https";
