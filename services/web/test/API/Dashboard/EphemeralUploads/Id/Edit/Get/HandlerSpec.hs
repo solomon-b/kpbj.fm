@@ -52,9 +52,9 @@ test_notFoundForNonExistentUpload cfg = do
   bracketAppM cfg $ do
     dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
       setupUserModels userInsert
-    (userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
+    (_userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel (EphemeralUploads.Id nonExistentId)
+    result <- runExceptT $ action userMetaModel (EphemeralUploads.Id nonExistentId)
 
     liftIO $ case result of
       Left (NotFound _) -> pure ()
@@ -70,9 +70,9 @@ test_returnsEditDataForExistingUpload cfg = do
       (userModel, userMetaModel) <- setupUserModels userInsert
       uploadId <- insertTestEphemeralUpload (mkEphemeralUploadInsert "Edit Test Upload" userModel.mId)
       pure (userModel, userMetaModel, uploadId)
-    (userModel, userMetaModel, uploadId) <- liftIO $ expectSetupRight dbResult
+    (_userModel, userMetaModel, uploadId) <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel uploadId
+    result <- runExceptT $ action userMetaModel uploadId
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err

@@ -8,25 +8,22 @@ module API.Dashboard.StationBlog.Slug.Get.Handler (handler, action, StationBlogD
 import API.Dashboard.StationBlog.Slug.Get.Templates.Page (template)
 import API.Links (dashboardStationBlogLinks, rootLink)
 import API.Types (DashboardStationBlogRoutes (..))
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
-import Data.Either (fromRight)
-import Data.Maybe (listToMaybe)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
-import Effects.Database.Execute (execQuery, execTransaction)
+import Effects.Database.Execute (execTransaction)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
-import Effects.Database.Tables.Shows qualified as Shows
-import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as Txn
 import Lucid qualified
@@ -38,36 +35,22 @@ import Utils (fromMaybeM, fromRightM)
 -- | All data needed to render the station blog post detail page.
 data StationBlogDetailViewData = StationBlogDetailViewData
   { sbdvUserMetadata :: UserMetadata.Model,
-    sbdvAllShows :: [Shows.Model],
-    sbdvSelectedShow :: Maybe Shows.Model,
     sbdvPost :: BlogPosts.Model,
     sbdvTags :: [BlogTags.Model],
     sbdvAuthor :: Maybe UserMetadata.Model
   }
 
--- | Business logic: fetch post and sidebar data.
+-- | Business logic: fetch the post with its tags and author.
 action ::
-  User.Model ->
   UserMetadata.Model ->
   BlogPosts.Id ->
   ExceptT HandlerError AppM StationBlogDetailViewData
-action user userMetadata postId = do
-  -- 1. Fetch shows for sidebar
-  showsResult <-
-    if UserMetadata.isAdmin userMetadata.mUserRole
-      then execQuery Shows.getAllActiveShows
-      else execQuery (Shows.getShowsForUser (User.mId user))
-  let allShows = fromRight [] showsResult
-      selectedShow = listToMaybe allShows
-
-  -- 2. Fetch blog post with tags and author
+action userMetadata postId = do
   (post, tags, mAuthor) <- fetchBlogPostOrNotFound postId
 
   pure
     StationBlogDetailViewData
       { sbdvUserMetadata = userMetadata,
-        sbdvAllShows = allShows,
-        sbdvSelectedShow = selectedShow,
         sbdvPost = post,
         sbdvTags = tags,
         sbdvAuthor = mAuthor
@@ -82,16 +65,15 @@ handler ::
   AppM (Lucid.Html ())
 handler postId _slug cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Station blog post detail" (dashboardStationBlogLinks.list Nothing) $ do
-    (user, userMetadata) <- requireAuth cookie
+    (_user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to access this page." userMetadata
-    vd <- action user userMetadata postId
+    vd <- action userMetadata postId
     let postTemplate = template vd.sbdvPost vd.sbdvTags vd.sbdvAuthor
     lift $
       renderDashboardTemplate
         hxRequest
         vd.sbdvUserMetadata
-        vd.sbdvAllShows
-        vd.sbdvSelectedShow
+        NoShow
         NavStationBlog
         Nothing
         (Just actionButton)

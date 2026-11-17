@@ -97,6 +97,7 @@ import API.Dashboard.Blogs.Slug.Delete.Route qualified as Dashboard.Blogs.Slug.D
 import API.Dashboard.Blogs.Slug.Edit.Get.Route qualified as Dashboard.Blogs.Slug.Edit.Get
 import API.Dashboard.Blogs.Slug.Edit.Post.Route qualified as Dashboard.Blogs.Slug.Edit.Post
 import API.Dashboard.Blogs.Slug.Get.Route qualified as Dashboard.Blogs.Slug.Get
+import API.Dashboard.CurrentShow.Get.Route qualified as Dashboard.CurrentShow.Get
 import API.Dashboard.EphemeralUploads.Get.Route qualified as Dashboard.EphemeralUploads.Get
 import API.Dashboard.EphemeralUploads.Id.Delete.Route qualified as Dashboard.EphemeralUploads.Id.Delete
 import API.Dashboard.EphemeralUploads.Id.Edit.Get.Route qualified as Dashboard.EphemeralUploads.Id.Edit.Get
@@ -423,6 +424,8 @@ data DashboardRoutes mode = DashboardRoutes
     home :: mode :- Dashboard.Get.Route,
     -- | @GET /dashboard/episodes@ - Redirect to episodes list
     episodesRedirect :: mode :- Dashboard.Episodes.Redirect.Route,
+    -- | @GET /dashboard/current-show/:section@ - Redirect to a section of the current show
+    currentShow :: mode :- Dashboard.CurrentShow.Get.Route,
     -- | @GET /dashboard/profile/edit@ - Edit own profile form
     profileEditGet :: mode :- Dashboard.Profile.Edit.Get.Route,
     -- | @POST /dashboard/profile/edit@ - Update own profile

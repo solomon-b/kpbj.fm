@@ -4,9 +4,10 @@ module API.Dashboard.Episodes.Redirect.HandlerSpec where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Episodes.Redirect.Handler (EpisodeRedirectViewData (..), action)
+import API.Dashboard.Episodes.Redirect.Handler (action)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
+import Data.Maybe (isJust)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
@@ -25,54 +26,54 @@ spec =
   withTestDB $
     describe "API.Dashboard.Episodes.Redirect.Handler" $ do
       describe "action" $ do
-        it "returns empty user shows when no shows exist" test_noShowsReturnsEmptyList
-        it "admin user sees all active shows" test_adminSeesAllShows
-        it "host user sees only their assigned shows" test_hostSeesOnlyOwnShows
+        it "returns no show when no shows exist" test_noShowsReturnsNothing
+        it "admin user gets an active show" test_adminGetsActiveShow
+        it "host user gets only their assigned show" test_hostGetsOwnShow
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
--- | Admin user with no shows in the database gets an empty list.
-test_noShowsReturnsEmptyList :: TestDBConfig -> IO ()
-test_noShowsReturnsEmptyList cfg = do
+-- | Admin user with no shows in the database gets no show.
+test_noShowsReturnsNothing :: TestDBConfig -> IO ()
+test_noShowsReturnsNothing cfg = do
   userInsert <- mkUserInsert "redirect-empty" UserMetadata.Admin
 
   bracketAppM cfg $ do
     dbResult <- runDB $
       TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        (userModel, userMetaModel) <- setupUserModels userInsert
-        pure (userModel, userMetaModel)
-    (userModel, userMetaModel) <- expectSetupRight dbResult
+        (_, userMetaModel) <- setupUserModels userInsert
+        pure userMetaModel
+    userMetaModel <- expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel
+    result <- runExceptT $ action Nothing userMetaModel
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
-      Right vd -> ervUserShows vd `shouldBe` []
+      Right mShow -> fmap Shows.id mShow `shouldBe` Nothing
 
--- | Admin user sees all active shows regardless of host assignment.
-test_adminSeesAllShows :: TestDBConfig -> IO ()
-test_adminSeesAllShows cfg = do
+-- | Admin user gets an active show regardless of host assignment.
+test_adminGetsActiveShow :: TestDBConfig -> IO ()
+test_adminGetsActiveShow cfg = do
   userInsert <- mkUserInsert "redirect-admin" UserMetadata.Admin
   let showInsert = Shows.Insert "Admin Redirect Show" "admin-redirect-show" Nothing Nothing Shows.Active
 
   bracketAppM cfg $ do
     dbResult <- runDB $
       TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        (userModel, userMetaModel) <- setupUserModels userInsert
+        (_, userMetaModel) <- setupUserModels userInsert
         _ <- insertTestShowWithSchedule showInsert defaultScheduleInsert
-        pure (userModel, userMetaModel)
-    (userModel, userMetaModel) <- expectSetupRight dbResult
+        pure userMetaModel
+    userMetaModel <- expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel
+    result <- runExceptT $ action Nothing userMetaModel
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
-      Right vd -> ervUserShows vd `shouldSatisfy` (not . null)
+      Right mShow -> mShow `shouldSatisfy` isJust
 
--- | Host user only sees shows they are explicitly assigned to, not all shows.
-test_hostSeesOnlyOwnShows :: TestDBConfig -> IO ()
-test_hostSeesOnlyOwnShows cfg = do
+-- | Host user gets a show they are assigned to, never an unassigned show.
+test_hostGetsOwnShow :: TestDBConfig -> IO ()
+test_hostGetsOwnShow cfg = do
   userInsert <- mkUserInsert "redirect-host" UserMetadata.Host
   let assignedShowInsert = Shows.Insert "Host Assigned Show" "host-assigned-show" Nothing Nothing Shows.Active
       otherShowInsert = Shows.Insert "Other Redirect Show" "other-redirect-show" Nothing Nothing Shows.Active
@@ -84,14 +85,11 @@ test_hostSeesOnlyOwnShows cfg = do
         (assignedShowId, _) <- insertTestShowWithSchedule assignedShowInsert defaultScheduleInsert
         (_, _) <- insertTestShowWithSchedule otherShowInsert defaultScheduleInsert
         addTestShowHost assignedShowId userModel.mId
-        pure (assignedShowId, userModel, userMetaModel)
-    (assignedShowId, userModel, userMetaModel) <- expectSetupRight dbResult
+        pure (assignedShowId, userMetaModel)
+    (assignedShowId, userMetaModel) <- expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel
+    result <- runExceptT $ action Nothing userMetaModel
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
-      Right vd -> do
-        length (ervUserShows vd) `shouldBe` 1
-        let returnedShowIds = map Shows.id (ervUserShows vd)
-        returnedShowIds `shouldSatisfy` elem assignedShowId
+      Right mShow -> fmap Shows.id mShow `shouldBe` Just assignedShowId

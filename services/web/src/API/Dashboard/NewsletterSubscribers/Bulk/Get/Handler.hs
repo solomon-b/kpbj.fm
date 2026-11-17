@@ -7,7 +7,8 @@ module API.Dashboard.NewsletterSubscribers.Bulk.Get.Handler (handler) where
 import API.Dashboard.NewsletterSubscribers.Bulk.Get.Templates (template)
 import API.Links (apiLinks)
 import API.Types
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (handleHtmlErrors)
 import App.Monad (AppM)
@@ -32,8 +33,7 @@ handler cookie (foldHxReq -> hxRequest) =
       renderDashboardTemplate
         hxRequest
         userMetadata
-        []
-        Nothing
+        NoShow
         NavNewsletterSubscribers
         Nothing
         Nothing

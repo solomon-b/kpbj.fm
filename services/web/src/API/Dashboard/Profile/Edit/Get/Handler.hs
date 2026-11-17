@@ -8,7 +8,8 @@ module API.Dashboard.Profile.Edit.Get.Handler where
 import API.Dashboard.Profile.Edit.Get.Templates.Form (template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwUserSuspended)
 import App.Monad (AppM)
@@ -17,14 +18,10 @@ import Control.Monad (when)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
-import Data.Either (fromRight)
 import Data.Has (getter)
-import Data.Maybe (listToMaybe)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.StorageBackend (StorageBackend)
-import Effects.Database.Execute (execQuery)
-import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
@@ -41,7 +38,7 @@ handler cookie (foldHxReq -> hxRequest) =
     (user, userMetadata) <- requireAuth cookie
     when (UserMetadata.isSuspended userMetadata) throwUserSuspended
     vd <- action user userMetadata
-    lift $ renderDashboardTemplate hxRequest vd.pefUserMetadata vd.pefAllShows vd.pefSelectedShow NavSettings Nothing Nothing (template vd.pefStorageBackend vd.pefUser vd.pefUserMetadata)
+    lift $ renderDashboardTemplate hxRequest vd.pefUserMetadata NoShow NavSettings Nothing Nothing (template vd.pefStorageBackend vd.pefUser vd.pefUserMetadata)
 
 --------------------------------------------------------------------------------
 
@@ -49,12 +46,10 @@ handler cookie (foldHxReq -> hxRequest) =
 data ProfileEditFormViewData = ProfileEditFormViewData
   { pefUser :: User.Model,
     pefUserMetadata :: UserMetadata.Model,
-    pefAllShows :: [Shows.Model],
-    pefSelectedShow :: Maybe Shows.Model,
     pefStorageBackend :: StorageBackend
   }
 
--- | Business logic: fetch show sidebar and storage backend for profile form.
+-- | Business logic: fetch the storage backend for the profile form.
 action ::
   User.Model ->
   UserMetadata.Model ->
@@ -63,19 +58,9 @@ action user userMetadata = do
   -- 1. Get storage backend for URL construction
   storageBackend <- asks getter
 
-  -- 2. Fetch shows for sidebar
-  showsResult <-
-    if UserMetadata.isAdmin userMetadata.mUserRole
-      then execQuery Shows.getAllActiveShows
-      else execQuery (Shows.getShowsForUser (User.mId user))
-  let allShows = fromRight [] showsResult
-      selectedShow = listToMaybe allShows
-
   pure
     ProfileEditFormViewData
       { pefUser = user,
         pefUserMetadata = userMetadata,
-        pefAllShows = allShows,
-        pefSelectedShow = selectedShow,
         pefStorageBackend = storageBackend
       }

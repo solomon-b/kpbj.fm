@@ -9,7 +9,8 @@ import API.Dashboard.AirBreaks.StationIds.Get.Templates.ItemsFragment (renderIte
 import API.Dashboard.AirBreaks.StationIds.Get.Templates.Page (template)
 import API.Links (apiLinks, dashboardStationIdsLinks, rootLink)
 import API.Types
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
@@ -17,9 +18,8 @@ import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
-import Data.Either (fromRight)
 import Data.Has qualified as Has
-import Data.Maybe (fromMaybe, listToMaybe)
+import Data.Maybe (fromMaybe)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
@@ -27,9 +27,7 @@ import Domain.Types.Offset (Offset)
 import Domain.Types.PageNumber (PageNumber (..))
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Execute (execQuery)
-import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.StationIds qualified as StationIds
-import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.HTMX
@@ -45,36 +43,33 @@ handler ::
   AppM (Lucid.Html ())
 handler maybePage cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Station IDs list" apiLinks.rootGet $ do
-    (user, userMetadata) <- requireAuth cookie
+    (_user, userMetadata) <- requireAuth cookie
     requireHostNotSuspended "You do not have permission to access this page." userMetadata
-    vd <- action user userMetadata maybePage
+    vd <- action userMetadata maybePage
     let isAppendRequest = hxRequest == IsHxRequest && vd.sivPage > PageNumber 1
     if isAppendRequest
       then pure $ renderItemsFragment vd.sivBackend vd.sivStationIds vd.sivPage vd.sivHasMore
       else do
         let stationIdsTemplate = template vd.sivBackend vd.sivStationIds vd.sivPage vd.sivHasMore vd.sivUserMetadata
-        lift $ renderDashboardTemplate hxRequest vd.sivUserMetadata vd.sivAllShows vd.sivSelectedShow NavStationIds Nothing (Just actionButton) stationIdsTemplate
+        lift $ renderDashboardTemplate hxRequest vd.sivUserMetadata NoShow NavStationIds Nothing (Just actionButton) stationIdsTemplate
 
 --------------------------------------------------------------------------------
 
 -- | All data needed to render the station IDs list page.
 data StationIdsViewData = StationIdsViewData
   { sivUserMetadata :: UserMetadata.Model,
-    sivAllShows :: [Shows.Model],
-    sivSelectedShow :: Maybe Shows.Model,
     sivBackend :: StorageBackend,
     sivStationIds :: [StationIds.StationIdWithCreator],
     sivPage :: PageNumber,
     sivHasMore :: Bool
   }
 
--- | Business logic: pagination, show sidebar, station ID fetching.
+-- | Business logic: pagination and station ID fetching.
 action ::
-  User.Model ->
   UserMetadata.Model ->
   Maybe PageNumber ->
   ExceptT HandlerError AppM StationIdsViewData
-action user userMetadata maybePage = do
+action userMetadata maybePage = do
   -- 1. Get storage backend for building media URLs
   backend <- asks (Has.getter @StorageBackend)
 
@@ -83,15 +78,7 @@ action user userMetadata maybePage = do
       limit = 20 :: Limit
       offset = fromIntegral $ (pageNum - 1) * fromIntegral limit :: Offset
 
-  -- 3. Fetch shows for sidebar
-  showsResult <-
-    if UserMetadata.isAdmin userMetadata.mUserRole
-      then execQuery Shows.getAllActiveShows
-      else execQuery (Shows.getShowsForUser (User.mId user))
-  let allShows = fromRight [] showsResult
-      selectedShow = listToMaybe allShows
-
-  -- 4. Fetch station IDs (limit + 1 to detect more)
+  -- 3. Fetch station IDs (limit + 1 to detect more)
   allStationIds <- fetchStationIds limit offset
 
   let stationIds = take (fromIntegral limit) allStationIds
@@ -100,8 +87,6 @@ action user userMetadata maybePage = do
   pure
     StationIdsViewData
       { sivUserMetadata = userMetadata,
-        sivAllShows = allShows,
-        sivSelectedShow = selectedShow,
         sivBackend = backend,
         sivStationIds = stationIds,
         sivPage = page,

@@ -8,7 +8,8 @@ module API.Dashboard.Events.Slug.Edit.Get.Handler (handler, action, EventEditVie
 import API.Dashboard.Events.Slug.Edit.Get.Templates.Form (template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
 import App.Monad (AppM)
@@ -18,9 +19,7 @@ import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe
-import Data.Either (fromRight)
 import Data.Has (getter)
-import Data.Maybe (listToMaybe)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
@@ -28,7 +27,6 @@ import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.EventImages qualified as EventImages
 import Effects.Database.Tables.Events qualified as Events
-import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as HT
@@ -41,49 +39,37 @@ import Utils (fromMaybeM, fromRightM)
 -- | All data needed to render the event edit form.
 data EventEditViewData = EventEditViewData
   { eevUserMetadata :: UserMetadata.Model,
-    eevAllShows :: [Shows.Model],
-    eevSelectedShow :: Maybe Shows.Model,
     eevEvent :: Events.Model,
     eevGalleryImages :: [EventImages.Model],
     eevStorageBackend :: StorageBackend
   }
 
--- | Business logic: fetch shows, fetch event, authorize, get storage backend.
+-- | Business logic: fetch event, authorize, get storage backend.
 action ::
   User.Model ->
   UserMetadata.Model ->
   Events.Id ->
   ExceptT HandlerError AppM EventEditViewData
 action user userMetadata eventId = do
-  -- 1. Fetch shows for sidebar
-  showsResult <-
-    if UserMetadata.isAdmin userMetadata.mUserRole
-      then execQuery Shows.getAllActiveShows
-      else execQuery (Shows.getShowsForUser (User.mId user))
-  let allShows = fromRight [] showsResult
-      selectedShow = listToMaybe allShows
-
-  -- 2. Fetch event
+  -- 1. Fetch event
   event <- fetchEvent eventId
 
-  -- 3. Check authorization: must be staff/admin or the creator
+  -- 2. Check authorization: must be staff/admin or the creator
   unless (event.emAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole) $
     throwNotAuthorized "You can only edit events you created or have staff permissions." (Just userMetadata.mUserRole)
 
-  -- 4. Fetch existing gallery photos
+  -- 3. Fetch existing gallery photos
   galleryImages <-
     fromRightM throwDatabaseError $
       execQuery (EventImages.getByEventId eventId)
 
-  -- 5. Get storage backend for URL construction
+  -- 4. Get storage backend for URL construction
   storageBackend <- asks getter
 
   Log.logInfo "Authorized user accessing event edit form" event.emId
   pure
     EventEditViewData
       { eevUserMetadata = userMetadata,
-        eevAllShows = allShows,
-        eevSelectedShow = selectedShow,
         eevEvent = event,
         eevGalleryImages = galleryImages,
         eevStorageBackend = storageBackend
@@ -106,8 +92,7 @@ handler eventId _urlSlug cookie (foldHxReq -> hxRequest) =
       renderDashboardTemplate
         hxRequest
         vd.eevUserMetadata
-        vd.eevAllShows
-        vd.eevSelectedShow
+        NoShow
         NavEvents
         Nothing
         Nothing

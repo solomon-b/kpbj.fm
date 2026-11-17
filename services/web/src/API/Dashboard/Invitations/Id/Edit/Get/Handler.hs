@@ -10,7 +10,8 @@ import API.Dashboard.Shows.Slug.Edit.Post.Handler (ParsedScheduleSlot (..))
 import API.Invite.Token.Post.Handler (parseInvitationSchedules)
 import API.Links (dashboardInvitationsLinks)
 import API.Types (DashboardInvitationsRoutes (..))
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import App.Monad (AppM)
@@ -64,7 +65,7 @@ handler invitationId cookie (foldHxReq -> hxRequest) =
               sedMinDate = dateText (min today invitation.hiStartsOn)
             }
     lift $
-      renderDashboardTemplate hxRequest userMetadata [] Nothing NavInvitations Nothing Nothing $
+      renderDashboardTemplate hxRequest userMetadata NoShow NavInvitations Nothing Nothing $
         template invitation.hiId invitation.hiRecipientEmail editorData
 
 --------------------------------------------------------------------------------

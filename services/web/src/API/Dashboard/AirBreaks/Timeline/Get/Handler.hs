@@ -11,15 +11,15 @@ where
 import API.Dashboard.AirBreaks.Timeline.Get.Templates.Page (DayKind (..), NavPlacement (..), TimelineView (..), dayNav, template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
-import Data.Either (fromRight)
-import Data.Maybe (fromMaybe, listToMaybe)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Time (Day, UTCTime)
 import Domain.DayTimeline (problems, scheduled, segmentViews)
@@ -27,10 +27,6 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Timezone (pacificDay, parseDateYMD)
 import Effects.Clock (currentSystemTime)
-import Effects.Database.Execute (execQuery)
-import Effects.Database.Tables.Shows qualified as Shows
-import Effects.Database.Tables.User qualified as User
-import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Timeline (dayTimeline)
 import Lucid qualified
 import Utils (fromRightM)
@@ -45,14 +41,8 @@ handler ::
   AppM (Lucid.Html ())
 handler mDay cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Day timeline" apiLinks.rootGet $ do
-    (user, userMetadata) <- requireAuth cookie
+    (_user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to view the timeline." userMetadata
-    showsResult <-
-      if UserMetadata.isAdmin userMetadata.mUserRole
-        then execQuery Shows.getAllActiveShows
-        else execQuery (Shows.getShowsForUser (User.mId user))
-    let allShows = fromRight [] showsResult
-        selectedShow = listToMaybe allShows
     now <- lift currentSystemTime
     let day = fromMaybe (pacificDay now) (mDay >>= parseDateYMD)
     view <- action now day
@@ -65,8 +55,7 @@ handler mDay cookie (foldHxReq -> hxRequest) =
       renderDashboardTemplate
         hxRequest
         userMetadata
-        allShows
-        selectedShow
+        NoShow
         NavTimeline
         (Just (dayNav InTopBar view))
         Nothing

@@ -7,7 +7,8 @@ module API.Dashboard.Invitations.New.Get.Handler (handler) where
 import API.Dashboard.Invitations.New.Get.Templates.Page (template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (handleHtmlErrors)
 import App.Monad (AppM)
@@ -28,4 +29,4 @@ handler cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "New invitation form" apiLinks.rootGet $ do
     (_user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "Only staff can create invitations." userMetadata
-    lift $ renderDashboardTemplate hxRequest userMetadata [] Nothing NavInvitations Nothing Nothing template
+    lift $ renderDashboardTemplate hxRequest userMetadata NoShow NavInvitations Nothing Nothing template

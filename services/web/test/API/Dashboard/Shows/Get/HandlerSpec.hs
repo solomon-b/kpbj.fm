@@ -43,9 +43,9 @@ test_emptyDbReturnsNoShows cfg = do
       runDB $
         TRX.transaction TRX.ReadCommitted TRX.Write $
           setupUserModels adminInsert
-    (userModel, userMetaModel) <- expectSetupRight dbResult
+    (_userModel, userMetaModel) <- expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel Nothing Nothing Nothing False IsNotHxRequest
+    result <- runExceptT $ action userMetaModel Nothing Nothing Nothing False IsNotHxRequest
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
@@ -63,9 +63,9 @@ test_insertedShowAppears cfg = do
       -- Add the admin user as a host so the show is visible in filtered queries
       addTestShowHost showId userModel.mId
       pure (userModel, userMetaModel, showId)
-    (userModel, userMetaModel, _showId) <- expectSetupRight dbResult
+    (_userModel, userMetaModel, _showId) <- expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel Nothing Nothing Nothing False IsNotHxRequest
+    result <- runExceptT $ action userMetaModel Nothing Nothing Nothing False IsNotHxRequest
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
@@ -85,14 +85,14 @@ test_statusFilterWorks cfg = do
       addTestShowHost activeId userModel.mId
       addTestShowHost inactiveId userModel.mId
       pure (userModel, userMetaModel)
-    (userModel, userMetaModel) <- expectSetupRight dbResult
+    (_userModel, userMetaModel) <- expectSetupRight dbResult
 
     activeResult <-
       runExceptT $
-        action userModel userMetaModel Nothing Nothing (Just (Filter (Just Shows.Active))) False IsNotHxRequest
+        action userMetaModel Nothing Nothing (Just (Filter (Just Shows.Active))) False IsNotHxRequest
     inactiveResult <-
       runExceptT $
-        action userModel userMetaModel Nothing Nothing (Just (Filter (Just Shows.Inactive))) False IsNotHxRequest
+        action userMetaModel Nothing Nothing (Just (Filter (Just Shows.Inactive))) False IsNotHxRequest
 
     liftIO $ do
       case activeResult of

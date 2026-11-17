@@ -8,8 +8,9 @@ module API.Dashboard.Shows.Slug.Episode.New.Get.Handler where
 import API.Dashboard.Shows.Slug.Episode.New.Get.Templates.Form (episodeUploadForm)
 import API.Links (apiLinks)
 import API.Types
-import App.Common (renderDashboardTemplate)
 import App.Config (Environment)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Domains (audioUploadUrl)
 import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
@@ -37,7 +38,6 @@ import Utils (fromMaybeM, fromRightM)
 -- | All data needed to render the new episode upload form.
 data EpisodeNewGetViewData = EpisodeNewGetViewData
   { engvUserMetadata :: UserMetadata.Model,
-    engvAllShows :: [Shows.Model],
     engvShowModel :: Shows.Model,
     engvUpcomingDates :: [ShowSchedule.UpcomingShowDate],
     engvUploadUrl :: Text
@@ -45,28 +45,23 @@ data EpisodeNewGetViewData = EpisodeNewGetViewData
 
 -- | Business logic: fetch show, fetch upcoming dates.
 action ::
-  User.Model ->
   UserMetadata.Model ->
   Slug ->
   ExceptT HandlerError AppM EpisodeNewGetViewData
-action user userMetadata showSlug = do
-  -- 1. Fetch shows for sidebar (admins see all, hosts see their own)
-  allShows <- lift $ fetchShowsForUser user userMetadata
-
-  -- 2. Fetch the show
+action userMetadata showSlug = do
+  -- 1. Fetch the show
   showModel <- fetchShowOrNotFound showSlug
 
-  -- 3. Fetch upcoming dates for the show
+  -- 2. Fetch upcoming dates for the show
   upcomingDates <- lift $ fetchUpcomingDates showModel.id
 
-  -- 4. Get upload URL (bypasses Cloudflare in production)
+  -- 3. Get upload URL (bypasses Cloudflare in production)
   env <- asks (Has.getter @Environment)
   let uploadUrl = audioUploadUrl env
 
   pure
     EpisodeNewGetViewData
       { engvUserMetadata = userMetadata,
-        engvAllShows = allShows,
         engvShowModel = showModel,
         engvUpcomingDates = upcomingDates,
         engvUploadUrl = uploadUrl
@@ -82,19 +77,9 @@ handler showSlug cookie (foldHxReq -> hxRequest) =
     -- 1. Require authentication and authorization (host of show or staff+)
     (user, userMetadata) <- requireAuth cookie
     requireShowHostOrStaff user.mId showSlug userMetadata
-    vd <- action user userMetadata showSlug
+    vd <- action userMetadata showSlug
     let content = episodeUploadForm vd.engvUploadUrl vd.engvShowModel vd.engvUpcomingDates vd.engvUserMetadata
-    lift $ renderDashboardTemplate hxRequest vd.engvUserMetadata vd.engvAllShows (Just vd.engvShowModel) NavEpisodes Nothing Nothing content
-
--- | Fetch shows based on user role (admins see all, hosts see their own)
-fetchShowsForUser ::
-  User.Model ->
-  UserMetadata.Model ->
-  AppM [Shows.Model]
-fetchShowsForUser user userMetadata =
-  if UserMetadata.isStaffOrHigher userMetadata.mUserRole
-    then fromRight [] <$> execQuery Shows.getAllActiveShows
-    else fromRight [] <$> execQuery (Shows.getShowsForUser (User.mId user))
+    lift $ renderDashboardTemplate hxRequest vd.engvUserMetadata (ForShow vd.engvShowModel) NavEpisodes Nothing Nothing content
 
 -- | Fetch show by slug or throw NotFound
 fetchShowOrNotFound ::

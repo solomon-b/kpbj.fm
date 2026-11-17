@@ -9,8 +9,6 @@ import App.Auth qualified as Auth
 import App.Config (Environment)
 import App.CustomContext (StreamConfig)
 import App.Monad (AppM)
-import Component.DashboardFrame (DashboardNav)
-import Component.DashboardFrame qualified as DashboardFrame
 import Component.FeedLink (FeedLink)
 import Component.Frame (loadContentOnly, loadFrame, loadFrameWithUser)
 import Control.Monad.Reader (asks)
@@ -21,7 +19,6 @@ import Data.Has (getter)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..))
 import Effects.Database.Execute (execQuery)
-import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log.Class qualified as Log
@@ -102,28 +99,3 @@ renderUnauthTemplate hxRequest templateContent = do
       mGoogleAnalyticsId <- asks getter
       streamCfg <- asks (getter @StreamConfig)
       loadFrame mGoogleAnalyticsId streamCfg [] templateContent
-
--- | Render dashboard template with separate full-page layout.
---
--- The dashboard uses its own frame with a left sidebar navigation,
--- completely separate from the main site's header/navigation.
--- Stats appear in the top bar (schedule info, counts, etc.).
--- The action button appears in the top bar (e.g., "New Episode", "New Post").
--- Includes Google Analytics tracking if GOOGLE_ANALYTICS_GTAG is configured.
-renderDashboardTemplate ::
-  HxRequest ->
-  UserMetadata.Model ->
-  [Shows.Model] ->
-  Maybe Shows.Model ->
-  DashboardNav ->
-  Maybe (Lucid.Html ()) ->
-  Maybe (Lucid.Html ()) ->
-  Lucid.Html () ->
-  AppM (Lucid.Html ())
-renderDashboardTemplate hxRequest userInfo allShows selectedShow activeNav statsContent actionButton templateContent = do
-  mGoogleAnalyticsId <- asks getter
-  case hxRequest of
-    IsHxRequest ->
-      DashboardFrame.loadDashboardContentOnly templateContent
-    IsNotHxRequest ->
-      DashboardFrame.loadDashboardFrame mGoogleAnalyticsId userInfo allShows selectedShow activeNav statsContent actionButton templateContent

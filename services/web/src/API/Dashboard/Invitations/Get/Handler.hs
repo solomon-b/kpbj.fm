@@ -8,7 +8,8 @@ import API.Dashboard.Invitations.Get.Templates.Page (template)
 import API.Links (apiLinks, dashboardInvitationsLinks, rootLink)
 import API.Types (DashboardInvitationsRoutes (..), Routes (..))
 import App.BaseUrl qualified
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
@@ -41,8 +42,7 @@ handler cookie (foldHxReq -> hxRequest) =
       renderDashboardTemplate
         hxRequest
         userMetadata
-        []
-        Nothing
+        NoShow
         NavInvitations
         Nothing
         (Just actionButton)

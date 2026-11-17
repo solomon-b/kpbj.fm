@@ -9,7 +9,9 @@ import API.Dashboard.Episodes.Get.Templates.ItemsFragment (renderItemsFragment)
 import API.Dashboard.Episodes.Get.Templates.Page (template)
 import API.Links (apiLinks, dashboardShowsLinks)
 import API.Types
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.CurrentShow (fetchDashboardShows)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
@@ -17,7 +19,6 @@ import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
-import Data.Either (fromRight)
 import Data.Int (Int64)
 import Data.List (find)
 import Data.Maybe (fromMaybe, listToMaybe)
@@ -34,11 +35,10 @@ import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Timezone (pacificDay)
-import Effects.Database.Execute (execQuery, execTransaction)
+import Effects.Database.Execute (execTransaction)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
-import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as Txn
 import Lucid qualified
@@ -53,7 +53,6 @@ import Utils (fromRightM)
 -- | All data needed to render the episode list page.
 data EpisodeListViewData = EpisodeListViewData
   { elvUserMetadata :: UserMetadata.Model,
-    elvAllShows :: [Shows.Model],
     elvSelectedShow :: Maybe Shows.Model,
     elvEpisodes :: [Episodes.Model],
     elvSchedules :: [ShowSchedule.ScheduleTemplate Result],
@@ -64,29 +63,28 @@ data EpisodeListViewData = EpisodeListViewData
 
 -- | Business logic: pagination setup, show/episode fetching.
 action ::
-  User.Model ->
   UserMetadata.Model ->
   Slug ->
   Maybe Int64 ->
   ExceptT HandlerError AppM EpisodeListViewData
-action user userMetadata showSlug maybePage = do
+action userMetadata showSlug maybePage = do
   -- 1. Set up pagination
   today <- pacificDay <$> liftIO getCurrentTime
   let page = fromMaybe 1 maybePage
       limit = 20 :: Limit
       offset = fromIntegral $ (page - 1) * fromIntegral limit :: Offset
 
-  -- 2. Fetch shows for sidebar (admins see all, hosts see their own)
-  allShows <- lift $ fetchShowsForUser user userMetadata
+  -- 2. Fetch the shows this user may open. This list is the access check: a
+  -- slug outside it renders the page with no show.
+  accessibleShows <- lift $ fetchDashboardShows userMetadata
 
   -- 3. Determine which show to display
-  let selectedShow = find (\s -> s.slug == showSlug) allShows
+  let selectedShow = find (\s -> s.slug == showSlug) accessibleShows
   case selectedShow of
     Nothing ->
       pure
         EpisodeListViewData
           { elvUserMetadata = userMetadata,
-            elvAllShows = allShows,
             elvSelectedShow = Nothing,
             elvEpisodes = [],
             elvSchedules = [],
@@ -103,7 +101,6 @@ action user userMetadata showSlug maybePage = do
       pure
         EpisodeListViewData
           { elvUserMetadata = userMetadata,
-            elvAllShows = allShows,
             elvSelectedShow = Just showToFetch,
             elvEpisodes = episodes,
             elvSchedules = schedules,
@@ -121,9 +118,9 @@ handler ::
   AppM (Lucid.Html ())
 handler showSlug maybePage cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Episodes list" apiLinks.rootGet $ do
-    (user, userMetadata) <- requireAuth cookie
+    (_user, userMetadata) <- requireAuth cookie
     requireHostNotSuspended "You do not have permission to access this page." userMetadata
-    vd <- action user userMetadata showSlug maybePage
+    vd <- action userMetadata showSlug maybePage
     let isAppendRequest = hxRequest == IsHxRequest && vd.elvPage > 1
     case (isAppendRequest, vd.elvSelectedShow) of
       (True, Just showToFetch) ->
@@ -136,8 +133,7 @@ handler showSlug maybePage cookie (foldHxReq -> hxRequest) =
           renderDashboardTemplate
             hxRequest
             vd.elvUserMetadata
-            vd.elvAllShows
-            vd.elvSelectedShow
+            (maybe NoShow ForShow vd.elvSelectedShow)
             NavEpisodes
             (statsContent vd.elvUserMetadata vd.elvEpisodes vd.elvSchedules vd.elvNextShow)
             (fmap actionButton vd.elvSelectedShow)
@@ -186,16 +182,6 @@ handler showSlug maybePage cookie (foldHxReq -> hxRequest) =
           dayText = Text.intercalate ", " dayNames
           timeRange = formatTimeOfDay firstSchedule.stStartTime <> "-" <> formatTimeOfDay firstSchedule.stEndTime
        in Lucid.span_ [] $ Lucid.toHtml $ dayText <> " " <> timeRange
-
--- | Fetch shows based on user role (admins see all, hosts see their own)
-fetchShowsForUser ::
-  User.Model ->
-  UserMetadata.Model ->
-  AppM [Shows.Model]
-fetchShowsForUser user userMetadata =
-  if UserMetadata.isAdmin userMetadata.mUserRole
-    then fromRight [] <$> execQuery Shows.getAllActiveShows
-    else fromRight [] <$> execQuery (Shows.getShowsForUser (User.mId user))
 
 -- | Which episodes a role may see in the dashboard.
 --

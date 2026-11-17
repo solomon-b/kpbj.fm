@@ -24,6 +24,7 @@ import API.Dashboard.Blogs.Slug.Delete.HandlerSpec qualified as DashboardBlogsDe
 import API.Dashboard.Blogs.Slug.Edit.Get.HandlerSpec qualified as DashboardBlogsEditGetHandler
 import API.Dashboard.Blogs.Slug.Edit.Post.HandlerSpec qualified as DashboardBlogsEditPostHandler
 import API.Dashboard.Blogs.Slug.Get.HandlerSpec qualified as DashboardBlogsSlugGetHandler
+import API.Dashboard.CurrentShow.Get.HandlerSpec qualified as DashboardCurrentShowGetHandler
 import API.Dashboard.EphemeralUploads.Get.HandlerSpec qualified as DashboardEphemeralUploadsGetHandler
 import API.Dashboard.EphemeralUploads.Id.Delete.HandlerSpec qualified as DashboardEphemeralUploadsDeleteHandler
 import API.Dashboard.EphemeralUploads.Id.Edit.Get.HandlerSpec qualified as DashboardEphemeralUploadsEditGetHandler
@@ -109,10 +110,13 @@ import API.User.Login.Post.HandlerSpec qualified as UserLoginHandler
 import API.User.Register.Post.HandlerSpec qualified as UserRegisterHandler
 import App.BaseUrlSpec qualified as BaseUrl
 import App.CustomContextSpec qualified as CustomContext
+import App.Dashboard.CurrentShowSpec qualified as CurrentShow
+import App.Dashboard.ShowContextSpec qualified as ShowContext
 import App.DomainsSpec qualified as Domains
 import App.Handler.CombinatorsSpec qualified as Combinators
 import App.Handler.ErrorSpec qualified as ErrorHandler
 import App.RequestLogSpec qualified as RequestLog
+import Component.DashboardFrameSpec qualified as DashboardFrame
 import Component.ScheduleEditorSpec qualified as ScheduleEditor
 import Data.Maybe (fromMaybe)
 import Domain.BreakPlannerSpec qualified as BreakPlanner
@@ -162,10 +166,12 @@ main = do
     IcecastStatus.spec
     BaseUrl.spec
     CustomContext.spec
+    ShowContext.spec
     Domains.spec
     RequestLog.spec
     ScheduleDiff.spec
     ScheduleEditor.spec
+    DashboardFrame.spec
     ContentSanitization.spec
     Diff.spec
     Markdown.spec
@@ -218,6 +224,8 @@ main = do
     DashboardInvitationsRegenerateHandler.spec
     InviteTokenPostHandler.spec
     DashboardEpisodesRedirectHandler.spec
+    CurrentShow.spec
+    DashboardCurrentShowGetHandler.spec
     DashboardEpisodesSlugGetHandler.spec
     DashboardShowsGetHandler.spec
     DashboardShowsNewGetHandler.spec

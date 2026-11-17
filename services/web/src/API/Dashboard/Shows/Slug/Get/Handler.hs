@@ -9,7 +9,9 @@ module API.Dashboard.Shows.Slug.Get.Handler where
 import API.Dashboard.Shows.Slug.Get.Templates.Page (template)
 import API.Links (apiLinks)
 import API.Types
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.CurrentShow (fetchDashboardShows)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwNotFound)
 import App.Monad (AppM)
@@ -17,7 +19,6 @@ import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
-import Data.Either (fromRight)
 import Data.Has (getter)
 import Data.Int (Int64)
 import Data.List (find)
@@ -31,7 +32,6 @@ import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Clock (currentSystemTime)
 import Effects.Database.Class (MonadDB (..))
-import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowHost qualified as ShowHost
@@ -55,7 +55,6 @@ episodesPerPage = 10
 -- | All data needed to render the show detail page.
 data ShowDetailViewData = ShowDetailViewData
   { sdvUserMetadata :: UserMetadata.Model,
-    sdvAllShows :: [Shows.Model],
     sdvShowModel :: Shows.Model,
     sdvBackend :: StorageBackend,
     sdvPage :: Int
@@ -63,27 +62,26 @@ data ShowDetailViewData = ShowDetailViewData
 
 -- | Business logic: fetch shows, find show.
 action ::
-  User.Model ->
   UserMetadata.Model ->
   Shows.Id ->
   Slug ->
   Maybe Int ->
   ExceptT HandlerError AppM ShowDetailViewData
-action user userMetadata showId _showSlug mPage = do
+action userMetadata showId _showSlug mPage = do
   -- 1. Get storage backend
   backend <- asks getter
 
-  -- 2. Fetch shows for sidebar (admins see all, hosts see their own)
-  allShows <- lift $ fetchShowsForUser user userMetadata
+  -- 2. Fetch the shows this user may open. This list is the access check: a
+  -- show outside it is not found.
+  accessibleShows <- lift $ fetchDashboardShows userMetadata
 
   -- 3. Find the selected show
-  case find (\s -> s.id == showId) allShows of
+  case find (\s -> s.id == showId) accessibleShows of
     Nothing -> throwNotFound "Show"
     Just showModel ->
       pure
         ShowDetailViewData
           { sdvUserMetadata = userMetadata,
-            sdvAllShows = allShows,
             sdvShowModel = showModel,
             sdvBackend = backend,
             sdvPage = fromMaybe 1 mPage
@@ -101,29 +99,18 @@ handler showId showSlug mPage cookie (foldHxReq -> hxRequest) =
     -- 1. Require authentication and host role
     (user, userMetadata) <- requireAuth cookie
     requireShowHostOrStaff user.mId showSlug userMetadata
-    vd <- action user userMetadata showId showSlug mPage
-    lift $ renderShowDetails vd.sdvBackend hxRequest vd.sdvUserMetadata vd.sdvAllShows vd.sdvShowModel (Just vd.sdvPage)
-
--- | Fetch shows based on user role (admins see all, hosts see their own)
-fetchShowsForUser ::
-  User.Model ->
-  UserMetadata.Model ->
-  AppM [Shows.Model]
-fetchShowsForUser user userMetadata =
-  if UserMetadata.isAdmin userMetadata.mUserRole
-    then fromRight [] <$> execQuery Shows.getAllActiveShows
-    else fromRight [] <$> execQuery (Shows.getShowsForUser (User.mId user))
+    vd <- action userMetadata showId showSlug mPage
+    lift $ renderShowDetails vd.sdvBackend hxRequest vd.sdvUserMetadata vd.sdvShowModel (Just vd.sdvPage)
 
 -- | Render show details page within dashboard frame
 renderShowDetails ::
   StorageBackend ->
   HxRequest ->
   UserMetadata.Model ->
-  [Shows.Model] ->
   Shows.Model ->
   Maybe Int ->
   AppM (Lucid.Html ())
-renderShowDetails backend hxRequest userMetadata allShows showModel mPage = do
+renderShowDetails backend hxRequest userMetadata showModel mPage = do
   let page = fromMaybe 1 mPage
       limit = fromIntegral episodesPerPage
       offset = fromIntegral (page - 1) * fromIntegral episodesPerPage
@@ -132,10 +119,10 @@ renderShowDetails backend hxRequest userMetadata allShows showModel mPage = do
     Left err -> do
       Log.logAttention "Failed to fetch show details from database" (show err)
       let content = template backend showModel [] [] [] [] [] page
-      renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavShows Nothing Nothing content
+      renderDashboardTemplate hxRequest userMetadata (ForShow showModel) NavShows Nothing Nothing content
     Right (hosts, schedule, episodes, blogPosts, tags) -> do
       let content = template backend showModel episodes hosts schedule blogPosts tags page
-      renderDashboardTemplate hxRequest userMetadata allShows (Just showModel) NavShows Nothing Nothing content
+      renderDashboardTemplate hxRequest userMetadata (ForShow showModel) NavShows Nothing Nothing content
 
 fetchShowDetails ::
   UTCTime ->

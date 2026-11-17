@@ -4,7 +4,7 @@ module API.Dashboard.Episodes.Slug.Edit.Get.HandlerSpec where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Episodes.Slug.Edit.Get.Handler (fetchEpisodeContext)
+import API.Dashboard.Episodes.Slug.Edit.Get.Handler (EpisodeEditViewData (..), action, fetchEpisodeContext)
 import App.Handler.Error (HandlerError (..))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
@@ -35,6 +35,9 @@ spec =
         it "returns NotFound for missing episode" test_fetchMissingEpisode
         it "identifies host correctly" test_identifiesHost
         it "admin is always treated as host" test_adminIsHost
+      describe "action" $ do
+        it "host of the show can open the edit form for an episode of another creator" test_actionAllowsHostOfShow
+        it "host who does not host the show and did not create the episode gets NotAuthorized" test_actionRejectsUnrelatedHost
 
 --------------------------------------------------------------------------------
 
@@ -169,3 +172,50 @@ test_adminIsHost cfg = do
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
       Right (_, _, _, isHost) -> isHost `shouldBe` True
+
+-- | A host of the show can edit an episode that another user created.
+test_actionAllowsHostOfShow :: TestDBConfig -> IO ()
+test_actionAllowsHostOfShow cfg = do
+  ownerInsert <- mkUserInsert "edit-action-owner" UserMetadata.Admin
+  hostInsert <- mkUserInsert "edit-action-host" UserMetadata.Host
+  let showInsert = Shows.Insert "Edit Action Host Show" "edit-action-host-show" Nothing Nothing Shows.Active
+
+  bracketAppM cfg $ do
+    dbResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Write $ do
+          (showModel, episodeModel, _ownerModel, _ownerMeta) <- setupFixture showInsert ownerInsert
+          (hostModel, hostMetaModel) <- setupUserModels hostInsert
+          TRX.statement () (ShowHost.addHostToShow (Shows.id showModel) hostModel.mId)
+          pure (showModel, episodeModel, hostModel, hostMetaModel)
+    (showModel, episodeModel, hostModel, hostMetaModel) <- expectSetupRight dbResult
+
+    result <- runExceptT $ action hostModel hostMetaModel showModel.slug episodeModel.episodeNumber
+
+    liftIO $ case result of
+      Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
+      Right vd -> Shows.id (eevShowModel vd) `shouldBe` Shows.id showModel
+
+-- | A host who does not host the show and did not create the episode gets
+-- NotAuthorized.
+test_actionRejectsUnrelatedHost :: TestDBConfig -> IO ()
+test_actionRejectsUnrelatedHost cfg = do
+  ownerInsert <- mkUserInsert "edit-action-other-owner" UserMetadata.Admin
+  visitorInsert <- mkUserInsert "edit-action-visitor" UserMetadata.Host
+  let showInsert = Shows.Insert "Edit Action Other Show" "edit-action-other-show" Nothing Nothing Shows.Active
+
+  bracketAppM cfg $ do
+    dbResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Write $ do
+          (showModel, episodeModel, _ownerModel, _ownerMeta) <- setupFixture showInsert ownerInsert
+          (visitorModel, visitorMetaModel) <- setupUserModels visitorInsert
+          pure (showModel, episodeModel, visitorModel, visitorMetaModel)
+    (showModel, episodeModel, visitorModel, visitorMetaModel) <- expectSetupRight dbResult
+
+    result <- runExceptT $ action visitorModel visitorMetaModel showModel.slug episodeModel.episodeNumber
+
+    liftIO $ case result of
+      Left (NotAuthorized _ _) -> pure ()
+      Left err -> expectationFailure $ "Expected NotAuthorized but got: " <> show err
+      Right _ -> expectationFailure "Expected Left NotAuthorized but got Right"

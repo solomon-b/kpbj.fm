@@ -8,7 +8,8 @@ module API.Dashboard.Shows.New.Get.Handler (handler, action, ShowNewGetViewData 
 import API.Dashboard.Shows.New.Get.Templates.Page (template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
@@ -56,4 +57,4 @@ handler cookie (foldHxReq -> hxRequest) =
     (_user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to access this page." userMetadata
     vd <- action userMetadata
-    lift $ renderDashboardTemplate hxRequest vd.sngvUserMetadata [] Nothing NavShows Nothing Nothing (template vd.sngvEligibleHosts)
+    lift $ renderDashboardTemplate hxRequest vd.sngvUserMetadata NoShow NavShows Nothing Nothing (template vd.sngvEligibleHosts)

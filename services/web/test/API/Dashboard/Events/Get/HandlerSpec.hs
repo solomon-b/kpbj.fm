@@ -43,9 +43,9 @@ test_emptyListOnFreshDB cfg = do
     dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
       (userModel, userMetaModel) <- setupUserModels userInsert
       pure (userModel, userMetaModel)
-    (userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
+    (_userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel Nothing
+    result <- runExceptT $ action userMetaModel Nothing
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
@@ -76,9 +76,9 @@ test_returnsEventOnInsert cfg = do
               }
       eventId <- insertTestEvent eventInsert
       pure (userModel, userMetaModel, eventId)
-    (userModel, userMetaModel, eventId) <- liftIO $ expectSetupRight dbResult
+    (_userModel, userMetaModel, eventId) <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel Nothing
+    result <- runExceptT $ action userMetaModel Nothing
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
@@ -95,9 +95,9 @@ test_paginationDefaults cfg = do
     dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
       (userModel, userMetaModel) <- setupUserModels userInsert
       pure (userModel, userMetaModel)
-    (userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
+    (_userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel Nothing
+    result <- runExceptT $ action userMetaModel Nothing
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err

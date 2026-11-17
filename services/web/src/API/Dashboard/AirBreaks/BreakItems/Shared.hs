@@ -35,7 +35,6 @@ module API.Dashboard.AirBreaks.BreakItems.Shared
     checkItemLength,
     claimBreakItemAudio,
     ClaimedAudio (..),
-    sidebarShows,
     redirectTo,
   )
 where
@@ -51,8 +50,9 @@ import API.Links
     rootLink,
   )
 import API.Types
-import App.Common (renderDashboardTemplate)
 import App.Config (Environment)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Domains (breakItemUploadUrl)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error
@@ -75,11 +75,10 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
-import Data.Either (fromRight)
 import Data.Has qualified as Has
 import Data.Int (Int64)
 import Data.Map.Strict qualified as Map
-import Data.Maybe (fromMaybe, listToMaybe, mapMaybe)
+import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -98,7 +97,6 @@ import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.BreakItems qualified as BreakItems
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
-import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.StagedUploads qualified as StagedUploads
 import Effects.Database.Tables.Underwriters qualified as Underwriters
 import Effects.Database.Tables.User qualified as User
@@ -217,7 +215,7 @@ announcementSection =
 listHandler :: Section -> Maybe PageNumber -> Maybe Cookie -> Maybe HxRequest -> AppM (Lucid.Html ())
 listHandler sec maybePage cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors (sec.secLogName <> " list") apiLinks.rootGet $ do
-    (user, userMetadata) <- requireAuth cookie
+    (_user, userMetadata) <- requireAuth cookie
     sec.secRequire userMetadata
 
     let page@(PageNumber pageNum) = fromMaybe (PageNumber 1) maybePage
@@ -244,14 +242,12 @@ listHandler sec maybePage cookie (foldHxReq -> hxRequest) =
 
     if hxRequest == IsHxRequest && pageNum > 1
       then pure $ BreakItemsUI.renderItemsFragment backend sec.secUrls mNames items page hasMore
-      else do
-        (allShows, selectedShow) <- sidebarShows user userMetadata
+      else
         lift $
           renderDashboardTemplate
             hxRequest
             userMetadata
-            allShows
-            selectedShow
+            NoShow
             sec.secNav
             Nothing
             (Just (BreakItemsUI.renderActionButton sec.secUrls))
@@ -264,9 +260,8 @@ listHandler sec maybePage cookie (foldHxReq -> hxRequest) =
 newGetHandler :: Section -> Maybe Cookie -> Maybe HxRequest -> AppM (Lucid.Html ())
 newGetHandler sec cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors (sec.secLogName <> " upload form") apiLinks.rootGet $ do
-    (user, userMetadata) <- requireAuth cookie
+    (_user, userMetadata) <- requireAuth cookie
     sec.secRequire userMetadata
-    (allShows, selectedShow) <- sidebarShows user userMetadata
 
     env <- asks (Has.getter @Environment)
     today <- pacificDay <$> liftIO getCurrentTime
@@ -276,8 +271,7 @@ newGetHandler sec cookie (foldHxReq -> hxRequest) =
       renderDashboardTemplate
         hxRequest
         userMetadata
-        allShows
-        selectedShow
+        NoShow
         sec.secNav
         Nothing
         Nothing
@@ -352,18 +346,16 @@ editGetHandler ::
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
 editGetHandler sec itemId cookie (foldHxReq -> hxRequest) =
   handleRedirectErrors (sec.secLogName <> " edit form") sec.secListLink $ do
-    (user, userMetadata) <- requireAuth cookie
+    (_user, userMetadata) <- requireAuth cookie
     sec.secRequire userMetadata
     item <- fetchInSection sec itemId
     mUf <- sectionUnderwritingFields sec (Just item)
-    (allShows, selectedShow) <- sidebarShows user userMetadata
     html <-
       lift $
         renderDashboardTemplate
           hxRequest
           userMetadata
-          allShows
-          selectedShow
+          NoShow
           sec.secNav
           Nothing
           Nothing
@@ -620,19 +612,6 @@ underwritingFields mItem = do
         ufActiveUnderwriters = active,
         ufShowBreaksToday = showBreaks
       }
-
--- | The shows the dashboard sidebar lists for this user.
-sidebarShows ::
-  User.Model ->
-  UserMetadata.Model ->
-  ExceptT HandlerError AppM ([Shows.Model], Maybe Shows.Model)
-sidebarShows user userMetadata = do
-  showsResult <-
-    if UserMetadata.isAdmin userMetadata.mUserRole
-      then execQuery Shows.getAllActiveShows
-      else execQuery (Shows.getShowsForUser (User.mId user))
-  let allShows = fromRight [] showsResult
-  pure (allShows, listToMaybe allShows)
 
 -- | Build the redirect-with-flash response of Pattern A.
 redirectTo ::

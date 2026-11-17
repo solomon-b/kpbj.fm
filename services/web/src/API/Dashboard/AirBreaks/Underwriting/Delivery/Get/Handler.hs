@@ -12,7 +12,8 @@ where
 import API.Dashboard.AirBreaks.Underwriting.Delivery.Get.Templates.Page (DeliveryRow (..), template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
@@ -20,9 +21,8 @@ import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Containers.ListUtils (nubOrd)
-import Data.Either (fromRight)
 import Data.Map.Strict qualified as Map
-import Data.Maybe (fromMaybe, listToMaybe)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day, addDays, fromGregorian, gregorianMonthLength, toGregorian)
@@ -33,10 +33,7 @@ import Effects.Clock (currentSystemTime)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.BreakItems qualified as BreakItems
 import Effects.Database.Tables.PlaybackHistory qualified as PlaybackHistory
-import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.Underwriters qualified as Underwriters
-import Effects.Database.Tables.User qualified as User
-import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Text.Read (readMaybe)
 import Utils (fromRightM)
@@ -51,14 +48,8 @@ handler ::
   AppM (Lucid.Html ())
 handler mMonth cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Underwriting delivery" apiLinks.rootGet $ do
-    (user, userMetadata) <- requireAuth cookie
+    (_user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to manage underwriting." userMetadata
-    showsResult <-
-      if UserMetadata.isAdmin userMetadata.mUserRole
-        then execQuery Shows.getAllActiveShows
-        else execQuery (Shows.getShowsForUser (User.mId user))
-    let allShows = fromRight [] showsResult
-        selectedShow = listToMaybe allShows
     today <- pacificDay <$> lift currentSystemTime
     let (y, m, _) = toGregorian today
         firstDay = fromMaybe (fromGregorian y m 1) (mMonth >>= parseMonth)
@@ -67,8 +58,7 @@ handler mMonth cookie (foldHxReq -> hxRequest) =
       renderDashboardTemplate
         hxRequest
         userMetadata
-        allShows
-        selectedShow
+        NoShow
         NavUnderwritingDelivery
         Nothing
         Nothing

@@ -9,7 +9,8 @@ module API.Dashboard.Blogs.Slug.Get.Handler where
 import API.Dashboard.Blogs.Slug.Get.Templates.Page (template)
 import API.Links (apiLinks, dashboardBlogsLinks)
 import API.Types
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
 import App.Monad (AppM)
@@ -49,7 +50,7 @@ handler showSlug postId cookie (foldHxReq -> hxRequest) =
     requireHostNotSuspended "You do not have permission to access this page." userMetadata
     vd <- action user userMetadata showSlug postId
     let content = template vd.bdvUserMetadata vd.bdvShowModel vd.bdvBlogPost vd.bdvTags
-    lift $ renderDashboardTemplate hxRequest vd.bdvUserMetadata vd.bdvAllShows (Just vd.bdvShowModel) NavBlog Nothing (actionButton vd.bdvShowModel) content
+    lift $ renderDashboardTemplate hxRequest vd.bdvUserMetadata (ForShow vd.bdvShowModel) NavBlog Nothing (actionButton vd.bdvShowModel) content
   where
     actionButton :: Shows.Model -> Maybe (Lucid.Html ())
     actionButton showModel =
@@ -69,7 +70,6 @@ handler showSlug postId cookie (foldHxReq -> hxRequest) =
 -- | All data needed to render the blog post detail page.
 data BlogDetailViewData = BlogDetailViewData
   { bdvUserMetadata :: UserMetadata.Model,
-    bdvAllShows :: [Shows.Model],
     bdvShowModel :: Shows.Model,
     bdvBlogPost :: ShowBlogPosts.Model,
     bdvTags :: [ShowBlogTags.Model]
@@ -95,13 +95,9 @@ action user userMetadata showSlug postId = do
   -- 4. Fetch tags for the blog post
   tags <- fromRight [] <$> execQuery (ShowBlogPosts.getTagsForShowBlogPost blogPost.id)
 
-  -- 5. Get user's shows for sidebar
-  allShows <- lift $ fetchShowsForUser user userMetadata
-
   pure
     BlogDetailViewData
       { bdvUserMetadata = userMetadata,
-        bdvAllShows = allShows,
         bdvShowModel = showModel,
         bdvBlogPost = blogPost,
         bdvTags = tags
@@ -144,13 +140,3 @@ fetchBlogPostOrNotFound postId showModel = do
   if blogPost.showId /= showModel.id
     then throwNotFound "Blog post"
     else pure blogPost
-
--- | Fetch shows for user based on role
-fetchShowsForUser ::
-  User.Model ->
-  UserMetadata.Model ->
-  AppM [Shows.Model]
-fetchShowsForUser user userMetadata =
-  if UserMetadata.isAdmin userMetadata.mUserRole
-    then fromRight [] <$> execQuery Shows.getAllActiveShows
-    else fromRight [] <$> execQuery (Shows.getShowsForUser (User.mId user))

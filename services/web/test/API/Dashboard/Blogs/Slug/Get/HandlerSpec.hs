@@ -33,6 +33,7 @@ spec =
         it "returns NotFound for a nonexistent show slug" test_notFoundForMissingShow
         it "admin can view show blog post detail" test_adminCanViewPostDetail
         it "unrelated user not host of show gets NotAuthorized" test_notAuthorizedForUnrelatedUser
+        it "host of the show can view show blog post detail" test_hostCanViewPostDetail
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -123,3 +124,36 @@ test_notAuthorizedForUnrelatedUser cfg = do
       Left (NotAuthorized _ _) -> pure ()
       Left err -> expectationFailure $ "Expected NotAuthorized but got: " <> show err
       Right _ -> expectationFailure "Expected Left NotAuthorized but got Right"
+
+-- | A host of the show can view a post of that show.
+test_hostCanViewPostDetail :: TestDBConfig -> IO ()
+test_hostCanViewPostDetail cfg = do
+  userInsert <- mkUserInsert "blog-slug-get-host" UserMetadata.Host
+
+  bracketAppM cfg $ do
+    dbResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Write $ do
+          (userModel, userMetaModel) <- setupUserModels userInsert
+          let showInsert = Shows.Insert "Blog Slug Get Host Show" (Slug "blog-slug-get-host-show") Nothing Nothing Shows.Active
+          (showId, _) <- insertTestShowWithSchedule showInsert defaultScheduleInsert
+          addTestShowHost showId userModel.mId
+          let postInsert =
+                ShowBlogPosts.Insert
+                  { ShowBlogPosts.sbpiId = showId,
+                    ShowBlogPosts.sbpiTitle = "Host Detail Post",
+                    ShowBlogPosts.sbpiSlug = Slug.mkSlug "Host Detail Post",
+                    ShowBlogPosts.sbpiContent = "Content.",
+                    ShowBlogPosts.sbpiExcerpt = Nothing,
+                    ShowBlogPosts.sbpiAuthorId = userModel.mId,
+                    ShowBlogPosts.sbpiStatus = Published
+                  }
+          postId <- insertTestShowBlogPost postInsert
+          pure (userModel, userMetaModel, showId, postId)
+    (userModel, userMetaModel, showId, postId) <- liftIO $ expectSetupRight dbResult
+
+    result <- runExceptT $ action userModel userMetaModel (Slug "blog-slug-get-host-show") postId
+
+    liftIO $ case result of
+      Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
+      Right vd -> Shows.id (bdvShowModel vd) `shouldBe` showId

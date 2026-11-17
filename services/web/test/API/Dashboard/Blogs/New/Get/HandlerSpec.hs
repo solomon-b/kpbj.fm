@@ -9,9 +9,10 @@ import Control.Monad.Trans.Except (runExceptT)
 import Domain.Types.Slug (Slug (..))
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction.Sessions qualified as TRX
-import Test.Database.Helpers (insertTestShowWithSchedule)
+import Test.Database.Helpers (addTestShowHost, insertTestShowWithSchedule)
 import Test.Database.Monad (TestDBConfig, withTestDB)
 import Test.Handler.Fixtures (defaultScheduleInsert, expectSetupRight, mkUserInsert, setupUserModels)
 import Test.Handler.Monad (bracketAppM)
@@ -26,6 +27,8 @@ spec =
       describe "action" $ do
         it "admin can access new blog post form for any show" test_adminCanAccessNewBlogForm
         it "non-host user gets NotAuthorized" test_nonHostGetsNotAuthorized
+        it "host of the show can access the form" test_hostOfShowCanAccessForm
+        it "host who does not host the show gets NotAuthorized" test_unrelatedHostGetsNotAuthorized
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -67,6 +70,53 @@ test_nonHostGetsNotAuthorized cfg = do
     (userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
 
     result <- runExceptT $ action userModel userMetaModel (Slug "blog-new-get-unrelated-show")
+
+    liftIO $ case result of
+      Left (NotAuthorized _ _) -> pure ()
+      Left err -> expectationFailure $ "Expected NotAuthorized but got: " <> show err
+      Right _ -> expectationFailure "Expected Left NotAuthorized but got Right"
+
+-- | A host of the show can access the new blog post form.
+test_hostOfShowCanAccessForm :: TestDBConfig -> IO ()
+test_hostOfShowCanAccessForm cfg = do
+  userInsert <- mkUserInsert "blog-new-get-host" UserMetadata.Host
+
+  bracketAppM cfg $ do
+    dbResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Write $ do
+          (userModel, userMetaModel) <- setupUserModels userInsert
+          let showInsert = Shows.Insert "Blog New Get Host Show" (Slug "blog-new-get-host-show") Nothing Nothing Shows.Active
+          (showId, _) <- insertTestShowWithSchedule showInsert defaultScheduleInsert
+          addTestShowHost showId userModel.mId
+          pure (userModel, userMetaModel, showId)
+    (userModel, userMetaModel, showId) <- liftIO $ expectSetupRight dbResult
+
+    result <- runExceptT $ action userModel userMetaModel (Slug "blog-new-get-host-show")
+
+    liftIO $ case result of
+      Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
+      Right vd -> Shows.id (bnvShowModel vd) `shouldBe` showId
+
+-- | A host of one show gets NotAuthorized for a show that they do not host.
+test_unrelatedHostGetsNotAuthorized :: TestDBConfig -> IO ()
+test_unrelatedHostGetsNotAuthorized cfg = do
+  userInsert <- mkUserInsert "blog-new-get-other-host" UserMetadata.Host
+
+  bracketAppM cfg $ do
+    dbResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Write $ do
+          (userModel, userMetaModel) <- setupUserModels userInsert
+          let ownShowInsert = Shows.Insert "Blog New Get Own Show" (Slug "blog-new-get-own-show") Nothing Nothing Shows.Active
+              otherShowInsert = Shows.Insert "Blog New Get Other Show" (Slug "blog-new-get-other-show") Nothing Nothing Shows.Active
+          (ownShowId, _) <- insertTestShowWithSchedule ownShowInsert defaultScheduleInsert
+          addTestShowHost ownShowId userModel.mId
+          _ <- insertTestShowWithSchedule otherShowInsert defaultScheduleInsert
+          pure (userModel, userMetaModel)
+    (userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
+
+    result <- runExceptT $ action userModel userMetaModel (Slug "blog-new-get-other-show")
 
     liftIO $ case result of
       Left (NotAuthorized _ _) -> pure ()

@@ -42,9 +42,9 @@ test_notFoundForMissingEvent cfg = do
     dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
       (userModel, userMetaModel) <- setupUserModels userInsert
       pure (userModel, userMetaModel)
-    (userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
+    (_userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel (Events.Id 99999)
+    result <- runExceptT $ action userMetaModel (Events.Id 99999)
 
     liftIO $ case result of
       Left (NotFound "Event") -> pure ()
@@ -77,9 +77,9 @@ test_returnsEventDetail cfg = do
               }
       eventId <- insertTestEvent eventInsert
       pure (userModel, userMetaModel, eventId)
-    (userModel, userMetaModel, eventId) <- liftIO $ expectSetupRight dbResult
+    (_userModel, userMetaModel, eventId) <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel eventId
+    result <- runExceptT $ action userMetaModel eventId
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err

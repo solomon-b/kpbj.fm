@@ -57,9 +57,9 @@ test_notFoundForMissingPost cfg = do
       runDB $
         TRX.transaction TRX.ReadCommitted TRX.Write $
           setupUserModels userInsert
-    (userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
+    (_userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel (BlogPosts.Id nonExistentId)
+    result <- runExceptT $ action userMetaModel (BlogPosts.Id nonExistentId)
 
     liftIO $ case result of
       Left (NotFound _) -> pure ()
@@ -76,9 +76,9 @@ test_returnsEditViewData cfg = do
       (userModel, userMetaModel) <- setupUserModels userInsert
       postId <- insertTestBlogPost (mkBlogPostInsert "Station Blog Edit Get View Data Post" userModel.mId)
       pure (userModel, userMetaModel, postId)
-    (userModel, userMetaModel, postId) <- liftIO $ expectSetupRight dbResult
+    (_userModel, userMetaModel, postId) <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel postId
+    result <- runExceptT $ action userMetaModel postId
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err

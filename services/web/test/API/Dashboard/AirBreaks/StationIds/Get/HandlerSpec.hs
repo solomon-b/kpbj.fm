@@ -54,9 +54,9 @@ test_emptyListOnFreshDB cfg = do
       runDB $
         TRX.transaction TRX.ReadCommitted TRX.Write $
           setupUserModels userInsert
-    (userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
+    (_userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel Nothing
+    result <- runExceptT $ action userMetaModel Nothing
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
@@ -71,9 +71,9 @@ test_returnsStationIdOnInsert cfg = do
       (userModel, userMetaModel) <- setupUserModels userInsert
       _ <- insertTestStationId (mkStationIdInsert "Get Test Station ID" userModel.mId)
       pure (userModel, userMetaModel)
-    (userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
+    (_userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel Nothing
+    result <- runExceptT $ action userMetaModel Nothing
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
@@ -88,9 +88,9 @@ test_paginationDefaultsToPageOne cfg = do
       runDB $
         TRX.transaction TRX.ReadCommitted TRX.Write $
           setupUserModels userInsert
-    (userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
+    (_userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel Nothing
+    result <- runExceptT $ action userMetaModel Nothing
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err

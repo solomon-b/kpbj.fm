@@ -38,9 +38,9 @@ test_staffEmptyDbNoMissing cfg = do
       runDB $
         TRX.transaction TRX.ReadCommitted TRX.Write $
           setupUserModels staffInsert
-    (userModel, userMetaModel) <- expectSetupRight dbResult
+    (_userModel, userMetaModel) <- expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel
+    result <- runExceptT $ action userMetaModel
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
@@ -56,9 +56,9 @@ test_adminUserReturnsRight cfg = do
         TRX.transaction TRX.ReadCommitted TRX.Write $
           setupUserModels adminInsert
 
-    (userModel, userMetaModel) <- expectSetupRight dbResult
+    (_userModel, userMetaModel) <- expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel
+    result <- runExceptT $ action userMetaModel
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
