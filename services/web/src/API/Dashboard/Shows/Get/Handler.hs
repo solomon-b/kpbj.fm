@@ -9,16 +9,16 @@ import API.Dashboard.Shows.Get.Templates.ItemsFragment (renderItemsFragment)
 import API.Dashboard.Shows.Get.Templates.Page (template)
 import API.Links (apiLinks, dashboardShowsLinks, rootLink)
 import API.Types (DashboardShowsRoutes (..), Routes (..))
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
-import Data.Either (fromRight)
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe, isNothing, listToMaybe)
+import Data.Maybe (fromMaybe, isNothing)
 import Data.Text (Text)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
@@ -30,7 +30,6 @@ import Domain.Types.Offset (Offset)
 import Domain.Types.Search (Search (..))
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Shows qualified as Shows
-import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Lucid.HTMX
@@ -41,8 +40,6 @@ import Utils (fromRightM)
 -- | All data needed to render the shows list page.
 data ShowListViewData = ShowListViewData
   { slvUserMetadata :: UserMetadata.Model,
-    slvSidebarShows :: [Shows.Model],
-    slvSelectedShow :: Maybe Shows.Model,
     slvShows :: [Shows.ShowWithHostInfo],
     slvPage :: Int64,
     slvHasMore :: Bool,
@@ -55,7 +52,6 @@ data ShowListViewData = ShowListViewData
 
 -- | Business logic: pagination setup, fetch shows.
 action ::
-  User.Model ->
   UserMetadata.Model ->
   Maybe Int64 ->
   Maybe (Filter Text) ->
@@ -63,7 +59,7 @@ action ::
   Bool ->
   HxRequest ->
   ExceptT HandlerError AppM ShowListViewData
-action user userMetadata maybePage queryFilterParam statusFilterParam deletedView hxRequest = do
+action userMetadata maybePage queryFilterParam statusFilterParam deletedView hxRequest = do
   -- 1. Set up pagination and filters
   let page = fromMaybe 1 maybePage
       limit = 20 :: Limit
@@ -75,23 +71,16 @@ action user userMetadata maybePage queryFilterParam statusFilterParam deletedVie
   -- 2. Check if user is admin (for delete button visibility)
   let isAdmin = UserMetadata.isAdmin userMetadata.mUserRole
 
-  -- 3. Fetch shows for sidebar
-  sidebarShows <- lift $ fetchSidebarShows isAdmin user
-
-  let selectedShow = listToMaybe sidebarShows
-
-  -- 4. Fetch shows for main content
+  -- 3. Fetch shows for main content
   allShowsResult <- getShowResults limit offset queryFilter statusFilter deletedView
 
-  -- 5. Compute pagination
+  -- 4. Compute pagination
   let theShows = take (fromIntegral limit) allShowsResult
       hasMore = length allShowsResult > fromIntegral limit
 
   pure
     ShowListViewData
       { slvUserMetadata = userMetadata,
-        slvSidebarShows = sidebarShows,
-        slvSelectedShow = selectedShow,
         slvShows = theShows,
         slvPage = page,
         slvHasMore = hasMore,
@@ -113,15 +102,15 @@ handler ::
 handler maybePage queryFilterParam statusFilterParam deletedView cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Shows list" apiLinks.rootGet $ do
     -- 1. Require authentication and staff role
-    (user, userMetadata) <- requireAuth cookie
+    (_user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to access this page." userMetadata
-    vd <- action user userMetadata maybePage queryFilterParam statusFilterParam deletedView hxRequest
+    vd <- action userMetadata maybePage queryFilterParam statusFilterParam deletedView hxRequest
     if vd.slvIsAppendRequest
       then pure $ renderItemsFragment vd.slvIsAdmin vd.slvDeletedView vd.slvShows vd.slvPage vd.slvHasMore vd.slvQueryFilter vd.slvStatusFilter
       else do
         let showsTemplate = template vd.slvIsAdmin vd.slvDeletedView vd.slvShows vd.slvPage vd.slvHasMore vd.slvQueryFilter vd.slvStatusFilter
             filtersContent = Just $ filtersUI vd.slvQueryFilter vd.slvStatusFilter vd.slvDeletedView
-        lift $ renderDashboardTemplate hxRequest vd.slvUserMetadata vd.slvSidebarShows vd.slvSelectedShow NavShows filtersContent newShowButton showsTemplate
+        lift $ renderDashboardTemplate hxRequest vd.slvUserMetadata NoShow NavShows filtersContent newShowButton showsTemplate
   where
     newShowButton :: Maybe (Lucid.Html ())
     newShowButton =
@@ -135,16 +124,6 @@ handler maybePage queryFilterParam statusFilterParam deletedView cookie (foldHxR
                 class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "hover:opacity-80"]
               ]
               "New Show"
-
--- | Fetch sidebar shows based on admin status
-fetchSidebarShows ::
-  Bool ->
-  User.Model ->
-  AppM [Shows.Model]
-fetchSidebarShows isAdmin user =
-  if isAdmin
-    then fromRight [] <$> execQuery Shows.getAllActiveShows
-    else fromRight [] <$> execQuery (Shows.getShowsForUser (User.mId user))
 
 -- | Filter UI for top bar
 filtersUI :: Maybe Text -> Maybe Shows.Status -> Bool -> Lucid.Html ()

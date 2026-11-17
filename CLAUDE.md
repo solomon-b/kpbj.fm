@@ -30,7 +30,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for system topology and CI/CD. See [READM
 ### HTML-Over-The-Wire
 - HTMX swaps HTML fragments (no JSON API + SPA)
 - `renderTemplate hxRequest mUserInfo content` returns full page or fragment based on `HX-Request` header
-- `renderDashboardTemplate` and `renderUnauthTemplate` for dashboard and unauthenticated pages
+- `renderUnauthTemplate` for unauthenticated pages
+- `renderDashboardTemplate hxRequest userMetadata showContext nav stats actionButton content` (in `App.Dashboard.Template`) for dashboard pages. Pass `NoShow` for a page that is not about a show, and `ForShow show` for a page about one show. Do not load shows for the sidebar in a handler.
 - Persistent music player survives navigation
 
 ### HTMX Response Patterns

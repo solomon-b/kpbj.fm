@@ -11,11 +11,11 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.AirBreaks.BreakItems.Shared (sidebarShows)
 import API.Dashboard.AirBreaks.Promos.Get.Templates (renderItemsFragment, template)
 import API.Links (apiLinks)
 import API.Types
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
@@ -56,20 +56,18 @@ data PromoListViewData = PromoListViewData
 handler :: Maybe PageNumber -> Maybe Cookie -> Maybe HxRequest -> AppM (Lucid.Html ())
 handler maybePage cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Show promo review list" apiLinks.rootGet $ do
-    (user, userMetadata) <- requireAuth cookie
+    (_user, userMetadata) <- requireAuth cookie
     vd <- action userMetadata maybePage
     backend <- asks (Has.getter @StorageBackend)
     let PageNumber pageNum = vd.plvPage
     if hxRequest == IsHxRequest && pageNum > 1
       then pure $ renderItemsFragment backend vd.plvShowsById vd.plvPromos vd.plvPage vd.plvHasMore
-      else do
-        (allShows, selectedShow) <- sidebarShows user userMetadata
+      else
         lift $
           renderDashboardTemplate
             hxRequest
             userMetadata
-            allShows
-            selectedShow
+            NoShow
             NavPromos
             Nothing
             Nothing

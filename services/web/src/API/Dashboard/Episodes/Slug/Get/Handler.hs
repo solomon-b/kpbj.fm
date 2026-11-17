@@ -8,7 +8,8 @@ module API.Dashboard.Episodes.Slug.Get.Handler where
 import API.Dashboard.Episodes.Slug.Get.Templates.Page (template)
 import API.Links (apiLinks)
 import API.Types
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
 import App.Monad (AppM)
@@ -37,7 +38,6 @@ import Utils (fromMaybeM, fromRightM)
 -- | All data needed to render the episode detail page.
 data EpisodeDetailViewData = EpisodeDetailViewData
   { edvUserMetadata :: UserMetadata.Model,
-    edvAllShows :: [Shows.Model],
     edvShowModel :: Shows.Model,
     edvEpisode :: Episodes.Model,
     edvTracks :: [EpisodeTrack.Model],
@@ -70,13 +70,9 @@ action user userMetadata showSlug episodeNumber = do
   tracks <- fromRight [] <$> execQuery (EpisodeTrack.getTracksForEpisode episode.id)
   tags <- fromRight [] <$> execQuery (Episodes.getTagsForEpisode episode.id)
 
-  -- 6. Get user's shows for sidebar
-  userShows <- lift $ fetchShowsForUser user userMetadata
-
   pure
     EpisodeDetailViewData
       { edvUserMetadata = userMetadata,
-        edvAllShows = userShows,
         edvShowModel = showModel,
         edvEpisode = episode,
         edvTracks = tracks,
@@ -101,8 +97,7 @@ handler showSlug episodeNumber cookie (foldHxReq -> hxRequest) =
       renderDashboardTemplate
         hxRequest
         vd.edvUserMetadata
-        vd.edvAllShows
-        (Just vd.edvShowModel)
+        (ForShow vd.edvShowModel)
         NavEpisodes
         Nothing
         Nothing
@@ -151,13 +146,3 @@ requireShowAccess user userMetadata showModel =
       if any (\s -> s.id == showModel.id) userShows
         then pure ()
         else throwNotAuthorized "You don't have access to this show." (Just userMetadata.mUserRole)
-
--- | Fetch shows for user based on role
-fetchShowsForUser ::
-  User.Model ->
-  UserMetadata.Model ->
-  AppM [Shows.Model]
-fetchShowsForUser user userMetadata =
-  if UserMetadata.isAdmin userMetadata.mUserRole
-    then fromRight [] <$> execQuery Shows.getAllActiveShows
-    else fromRight [] <$> execQuery (Shows.getShowsForUser (User.mId user))

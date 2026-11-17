@@ -78,6 +78,7 @@ import API.Dashboard.Blogs.Slug.Delete.Handler qualified as Dashboard.Blogs.Slug
 import API.Dashboard.Blogs.Slug.Edit.Get.Handler qualified as Dashboard.Blogs.Slug.Edit.Get
 import API.Dashboard.Blogs.Slug.Edit.Post.Handler qualified as Dashboard.Blogs.Slug.Edit.Post
 import API.Dashboard.Blogs.Slug.Get.Handler qualified as Dashboard.Blogs.Slug.Get
+import API.Dashboard.CurrentShow.Get.Handler qualified as Dashboard.CurrentShow.Get
 import API.Dashboard.EphemeralUploads.Get.Handler qualified as Dashboard.EphemeralUploads.Get
 import API.Dashboard.EphemeralUploads.Id.Delete.Handler qualified as Dashboard.EphemeralUploads.Id.Delete
 import API.Dashboard.EphemeralUploads.Id.Edit.Get.Handler qualified as Dashboard.EphemeralUploads.Id.Edit.Get
@@ -370,6 +371,7 @@ server =
       DashboardRoutes
         { home = Dashboard.Get.handler,
           episodesRedirect = Dashboard.Episodes.Redirect.handler,
+          currentShow = Dashboard.CurrentShow.Get.handler,
           profileEditGet = Dashboard.Profile.Edit.Get.handler,
           profileEditPost = Dashboard.Profile.Edit.Post.handler,
           host = dashboardHostRoutes,

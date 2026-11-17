@@ -17,7 +17,7 @@ import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
-import Test.Database.Helpers (insertTestEpisode, insertTestShowWithSchedule)
+import Test.Database.Helpers (addTestShowHost, insertTestEpisode, insertTestShowWithSchedule)
 import Test.Database.Monad (TestDBConfig, withTestDB)
 import Test.Handler.Fixtures (expectSetupRight, mkUserInsert, setupUserModels)
 import Test.Handler.Monad (bracketAppM)
@@ -33,6 +33,7 @@ spec =
         it "returns NotFound for nonexistent show slug and episode number" test_notFoundForMissingEpisode
         it "returns episode detail for admin with valid episode" test_returnsEpisodeDetailForAdmin
         it "returns NotAuthorized for unassigned regular user" test_notAuthorizedForUnassignedUser
+        it "returns episode detail for a host of the show" test_returnsEpisodeDetailForHost
 
 --------------------------------------------------------------------------------
 
@@ -136,3 +137,23 @@ test_notAuthorizedForUnassignedUser cfg = do
       Left (NotAuthorized _ _) -> pure ()
       Left err -> expectationFailure $ "Expected NotAuthorized but got: " <> show err
       Right _ -> expectationFailure "Expected Left NotAuthorized but got Right"
+
+-- | A host of the show gets the episode detail.
+test_returnsEpisodeDetailForHost :: TestDBConfig -> IO ()
+test_returnsEpisodeDetailForHost cfg = do
+  userInsert <- mkUserInsert "ep-detail-host" UserMetadata.Host
+  let showInsert = Shows.Insert "Host Detail Show" "host-detail-show" Nothing Nothing Shows.Active
+
+  bracketAppM cfg $ do
+    dbResult <- runDB $
+      TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        (showModel, episodeModel, userModel, userMetaModel) <- setupFixture showInsert userInsert
+        addTestShowHost (Shows.id showModel) userModel.mId
+        pure (showModel, episodeModel, userModel, userMetaModel)
+    (showModel, episodeModel, userModel, userMetaModel) <- expectSetupRight dbResult
+
+    result <- runExceptT $ action userModel userMetaModel showModel.slug episodeModel.episodeNumber
+
+    liftIO $ case result of
+      Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
+      Right vd -> Shows.id vd.edvShowModel `shouldBe` Shows.id showModel

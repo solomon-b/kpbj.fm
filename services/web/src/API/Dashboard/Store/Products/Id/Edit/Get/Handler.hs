@@ -13,7 +13,8 @@ where
 import API.Dashboard.Store.Products.Id.Edit.Get.Templates.Form (template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
@@ -23,10 +24,9 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BSL
-import Data.Either (fromRight)
 import Data.Has qualified as Has
 import Data.Map.Strict qualified as Map
-import Data.Maybe (fromMaybe, listToMaybe, mapMaybe)
+import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Text (Text)
 import Data.Text.Encoding qualified as Text
 import Domain.Types.Cookie (Cookie (..))
@@ -39,8 +39,6 @@ import Effects.Database.Tables.ProductOptionValues qualified as ProductOptionVal
 import Effects.Database.Tables.ProductVariantOptions qualified as ProductVariantOptions
 import Effects.Database.Tables.ProductVariants qualified as ProductVariants
 import Effects.Database.Tables.Products qualified as Products
-import Effects.Database.Tables.Shows qualified as Shows
-import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
@@ -52,8 +50,6 @@ import Utils (fromMaybeM, fromRightM)
 -- | All data needed to render the product edit form.
 data ProductEditViewData = ProductEditViewData
   { pevUserMetadata :: UserMetadata.Model,
-    pevAllShows :: [Shows.Model],
-    pevSelectedShow :: Maybe Shows.Model,
     pevProduct :: Products.Model,
     pevImages :: [ImageData],
     pevOptionsVariantsJson :: Text,
@@ -68,15 +64,14 @@ handler ::
   AppM (Lucid.Html ())
 handler productId cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Product edit form" apiLinks.rootGet $ do
-    (user, userMetadata) <- requireAuth cookie
+    (_user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to edit products." userMetadata
-    vd <- action user userMetadata productId
+    vd <- action userMetadata productId
     lift $
       renderDashboardTemplate
         hxRequest
         vd.pevUserMetadata
-        vd.pevAllShows
-        vd.pevSelectedShow
+        NoShow
         NavStoreProducts
         Nothing
         Nothing
@@ -86,23 +81,14 @@ handler productId cookie (foldHxReq -> hxRequest) =
 
 -- | Business logic: fetch product and all related data.
 action ::
-  User.Model ->
   UserMetadata.Model ->
   Products.Id ->
   ExceptT HandlerError AppM ProductEditViewData
-action user userMetadata productId = do
-  -- 1. Fetch shows for sidebar
-  showsResult <-
-    if UserMetadata.isAdmin userMetadata.mUserRole
-      then execQuery Shows.getAllActiveShows
-      else execQuery (Shows.getShowsForUser (User.mId user))
-  let allShows = fromRight [] showsResult
-      selectedShow = listToMaybe allShows
-
-  -- 2. Fetch product
+action userMetadata productId = do
+  -- 1. Fetch product
   productModel <- fromMaybeM (throwNotFound "Product") $ fromRightM throwDatabaseError $ execQuery (Products.getById productId)
 
-  -- 3. Fetch images, option types, option values, variants, and variant-option join rows
+  -- 2. Fetch images, option types, option values, variants, and variant-option join rows
   images <- fromRightM throwDatabaseError $ execQuery (ProductImages.getByProductId productId)
   optionTypes <- fromRightM throwDatabaseError $ execQuery (ProductOptionTypes.getByProductId productId)
   optionValues <- fromRightM throwDatabaseError $ execQuery (ProductOptionValues.getByProductId productId)
@@ -119,8 +105,6 @@ action user userMetadata productId = do
   pure
     ProductEditViewData
       { pevUserMetadata = userMetadata,
-        pevAllShows = allShows,
-        pevSelectedShow = selectedShow,
         pevProduct = productModel,
         pevImages = imageDataList,
         pevOptionsVariantsJson = optionsVariantsJson,

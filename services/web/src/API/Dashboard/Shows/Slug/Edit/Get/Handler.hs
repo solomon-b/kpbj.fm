@@ -8,7 +8,8 @@ module API.Dashboard.Shows.Slug.Edit.Get.Handler (handler, action, ShowEditViewD
 import API.Dashboard.Shows.Slug.Edit.Get.Templates.Form (template)
 import API.Links (apiLinks)
 import API.Types
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
@@ -18,7 +19,6 @@ import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Bool (bool)
-import Data.Either (fromRight)
 import Data.Has (getter)
 import Data.Maybe (listToMaybe)
 import Data.Set (Set)
@@ -50,7 +50,6 @@ import Utils (fromMaybeM, fromRightM)
 -- | All data needed to render the show edit form page.
 data ShowEditViewData = ShowEditViewData
   { sevUserMetadata :: UserMetadata.Model,
-    sevSidebarShows :: [Shows.Model],
     sevShowModel :: Shows.Model,
     sevBackend :: StorageBackend,
     sevIsStaff :: Bool,
@@ -69,11 +68,10 @@ data ShowEditViewData = ShowEditViewData
 
 -- | Business logic: fetch show and staff data.
 action ::
-  User.Model ->
   UserMetadata.Model ->
   Slug ->
   ExceptT HandlerError AppM ShowEditViewData
-action user userMetadata slug = do
+action userMetadata slug = do
   -- 1. Get storage backend
   backend <- asks getter
 
@@ -83,16 +81,13 @@ action user userMetadata slug = do
   -- 3. Fetch the show to edit
   showModel <- fetchShowOrNotFound slug
 
-  -- 4. Fetch sidebar shows for dashboard navigation
-  sidebarShows <- lift $ fetchShowsForUser user userMetadata
-
-  -- 5. Fetch existing tags for this show
+  -- 4. Fetch existing tags for this show
   existingTagsResult <- execQuery (Shows.getTagsForShow showModel.id)
   let existingTags = case existingTagsResult of
         Left _ -> ""
         Right tags -> Text.intercalate ", " $ map ShowTags.stName tags
 
-  -- 6. Fetch staff-only data (schedules, hosts) if user is staff
+  -- 5. Fetch staff-only data (schedules, hosts) if user is staff
   (schedulesJson, eligibleHosts, currentHostIds, scheduleStartDate, scheduleMinDate, currentTemplates, pendingTemplates') <-
     fromRightM throwDatabaseError $
       lift $
@@ -101,7 +96,6 @@ action user userMetadata slug = do
   pure
     ShowEditViewData
       { sevUserMetadata = userMetadata,
-        sevSidebarShows = sidebarShows,
         sevShowModel = showModel,
         sevBackend = backend,
         sevIsStaff = isStaff,
@@ -125,9 +119,9 @@ handler slug cookie (foldHxReq -> hxRequest) =
     -- 1. Require authentication and authorization (host of show or staff+)
     (user, userMetadata) <- requireAuth cookie
     requireShowHostOrStaff user.mId slug userMetadata
-    vd <- action user userMetadata slug
+    vd <- action userMetadata slug
     let editTemplate = template vd.sevBackend vd.sevShowModel vd.sevUserMetadata vd.sevIsStaff vd.sevSchedulesJson vd.sevEligibleHosts vd.sevCurrentHostIds vd.sevExistingTags vd.sevScheduleStartDate vd.sevScheduleMinDate vd.sevCurrentScheduleTemplates vd.sevPendingScheduleTemplates
-    lift $ renderDashboardTemplate hxRequest vd.sevUserMetadata vd.sevSidebarShows (Just vd.sevShowModel) NavSettings Nothing Nothing editTemplate
+    lift $ renderDashboardTemplate hxRequest vd.sevUserMetadata (ForShow vd.sevShowModel) NavSettings Nothing Nothing editTemplate
 
 -- | Fetch show by slug, throwing NotFound if not found
 fetchShowOrNotFound ::
@@ -137,16 +131,6 @@ fetchShowOrNotFound slug =
   fromMaybeM (throwNotFound "Show") $
     fromRightM throwDatabaseError $
       execQuery (Shows.getShowBySlug slug)
-
--- | Fetch shows for user based on role
-fetchShowsForUser ::
-  User.Model ->
-  UserMetadata.Model ->
-  AppM [Shows.Model]
-fetchShowsForUser user userMetadata =
-  if UserMetadata.isAdmin userMetadata.mUserRole
-    then fromRight [] <$> execQuery Shows.getAllActiveShows
-    else fromRight [] <$> execQuery (Shows.getShowsForUser user.mId)
 
 -- | Fetch staff-only data for the edit form (schedules and hosts).
 --

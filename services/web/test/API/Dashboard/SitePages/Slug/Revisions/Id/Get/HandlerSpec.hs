@@ -44,8 +44,8 @@ test_notFoundForMissingSlug cfg = do
       runDB $
         TRX.transaction TRX.ReadCommitted TRX.Write $
           setupUserModels userInsert
-    (userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
-    result <- runExceptT $ action userModel userMetaModel "nonexistent-slug" (SitePageRevisions.Id nonExistentId)
+    (_userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
+    result <- runExceptT $ action userMetaModel "nonexistent-slug" (SitePageRevisions.Id nonExistentId)
     liftIO $ case result of
       Left (NotFound _) -> pure ()
       Left err -> expectationFailure $ "Expected NotFound but got: " <> show err
@@ -62,8 +62,8 @@ test_notFoundForMissingRevision cfg = do
       runDB $
         TRX.transaction TRX.ReadCommitted TRX.Write $
           setupUserModels userInsert
-    (userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
-    result <- runExceptT $ action userModel userMetaModel "about" (SitePageRevisions.Id nonExistentId)
+    (_userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
+    result <- runExceptT $ action userMetaModel "about" (SitePageRevisions.Id nonExistentId)
     liftIO $ case result of
       Left (NotFound _) -> pure ()
       Left err -> expectationFailure $ "Expected NotFound but got: " <> show err
@@ -89,8 +89,8 @@ test_returnsRevisionDetail cfg = do
               }
       revId <- unwrapInsert (SitePageRevisions.insertRevision revInsert)
       pure (userModel, userMetaModel, revId)
-    (userModel, userMetaModel, revId) <- liftIO $ expectSetupRight dbResult
-    result <- runExceptT $ action userModel userMetaModel "about" revId
+    (_userModel, userMetaModel, revId) <- liftIO $ expectSetupRight dbResult
+    result <- runExceptT $ action userMetaModel "about" revId
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
       Right vd ->

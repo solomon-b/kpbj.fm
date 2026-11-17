@@ -9,12 +9,12 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.AirBreaks.BreakItems.Shared (sidebarShows)
 import API.Dashboard.Shows.Slug.Promos.Get.Templates (template)
 import API.Links (apiLinks)
 import API.Types
-import App.Common (renderDashboardTemplate)
 import App.Config (Environment)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Domains (breakItemUploadUrl)
 import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
@@ -51,14 +51,12 @@ handler showSlug cookie (foldHxReq -> hxRequest) =
     env <- asks (Has.getter @Environment)
     backend <- asks (Has.getter @StorageBackend)
     today <- pacificDay <$> liftIO getCurrentTime
-    (allShows, _firstShow) <- sidebarShows user userMetadata
 
     lift $
       renderDashboardTemplate
         hxRequest
         userMetadata
-        allShows
-        (Just showModel)
+        (ForShow showModel)
         NavShowPromos
         Nothing
         Nothing

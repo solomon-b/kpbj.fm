@@ -10,7 +10,8 @@ import API.Dashboard.Users.Get.Templates.ItemsFragment (renderItemsFragment)
 import API.Dashboard.Users.Get.Templates.Page (template)
 import API.Links (apiLinks, dashboardUsersLinks)
 import API.Types
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
@@ -18,9 +19,8 @@ import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
-import Data.Either (fromRight)
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe, isNothing, listToMaybe, maybeToList)
+import Data.Maybe (fromMaybe, isNothing, maybeToList)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Time (getCurrentTime)
@@ -33,7 +33,6 @@ import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
 import Domain.Types.UserSortBy (UserSortBy (..))
 import Effects.Database.Execute (execQuery)
-import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
@@ -46,8 +45,6 @@ import Utils (fromRightM)
 -- | All data needed to render the users list page.
 data UsersListViewData = UsersListViewData
   { ulvUserMetadata :: UserMetadata.Model,
-    ulvSidebarShows :: [Shows.Model],
-    ulvSelectedShow :: Maybe Shows.Model,
     ulvViewerId :: User.Id,
     ulvViewerRole :: UserMetadata.UserRole,
     ulvUsers :: [UserMetadata.UserWithMetadata],
@@ -79,26 +76,16 @@ action user userMetadata maybePage queryFilterParam roleFilterParam sortFilterPa
       sortBy = fromMaybe JoinDateNewest (getFilter =<< sortFilterParam)
       isAppendRequest = hxRequest == IsHxRequest && page > 1
 
-  -- 2. Fetch shows for sidebar
-  sidebarShows <-
-    lift $
-      if UserMetadata.isAdmin userMetadata.mUserRole
-        then fromRight [] <$> execQuery Shows.getAllActiveShows
-        else fromRight [] <$> execQuery (Shows.getShowsForUser (User.mId user))
-  let selectedShow = listToMaybe sidebarShows
-
-  -- 3. Fetch users
+  -- 2. Fetch users
   allUsers <- fetchUsers limit offset queryFilter roleFilter sortBy
 
-  -- 4. Compute pagination
+  -- 3. Compute pagination
   let users = take (fromIntegral limit) allUsers
       hasMore = length allUsers > fromIntegral limit
 
   pure
     UsersListViewData
       { ulvUserMetadata = userMetadata,
-        ulvSidebarShows = sidebarShows,
-        ulvSelectedShow = selectedShow,
         ulvViewerId = User.mId user,
         ulvViewerRole = userMetadata.mUserRole,
         ulvUsers = users,
@@ -130,7 +117,7 @@ handler maybePage queryFilterParam roleFilterParam sortFilterParam cookie (foldH
       else do
         let usersTemplate = template vd.ulvViewerId vd.ulvViewerRole now vd.ulvUsers vd.ulvPage vd.ulvHasMore vd.ulvQueryFilter vd.ulvRoleFilter vd.ulvSortBy
             filtersContent = Just $ filtersUI vd.ulvQueryFilter vd.ulvRoleFilter vd.ulvSortBy
-        lift $ renderDashboardTemplate hxRequest vd.ulvUserMetadata vd.ulvSidebarShows vd.ulvSelectedShow NavUsers filtersContent Nothing usersTemplate
+        lift $ renderDashboardTemplate hxRequest vd.ulvUserMetadata NoShow NavUsers filtersContent Nothing usersTemplate
 
 -- | Filter UI for top bar
 filtersUI :: Maybe Text -> Maybe UserMetadata.UserRole -> UserSortBy -> Lucid.Html ()

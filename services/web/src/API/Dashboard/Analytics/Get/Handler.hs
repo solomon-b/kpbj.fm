@@ -12,8 +12,9 @@ where
 import API.Dashboard.Analytics.Get.Templates.Page qualified as Templates
 import API.Links (apiLinks)
 import API.Types (Routes (..))
-import App.Common (renderDashboardTemplate)
 import App.CustomContext (StreamConfig (..))
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
 import App.Handler.Error (HandlerError, handleHtmlErrors)
 import App.Monad (AppM)
@@ -23,17 +24,12 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
-import Data.Either (fromRight)
 import Data.Has (getter)
 import Data.Int (Int32, Int64)
-import Data.Maybe (listToMaybe)
 import Data.Text qualified as Text
 import Domain.Icecast.Status (parseListenerCount)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
-import Effects.Database.Execute (execQuery)
-import Effects.Database.Tables.Shows qualified as Shows
-import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Network.HTTP.Client qualified as HTTPClient
@@ -47,15 +43,14 @@ handler ::
   AppM (Lucid.Html ())
 handler cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Analytics" apiLinks.rootGet $ do
-    (user, userMetadata) <- requireAuth cookie
+    (_user, userMetadata) <- requireAuth cookie
     requireAdminNotSuspended "Only admins can access analytics." userMetadata
-    vd <- action user userMetadata
+    vd <- action userMetadata
     lift $
       renderDashboardTemplate
         hxRequest
         vd.avUserMetadata
-        vd.avAllShows
-        (listToMaybe vd.avAllShows)
+        NoShow
         NavAnalytics
         Nothing
         Nothing
@@ -66,25 +61,17 @@ handler cookie (foldHxReq -> hxRequest) =
 -- | All data needed to render the analytics page.
 data AnalyticsViewData = AnalyticsViewData
   { avUserMetadata :: UserMetadata.Model,
-    avAllShows :: [Shows.Model],
     avCurrentListeners :: Maybe Int64
   }
 
--- | Business logic: fetch shows and current listener count from Icecast.
-action :: User.Model -> UserMetadata.Model -> ExceptT HandlerError AppM AnalyticsViewData
-action user userMetadata = do
-  showsResult <-
-    if UserMetadata.isAdmin userMetadata.mUserRole
-      then execQuery Shows.getAllActiveShows
-      else execQuery (Shows.getShowsForUser (User.mId user))
-  let allShows = fromRight [] showsResult
-
+-- | Business logic: fetch the current listener count from Icecast.
+action :: UserMetadata.Model -> ExceptT HandlerError AppM AnalyticsViewData
+action userMetadata = do
   currentListeners <- lift fetchCurrentListeners
 
   pure
     AnalyticsViewData
       { avUserMetadata = userMetadata,
-        avAllShows = allShows,
         avCurrentListeners = currentListeners
       }
 

@@ -40,9 +40,9 @@ test_notFoundForMissingUser cfg = do
     dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
       (viewerModel, viewerMeta) <- setupUserModels viewerInsert
       pure (viewerModel, viewerMeta)
-    (viewerModel, viewerMeta) <- liftIO $ expectSetupRight dbResult
+    (_viewerModel, viewerMeta) <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT $ action viewerModel viewerMeta (User.Id nonExistentId)
+    result <- runExceptT $ action viewerMeta (User.Id nonExistentId)
 
     liftIO $ case result of
       Left (NotFound _) -> pure ()
@@ -59,9 +59,9 @@ test_returnsDetailForExistingUser cfg = do
       (viewerModel, viewerMeta) <- setupUserModels viewerInsert
       targetId <- insertTestUser targetInsert
       pure (viewerModel, viewerMeta, targetId)
-    (viewerModel, viewerMeta, targetId) <- liftIO $ expectSetupRight dbResult
+    (_viewerModel, viewerMeta, targetId) <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT $ action viewerModel viewerMeta targetId
+    result <- runExceptT $ action viewerMeta targetId
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
@@ -77,9 +77,9 @@ test_returnsActivityData cfg = do
       (viewerModel, viewerMeta) <- setupUserModels viewerInsert
       targetId <- insertTestUser targetInsert
       pure (viewerModel, viewerMeta, targetId)
-    (viewerModel, viewerMeta, targetId) <- liftIO $ expectSetupRight dbResult
+    (_viewerModel, viewerMeta, targetId) <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT $ action viewerModel viewerMeta targetId
+    result <- runExceptT $ action viewerMeta targetId
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err

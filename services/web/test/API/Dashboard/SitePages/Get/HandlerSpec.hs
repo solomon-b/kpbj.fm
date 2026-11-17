@@ -35,8 +35,8 @@ test_returnsPreSeededPages cfg = do
       runDB $
         TRX.transaction TRX.ReadCommitted TRX.Write $
           setupUserModels userInsert
-    (userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
-    result <- runExceptT $ action userModel userMetaModel
+    (_userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
+    result <- runExceptT $ action userMetaModel
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
       Right vd -> length (plvPages vd) `shouldSatisfy` (> 0)
@@ -50,8 +50,8 @@ test_returnsRightForAdmin cfg = do
       runDB $
         TRX.transaction TRX.ReadCommitted TRX.Write $
           setupUserModels userInsert
-    (userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
-    result <- runExceptT $ action userModel userMetaModel
+    (_userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
+    result <- runExceptT $ action userMetaModel
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
       Right _ -> pure ()

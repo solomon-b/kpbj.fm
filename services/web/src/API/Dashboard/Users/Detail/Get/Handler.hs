@@ -8,7 +8,8 @@ module API.Dashboard.Users.Detail.Get.Handler where
 import API.Dashboard.Users.Detail.Get.Templates.Page (template)
 import API.Links (dashboardLinks)
 import API.Types
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
@@ -16,13 +17,11 @@ import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
-import Data.Either (fromRight)
 import Data.Has (getter)
-import Data.Maybe (listToMaybe)
 import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.StorageBackend (StorageBackend)
-import Effects.Database.Execute (execQuery, execTransaction)
+import Effects.Database.Execute (execTransaction)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
@@ -36,8 +35,6 @@ import Lucid qualified
 -- | All data needed to render the user detail page.
 data UserDetailViewData = UserDetailViewData
   { udvUserMetadata :: UserMetadata.Model,
-    udvSidebarShows :: [Shows.Model],
-    udvSelectedShow :: Maybe Shows.Model,
     udvBackend :: StorageBackend,
     udvTargetUser :: User.Model,
     udvTargetMetadata :: UserMetadata.Model,
@@ -47,29 +44,22 @@ data UserDetailViewData = UserDetailViewData
 
 -- | Business logic: fetch user and activity data.
 action ::
-  User.Model ->
   UserMetadata.Model ->
   User.Id ->
   ExceptT HandlerError AppM UserDetailViewData
-action user userMetadata targetUserId = do
+action userMetadata targetUserId = do
   -- 1. Get storage backend for avatar URLs
   backend <- asks getter
 
-  -- 2. Fetch shows for sidebar
-  sidebarShows <- lift $ fetchShowsForUser user userMetadata
-  let selectedShow = listToMaybe sidebarShows
-
-  -- 3. Fetch target user and their metadata
+  -- 2. Fetch target user and their metadata
   (targetUser, targetMetadata) <- fetchTargetUserOrNotFound targetUserId
 
-  -- 4. Fetch additional info: shows they host, episodes they created
+  -- 3. Fetch additional info: shows they host, episodes they created
   (hostedShows, recentEpisodes) <- lift $ fetchUserActivity targetUserId
 
   pure
     UserDetailViewData
       { udvUserMetadata = userMetadata,
-        udvSidebarShows = sidebarShows,
-        udvSelectedShow = selectedShow,
         udvBackend = backend,
         udvTargetUser = targetUser,
         udvTargetMetadata = targetMetadata,
@@ -84,20 +74,10 @@ handler ::
   AppM (Lucid.Html ())
 handler targetUserId cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "User detail" dashboardLinks.home $ do
-    (user, userMetadata) <- requireAuth cookie
+    (_user, userMetadata) <- requireAuth cookie
     requireStaffNotSuspended "You do not have permission to access this page." userMetadata
-    vd <- action user userMetadata targetUserId
-    lift $ renderDashboardTemplate hxRequest vd.udvUserMetadata vd.udvSidebarShows vd.udvSelectedShow NavUsers Nothing Nothing (template vd.udvBackend vd.udvTargetUser vd.udvTargetMetadata vd.udvHostedShows vd.udvRecentEpisodes)
-
--- | Fetch shows based on user role (admins see all, staff see their assigned shows)
-fetchShowsForUser ::
-  User.Model ->
-  UserMetadata.Model ->
-  AppM [Shows.Model]
-fetchShowsForUser user userMetadata =
-  if UserMetadata.isAdmin userMetadata.mUserRole
-    then fromRight [] <$> execQuery Shows.getAllActiveShows
-    else fromRight [] <$> execQuery (Shows.getShowsForUser (User.mId user))
+    vd <- action userMetadata targetUserId
+    lift $ renderDashboardTemplate hxRequest vd.udvUserMetadata NoShow NavUsers Nothing Nothing (template vd.udvBackend vd.udvTargetUser vd.udvTargetMetadata vd.udvHostedShows vd.udvRecentEpisodes)
 
 -- | Fetch target user and their metadata, or throw NotFound
 fetchTargetUserOrNotFound ::

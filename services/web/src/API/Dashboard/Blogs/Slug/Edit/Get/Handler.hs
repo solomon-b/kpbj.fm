@@ -8,7 +8,8 @@ module API.Dashboard.Blogs.Slug.Edit.Get.Handler where
 import API.Dashboard.Blogs.Slug.Edit.Get.Templates.Page (editBlogPostForm)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
 import App.Monad (AppM)
@@ -16,11 +17,10 @@ import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe
-import Data.Either (fromRight)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
-import Effects.Database.Execute (execQuery, execTransaction)
+import Effects.Database.Execute (execTransaction)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowBlogTags qualified as ShowBlogTags
 import Effects.Database.Tables.ShowHost qualified as ShowHost
@@ -46,20 +46,19 @@ handler showSlug postId cookie (foldHxReq -> hxRequest) =
     (user, userMetadata) <- requireAuth cookie
     requireHostNotSuspended "You do not have permission to edit blog posts." userMetadata
     vd <- action user userMetadata showSlug postId
-    lift $ renderDashboardTemplate hxRequest vd.bevUserMetadata vd.bevAllShows (Just vd.bevShowModel) NavBlog Nothing Nothing $ editBlogPostForm vd.bevShowModel vd.bevBlogPost vd.bevTags
+    lift $ renderDashboardTemplate hxRequest vd.bevUserMetadata (ForShow vd.bevShowModel) NavBlog Nothing Nothing $ editBlogPostForm vd.bevShowModel vd.bevBlogPost vd.bevTags
 
 --------------------------------------------------------------------------------
 
 -- | All data needed to render the blog post edit form.
 data BlogEditViewData = BlogEditViewData
   { bevUserMetadata :: UserMetadata.Model,
-    bevAllShows :: [Shows.Model],
     bevShowModel :: Shows.Model,
     bevBlogPost :: ShowBlogPosts.Model,
     bevTags :: [ShowBlogTags.Model]
   }
 
--- | Business logic: post context fetch, authorization check, sidebar shows.
+-- | Business logic: post context fetch, authorization check.
 action ::
   User.Model ->
   UserMetadata.Model ->
@@ -76,17 +75,9 @@ action user userMetadata showSlug postId = do
     else do
       Log.logInfo "Authorized user accessing blog post edit form" post.id
 
-      -- 3. Fetch shows for dashboard sidebar
-      allShows <-
-        lift $
-          if UserMetadata.isAdmin userMetadata.mUserRole
-            then fromRight [] <$> execQuery Shows.getAllActiveShows
-            else fromRight [] <$> execQuery (Shows.getShowsForUser (User.mId user))
-
       pure
         BlogEditViewData
           { bevUserMetadata = userMetadata,
-            bevAllShows = allShows,
             bevShowModel = showModel,
             bevBlogPost = post,
             bevTags = tags

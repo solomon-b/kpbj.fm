@@ -30,24 +30,18 @@ test.describe("Staff dashboard", () => {
     ).toBeVisible();
   });
 
-  test("HOST section has EPISODES as disabled span (no show selected)", async ({ page }) => {
-    // Without a selected show, EPISODES renders as a disabled <span> (not a link).
-    await expect(
-      page.locator("aside").getByText("EPISODES", { exact: true })
-    ).toBeVisible();
+  test("HOST section has EPISODES link to the current show", async ({ page }) => {
+    // The users page is not about a show, so EPISODES goes to the current show route.
     await expect(
       page.locator("aside").getByRole("link", { name: "EPISODES", exact: true })
-    ).not.toBeAttached();
+    ).toHaveAttribute("href", "/dashboard/current-show/episodes");
   });
 
-  test("HOST section has SHOW SETTINGS as disabled span (no show selected)", async ({ page }) => {
-    // Without a selected show, SHOW SETTINGS renders as a disabled <span>.
-    await expect(
-      page.locator("aside").getByText("SHOW SETTINGS", { exact: true })
-    ).toBeVisible();
+  test("HOST section has SHOW SETTINGS link to the current show", async ({ page }) => {
+    // The users page is not about a show, so SHOW SETTINGS goes to the current show route.
     await expect(
       page.locator("aside").getByRole("link", { name: "SHOW SETTINGS" })
-    ).not.toBeAttached();
+    ).toHaveAttribute("href", "/dashboard/current-show/settings");
   });
 
   test("HOST section has STATION IDS link", async ({ page }) => {

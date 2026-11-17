@@ -8,8 +8,9 @@ module API.Dashboard.Episodes.Slug.Edit.Get.Handler where
 import API.Dashboard.Episodes.Slug.Edit.Get.Templates.Form (EpisodeEditContext (..), template)
 import API.Links (dashboardEpisodesLinks)
 import API.Types
-import App.Common (renderDashboardTemplate)
 import App.Config (Environment)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Domains (audioUploadUrl)
 import App.Handler.Combinators (requireAuth)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotAuthorized, throwNotFound, throwValidationError)
@@ -65,8 +66,7 @@ handler showSlug episodeNumber cookie (foldHxReq -> hxRequest) =
         renderDashboardTemplate
           hxRequest
           vd.eevUserMetadata
-          vd.eevAllShows
-          (Just vd.eevShowModel)
+          (ForShow vd.eevShowModel)
           NavEpisodes
           (Just statsContent)
           Nothing
@@ -79,7 +79,6 @@ handler showSlug episodeNumber cookie (foldHxReq -> hxRequest) =
 data EpisodeEditViewData = EpisodeEditViewData
   { eevEditContext :: EpisodeEditContext,
     eevUserMetadata :: UserMetadata.Model,
-    eevAllShows :: [Shows.Model],
     eevShowModel :: Shows.Model
   }
 
@@ -109,7 +108,6 @@ action user userMetadata showSlug episodeNumber = do
   episodeTags <- lift $ fetchEpisodeTags episode.id
   (mTemplate, mCurrentSlot) <- lift $ fetchCurrentSlot episode
   upcomingDates <- lift $ fetchUpcomingDates showModel.id
-  allShows <- lift $ fetchUserShows user userMetadata
 
   -- 5. Get upload URL (bypasses Cloudflare in production)
   env <- asks (Has.getter @Environment)
@@ -135,7 +133,6 @@ action user userMetadata showSlug episodeNumber = do
     EpisodeEditViewData
       { eevEditContext = editContext,
         eevUserMetadata = userMetadata,
-        eevAllShows = allShows,
         eevShowModel = showModel
       }
 
@@ -215,18 +212,3 @@ fetchUpcomingDates showId =
       Log.logAttention "Failed to fetch upcoming dates" (show err)
       pure []
     Right dates -> pure dates
-
-fetchUserShows ::
-  User.Model ->
-  UserMetadata.Model ->
-  AppM [Shows.Model]
-fetchUserShows user userMetadata = do
-  let query =
-        if UserMetadata.isAdmin userMetadata.mUserRole
-          then Shows.getAllActiveShows
-          else Shows.getShowsForUser user.mId
-  execQuery query >>= \case
-    Left err -> do
-      Log.logAttention "Failed to fetch user shows" (show err)
-      pure []
-    Right result -> pure result

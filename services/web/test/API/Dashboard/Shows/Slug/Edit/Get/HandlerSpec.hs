@@ -44,9 +44,9 @@ test_notFoundForMissingSlug cfg = do
       runDB $
         TRX.transaction TRX.ReadCommitted TRX.Write $
           setupUserModels adminInsert
-    (userModel, userMetaModel) <- expectSetupRight dbResult
+    (_userModel, userMetaModel) <- expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel (Slug "does-not-exist")
+    result <- runExceptT $ action userMetaModel (Slug "does-not-exist")
 
     liftIO $ case result of
       Left (NotFound _) -> pure ()
@@ -64,9 +64,9 @@ test_returnsEditContextForValidSlug cfg = do
       (showId, _) <- insertTestShowWithSchedule showInsert defaultScheduleInsert
       showModel <- TRX.statement () (Shows.getShowById showId) >>= maybe (error "show not found") pure
       pure (userModel, userMetaModel, showModel)
-    (userModel, userMetaModel, showModel) <- expectSetupRight dbResult
+    (_userModel, userMetaModel, showModel) <- expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel showModel.slug
+    result <- runExceptT $ action userMetaModel showModel.slug
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
@@ -84,9 +84,9 @@ test_staffSeesScheduleData cfg = do
       (showId, _) <- insertTestShowWithSchedule showInsert defaultScheduleInsert
       showModel <- TRX.statement () (Shows.getShowById showId) >>= maybe (error "show not found") pure
       pure (userModel, userMetaModel, showModel)
-    (userModel, userMetaModel, showModel) <- expectSetupRight dbResult
+    (_userModel, userMetaModel, showModel) <- expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel showModel.slug
+    result <- runExceptT $ action userMetaModel showModel.slug
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err

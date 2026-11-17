@@ -358,6 +358,9 @@ library
     API.Dashboard.AirBreaks.StationIds.New.Get.Templates.Form
     API.Dashboard.AirBreaks.StationIds.New.Post.Handler
     API.Dashboard.AirBreaks.StationIds.New.Post.Route
+    API.Dashboard.CurrentShow.Get.Handler
+    API.Dashboard.CurrentShow.Get.Route
+    API.Dashboard.CurrentShow.Get.Templates
     API.Dashboard.EphemeralUploads.Get.Handler
     API.Dashboard.EphemeralUploads.Get.Route
     API.Dashboard.EphemeralUploads.Get.Templates.ItemsFragment
@@ -617,6 +620,9 @@ library
     App.Common
     App.Domains
     App.CustomContext
+    App.Dashboard.CurrentShow
+    App.Dashboard.ShowContext
+    App.Dashboard.Template
     App.Handler.Combinators
     App.Monad
     App.RequestLog
@@ -776,6 +782,7 @@ test-suite kpbj-web-test
        API.Dashboard.Blogs.Slug.Edit.Get.HandlerSpec
        API.Dashboard.Blogs.Slug.Edit.Post.HandlerSpec
        API.Dashboard.Blogs.Slug.Get.HandlerSpec
+       API.Dashboard.CurrentShow.Get.HandlerSpec
        API.Dashboard.Profile.Edit.Get.HandlerSpec
        API.Dashboard.Profile.Edit.Post.HandlerSpec
        API.Dashboard.Users.Delete.HandlerSpec
@@ -840,6 +847,7 @@ test-suite kpbj-web-test
        API.Dashboard.Shows.Slug.Edit.Get.HandlerSpec
        API.Dashboard.Shows.Slug.Episode.New.Post.HandlerSpec
        API.Dashboard.Shows.Slug.Edit.Post.ScheduleDiffSpec
+       Component.DashboardFrameSpec
        Component.ScheduleEditorSpec
        API.Events.Event.Get.HandlerSpec
        API.Events.Get.HandlerSpec
@@ -870,6 +878,8 @@ test-suite kpbj-web-test
        API.Uploads.Audio.Post.HandlerSpec
        App.BaseUrlSpec
        App.CustomContextSpec
+       App.Dashboard.CurrentShowSpec
+       App.Dashboard.ShowContextSpec
        App.DomainsSpec
        App.RequestLogSpec
        Domain.BreakPlannerSpec

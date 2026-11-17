@@ -4,7 +4,9 @@ module Component.DashboardFrame
   ( template,
     loadDashboardFrame,
     loadDashboardContentOnly,
+    contentOnly,
     DashboardNav (..),
+    sectionUrl,
   )
 where
 
@@ -41,15 +43,19 @@ import API.Links
     userLinks,
   )
 import API.Types
+import App.Dashboard.ShowContext (ShowContext (..), ShowSection (..), currentShowCookieName)
 import Component.Banner (bannerContainerId)
 import Component.Frame (bannerFromUrlScript, darkModeScript, googleAnalyticsScript, htmxErrorBannerScript, htmxIndicatorStyles, showBannerScript)
 import Control.Monad (unless, when)
 import Control.Monad.Catch (MonadThrow)
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Text qualified as Aeson
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
+import Data.Text.Lazy qualified as LText
 import Design (base, class_, class_')
 import Design.FormStyles (formBuilderCSS)
 import Design.Theme (getTheme, themeCSS)
@@ -223,14 +229,15 @@ isShowScoped = \case
 template ::
   Maybe GoogleAnalyticsId ->
   UserMetadata.Model ->
+  ShowContext ->
+  -- | Options of the show selector. Not used with 'NoShow'.
   [Shows.Model] ->
-  Maybe Shows.Model ->
   DashboardNav ->
   Maybe (Lucid.Html ()) ->
   Maybe (Lucid.Html ()) ->
   Lucid.Html () ->
   Lucid.Html ()
-template mGoogleAnalyticsId userMeta allShows selectedShow activeNav statsContent actionButton main =
+template mGoogleAnalyticsId userMeta showContext selectorShows activeNav statsContent actionButton main =
   Lucid.doctypehtml_ $ do
     Lucid.head_ $ do
       googleAnalyticsScript mGoogleAnalyticsId
@@ -252,15 +259,16 @@ template mGoogleAnalyticsId userMeta allShows selectedShow activeNav statsConten
       Lucid.script_ [] (darkModeScript (Just userMeta.mColorScheme))
       Lucid.script_ [] showBannerScript
       Lucid.script_ [] htmxErrorBannerScript
+      currentShowCookieTag showContext
     Lucid.body_ [class_ $ base ["font-mono", Tokens.fgPrimary, Tokens.bgAlt]] $ do
       -- Full height flex container
       Lucid.div_ [class_ $ base ["min-h-screen", "flex"]] $ do
         -- Left sidebar
-        sidebar userMeta activeNav selectedShow
+        sidebar userMeta activeNav showContext
         -- Main content area
         Lucid.div_ [class_ $ base ["flex-1", "flex", "flex-col"]] $ do
           -- Top bar with page title, show selector, stats, and action button
-          topBar activeNav allShows selectedShow statsContent actionButton
+          topBar activeNav selectorShows showContext statsContent actionButton
           -- Banner container
           Lucid.div_ [class_ $ base ["px-6", Tokens.mt4]] $
             Lucid.div_ [Lucid.id_ bannerContainerId, Lucid.class_ Tokens.fullWidth] mempty
@@ -269,13 +277,31 @@ template mGoogleAnalyticsId userMeta allShows selectedShow activeNav statsConten
       -- Script to display banner from URL params (runs after DOM is ready)
       Lucid.script_ [] bannerFromUrlScript
 
+-- | A @script@ element that remembers the show of the page as the current
+-- show. A page that is not about a show gets nothing.
+currentShowCookieTag :: ShowContext -> Lucid.Html ()
+currentShowCookieTag = \case
+  NoShow -> mempty
+  ForShow currentShow -> Lucid.script_ [] (currentShowCookieScript currentShow.slug)
+
+-- | A script that stores the slug in the current show cookie.
+--
+-- The slug goes into the script as a JSON string literal. The literal
+-- escapes each @</@ so that the slug cannot close the @script@ element.
+currentShowCookieScript :: Slug -> Text
+currentShowCookieScript slug =
+  [i|document.cookie = "#{currentShowCookieName}=" + encodeURIComponent(#{slugLiteral}) + "; Path=/dashboard; Max-Age=31536000; SameSite=Lax";|]
+  where
+    jsonLiteral = LText.toStrict $ Aeson.encodeToLazyText (Aeson.String (display slug))
+    slugLiteral = Text.replace "</" "<\\/" jsonLiteral
+
 -- | Left sidebar with navigation
 sidebar ::
   UserMetadata.Model ->
   DashboardNav ->
-  Maybe Shows.Model ->
+  ShowContext ->
   Lucid.Html ()
-sidebar userMeta activeNav selectedShow =
+sidebar userMeta activeNav showContext =
   Lucid.aside_ [class_ $ base ["w-64", Theme.bgMain, Tokens.fgInverse, "flex", "flex-col", "h-screen", "sticky", "top-0"]] $ do
     -- Logo / Brand (h-16 = 64px to align with top bar)
     Lucid.div_ [class_ $ base [Tokens.p4, "border-b", Theme.borderMuted, "shrink-0", "h-16", "flex", "flex-col", "justify-center"]] $ do
@@ -291,10 +317,9 @@ sidebar userMeta activeNav selectedShow =
       Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
         Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "block", Tokens.px4, Tokens.mb2]] "HOST"
         Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
-          navItem "EPISODES" NavEpisodes activeNav selectedShow
-          navItem "PROMOS" NavShowPromos activeNav selectedShow
-          -- navItem "BLOG" NavBlog activeNav selectedShow
-          navItem "SHOW SETTINGS" NavSettings activeNav selectedShow
+          navItem "EPISODES" NavEpisodes activeNav (hostNavUrl SectionEpisodes showContext)
+          navItem "PROMOS" NavShowPromos activeNav (hostNavUrl SectionPromos showContext)
+          navItem "SHOW SETTINGS" NavSettings activeNav (hostNavUrl SectionSettings showContext)
           -- Staff find station IDs under AIR BREAKS, so each user sees it once.
           unless (UserMetadata.isStaffOrHigher userMeta.mUserRole) $
             staffNavItem "STATION IDS" NavStationIds activeNav
@@ -357,9 +382,12 @@ sidebar userMeta activeNav selectedShow =
 -- | Show selector dropdown for top bar
 --
 -- When changed, navigates to the same page but with the new show selected.
-showSelector :: DashboardNav -> [Shows.Model] -> Maybe Shows.Model -> Lucid.Html ()
-showSelector activeNav allShows selectedShow =
-  case allShows of
+--
+-- Staff can open a show that they do not host. The selector then gets that
+-- show as its first option, so it always names the show of the page.
+showSelector :: DashboardNav -> [Shows.Model] -> Shows.Model -> Lucid.Html ()
+showSelector activeNav selectorShows selectedShow =
+  case selectorOptions of
     [] -> mempty
     [singleShow] ->
       -- Single show - just display it as text
@@ -373,12 +401,16 @@ showSelector activeNav allShows selectedShow =
           class_ $ base ["px-3", "py-1", "border", Tokens.borderDefault, Tokens.bgInverse, Tokens.fgInverse, Tokens.textSm, "font-medium"],
           onchange_ "window.location.href = this.options[this.selectedIndex].dataset.url"
         ]
-        $ mapM_ (renderShowOption activeNav selectedShow) allShows
+        $ mapM_ (renderShowOption activeNav selectedShow) selectorOptions
+  where
+    selectorOptions
+      | any (\s -> s.slug == selectedShow.slug) selectorShows = selectorShows
+      | otherwise = selectedShow : selectorShows
 
 -- | Render a single show option with pre-generated URL using safe links
-renderShowOption :: DashboardNav -> Maybe Shows.Model -> Shows.Model -> Lucid.Html ()
+renderShowOption :: DashboardNav -> Shows.Model -> Shows.Model -> Lucid.Html ()
 renderShowOption activeNav selectedShow showModel = do
-  let isSelected = maybe False (\s -> Shows.slug s == Shows.slug showModel) selectedShow
+  let isSelected = Shows.slug selectedShow == Shows.slug showModel
       showSlug = Shows.slug showModel
       showTitle = Shows.title showModel
       -- Generate URL using safe links - stays on same nav but changes show
@@ -393,24 +425,31 @@ renderShowOption activeNav selectedShow showModel = do
     (Lucid.toHtml showTitle)
 
 -- | Navigation item - simple link with server-rendered active state
--- If no URL can be generated (e.g., Episodes without a show), renders as disabled
-navItem :: Text -> DashboardNav -> DashboardNav -> Maybe Shows.Model -> Lucid.Html ()
-navItem label nav activeNav mShow = do
+navItem :: Text -> DashboardNav -> DashboardNav -> Links.URI -> Lucid.Html ()
+navItem label nav activeNav url = do
   let isActive = nav == activeNav
       baseClasses = class_' $ base ["block", Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "transition-colors"]
       activeClasses = class_' $ base [Tokens.bgInverse, Tokens.fgInverse]
       inactiveClasses = class_' $ base [Tokens.fgMuted, "hover:text-[var(--theme-fg-inverse)]", Tokens.hoverBg]
-      disabledClasses = class_' $ base [Tokens.fgMuted, "cursor-not-allowed", "opacity-50"]
-      mUrl = navUrl nav mShow
-  case mUrl of
-    Just url ->
-      let classes = baseClasses <> " " <> if isActive then activeClasses else inactiveClasses
-       in Lucid.li_ $
-            Lucid.a_ [Lucid.href_ [i|/#{url}|], Lucid.class_ classes] (Lucid.toHtml label)
-    Nothing ->
-      let classes = baseClasses <> " " <> disabledClasses
-       in Lucid.li_ $
-            Lucid.span_ [Lucid.class_ classes] (Lucid.toHtml label)
+      classes = baseClasses <> " " <> if isActive then activeClasses else inactiveClasses
+  Lucid.li_ $
+    Lucid.a_ [Lucid.href_ [i|/#{url}|], Lucid.class_ classes] (Lucid.toHtml label)
+
+-- | URL of a HOST navigation item.
+--
+-- A page for a show links to the section of that show. A page that is not
+-- about a show links to the route that finds the current show.
+hostNavUrl :: ShowSection -> ShowContext -> Links.URI
+hostNavUrl section = \case
+  NoShow -> Links.linkURI $ dashboardLinks.currentShow section
+  ForShow currentShow -> sectionUrl section currentShow
+
+-- | The page of a section for one show.
+sectionUrl :: ShowSection -> Shows.Model -> Links.URI
+sectionUrl section showModel = case section of
+  SectionEpisodes -> dashboardEpisodesGetUrl showModel.slug
+  SectionPromos -> dashboardShowPromosGetUrl showModel.slug
+  SectionSettings -> dashboardShowSettingsUrl showModel.slug
 
 -- | Staff navigation item - doesn't require show context
 -- Uses full page navigation (no HTMX) since admin pages have different sidebar state
@@ -491,15 +530,17 @@ navUrl nav mShow =
         NavStoreSettings -> Just dashboardStoreSettingsGetUrl
 
 -- | Top bar with show selector, stats, action button, and back link
-topBar :: DashboardNav -> [Shows.Model] -> Maybe Shows.Model -> Maybe (Lucid.Html ()) -> Maybe (Lucid.Html ()) -> Lucid.Html ()
-topBar activeNav allShows selectedShow statsContent actionButton =
+topBar :: DashboardNav -> [Shows.Model] -> ShowContext -> Maybe (Lucid.Html ()) -> Maybe (Lucid.Html ()) -> Lucid.Html ()
+topBar activeNav selectorShows showContext statsContent actionButton =
   Lucid.header_ [class_ $ base [Tokens.bgMain, Tokens.px8, "sticky", "top-0", "z-10", "border-b", Theme.borderMuted, "h-16", "flex", "items-center"]] $ do
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between", "w-full"]] $ do
       -- Left side: show selector and stats
       Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4]] $ do
-        -- Show selector (only for show-scoped pages)
-        when (isShowScoped activeNav) $
-          showSelector activeNav allShows selectedShow
+        -- Show selector (only for show-scoped pages that have a show)
+        case showContext of
+          ForShow currentShow
+            | isShowScoped activeNav -> showSelector activeNav selectorShows currentShow
+          _ -> mempty
         -- Stats (schedule info, counts, etc.)
         case statsContent of
           Just stats -> Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, "border-l", Tokens.borderMuted, "pl-4"]] stats
@@ -520,16 +561,24 @@ loadDashboardFrame ::
   (Log.MonadLog m, MonadThrow m) =>
   Maybe GoogleAnalyticsId ->
   UserMetadata.Model ->
+  ShowContext ->
+  -- | Options of the show selector. Not used with 'NoShow'.
   [Shows.Model] ->
-  Maybe Shows.Model ->
   DashboardNav ->
   Maybe (Lucid.Html ()) ->
   Maybe (Lucid.Html ()) ->
   Lucid.Html () ->
   m (Lucid.Html ())
-loadDashboardFrame mGoogleAnalyticsId user allShows selectedShow nav statsContent actionButton content =
-  pure $ template mGoogleAnalyticsId user allShows selectedShow nav statsContent actionButton content
+loadDashboardFrame mGoogleAnalyticsId user showContext selectorShows nav statsContent actionButton content =
+  pure $ template mGoogleAnalyticsId user showContext selectorShows nav statsContent actionButton content
 
 -- | Load content only for HTMX requests
-loadDashboardContentOnly :: (Log.MonadLog m, MonadThrow m) => Lucid.Html () -> m (Lucid.Html ())
-loadDashboardContentOnly = pure
+loadDashboardContentOnly :: (Log.MonadLog m, MonadThrow m) => ShowContext -> Lucid.Html () -> m (Lucid.Html ())
+loadDashboardContentOnly showContext = pure . contentOnly showContext
+
+-- | The response to an HTMX request for a dashboard page.
+--
+-- The frame stays as it is after an HTMX swap, so the content of a show page
+-- brings the cookie script with it. HTMX runs the script after the swap.
+contentOnly :: ShowContext -> Lucid.Html () -> Lucid.Html ()
+contentOnly showContext content = currentShowCookieTag showContext <> content

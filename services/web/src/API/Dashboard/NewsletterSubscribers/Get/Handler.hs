@@ -10,7 +10,8 @@ import API.Dashboard.NewsletterSubscribers.Get.Templates.ItemsFragment (renderIt
 import API.Dashboard.NewsletterSubscribers.Get.Templates.Page (template)
 import API.Links (apiLinks, dashboardNewsletterSubscribersLinks)
 import API.Types
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
@@ -67,8 +68,7 @@ handler cookie (foldHxReq -> hxRequest) mSearchRaw mPage =
           renderDashboardTemplate
             hxRequest
             userMetadata
-            []
-            Nothing
+            NoShow
             NavNewsletterSubscribers
             Nothing
             (Just actionButton)

@@ -58,9 +58,9 @@ test_emptyListOnFreshDB cfg = do
       runDB $
         TRX.transaction TRX.ReadCommitted TRX.Write $
           setupUserModels userInsert
-    (userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
+    (_userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel Nothing IsNotHxRequest
+    result <- runExceptT $ action userMetaModel Nothing IsNotHxRequest
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
@@ -76,9 +76,9 @@ test_returnsBlogPostOnInsert cfg = do
       (userModel, userMetaModel) <- setupUserModels userInsert
       postId <- insertTestBlogPost (mkBlogPostInsert "Station Blog Get Test Post" userModel.mId)
       pure (userModel, userMetaModel, postId)
-    (userModel, userMetaModel, postId) <- liftIO $ expectSetupRight dbResult
+    (_userModel, userMetaModel, postId) <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel Nothing IsNotHxRequest
+    result <- runExceptT $ action userMetaModel Nothing IsNotHxRequest
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
@@ -98,9 +98,9 @@ test_paginationDefaults cfg = do
       runDB $
         TRX.transaction TRX.ReadCommitted TRX.Write $
           setupUserModels userInsert
-    (userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
+    (_userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel Nothing IsNotHxRequest
+    result <- runExceptT $ action userMetaModel Nothing IsNotHxRequest
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err

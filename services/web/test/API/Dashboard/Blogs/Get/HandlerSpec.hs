@@ -34,6 +34,8 @@ spec =
         it "returns empty list when staff user has no shows" test_emptyBlogListForNoShows
         it "returns blog posts for a show" test_returnsBlogPostsForShow
         it "defaults to page 1 when maybePage is Nothing" test_paginationDefaultsToPageOne
+        it "host with two shows gets the show that the slug names" test_hostGetsShowNamedBySlug
+        it "host given the slug of a show they do not host gets their own show" test_unrelatedSlugFallsBackToOwnShow
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -48,9 +50,9 @@ test_emptyBlogListForNoShows cfg = do
       runDB $
         TRX.transaction TRX.ReadCommitted TRX.Write $ do
           setupUserModels userInsert
-    (userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
+    (_userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel (Slug "blog-get-empty-show") Nothing
+    result <- runExceptT $ action userMetaModel (Slug "blog-get-empty-show") Nothing
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
@@ -85,10 +87,10 @@ test_returnsBlogPostsForShow cfg = do
                   }
           _ <- insertTestShowBlogPost postInsert
 
-          pure (userModel, userMetaModel)
-    (userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
+          pure userMetaModel
+    userMetaModel <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel (Slug "blog-get-posts-show") Nothing
+    result <- runExceptT $ action userMetaModel (Slug "blog-get-posts-show") Nothing
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
@@ -106,11 +108,68 @@ test_paginationDefaultsToPageOne cfg = do
       runDB $
         TRX.transaction TRX.ReadCommitted TRX.Write $ do
           setupUserModels userInsert
-    (userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
+    (_userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
 
     -- maybePage = Nothing should default to page 1
-    result <- runExceptT $ action userModel userMetaModel (Slug "blog-get-page-show") (Nothing :: Maybe Int64)
+    result <- runExceptT $ action userMetaModel (Slug "blog-get-page-show") (Nothing :: Maybe Int64)
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
       Right vd -> blvPage vd `shouldBe` 1
+
+-- | A host of two shows gets the show that the slug names, not the first one.
+test_hostGetsShowNamedBySlug :: TestDBConfig -> IO ()
+test_hostGetsShowNamedBySlug cfg = do
+  userInsert <- mkUserInsert "blog-get-two-shows" UserMetadata.Host
+
+  bracketAppM cfg $ do
+    dbResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Write $ do
+          (userModel, userMetaModel) <- setupUserModels userInsert
+          let firstShowInsert = Shows.Insert "Blog Get Two A" (Slug "blog-get-two-a") Nothing Nothing Shows.Active
+              secondShowInsert = Shows.Insert "Blog Get Two B" (Slug "blog-get-two-b") Nothing Nothing Shows.Active
+          (firstShowId, _) <- insertTestShowWithSchedule firstShowInsert defaultScheduleInsert
+          addTestShowHost firstShowId userModel.mId
+          (secondShowId, _) <- insertTestShowWithSchedule secondShowInsert defaultScheduleInsert
+          addTestShowHost secondShowId userModel.mId
+          pure (userMetaModel, firstShowId, secondShowId)
+    (userMetaModel, firstShowId, secondShowId) <- liftIO $ expectSetupRight dbResult
+
+    resultA <- runExceptT $ action userMetaModel (Slug "blog-get-two-a") Nothing
+    resultB <- runExceptT $ action userMetaModel (Slug "blog-get-two-b") Nothing
+
+    liftIO $ do
+      case resultA of
+        Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
+        Right vd -> fmap Shows.id (blvCurrentShow vd) `shouldBe` Just firstShowId
+      case resultB of
+        Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
+        Right vd -> fmap Shows.id (blvCurrentShow vd) `shouldBe` Just secondShowId
+
+-- | A host given the slug of a show they do not host gets their own show.
+--
+-- The slug only picks among the hosted shows. A slug outside that list falls
+-- back to the first hosted show, so the page never displays the other show.
+test_unrelatedSlugFallsBackToOwnShow :: TestDBConfig -> IO ()
+test_unrelatedSlugFallsBackToOwnShow cfg = do
+  userInsert <- mkUserInsert "blog-get-other-host" UserMetadata.Host
+
+  bracketAppM cfg $ do
+    dbResult <-
+      runDB $
+        TRX.transaction TRX.ReadCommitted TRX.Write $ do
+          (userModel, userMetaModel) <- setupUserModels userInsert
+          let ownShowInsert = Shows.Insert "Blog Get Own Show" (Slug "blog-get-own-show") Nothing Nothing Shows.Active
+              otherShowInsert = Shows.Insert "Blog Get Other Show" (Slug "blog-get-other-show") Nothing Nothing Shows.Active
+          (ownShowId, _) <- insertTestShowWithSchedule ownShowInsert defaultScheduleInsert
+          addTestShowHost ownShowId userModel.mId
+          _ <- insertTestShowWithSchedule otherShowInsert defaultScheduleInsert
+          pure (userMetaModel, ownShowId)
+    (userMetaModel, ownShowId) <- liftIO $ expectSetupRight dbResult
+
+    result <- runExceptT $ action userMetaModel (Slug "blog-get-other-show") Nothing
+
+    liftIO $ case result of
+      Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
+      Right vd -> fmap Shows.id (blvCurrentShow vd) `shouldBe` Just ownShowId

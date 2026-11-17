@@ -8,7 +8,8 @@ module API.Dashboard.Blogs.New.Get.Handler where
 import API.Dashboard.Blogs.New.Get.Templates.Page (newBlogPostForm)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
-import App.Common (renderDashboardTemplate)
+import App.Dashboard.ShowContext (ShowContext (..))
+import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotAuthorized)
 import App.Monad (AppM)
@@ -17,11 +18,10 @@ import Control.Monad (guard, unless)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe
-import Data.Either (fromRight)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
-import Effects.Database.Execute (execQuery, execTransaction)
+import Effects.Database.Execute (execTransaction)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
@@ -44,18 +44,17 @@ handler showSlug cookie (foldHxReq -> hxRequest) =
     (user, userMetadata) <- requireAuth cookie
     requireHostNotSuspended "You do not have permission to create blog posts." userMetadata
     vd <- action user userMetadata showSlug
-    lift $ renderDashboardTemplate hxRequest vd.bnvUserMetadata vd.bnvAllShows (Just vd.bnvShowModel) NavBlog Nothing Nothing $ newBlogPostForm vd.bnvShowModel
+    lift $ renderDashboardTemplate hxRequest vd.bnvUserMetadata (ForShow vd.bnvShowModel) NavBlog Nothing Nothing $ newBlogPostForm vd.bnvShowModel
 
 --------------------------------------------------------------------------------
 
 -- | All data needed to render the new blog post form.
 data BlogNewViewData = BlogNewViewData
   { bnvUserMetadata :: UserMetadata.Model,
-    bnvAllShows :: [Shows.Model],
     bnvShowModel :: Shows.Model
   }
 
--- | Business logic: show fetch and permission check, sidebar shows.
+-- | Business logic: show fetch and permission check.
 action ::
   User.Model ->
   UserMetadata.Model ->
@@ -64,19 +63,11 @@ action ::
 action user userMetadata showSlug = do
   -- 1. Fetch show and verify host permissions in a transaction
   showModel <- fetchShowBySlug user userMetadata showSlug
-
-  -- 2. Fetch shows for dashboard sidebar
   Log.logInfo "Authorized user accessing new blog post form" showModel.id
-  allShows <-
-    lift $
-      if UserMetadata.isAdmin userMetadata.mUserRole
-        then fromRight [] <$> execQuery Shows.getAllActiveShows
-        else fromRight [] <$> execQuery (Shows.getShowsForUser (User.mId user))
 
   pure
     BlogNewViewData
       { bnvUserMetadata = userMetadata,
-        bnvAllShows = allShows,
         bnvShowModel = showModel
       }
 
