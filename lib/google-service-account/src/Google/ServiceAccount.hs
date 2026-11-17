@@ -21,6 +21,7 @@ module Google.ServiceAccount
 
     -- * Parts of the flow
     makeClaimsSet,
+    parseTokenResponse,
     parseServiceAccountKey,
   )
 where
@@ -28,7 +29,7 @@ where
 --------------------------------------------------------------------------------
 
 import Control.Exception (try)
-import Control.Monad.Trans.Except (ExceptT (..), except, runExceptT, throwE, withExceptT)
+import Control.Monad.Trans.Except (ExceptT (..), except, runExceptT, withExceptT)
 import Crypto.JOSE qualified as JOSE
 import Crypto.JOSE.JWK qualified as JWK
 import Crypto.JOSE.JWS qualified as JWS
@@ -84,7 +85,7 @@ acquireToken ServiceAccount {..} scope subject = runExceptT $ do
     withExceptT JWTSigningFailed $ ExceptT $ JOSE.runJOSE @JOSE.Error $ do
       signed <- JWT.signClaims jwk header claimsSet
       pure $ JOSE.encodeCompact signed
-  AccessToken <$> exchangeToken assertion
+  exchangeToken assertion
 
 -- | Add the token to a request as a bearer token.
 authorize :: AccessToken -> HTTP.Request -> HTTP.Request
@@ -149,7 +150,7 @@ makeClaimsSet iss subject scope now = do
     Aeson.Error err -> Left (Text.pack err)
 
 -- | Exchange a signed JWT assertion for an access token.
-exchangeToken :: LBS.ByteString -> ExceptT TokenError IO Text
+exchangeToken :: LBS.ByteString -> ExceptT TokenError IO AccessToken
 exchangeToken assertion = do
   let assertionBS = LBS.toStrict assertion
   response <-
@@ -163,13 +164,20 @@ exchangeToken assertion = do
                     ("assertion", assertionBS)
                   ]
                   request
-      HTTP.httpJSON req
-  let body = HTTP.getResponseBody response :: Aeson.Value
-  case parseMaybe (Aeson.withObject "token" (.: "access_token")) body of
-    Just token -> pure token
-    Nothing ->
-      let bodyText = Text.decodeUtf8 $ LBS.toStrict $ Aeson.encode body
-       in throwE (TokenExchangeUnexpectedResponse bodyText)
+      HTTP.httpLBS req
+  except $ parseTokenResponse (HTTP.getResponseBody response)
+
+-- | Read the access token from the response of the token endpoint.
+--
+-- A refused request has a JSON body with no token. A body that is not JSON
+-- can come from a proxy. The error carries the start of each such body.
+parseTokenResponse :: LBS.ByteString -> Either TokenError AccessToken
+parseTokenResponse body =
+  maybe (Left (TokenExchangeUnexpectedResponse excerpt)) (Right . AccessToken) $
+    Aeson.decode body >>= parseMaybe (Aeson.withObject "token" (.: "access_token"))
+  where
+    excerpt :: Text
+    excerpt = Text.take 500 (Text.decodeUtf8Lenient (LBS.toStrict body))
 
 -- | Parse a PEM-encoded PKCS#8 RSA private key into a JWK.
 parseServiceAccountKey :: Text -> Either Text JWK.JWK

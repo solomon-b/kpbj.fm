@@ -9,7 +9,7 @@ import Data.Either (isLeft)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime (..), fromGregorian)
-import Google.ServiceAccount (displayTokenError, httpCause, makeClaimsSet, parseServiceAccountKey)
+import Google.ServiceAccount (displayTokenError, httpCause, makeClaimsSet, parseServiceAccountKey, parseTokenResponse)
 import Google.ServiceAccount qualified as ServiceAccount
 import Network.HTTP.Client (HttpException (..))
 import Test.Hspec
@@ -34,6 +34,19 @@ spec = do
       (fmap . fmap) (+ 3600) issued `shouldBe` expires
       issued `shouldSatisfy` (/= Just Nothing)
 
+  describe "parseTokenResponse" $ do
+    it "reads the access token" $
+      unexpected (parseTokenResponse "{\"access_token\":\"abc\",\"expires_in\":3599}") `shouldBe` Right ()
+
+    it "gives the body when it has no access token" $
+      unexpected (parseTokenResponse "{\"error\":\"invalid_grant\"}")
+        `shouldBe` Left (Just "{\"error\":\"invalid_grant\"}")
+
+    -- A proxy or an outage page can answer in place of Google.
+    it "gives the body when it is not JSON" $
+      unexpected (parseTokenResponse "<html>Bad Gateway</html>")
+        `shouldBe` Left (Just "<html>Bad Gateway</html>")
+
   describe "parseServiceAccountKey" $
     it "rejects text with no private key" $
       parseServiceAccountKey "not a key" `shouldSatisfy` isLeft
@@ -49,6 +62,14 @@ spec = do
         `shouldSatisfy` Text.isInfixOf "no such host"
 
 --------------------------------------------------------------------------------
+
+-- | The body of a 'ServiceAccount.TokenExchangeUnexpectedResponse'. The token
+-- has no 'Eq' instance, and neither has the error.
+unexpected :: Either ServiceAccount.TokenError a -> Either (Maybe Text) ()
+unexpected = \case
+  Right _ -> Right ()
+  Left (ServiceAccount.TokenExchangeUnexpectedResponse body) -> Left (Just body)
+  Left _ -> Left Nothing
 
 -- | The claims of a fixed account at a fixed time, as JSON.
 claims :: Maybe Text -> Maybe Value
