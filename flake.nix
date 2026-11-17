@@ -81,6 +81,8 @@
 
               mailchimp-http = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "mailchimp-http" ./lib/mailchimp-http { });
 
+              google-service-account = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "google-service-account" ./lib/google-service-account { });
+
               # The audio upload runs ffprobe to measure each file and refuses one
               # it cannot measure. The wrapper puts ffprobe on the binary's PATH,
               # so the server finds it wherever it runs: the NixOS service, CI,
@@ -245,6 +247,7 @@
               stripe-http = runTests hsPkgs.stripe-http;
               easypost-http = runTests hsPkgs.easypost-http;
               mailchimp-http = runTests hsPkgs.mailchimp-http;
+              google-service-account = runTests hsPkgs.google-service-account;
               sync-host-emails = runTests hsPkgs.sync-host-emails;
               sync-schedule-calendar = runTests hsPkgs.sync-schedule-calendar;
             };

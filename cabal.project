@@ -14,6 +14,7 @@ packages:
   lib/stripe-http/stripe-http.cabal
   lib/easypost-http/easypost-http.cabal
   lib/mailchimp-http/mailchimp-http.cabal
+  lib/google-service-account/google-service-account.cabal
   jobs/sync-host-emails/sync-host-emails.cabal
   jobs/sync-schedule-calendar/sync-schedule-calendar.cabal
   jobs/token-cleanup/token-cleanup.cabal

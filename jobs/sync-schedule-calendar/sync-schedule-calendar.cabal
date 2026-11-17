@@ -31,12 +31,10 @@ library
                   , aeson
                   , bytestring
                   , containers
-                  , crypton-x509
-                  , crypton-x509-store
+                  , google-service-account
                   , http-client
                   , http-conduit
                   , http-types
-                  , jose               >= 0.11 && < 0.12
                   , string-interpolate
                   , transformers
                   , kpbj-database

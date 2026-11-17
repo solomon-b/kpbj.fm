@@ -30,14 +30,10 @@ where
 
 import Control.Exception (try)
 import Control.Monad (unless)
-import Control.Monad.Trans.Except (ExceptT (..), except, runExceptT, throwE, withExceptT)
-import Crypto.JOSE qualified as JOSE
-import Crypto.JOSE.JWK qualified as JWK
-import Crypto.JOSE.JWS qualified as JWS
-import Crypto.JWT qualified as JWT
-import Data.Aeson ((.!=), (.:), (.:?), (.=))
+import Control.Monad.Trans.Except (ExceptT (..), except, runExceptT, throwE)
+import Data.Aeson ((.!=), (.:?))
 import Data.Aeson qualified as Aeson
-import Data.Aeson.Types (parseEither, parseMaybe)
+import Data.Aeson.Types (parseEither)
 import Data.Bifunctor (first)
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy qualified as LBS
@@ -46,10 +42,8 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
-import Data.Time (UTCTime, addUTCTime, getCurrentTime)
-import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
-import Data.X509 qualified as X509
-import Data.X509.Memory qualified as X509
+import Google.ServiceAccount (AccessToken, ServiceAccount (..), TokenError, authorize, displayTokenError, httpCause)
+import Google.ServiceAccount qualified as ServiceAccount
 import Network.HTTP.Client qualified as HTTPClient
 import Network.HTTP.Simple qualified as HTTP
 import Network.HTTP.Types.Status qualified as HTTP
@@ -65,16 +59,9 @@ data CalendarConfig = CalendarConfig
     ccCalendarId :: Text
   }
 
--- | An opaque OAuth2 access token.
-newtype AccessToken = AccessToken Text
-
 -- | An error from the token flow or from the Calendar API.
 data CalendarError
-  = KeyParsingFailed Text
-  | ClaimsCreationFailed Text
-  | JWTSigningFailed JOSE.Error
-  | TokenExchangeHttpError HTTP.HttpException
-  | TokenExchangeUnexpectedResponse Text
+  = TokenFailed TokenError
   | ListHttpError HTTP.HttpException
   | -- | The status code and the start of the response body.
     ListHttpStatus Int Text
@@ -88,23 +75,12 @@ data CalendarError
 -- | Render an error as text for the log.
 displayError :: CalendarError -> Text
 displayError = \case
-  KeyParsingFailed err -> [i|Key parsing failed: #{err}|]
-  ClaimsCreationFailed err -> [i|Claims creation failed: #{err}|]
-  JWTSigningFailed _err -> "JWT signing failed."
-  TokenExchangeHttpError err -> [i|Token exchange HTTP error: #{httpCause err}|]
-  TokenExchangeUnexpectedResponse body -> [i|Token exchange: unexpected response body: #{body}|]
+  TokenFailed err -> displayTokenError err
   ListHttpError err -> [i|Events list HTTP error: #{httpCause err}|]
   ListHttpStatus code body -> [i|Events list error: HTTP #{code}: #{body}|]
   ListParseFailed err -> [i|Events list: unexpected response body: #{err}|]
   WriteHttpError operation err -> [i|#{operation}: HTTP error: #{httpCause err}|]
   WriteHttpStatus operation code body -> [i|#{operation}: HTTP #{code}: #{body}|]
-
--- | The cause of an HTTP exception, without the request. The request holds the
--- access token, so it must stay out of the log.
-httpCause :: HTTP.HttpException -> Text
-httpCause = \case
-  HTTP.HttpExceptionRequest _request content -> Text.pack (show content)
-  HTTP.InvalidUrlException _url reason -> Text.pack reason
 
 -- | The start of a response body, as text for an error.
 bodyExcerpt :: LBS.ByteString -> Text
@@ -119,7 +95,12 @@ tryHttp wrapErr action = ExceptT $ first wrapErr <$> try @HTTP.HttpException act
 
 -- | Acquire an OAuth2 access token for the Calendar API.
 acquireToken :: CalendarConfig -> IO (Either CalendarError AccessToken)
-acquireToken CalendarConfig {..} = runExceptT $ AccessToken <$> getAccessToken ccSaEmail ccSaKey
+acquireToken CalendarConfig {..} =
+  first TokenFailed <$> ServiceAccount.acquireToken (ServiceAccount ccSaEmail ccSaKey) calendarScope Nothing
+
+-- | The scope that permits changes to the events of a shared calendar.
+calendarScope :: Text
+calendarScope = "https://www.googleapis.com/auth/calendar.events"
 
 -- | List every event of the calendar as raw JSON.
 --
@@ -174,14 +155,14 @@ encodeSegment = Text.decodeUtf8 . urlEncode True . Text.encodeUtf8
 
 -- | Send one write request and check the status.
 write :: Text -> ByteString -> AccessToken -> String -> Maybe Aeson.Value -> IO (Either CalendarError ())
-write operation method (AccessToken token) url mBody = runExceptT $ do
+write operation method token url mBody = runExceptT $ do
   response <-
     tryHttp (WriteHttpError operation) $ do
       request <- HTTP.parseRequest url
       let req =
             HTTP.setRequestResponseTimeout (HTTPClient.responseTimeoutMicro 10_000_000) $
               HTTP.setRequestMethod method $
-                HTTP.addRequestHeader "Authorization" [i|Bearer #{token}|] $
+                authorize token $
                   maybe id HTTP.setRequestBodyJSON mBody request
       HTTP.httpLBS req
   let status = HTTP.getResponseStatus response
@@ -190,7 +171,7 @@ write operation method (AccessToken token) url mBody = runExceptT $ do
 
 -- | Fetch a single page of events.
 fetchEventsPage :: AccessToken -> Text -> Maybe Text -> ExceptT CalendarError IO ([Aeson.Value], Maybe Text)
-fetchEventsPage (AccessToken token) calendarId mPageToken = do
+fetchEventsPage token calendarId mPageToken = do
   let queryParams =
         [ ("singleEvents", Just "false"),
           ("showDeleted", Just "false"),
@@ -202,7 +183,7 @@ fetchEventsPage (AccessToken token) calendarId mPageToken = do
       request <- HTTP.parseRequest (eventsUrl calendarId)
       let req =
             HTTP.setRequestResponseTimeout (HTTPClient.responseTimeoutMicro 10_000_000) $
-              HTTP.addRequestHeader "Authorization" [i|Bearer #{token}|] $
+              authorize token $
                 HTTP.setRequestQueryString queryParams request
       HTTP.httpLBS req
   let status = HTTP.getResponseStatus response
@@ -218,79 +199,3 @@ fetchEventsPage (AccessToken token) calendarId mPageToken = do
 parseListPage :: Aeson.Value -> Either Text ([Aeson.Value], Maybe Text)
 parseListPage =
   first Text.pack . parseEither (Aeson.withObject "EventsResponse" $ \o -> (,) <$> o .:? "items" .!= [] <*> o .:? "nextPageToken")
-
---------------------------------------------------------------------------------
--- Google OAuth2 JWT Authentication
---
--- This is the token flow of jobs/sync-host-emails/src/GoogleGroups.hs, without
--- the sub claim.
-
--- | The scope that permits changes to the events of a shared calendar.
-calendarScope :: Text
-calendarScope = "https://www.googleapis.com/auth/calendar.events"
-
--- | Get an OAuth2 access token using service account credentials.
-getAccessToken :: Text -> Text -> ExceptT CalendarError IO Text
-getAccessToken saEmail saKey = do
-  now <- liftIO getCurrentTime
-  jwk <- except $ first KeyParsingFailed $ parseServiceAccountKey saKey
-  claimsSet <- except $ first ClaimsCreationFailed $ makeClaimsSet saEmail calendarScope now
-  let header = JWS.newJWSHeader ((), JWS.RS256)
-  assertion <-
-    withExceptT JWTSigningFailed $ ExceptT $ JOSE.runJOSE @JOSE.Error $ do
-      signed <- JWT.signClaims jwk header claimsSet
-      pure $ JOSE.encodeCompact signed
-  exchangeToken assertion
-  where
-    liftIO = ExceptT . fmap Right
-
--- | Construct a JWT ClaimsSet for Google's OAuth2 token endpoint.
-makeClaimsSet :: Text -> Text -> UTCTime -> Either Text JWT.ClaimsSet
-makeClaimsSet iss scope now = do
-  let nowEpoch = floor (utcTimeToPOSIXSeconds now) :: Int
-      expEpoch = floor (utcTimeToPOSIXSeconds (addUTCTime 3600 now)) :: Int
-      claimsJson =
-        Aeson.object
-          [ "iss" .= iss,
-            "aud" .= ("https://oauth2.googleapis.com/token" :: Text),
-            "iat" .= nowEpoch,
-            "exp" .= expEpoch,
-            "scope" .= scope
-          ]
-  case Aeson.fromJSON claimsJson of
-    Aeson.Success cs -> Right cs
-    Aeson.Error err -> Left (Text.pack err)
-
--- | Exchange a signed JWT assertion for an access token.
-exchangeToken :: LBS.ByteString -> ExceptT CalendarError IO Text
-exchangeToken assertion = do
-  let assertionBS = LBS.toStrict assertion
-  response <-
-    tryHttp TokenExchangeHttpError $ do
-      request <- HTTP.parseRequest "https://oauth2.googleapis.com/token"
-      let req =
-            HTTP.setRequestResponseTimeout (HTTPClient.responseTimeoutMicro 10_000_000) $
-              HTTP.setRequestMethod "POST" $
-                HTTP.setRequestBodyURLEncoded
-                  [ ("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"),
-                    ("assertion", assertionBS)
-                  ]
-                  request
-      HTTP.httpJSON req
-  let body = HTTP.getResponseBody response :: Aeson.Value
-  case parseMaybe (Aeson.withObject "token" (.: "access_token")) body of
-    Just token -> pure token
-    Nothing ->
-      let bodyText = Text.decodeUtf8 $ LBS.toStrict $ Aeson.encode body
-       in throwE (TokenExchangeUnexpectedResponse bodyText)
-
---------------------------------------------------------------------------------
--- PEM / PKCS#8 Key Parsing
-
--- | Parse a PEM-encoded PKCS#8 RSA private key into a JWK.
-parseServiceAccountKey :: Text -> Either Text JWK.JWK
-parseServiceAccountKey pemText =
-  case X509.readKeyFileFromMemory (Text.encodeUtf8 pemText) of
-    (X509.PrivKeyRSA rsaKey : _) -> Right (JWK.fromRSA rsaKey)
-    (_ : _) -> Left "Service account key is not an RSA key"
-    [] -> Left "No private key found in PEM data"

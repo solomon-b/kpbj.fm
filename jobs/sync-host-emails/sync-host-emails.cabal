@@ -29,13 +29,11 @@ library
                   , aeson
                   , bytestring
                   , containers
-                  , crypton-x509
-                  , crypton-x509-store
+                  , google-service-account
                   , hasql
                   , http-client
                   , http-conduit
                   , http-types
-                  , jose               >= 0.11 && < 0.12
                   , rel8
                   , string-interpolate
                   , text

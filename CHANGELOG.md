@@ -9,6 +9,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ### Changed
 - **A job can set its log level.** The `kpbj-job` library has a new `runJobWith`, which takes the maximum log level of the run. `runJob` stays at info level, so the other jobs log as before. `sync-schedule-calendar` uses it for its `--verbose` flag.
+- **The Google service account token flow is in one library.** The new `google-service-account` library in `lib/` gets an OAuth2 access token for a service account, with an optional Workspace user to act as. `sync-host-emails` and `sync-schedule-calendar` each had a copy of this code, and both now use the library. One log line changes. When the token request of `sync-host-emails` fails with an HTTP error, the line now gives the cause.
 ---
 
 ## [0.13.4] - 2026-11-16
