@@ -8,7 +8,7 @@ where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.AirBreaks.Timeline.Get.Templates.Page (DayKind (..), NavPlacement (..), TimelineView (..), dayNav, template)
+import API.Dashboard.AirBreaks.Timeline.Get.Templates.Page (DayKind (..), TimelineView (..), dayNav, template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
 import App.Dashboard.ShowContext (ShowContext (..))
@@ -24,7 +24,7 @@ import Data.Text (Text)
 import Data.Time (Day, UTCTime)
 import Domain.DayTimeline (problems, scheduled, segmentViews)
 import Domain.Types.Cookie (Cookie)
-import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
+import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Timezone (pacificDay, parseDateYMD)
 import Effects.Clock (currentSystemTime)
 import Effects.Timeline (dayTimeline)
@@ -46,20 +46,15 @@ handler mDay cookie (foldHxReq -> hxRequest) =
     now <- lift currentSystemTime
     let day = fromMaybe (pacificDay now) (mDay >>= parseDateYMD)
     view <- action now day
-    -- An HTMX request swaps only the main content, so it also sends the day
-    -- navigation out of band to update the top bar.
-    let content = case hxRequest of
-          IsHxRequest -> template view <> dayNav OutOfBand view
-          IsNotHxRequest -> template view
     lift $
       renderDashboardTemplate
         hxRequest
         userMetadata
         NoShow
         NavTimeline
-        (Just (dayNav InTopBar view))
+        (Just (dayNav view))
         Nothing
-        content
+        (template view)
 
 -- | The timeline of a day.
 --

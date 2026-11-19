@@ -21,10 +21,12 @@ import Lucid qualified
 
 -- | Render a dashboard page.
 --
--- An HTMX request gets the content only and runs no query. The content of a
--- page about a show has the cookie script in front of it. A full page
--- request gets the dashboard frame. The frame needs the options of the show
--- selector only for a page about a show, so only that case runs the query.
+-- A full page request gets the dashboard frame. An HTMX request gets the
+-- content, and the sidebar navigation and the top bar out of band. The
+-- content of a page about a show has the cookie script in front of it.
+--
+-- The top bar needs the options of the show selector only for a page about a
+-- show, so only that case runs the query. It runs for both request types.
 renderDashboardTemplate ::
   HxRequest ->
   UserMetadata.Model ->
@@ -36,15 +38,23 @@ renderDashboardTemplate ::
   Maybe (Lucid.Html ()) ->
   Lucid.Html () ->
   AppM (Lucid.Html ())
-renderDashboardTemplate hxRequest userMetadata showContext activeNav statsContent actionButton templateContent =
+renderDashboardTemplate hxRequest userMetadata showContext activeNav statsContent actionButton templateContent = do
+  selectorShows <- case showContext of
+    NoShow -> pure []
+    ForShow _ -> fetchDashboardShows userMetadata
   case hxRequest of
     IsHxRequest ->
-      DashboardFrame.loadDashboardContentOnly showContext templateContent
+      pure $
+        DashboardFrame.htmxResponse
+          userMetadata
+          showContext
+          selectorShows
+          activeNav
+          statsContent
+          actionButton
+          templateContent
     IsNotHxRequest -> do
       mGoogleAnalyticsId <- asks getter
-      selectorShows <- case showContext of
-        NoShow -> pure []
-        ForShow _ -> fetchDashboardShows userMetadata
       DashboardFrame.loadDashboardFrame
         mGoogleAnalyticsId
         userMetadata

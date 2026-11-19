@@ -5,7 +5,7 @@ module API.Dashboard.AirBreaks.Timeline.Get.HandlerSpec where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.AirBreaks.Timeline.Get.Handler (action)
-import API.Dashboard.AirBreaks.Timeline.Get.Templates.Page (DayKind (..), TimelineView (..), template)
+import API.Dashboard.AirBreaks.Timeline.Get.Templates.Page (DayKind (..), TimelineView (..), dayNav, template)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Text.Lazy qualified as Lazy
@@ -99,3 +99,7 @@ showsOnlyScheduled cfg = bracketAppM cfg $ do
       map (segStart . svSegment) (tvSegments v) `shouldBe` [at 11]
       -- An item airs at noon, so the page marks it.
       Lazy.isInfixOf "id=\"now\"" (Lucid.renderText (template v)) `shouldBe` True
+      -- The NOW link scrolls to it and adds no entry to the browser history.
+      let nav = Lucid.renderText (dayNav v)
+      Lazy.isInfixOf "scrollIntoView" nav `shouldBe` True
+      Lazy.isInfixOf "return false" nav `shouldBe` True

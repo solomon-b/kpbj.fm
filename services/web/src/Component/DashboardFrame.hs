@@ -3,8 +3,8 @@
 module Component.DashboardFrame
   ( template,
     loadDashboardFrame,
-    loadDashboardContentOnly,
-    contentOnly,
+    htmxResponse,
+    pageSwap,
     DashboardNav (..),
     sectionUrl,
   )
@@ -45,7 +45,7 @@ import API.Links
 import API.Types
 import App.Dashboard.ShowContext (ShowContext (..), ShowSection (..), currentShowCookieName)
 import Component.Banner (bannerContainerId)
-import Component.Frame (bannerFromUrlScript, darkModeScript, googleAnalyticsScript, htmxErrorBannerScript, htmxIndicatorStyles, showBannerScript)
+import Component.Frame (bannerFromUrlScript, clearBannerOnNavScript, darkModeScript, googleAnalyticsScript, htmxErrorBannerScript, htmxIndicatorStyles, showBannerScript)
 import Control.Monad (unless, when)
 import Control.Monad.Catch (MonadThrow)
 import Data.Aeson qualified as Aeson
@@ -68,6 +68,7 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
 import Lucid.Alpine
+import Lucid.Base qualified as LucidBase
 import Lucid.HTMX
 import Servant.Links qualified as Links
 
@@ -225,6 +226,14 @@ isShowScoped = \case
   NavStoreOrders -> False
   NavStoreSettings -> False
 
+-- | Where a frame part goes.
+data Placement
+  = -- | In the frame of a full page.
+    InFrame
+  | -- | In an HTMX response. It replaces the copy in the frame.
+    OutOfBand
+  deriving stock (Show, Eq)
+
 -- | Dashboard frame template - full page liquid layout with sidebar
 template ::
   Maybe GoogleAnalyticsId ->
@@ -242,6 +251,9 @@ template mGoogleAnalyticsId userMeta showContext selectorShows activeNav statsCo
     Lucid.head_ $ do
       googleAnalyticsScript mGoogleAnalyticsId
       Lucid.title_ "Dashboard | KPBJ 95.9FM"
+      -- The body has no HTMX history snapshot. On a back or forward step,
+      -- HTMX loads the full page again.
+      Lucid.meta_ [Lucid.name_ "htmx-config", Lucid.content_ "{\"refreshOnHistoryMiss\":true}"]
       -- Theme CSS (must be before Tailwind for CSS variable availability)
       let theme = getTheme userMeta.mTheme
       Lucid.style_ [] (themeCSS theme)
@@ -259,8 +271,13 @@ template mGoogleAnalyticsId userMeta showContext selectorShows activeNav statsCo
       Lucid.script_ [] (darkModeScript (Just userMeta.mColorScheme))
       Lucid.script_ [] showBannerScript
       Lucid.script_ [] htmxErrorBannerScript
+      Lucid.script_ [] clearBannerOnNavScript
+      Lucid.script_ [] abortOlderPageRequestScript
+      Lucid.script_ [] removeHistoryCacheScript
       currentShowCookieTag showContext
-    Lucid.body_ [class_ $ base ["font-mono", Tokens.fgPrimary, Tokens.bgAlt]] $ do
+    -- An HTMX history snapshot holds the DOM after Alpine changed it. Alpine
+    -- fails when it starts on that DOM again, so HTMX saves no snapshot.
+    Lucid.body_ [class_ $ base ["font-mono", Tokens.fgPrimary, Tokens.bgAlt], LucidBase.makeAttributes "hx-history" "false"] $ do
       -- Full height flex container
       Lucid.div_ [class_ $ base ["min-h-screen", "flex"]] $ do
         -- Left sidebar
@@ -268,7 +285,7 @@ template mGoogleAnalyticsId userMeta showContext selectorShows activeNav statsCo
         -- Main content area
         Lucid.div_ [class_ $ base ["flex-1", "flex", "flex-col"]] $ do
           -- Top bar with page title, show selector, stats, and action button
-          topBar activeNav selectorShows showContext statsContent actionButton
+          topBar InFrame activeNav selectorShows showContext statsContent actionButton
           -- Banner container
           Lucid.div_ [class_ $ base ["px-6", Tokens.mt4]] $
             Lucid.div_ [Lucid.id_ bannerContainerId, Lucid.class_ Tokens.fullWidth] mempty
@@ -312,8 +329,27 @@ sidebar userMeta activeNav showContext =
         "KPBJ 95.9FM"
       Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "block", "mt-1"]] "Dashboard"
 
-    -- Navigation (scrollable if needed)
-    Lucid.nav_ [class_ $ base ["flex-1", Tokens.p4, "overflow-y-auto"]] $ do
+    sidebarNav InFrame userMeta activeNav showContext
+    sidebarUser userMeta
+
+-- | The navigation of the sidebar. It scrolls when the window is short.
+--
+-- The out-of-band form replaces only the children of the element in the
+-- frame. The element stays, so the sidebar keeps its scroll position.
+sidebarNav ::
+  Placement ->
+  UserMetadata.Model ->
+  DashboardNav ->
+  ShowContext ->
+  Lucid.Html ()
+sidebarNav placement userMeta activeNav showContext =
+  Lucid.nav_
+    ( [ Lucid.id_ "dashboard-nav",
+        class_ $ base ["flex-1", Tokens.p4, "overflow-y-auto"]
+      ]
+        <> [hxSwapOob_ "innerHTML" | placement == OutOfBand]
+    )
+    $ do
       Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
         Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "block", Tokens.px4, Tokens.mb2]] "HOST"
         Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
@@ -361,27 +397,34 @@ sidebar userMeta activeNav showContext =
             when (UserMetadata.isAdmin userMeta.mUserRole) $
               staffNavItem "SETTINGS" NavStoreSettings activeNav
 
-    -- User info at bottom (always visible)
-    Lucid.div_ [class_ $ base [Tokens.p4, "border-t", Theme.borderMuted, "shrink-0", "mt-auto"]] $ do
-      Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb2]] $ do
-        Lucid.span_ [class_ $ base ["block", Tokens.fontBold, Tokens.fgInverse]] $
-          Lucid.toHtml userMeta.mDisplayName
-        Lucid.span_ [Lucid.class_ Tokens.textXs] $
-          Lucid.toHtml $
-            Text.pack $
-              show userMeta.mUserRole
-      -- Edit Profile and Logout buttons
-      Lucid.div_ [class_ $ base ["flex", "flex-col", Tokens.gap4, "mt-2"]] $ do
-        Lucid.a_
-          [Lucid.href_ [i|/#{dashboardProfileEditUrl}|], class_ $ base [Tokens.textSm, Tokens.fgMuted, "hover:text-[var(--theme-fg-inverse)]"]]
-          "Settings"
-        Lucid.a_
-          [Lucid.href_ [i|/#{userLogoutGetUrl}|], class_ $ base [Tokens.textSm, Tokens.fgMuted, "hover:text-[var(--theme-fg-inverse)]"], hxGet_ [i|/#{userLogoutGetUrl}|]]
-          "Logout"
+-- | The user name, the role, and the account links at the bottom of the
+-- sidebar. They are always visible.
+sidebarUser :: UserMetadata.Model -> Lucid.Html ()
+sidebarUser userMeta =
+  Lucid.div_ [class_ $ base [Tokens.p4, "border-t", Theme.borderMuted, "shrink-0", "mt-auto"]] $ do
+    Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb2]] $ do
+      Lucid.span_ [class_ $ base ["block", Tokens.fontBold, Tokens.fgInverse]] $
+        Lucid.toHtml userMeta.mDisplayName
+      Lucid.span_ [Lucid.class_ Tokens.textXs] $
+        Lucid.toHtml $
+          Text.pack $
+            show userMeta.mUserRole
+    -- Edit Profile and Logout buttons
+    Lucid.div_ [class_ $ base ["flex", "flex-col", Tokens.gap4, "mt-2"]] $ do
+      Lucid.a_
+        ( [Lucid.href_ [i|/#{dashboardProfileEditUrl}|], class_ $ base [Tokens.textSm, Tokens.fgMuted, "hover:text-[var(--theme-fg-inverse)]"]]
+            <> mainContentSwap dashboardProfileEditUrl
+        )
+        "Settings"
+      Lucid.a_
+        [Lucid.href_ [i|/#{userLogoutGetUrl}|], class_ $ base [Tokens.textSm, Tokens.fgMuted, "hover:text-[var(--theme-fg-inverse)]"], hxGet_ [i|/#{userLogoutGetUrl}|]]
+        "Logout"
 
 -- | Show selector dropdown for top bar
 --
--- When changed, navigates to the same page but with the new show selected.
+-- A change loads the same section for the selected show. The request is an
+-- HTMX request with the selector as its source, so HTMX reads the swap target
+-- and the history setting from the attributes of the selector.
 --
 -- Staff can open a show that they do not host. The selector then gets that
 -- show as its first option, so it always names the show of the page.
@@ -394,12 +437,19 @@ showSelector activeNav selectorShows selectedShow =
       Lucid.span_ [Lucid.class_ Tokens.fgMuted] $ do
         Lucid.toHtml singleShow.title
     _ -> do
-      -- Multiple shows - dropdown with JS redirect
+      -- Multiple shows - dropdown that swaps the main content
+      -- The selector has no name. HTMX adds the value of a named source
+      -- element to the request URL.
       Lucid.select_
         [ Lucid.id_ "show-selector",
-          Lucid.name_ "show",
           class_ $ base ["px-3", "py-1", "border", Tokens.borderDefault, Tokens.bgInverse, Tokens.fgInverse, Tokens.textSm, "font-medium"],
-          onchange_ "window.location.href = this.options[this.selectedIndex].dataset.url"
+          hxTarget_ "#main-content",
+          hxSwap_ pageSwap,
+          hxPushUrl_ "true",
+          -- The browser changes the value before the request. If the request
+          -- does not succeed, go back to the show of the page on screen.
+          hxOnAfterRequest_ "if (!event.detail.successful) this.value = this.querySelector('option[selected]').value",
+          onchange_ "htmx.ajax('GET', this.options[this.selectedIndex].dataset.url, {source: this})"
         ]
         $ mapM_ (renderShowOption activeNav selectedShow) selectorOptions
   where
@@ -424,16 +474,80 @@ renderShowOption activeNav selectedShow showModel = do
     )
     (Lucid.toHtml showTitle)
 
--- | Navigation item - simple link with server-rendered active state
+-- | Navigation item with server-rendered active state
 navItem :: Text -> DashboardNav -> DashboardNav -> Links.URI -> Lucid.Html ()
-navItem label nav activeNav url = do
-  let isActive = nav == activeNav
-      baseClasses = class_' $ base ["block", Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "transition-colors"]
-      activeClasses = class_' $ base [Tokens.bgInverse, Tokens.fgInverse]
-      inactiveClasses = class_' $ base [Tokens.fgMuted, "hover:text-[var(--theme-fg-inverse)]", Tokens.hoverBg]
-      classes = baseClasses <> " " <> if isActive then activeClasses else inactiveClasses
+navItem label nav activeNav = navLink label (nav == activeNav)
+
+-- | A sidebar link. It swaps the main content and pushes the URL.
+--
+-- The HTMX response brings the sidebar navigation out of band, so the active
+-- item is correct after the swap.
+navLink ::
+  -- | Label
+  Text ->
+  -- | Is this the active item?
+  Bool ->
+  Links.URI ->
+  Lucid.Html ()
+navLink label isActive url =
   Lucid.li_ $
-    Lucid.a_ [Lucid.href_ [i|/#{url}|], Lucid.class_ classes] (Lucid.toHtml label)
+    Lucid.a_
+      ([Lucid.href_ [i|/#{url}|], Lucid.class_ classes] <> mainContentSwap url)
+      (Lucid.toHtml label)
+  where
+    baseClasses = class_' $ base ["block", Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "transition-colors"]
+    activeClasses = class_' $ base [Tokens.bgInverse, Tokens.fgInverse]
+    inactiveClasses = class_' $ base [Tokens.fgMuted, "hover:text-[var(--theme-fg-inverse)]", Tokens.hoverBg]
+    classes = baseClasses <> " " <> if isActive then activeClasses else inactiveClasses
+
+-- | The HTMX attributes of a link that swaps the main content and pushes the
+-- URL to the browser history. The new page starts at the top of the window.
+mainContentSwap :: Links.URI -> [Lucid.Attributes]
+mainContentSwap url =
+  [ hxGet_ [i|/#{url}|],
+    hxTarget_ "#main-content",
+    hxSwap_ pageSwap,
+    hxPushUrl_ "true"
+  ]
+
+-- | JavaScript that removes the HTMX history cache from the browser.
+--
+-- The dashboard saves no snapshot, but an older version of the dashboard did.
+-- HTMX restores a snapshot that it finds, and the page then has old HTML. The
+-- public site shares the cache, so it also loses its snapshots. It gets those
+-- pages from the server on a back step.
+removeHistoryCacheScript :: Text
+removeHistoryCacheScript =
+  "try { localStorage.removeItem('htmx-history-cache'); } catch (e) {}"
+
+-- | JavaScript that aborts an older page request when a new one starts.
+--
+-- A page request is a GET request with the target @#main-content@. Without
+-- this script, a slow response can replace a newer page. The script covers
+-- each element that makes a page request, and the request of an
+-- @HX-Location@ header, so no element needs @hx-sync@.
+abortOlderPageRequestScript :: Text
+abortOlderPageRequestScript =
+  [i|
+    (function() {
+      let pageXhr = null;
+      document.addEventListener('htmx:beforeSend', function(event) {
+        const detail = event.detail;
+        if (detail.requestConfig.verb !== 'get') return;
+        if (!detail.target || detail.target.id !== 'main-content') return;
+        if (pageXhr) pageXhr.abort();
+        pageXhr = detail.xhr;
+      });
+      document.addEventListener('htmx:afterRequest', function(event) {
+        if (event.detail.xhr === pageXhr) pageXhr = null;
+      });
+    })();
+  |]
+
+-- | The swap specification of a page change from the sidebar. The new page
+-- starts at the top of the window.
+pageSwap :: Text
+pageSwap = "innerHTML show:window:top"
 
 -- | URL of a HOST navigation item.
 --
@@ -451,21 +565,10 @@ sectionUrl section showModel = case section of
   SectionPromos -> dashboardShowPromosGetUrl showModel.slug
   SectionSettings -> dashboardShowSettingsUrl showModel.slug
 
--- | Staff navigation item - doesn't require show context
--- Uses full page navigation (no HTMX) since admin pages have different sidebar state
+-- | Staff navigation item. It does not need a show.
 staffNavItem :: Text -> DashboardNav -> DashboardNav -> Lucid.Html ()
-staffNavItem label nav activeNav = do
-  let isActive = nav == activeNav
-      baseClasses = class_' $ base ["block", Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "transition-colors"]
-      activeClasses = class_' $ base [Tokens.bgInverse, Tokens.fgInverse]
-      inactiveClasses = class_' $ base [Tokens.fgMuted, "hover:text-[var(--theme-fg-inverse)]", Tokens.hoverBg]
-  case staffNavUrl nav of
-    Just url ->
-      let classes = baseClasses <> " " <> if isActive then activeClasses else inactiveClasses
-       in Lucid.li_ $
-            -- No hxGet_ here - force full page load to get correct sidebar state
-            Lucid.a_ [Lucid.href_ [i|/#{url}|], Lucid.class_ classes] (Lucid.toHtml label)
-    Nothing -> mempty
+staffNavItem label nav activeNav =
+  foldMap (navLink label (nav == activeNav)) (staffNavUrl nav)
 
 -- | Get URL for staff navigation item (no show context)
 staffNavUrl :: DashboardNav -> Maybe Links.URI
@@ -530,29 +633,35 @@ navUrl nav mShow =
         NavStoreSettings -> Just dashboardStoreSettingsGetUrl
 
 -- | Top bar with show selector, stats, action button, and back link
-topBar :: DashboardNav -> [Shows.Model] -> ShowContext -> Maybe (Lucid.Html ()) -> Maybe (Lucid.Html ()) -> Lucid.Html ()
-topBar activeNav selectorShows showContext statsContent actionButton =
-  Lucid.header_ [class_ $ base [Tokens.bgMain, Tokens.px8, "sticky", "top-0", "z-10", "border-b", Theme.borderMuted, "h-16", "flex", "items-center"]] $ do
-    Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between", "w-full"]] $ do
-      -- Left side: show selector and stats
-      Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4]] $ do
-        -- Show selector (only for show-scoped pages that have a show)
-        case showContext of
-          ForShow currentShow
-            | isShowScoped activeNav -> showSelector activeNav selectorShows currentShow
-          _ -> mempty
-        -- Stats (schedule info, counts, etc.)
-        case statsContent of
-          Just stats -> Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, "border-l", Tokens.borderMuted, "pl-4"]] stats
-          Nothing -> mempty
-      -- Right side: action button and back to site link
-      Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4]] $ do
-        fromMaybe mempty actionButton
-        Lucid.a_
-          [ Lucid.href_ [i|/#{rootGetUrl}|],
-            class_ $ base [Tokens.textSm, Tokens.fgMuted, "hover:text-[var(--theme-fg)]"]
-          ]
-          "Back to Site"
+topBar :: Placement -> DashboardNav -> [Shows.Model] -> ShowContext -> Maybe (Lucid.Html ()) -> Maybe (Lucid.Html ()) -> Lucid.Html ()
+topBar placement activeNav selectorShows showContext statsContent actionButton =
+  Lucid.header_
+    ( [ Lucid.id_ "dashboard-top-bar",
+        class_ $ base [Tokens.bgMain, Tokens.px8, "sticky", "top-0", "z-10", "border-b", Theme.borderMuted, "h-16", "flex", "items-center"]
+      ]
+        <> [hxSwapOob_ "true" | placement == OutOfBand]
+    )
+    $ do
+      Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between", "w-full"]] $ do
+        -- Left side: show selector and stats
+        Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4]] $ do
+          -- Show selector (only for show-scoped pages that have a show)
+          case showContext of
+            ForShow currentShow
+              | isShowScoped activeNav -> showSelector activeNav selectorShows currentShow
+            _ -> mempty
+          -- Stats (schedule info, counts, etc.)
+          case statsContent of
+            Just stats -> Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, "border-l", Tokens.borderMuted, "pl-4"]] stats
+            Nothing -> mempty
+        -- Right side: action button and back to site link
+        Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4]] $ do
+          fromMaybe mempty actionButton
+          Lucid.a_
+            [ Lucid.href_ [i|/#{rootGetUrl}|],
+              class_ $ base [Tokens.textSm, Tokens.fgMuted, "hover:text-[var(--theme-fg)]"]
+            ]
+            "Back to Site"
 
 --------------------------------------------------------------------------------
 
@@ -572,13 +681,26 @@ loadDashboardFrame ::
 loadDashboardFrame mGoogleAnalyticsId user showContext selectorShows nav statsContent actionButton content =
   pure $ template mGoogleAnalyticsId user showContext selectorShows nav statsContent actionButton content
 
--- | Load content only for HTMX requests
-loadDashboardContentOnly :: (Log.MonadLog m, MonadThrow m) => ShowContext -> Lucid.Html () -> m (Lucid.Html ())
-loadDashboardContentOnly showContext = pure . contentOnly showContext
-
 -- | The response to an HTMX request for a dashboard page.
 --
--- The frame stays as it is after an HTMX swap, so the content of a show page
--- brings the cookie script with it. HTMX runs the script after the swap.
-contentOnly :: ShowContext -> Lucid.Html () -> Lucid.Html ()
-contentOnly showContext content = currentShowCookieTag showContext <> content
+-- HTMX swaps the content into the main element. The document head stays as
+-- it is, so the content of a show page brings the cookie script with it.
+-- HTMX runs the script after the swap.
+--
+-- The sidebar navigation and the top bar go out of band. HTMX puts each one
+-- in place of its copy in the frame, so the frame describes the new page.
+htmxResponse ::
+  UserMetadata.Model ->
+  ShowContext ->
+  -- | Options of the show selector. Not used with 'NoShow'.
+  [Shows.Model] ->
+  DashboardNav ->
+  Maybe (Lucid.Html ()) ->
+  Maybe (Lucid.Html ()) ->
+  Lucid.Html () ->
+  Lucid.Html ()
+htmxResponse userMeta showContext selectorShows activeNav statsContent actionButton content = do
+  currentShowCookieTag showContext
+  content
+  sidebarNav OutOfBand userMeta activeNav showContext
+  topBar OutOfBand activeNav selectorShows showContext statsContent actionButton

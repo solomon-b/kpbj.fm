@@ -7,8 +7,8 @@ module Component.DashboardFrameSpec (spec) where
 
 --------------------------------------------------------------------------------
 
-import API.Links (dashboardLinks, rootLink)
-import API.Types (DashboardRoutes (..))
+import API.Links (dashboardEphemeralUploadsLinks, dashboardLinks, rootLink)
+import API.Types (DashboardEphemeralUploadsRoutes (..), DashboardRoutes (..))
 import App.Dashboard.ShowContext (ShowContext (..), ShowSection (..))
 import Component.DashboardFrame (DashboardNav (..), sectionUrl)
 import Component.DashboardFrame qualified as DashboardFrame
@@ -83,23 +83,152 @@ spec = describe "Component.DashboardFrame" $ do
       html `shouldSatisfy` Text.isInfixOf "<\\/script><b>"
       html `shouldNotSatisfy` Text.isInfixOf "</script><b>"
 
-  describe "contentOnly" $ do
-    it "puts the cookie script before the content of a show page" $ do
-      let html = renderContentOnly (ForShow showA)
-      html `shouldSatisfy` Text.isInfixOf "dashboard_show"
-      html `shouldSatisfy` Text.isInfixOf "show-a"
-      html `shouldSatisfy` Text.isSuffixOf "<p>content</p>"
+    it "has the frame ids and no out-of-band attribute on a full page" $ do
+      let html = renderFrame NoShow [] NavEvents
+      html `shouldSatisfy` Text.isInfixOf "id=\"dashboard-nav\""
+      html `shouldSatisfy` Text.isInfixOf "id=\"dashboard-top-bar\""
+      html `shouldNotSatisfy` Text.isInfixOf "hx-swap-oob"
 
-    it "gives the content alone for a page that is not about a show" $ do
-      renderContentOnly NoShow `shouldBe` "<p>content</p>"
+  describe "sidebar links" $ do
+    it "swaps the main content from a HOST item" $ do
+      let tag = anchorTag (showHref SectionEpisodes showA) (renderFrame (ForShow showA) [showA] NavEvents)
+      tag `shouldSatisfy` Text.isInfixOf [i|hx-get="/#{sectionUrl SectionEpisodes showA}"|]
+      tag `shouldSatisfy` Text.isInfixOf "hx-target=\"#main-content\""
+      tag `shouldSatisfy` Text.isInfixOf "hx-push-url=\"true\""
+
+    it "swaps the main content from the current show route" $ do
+      let tag = anchorTag (currentShowHref SectionEpisodes) (renderFrame NoShow [] NavEvents)
+      tag `shouldSatisfy` Text.isInfixOf "hx-get="
+      tag `shouldSatisfy` Text.isInfixOf "hx-target=\"#main-content\""
+      tag `shouldSatisfy` Text.isInfixOf "hx-push-url=\"true\""
+
+    it "swaps the main content from a staff item" $ do
+      let ephemeralUrl = rootLink (dashboardEphemeralUploadsLinks.list Nothing)
+          tag = anchorTag [i|href="#{ephemeralUrl}"|] (renderFrame NoShow [] NavEvents)
+      tag `shouldSatisfy` Text.isInfixOf "hx-get="
+      tag `shouldSatisfy` Text.isInfixOf "hx-target=\"#main-content\""
+      tag `shouldSatisfy` Text.isInfixOf "hx-push-url=\"true\""
+
+    it "swaps the main content from the profile settings link" $ do
+      let settingsUrl = rootLink dashboardLinks.profileEditGet
+          tag = anchorTag [i|href="#{settingsUrl}"|] (renderFrame NoShow [] NavEvents)
+      tag `shouldSatisfy` Text.isInfixOf "hx-get="
+      tag `shouldSatisfy` Text.isInfixOf "hx-target=\"#main-content\""
+      tag `shouldSatisfy` Text.isInfixOf "hx-push-url=\"true\""
+
+    it "starts the new page at the top of the window" $ do
+      let ephemeralUrl = rootLink (dashboardEphemeralUploadsLinks.list Nothing)
+          tag = anchorTag [i|href="#{ephemeralUrl}"|] (renderFrame NoShow [] NavEvents)
+      tag `shouldSatisfy` Text.isInfixOf "hx-swap=\"innerHTML show:window:top\""
+      DashboardFrame.pageSwap `shouldBe` "innerHTML show:window:top"
+
+  describe "show selector" $ do
+    it "starts an HTMX request and does not set the location" $ do
+      let html = renderFrame (ForShow showA) [showA, showB] NavEpisodes
+          tag = openingTag "<select id=\"show-selector\"" html
+      tag `shouldNotSatisfy` Text.isInfixOf "window.location"
+      tag `shouldSatisfy` Text.isInfixOf "htmx.ajax"
+      tag `shouldSatisfy` Text.isInfixOf "hx-target=\"#main-content\""
+      tag `shouldSatisfy` Text.isInfixOf "hx-push-url=\"true\""
+
+    it "has no name, so HTMX keeps its value out of the request URL" $ do
+      let html = renderFrame (ForShow showA) [showA, showB] NavEpisodes
+      openingTag "<select id=\"show-selector\"" html
+        `shouldNotSatisfy` Text.isInfixOf " name="
+
+    it "starts the new page at the top of the window" $ do
+      let html = renderFrame (ForShow showA) [showA, showB] NavEpisodes
+      openingTag "<select id=\"show-selector\"" html
+        `shouldSatisfy` Text.isInfixOf "hx-swap=\"innerHTML show:window:top\""
+
+    it "goes back to the show of the page when its request does not succeed" $ do
+      let html = renderFrame (ForShow showA) [showA, showB] NavEpisodes
+          tag = openingTag "<select id=\"show-selector\"" html
+      tag `shouldSatisfy` Text.isInfixOf "hx-on::after-request="
+      tag `shouldSatisfy` Text.isInfixOf "option[selected]"
+
+  describe "page requests" $ do
+    it "loads the script that aborts an older page request" $ do
+      let (headHtml, _body) = Text.breakOn "</head>" (renderFrame NoShow [] NavEvents)
+      headHtml `shouldSatisfy` Text.isInfixOf "htmx:beforeSend"
+
+    it "has no hx-sync attribute, because the script covers all page requests" $
+      renderFrame (ForShow showA) [showA, showB] NavEpisodes
+        `shouldNotSatisfy` Text.isInfixOf "hx-sync"
+
+  describe "banner" $
+    it "loads the script that clears the banner on a page change" $ do
+      let (headHtml, _body) = Text.breakOn "</head>" (renderFrame NoShow [] NavEvents)
+      headHtml `shouldSatisfy` Text.isInfixOf "htmx:beforeRequest"
+
+  describe "browser history" $ do
+    it "keeps the pages out of the HTMX history cache" $
+      openingTag "<body" (renderFrame NoShow [] NavEvents)
+        `shouldSatisfy` Text.isInfixOf "hx-history=\"false\""
+
+    it "tells HTMX to load the page again when the history cache has no page" $ do
+      let html = renderFrame NoShow [] NavEvents
+      openingTag "<meta name=\"htmx-config\"" html
+        `shouldSatisfy` Text.isInfixOf "refreshOnHistoryMiss"
+
+    it "removes the snapshots that an older dashboard saved" $ do
+      let (headHtml, _body) = Text.breakOn "</head>" (renderFrame NoShow [] NavEvents)
+      headHtml `shouldSatisfy` Text.isInfixOf "localStorage.removeItem('htmx-history-cache')"
+
+  describe "htmxResponse" $ do
+    it "puts the cookie script before the content of a show page" $ do
+      let html = renderHtmxResponse (ForShow showA) [showA] NavEpisodes
+          (beforeContent, _content) = Text.breakOn "<p>content</p>" html
+      beforeContent `shouldSatisfy` Text.isInfixOf "dashboard_show"
+      beforeContent `shouldSatisfy` Text.isInfixOf "show-a"
+
+    it "has no cookie script for a page that is not about a show" $
+      renderHtmxResponse NoShow [] NavEvents
+        `shouldNotSatisfy` Text.isInfixOf "dashboard_show"
+
+    it "has the content" $
+      renderHtmxResponse NoShow [] NavEvents
+        `shouldSatisfy` Text.isInfixOf "<p>content</p>"
+
+    it "sends the sidebar navigation out of band and keeps the element" $
+      openingTag "<nav id=\"dashboard-nav\"" (renderHtmxResponse NoShow [] NavEvents)
+        `shouldSatisfy` Text.isInfixOf "hx-swap-oob=\"innerHTML\""
+
+    it "sends the top bar out of band" $ do
+      let html = renderHtmxResponse NoShow [] NavEvents
+      openingTag "<header id=\"dashboard-top-bar\"" html
+        `shouldSatisfy` Text.isInfixOf "hx-swap-oob=\"true\""
+      html `shouldSatisfy` Text.isInfixOf "the stats"
+      html `shouldSatisfy` Text.isInfixOf "the action"
+
+    it "has no document head" $
+      renderHtmxResponse NoShow [] NavEvents
+        `shouldNotSatisfy` Text.isInfixOf "<head>"
+
+    it "selects a show that the user does not host" $ do
+      let showC = sampleShow 3 "Show C" (Slug "show-c")
+          html = renderHtmxResponse (ForShow showC) [showA, showB] NavEpisodes
+      optionTag "show-c" html `shouldSatisfy` Text.isInfixOf "selected"
+
+    it "keeps a hostile slug inside the cookie script" $ do
+      let hostileShow = sampleShow 3 "Hostile" (Slug "x\"</script><b>")
+          html = renderHtmxResponse (ForShow hostileShow) [] NavEpisodes
+      html `shouldNotSatisfy` Text.isInfixOf "</script><b>"
 
 --------------------------------------------------------------------------------
 
--- | Render the HTMX response of a page with the given context.
-renderContentOnly :: ShowContext -> Text
-renderContentOnly showContext =
+-- | Render the HTMX response of a page.
+renderHtmxResponse :: ShowContext -> [Shows.Model] -> DashboardNav -> Text
+renderHtmxResponse showContext selectorShows activeNav =
   LText.toStrict . Lucid.renderText $
-    DashboardFrame.contentOnly showContext (Lucid.p_ "content")
+    DashboardFrame.htmxResponse
+      sampleUserMetadata
+      showContext
+      selectorShows
+      activeNav
+      (Just (Lucid.span_ "the stats"))
+      (Just (Lucid.span_ "the action"))
+      (Lucid.p_ "content")
 
 -- | Render the frame with the given context, selector options, and active item.
 renderFrame :: ShowContext -> [Shows.Model] -> DashboardNav -> Text
@@ -131,10 +260,19 @@ showHref section showModel =
 
 -- | The opening tag of the selector option whose value is the slug.
 optionTag :: Text -> Text -> Text
-optionTag slugValue html =
+optionTag slugValue = openingTag [i|<option value="#{slugValue}"|]
+
+-- | The opening tag of the first @a@ element with the given @href@ attribute.
+anchorTag :: Text -> Text -> Text
+anchorTag hrefAttr = openingTag [i|<a #{hrefAttr}|]
+
+-- | The first opening tag that starts with the given text. It is empty when
+-- the HTML has no such tag.
+openingTag :: Text -> Text -> Text
+openingTag tagStart html =
   Text.takeWhile (/= '>') afterStart
   where
-    (_before, afterStart) = Text.breakOn [i|<option value="#{slugValue}"|] html
+    (_before, afterStart) = Text.breakOn tagStart html
 
 --------------------------------------------------------------------------------
 
