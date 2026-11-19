@@ -117,6 +117,7 @@ import App.Handler.CombinatorsSpec qualified as Combinators
 import App.Handler.ErrorSpec qualified as ErrorHandler
 import App.RequestLogSpec qualified as RequestLog
 import Component.DashboardFrameSpec qualified as DashboardFrame
+import Component.FlashSpec qualified as Flash
 import Component.ScheduleEditorSpec qualified as ScheduleEditor
 import Data.Maybe (fromMaybe)
 import Domain.BreakPlannerSpec qualified as BreakPlanner
@@ -172,6 +173,7 @@ main = do
     ScheduleDiff.spec
     ScheduleEditor.spec
     DashboardFrame.spec
+    Flash.spec
     ContentSanitization.spec
     Diff.spec
     Markdown.spec

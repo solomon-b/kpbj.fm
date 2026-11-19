@@ -7,6 +7,8 @@ module Component.Flash
 
     -- * Redirects
     throwHxRedirect,
+    throwHxLocation,
+    hxLocationValue,
     jsRedirectBody,
 
     -- * Flash cookie
@@ -69,6 +71,58 @@ throwHxRedirect url mFlash =
             ("Set-Cookie", Text.Encoding.encodeUtf8 $ flashCookie mFlash)
           ]
       }
+
+-- | Send an HTMX client to a page by swap. The response has no body.
+--
+-- HTMX reads the @HX-Location@ header and loads the path with a new request.
+-- It swaps the response into the target and pushes the path to the browser
+-- history. @HX-Redirect@ causes a full page load.
+--
+-- A client that is not HTMX ignores the header. Use 'throwHxRedirect' for it.
+throwHxLocation ::
+  (MonadThrow m) =>
+  -- | Path
+  Text ->
+  -- | CSS selector of the swap target
+  Text ->
+  -- | Swap specification, in the syntax of @hx-swap@
+  Text ->
+  m a
+throwHxLocation path target swap =
+  throwM $
+    Servant.ServerError
+      { errHTTPCode = 200,
+        errReasonPhrase = "OK",
+        errBody = "",
+        errHeaders =
+          [ ("Content-Type", "text/html; charset=utf-8"),
+            ("HX-Location", Text.Encoding.encodeUtf8 $ hxLocationValue path target swap)
+          ]
+      }
+
+-- | The value of an @HX-Location@ header. HTMX loads the path by swap into
+-- the target. The default target of the header is @body@.
+--
+-- The new request does not come from the element that the user clicked, so
+-- it does not get the @hx-swap@ of that element. The header carries the swap
+-- specification.
+--
+-- See <https://htmx.org/headers/hx-location/>.
+hxLocationValue ::
+  -- | Path
+  Text ->
+  -- | CSS selector of the swap target
+  Text ->
+  -- | Swap specification, in the syntax of @hx-swap@
+  Text ->
+  Text
+hxLocationValue path target swap =
+  Text.Encoding.decodeUtf8 . LBS.toStrict . Aeson.encode $
+    Aeson.object
+      [ "path" Aeson..= path,
+        "target" Aeson..= target,
+        "swap" Aeson..= swap
+      ]
 
 -- | Minimal HTML body with JS redirect for non-HTMX requests.
 --
