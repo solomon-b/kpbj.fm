@@ -848,6 +848,7 @@ test-suite kpbj-web-test
        API.Dashboard.Shows.Slug.Episode.New.Post.HandlerSpec
        API.Dashboard.Shows.Slug.Edit.Post.ScheduleDiffSpec
        Component.DashboardFrameSpec
+       Component.FlashSpec
        Component.ScheduleEditorSpec
        API.Events.Event.Get.HandlerSpec
        API.Events.Get.HandlerSpec
