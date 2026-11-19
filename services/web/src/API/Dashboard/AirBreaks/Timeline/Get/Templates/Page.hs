@@ -9,7 +9,6 @@ module API.Dashboard.AirBreaks.Timeline.Get.Templates.Page
   ( DayKind (..),
     TimelineView (..),
     template,
-    NavPlacement (..),
     dayNav,
   )
 where
@@ -85,24 +84,14 @@ template view =
 --------------------------------------------------------------------------------
 -- Day navigation
 
--- | How the day navigation reaches the top bar.
-data NavPlacement
-  = -- | In the top bar of a full page.
-    InTopBar
-  | -- | Out of band in an HTMX response. It replaces the copy in the top bar.
-    OutOfBand
-  deriving stock (Show, Eq)
-
 -- | The day navigation, for the top bar.
-dayNav :: NavPlacement -> TimelineView -> Lucid.Html ()
-dayNav placement view =
-  Lucid.div_
-    ( [ Lucid.id_ "timeline-nav",
-        class_ $ base ["flex", "items-center", Tokens.gap4, Tokens.fgPrimary]
-      ]
-        <> [LucidBase.makeAttributes "hx-swap-oob" "true" | placement == OutOfBand]
-    )
-    $ do
+--
+-- An HTMX response brings the top bar out of band, so the navigation shows
+-- the new day after a swap.
+dayNav :: TimelineView -> Lucid.Html ()
+dayNav view =
+  Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4, Tokens.fgPrimary]] $
+    do
       Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap2]] $ do
         dayLink (addDays (-1) day) [i|< #{shortDay (addDays (-1) day)}|]
         Lucid.span_ [class_ $ base [Tokens.fontBold, "whitespace-nowrap"]] (Lucid.toHtml (formatDateLong day))
@@ -123,7 +112,14 @@ dayNav placement view =
             ]
           Lucid.button_ [Lucid.type_ "submit", class_ $ base buttonClasses] "SHOW"
           when (view.tvKind == Today) $
-            Lucid.a_ [Lucid.href_ "#now", class_ $ base buttonClasses] "NOW"
+            -- The link scrolls by script and adds no entry to the browser
+            -- history. A back step from a @#now@ entry loads the page again.
+            Lucid.a_
+              [ Lucid.href_ "#now",
+                Lucid.onclick_ "document.getElementById('now').scrollIntoView(); return false;",
+                class_ $ base buttonClasses
+              ]
+              "NOW"
   where
     day = view.tvDay
 
