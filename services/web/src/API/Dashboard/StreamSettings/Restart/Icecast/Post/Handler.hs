@@ -2,8 +2,8 @@ module API.Dashboard.StreamSettings.Restart.Icecast.Post.Handler (handler, actio
 
 --------------------------------------------------------------------------------
 
+import App.Auth.Roles (RoleAuth, Satisfies)
 import App.CustomContext (WebhookConfig)
-import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
 import App.Handler.Error (HandlerError, handleBannerErrors)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
@@ -13,7 +13,7 @@ import Control.Monad.Trans.Except (ExceptT)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Has qualified as Has
-import Domain.Types.Cookie (Cookie (..))
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Effects.Webhook (WebhookResult (..), callWebhook)
 import Log qualified
 import Lucid qualified
@@ -21,12 +21,10 @@ import Lucid qualified
 --------------------------------------------------------------------------------
 
 handler ::
-  Maybe Cookie ->
+  Satisfies 'Admin RoleAuth ->
   AppM (Lucid.Html ())
-handler cookie =
+handler _ =
   handleBannerErrors "Restart Icecast" $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireAdminNotSuspended "Only admins can restart containers." userMetadata
     result <- action
     pure $ case result of
       WebhookSuccess -> renderBanner Success "Icecast Restarting" "The Icecast container is restarting. Stream will be back shortly."

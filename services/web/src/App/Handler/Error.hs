@@ -42,6 +42,7 @@ module App.Handler.Error
 
     -- * Error Response Builders
     errorRedirectParams,
+    notAuthorizedRedirect,
     inlineBannerError,
     notFoundContent,
     errorContent,

@@ -101,9 +101,11 @@ library
                   , random
                   , resourcet
                   , servant
+                  , servant-auth-roles
                   , servant-multipart
                   , scientific
                   , servant-server
+                  , singletons-base
                   , string-interpolate
                   , stripe-http
                   , tagged
@@ -616,6 +618,7 @@ library
     API.Webhooks.Stripe.Post.Route
     API.Webhooks.Stripe.Post.Handler
     App.Analytics
+    App.Auth.Roles
     App.BaseUrl
     App.Common
     App.Domains
@@ -745,6 +748,8 @@ test-suite kpbj-web-test
                     , postgres-options
                     , rel8
                     , scientific
+                    , servant
+                    , servant-auth-roles
                     , servant-client-core
                     , servant-server
                     , string-interpolate
@@ -759,9 +764,12 @@ test-suite kpbj-web-test
                     , uuid
                     , vector
                     , wai
+                    , wai-extra
                     , http-api-data
                     , http-types
     other-modules:
+       App.Auth.GateSpec
+       App.Auth.RolesSpec
        App.ErrorFormattersSpec
        App.FormFieldSpec
        App.Handler.CombinatorsSpec

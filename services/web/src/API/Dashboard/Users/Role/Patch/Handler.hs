@@ -9,7 +9,7 @@ module API.Dashboard.Users.Role.Patch.Handler where
 import API.Dashboard.Users.Role.Patch.Route (RoleUpdateForm (..))
 import API.Links (dashboardUsersLinks)
 import API.Types (DashboardUsersRoutes (..))
-import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
+import App.Auth.Roles (RoleAuth, Satisfies)
 import App.Handler.Error (HandlerError, handleBannerErrors)
 import App.Monad (AppM)
 import Control.Monad.Trans.Except (ExceptT)
@@ -18,7 +18,6 @@ import Data.Text (Text)
 import Data.Text.Display (display)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
-import Domain.Types.Cookie (Cookie (..))
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -54,13 +53,11 @@ action targetUserId newRole = do
 
 handler ::
   User.Id ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Admin RoleAuth ->
   RoleUpdateForm ->
   AppM (Lucid.Html ())
-handler targetUserId cookie (RoleUpdateForm newRole) =
+handler targetUserId _ (RoleUpdateForm newRole) =
   handleBannerErrors "Role update" $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireAdminNotSuspended "Only admins can change user roles." userMetadata
     result <- action targetUserId newRole
     pure $ case result of
       RoleUpdateSuccess updatedRole -> successResponse targetUserId updatedRole

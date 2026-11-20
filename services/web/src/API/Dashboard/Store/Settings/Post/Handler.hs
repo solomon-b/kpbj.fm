@@ -7,7 +7,8 @@ module API.Dashboard.Store.Settings.Post.Handler (handler, action) where
 import API.Dashboard.Store.Settings.Post.Route (SettingsForm (..))
 import API.Links (apiLinks, dashboardStoreSettingsLinks, rootLink)
 import API.Types (DashboardStoreSettingsRoutes (..), Routes (..))
-import App.Handler.Combinators (requireAdminNotSuspended, requireAuth, requireRight)
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Handler.Combinators (requireRight)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -16,7 +17,6 @@ import Control.Monad.Trans.Except (ExceptT)
 import Data.Scientific (Scientific)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Domain.Types.Cookie (Cookie)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.StoreSettings qualified as StoreSettings
@@ -79,12 +79,10 @@ action _user _userMetadata form = do
 
 -- | Servant handler: thin glue composing action + building redirect response.
 handler ::
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Admin RoleAuth ->
   SettingsForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler cookie form =
+handler (Satisfies _ auth) form =
   handleRedirectErrors "Store settings update" apiLinks.rootGet $ do
-    (user, userMetadata) <- requireAuth cookie
-    requireAdminNotSuspended "You do not have permission to update store settings." userMetadata
-    vd <- action user userMetadata form
+    vd <- action auth.raUser auth.raMetadata form
     pure $ Servant.addHeader vd.srdRedirectUrl $ Servant.addHeader (flashCookie (Just vd.srdFlash)) Servant.NoContent

@@ -20,7 +20,7 @@ where
 import API.Dashboard.Analytics.Data.Get.Types
 import API.Links (showEpisodesLinks)
 import API.Types (ShowEpisodesRoutes (..))
-import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
+import App.Auth.Roles (RoleAuth, Satisfies)
 import App.Handler.Error (handleJsonErrors)
 import App.Monad (AppM)
 import Control.Monad.IO.Class (liftIO)
@@ -31,13 +31,13 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime, addUTCTime, defaultTimeLocale, formatTime, getCurrentTime)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug (..))
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.EpisodePlayEvents qualified as EpisodePlayEvents
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.GaSnapshots qualified as GaSnapshots
 import Effects.Database.Tables.ListenerSnapshots qualified as ListenerSnapshots
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Log qualified
 import Servant.Links qualified as Links
 
@@ -45,16 +45,15 @@ import Servant.Links qualified as Links
 
 -- | Handler for GET /dashboard/analytics/data?range=...
 --
--- Authenticates as admin, aggregates listener and archive-play data,
--- and returns structured JSON for the analytics dashboard charts.
+-- The route gate admits only admins. The handler aggregates listener and
+-- archive-play data, and returns structured JSON for the analytics dashboard
+-- charts.
 handler ::
-  Maybe Cookie ->
+  Satisfies 'Admin RoleAuth ->
   Maybe Text ->
   AppM AnalyticsData
-handler cookie mRange =
+handler _ mRange =
   handleJsonErrors "Analytics data" $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireAdminNotSuspended "Only admins can access analytics." userMetadata
     lift $ action (fromMaybe "7d" mRange)
 
 action :: Text -> AppM AnalyticsData

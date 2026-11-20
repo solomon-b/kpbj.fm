@@ -7,15 +7,14 @@ module API.Dashboard.Store.Settings.Get.Handler (handler, action, SettingsViewDa
 import API.Dashboard.Store.Settings.Get.Templates (template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwHandlerFailure)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.StoreSettings qualified as StoreSettings
@@ -50,14 +49,12 @@ action userMetadata = do
 
 -- | Servant handler: thin glue composing action + render with dashboard chrome.
 handler ::
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Admin RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler cookie (foldHxReq -> hxRequest) =
+handler (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Store settings" apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireAdminNotSuspended "You do not have permission to access store settings." userMetadata
-    vd <- action userMetadata
+    vd <- action auth.raMetadata
     lift $
       renderDashboardTemplate
         hxRequest

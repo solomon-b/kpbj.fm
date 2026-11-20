@@ -4,9 +4,10 @@ module API.Dashboard.Analytics.Data.Get.Route where
 
 import API.Dashboard.Analytics.Data.Get.Types (AnalyticsData)
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie)
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 
 --------------------------------------------------------------------------------
 
@@ -15,6 +16,6 @@ type Route =
   "dashboard"
     :> "analytics"
     :> "data"
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Admin
     :> Servant.QueryParam "range" Text
     :> Servant.Get '[Servant.JSON] AnalyticsData

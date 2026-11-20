@@ -12,10 +12,10 @@ where
 import API.Dashboard.Analytics.Get.Templates.Page qualified as Templates
 import API.Links (apiLinks)
 import API.Types (Routes (..))
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.CustomContext (StreamConfig (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
 import App.Handler.Error (HandlerError, handleHtmlErrors)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -28,7 +28,6 @@ import Data.Has (getter)
 import Data.Int (Int32, Int64)
 import Data.Text qualified as Text
 import Domain.Icecast.Status (parseListenerCount)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
@@ -38,14 +37,12 @@ import Network.HTTP.Simple qualified as HTTP
 --------------------------------------------------------------------------------
 
 handler ::
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Admin RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler cookie (foldHxReq -> hxRequest) =
+handler (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Analytics" apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireAdminNotSuspended "Only admins can access analytics." userMetadata
-    vd <- action userMetadata
+    vd <- action auth.raMetadata
     lift $
       renderDashboardTemplate
         hxRequest

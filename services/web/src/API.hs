@@ -222,6 +222,7 @@ import API.Webhooks.Mailchimp.Get.Handler qualified as Webhooks.Mailchimp.Get
 import API.Webhooks.Mailchimp.Post.Handler qualified as Webhooks.Mailchimp.Post
 import API.Webhooks.Stripe.Post.Handler qualified as Webhooks.Stripe.Post
 import App qualified
+import App.Auth.Roles (RoleAuth, SomeRole, roleAuthHandler, roleRejectionHandler)
 import App.Context (AppContext (..))
 import App.CustomContext (buildCustomContext, loadCustomConfigs)
 import App.ErrorFormatters (errorFormatters)
@@ -230,16 +231,27 @@ import App.RequestLog (requestLogger)
 import Component.NotFound (notFoundPage)
 import Data.Function ((&))
 import Data.Has (getter)
+import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Middleware.NotFound (notFoundMiddleware)
 import Middleware.RateLimit (rateLimitMiddleware)
 import Middleware.SecurityHeaders (securityHeadersMiddleware)
 import Middleware.ValidateEncoding (validateEncodingMiddleware)
+import Network.Wai (Request)
 import Network.Wai.Handler.Warp qualified as Warp
 import Servant (Context ((:.)))
 import Servant qualified
+import Servant.Auth.Roles (RejectionHandler)
+import Servant.Server.Experimental.Auth (AuthHandler)
 
 --------------------------------------------------------------------------------
+
+-- | The entries of the Servant context, in order.
+type ServantContext =
+  '[ AuthHandler Request (SomeRole RoleAuth),
+     RejectionHandler UserMetadata.UserRole RoleAuth,
+     Servant.ErrorFormatters
+   ]
 
 -- | Run the API server with the custom context.
 --
@@ -266,16 +278,20 @@ runApi = do
           warpSettings =
             App.mkWarpSettings (appLoggerEnv appCtx) (appWarpConfig appCtx)
               & Warp.setLogger (requestLogger (appLoggerEnv appCtx))
-          -- Build the WAI application with 404 middleware. No route uses a
-          -- Servant auth handler, so the Servant context holds only the
-          -- error formatters.
-          servantCtx = errorFormatters :. Servant.EmptyContext
+          -- Build the WAI application with 404 middleware. The Servant
+          -- context holds the auth handler and the rejection handler of the
+          -- role gates, and the error formatters.
+          servantCtx =
+            roleAuthHandler (appLoggerEnv appCtx) (appDbPool appCtx) (appEnvironment appCtx)
+              :. roleRejectionHandler (appLoggerEnv appCtx)
+              :. errorFormatters
+              :. Servant.EmptyContext
           app =
             validateEncodingMiddleware
               . securityHeadersMiddleware
               . rateLimiter
               . notFoundMiddleware notFoundHtml
-              $ App.mkAppWithContext @API @'[Servant.ErrorFormatters] servantCtx (const server) appCtx
+              $ App.mkAppWithContext @API @ServantContext servantCtx (const server) appCtx
 
       Warp.runSettings warpSettings app
 

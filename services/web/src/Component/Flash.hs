@@ -7,6 +7,7 @@ module Component.Flash
 
     -- * Redirects
     throwHxRedirect,
+    hxRedirectError,
     throwHxLocation,
     hxLocationValue,
     jsRedirectBody,
@@ -59,18 +60,24 @@ data FlashMessage = FlashMessage
 --
 -- Uses @throwM@ so it works from any handler regardless of return type.
 throwHxRedirect :: (MonadThrow m) => Text -> Maybe FlashMessage -> m a
-throwHxRedirect url mFlash =
-  throwM $
-    Servant.ServerError
-      { errHTTPCode = 200,
-        errReasonPhrase = "OK",
-        errBody = Lucid.renderBS $ jsRedirectBody url,
-        errHeaders =
-          [ ("Content-Type", "text/html; charset=utf-8"),
-            ("HX-Redirect", Text.Encoding.encodeUtf8 url),
-            ("Set-Cookie", Text.Encoding.encodeUtf8 $ flashCookie mFlash)
-          ]
-      }
+throwHxRedirect url = throwM . hxRedirectError url
+
+-- | The response that 'throwHxRedirect' throws, as a value.
+--
+-- Code outside a handler uses it, for example an auth handler in the
+-- Servant context.
+hxRedirectError :: Text -> Maybe FlashMessage -> Servant.ServerError
+hxRedirectError url mFlash =
+  Servant.ServerError
+    { errHTTPCode = 200,
+      errReasonPhrase = "OK",
+      errBody = Lucid.renderBS $ jsRedirectBody url,
+      errHeaders =
+        [ ("Content-Type", "text/html; charset=utf-8"),
+          ("HX-Redirect", Text.Encoding.encodeUtf8 url),
+          ("Set-Cookie", Text.Encoding.encodeUtf8 $ flashCookie mFlash)
+        ]
+    }
 
 -- | Send an HTMX client to a page by swap. The response has no body.
 --
