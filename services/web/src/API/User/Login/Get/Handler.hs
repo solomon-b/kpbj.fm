@@ -12,6 +12,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Domain.Types.Cookie (Cookie)
+import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Lucid qualified
 import Servant qualified
@@ -23,7 +24,7 @@ handler ::
   Maybe Text ->
   Maybe HxRequest ->
   Maybe Text ->
-  Maybe Text ->
+  Maybe EmailAddress ->
   AppM (Lucid.Html ())
 handler cookie hxCurrentUrl hxRequest redirectQueryParam emailQueryParam = do
   mUserInfo <- getUserInfo cookie

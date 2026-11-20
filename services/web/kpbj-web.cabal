@@ -623,6 +623,8 @@ library
     App.Dashboard.CurrentShow
     App.Dashboard.ShowContext
     App.Dashboard.Template
+    App.ErrorFormatters
+    App.FormField
     App.Handler.Combinators
     App.Monad
     App.RequestLog
@@ -757,8 +759,11 @@ test-suite kpbj-web-test
                     , uuid
                     , vector
                     , wai
+                    , http-api-data
                     , http-types
     other-modules:
+       App.ErrorFormattersSpec
+       App.FormFieldSpec
        App.Handler.CombinatorsSpec
        App.Handler.ErrorSpec
        API.Archive.Get.HandlerSpec

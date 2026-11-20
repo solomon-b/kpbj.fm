@@ -7,6 +7,7 @@ import App.Common (renderUnauthTemplate)
 import App.Monad (AppM)
 import Data.Text (Text)
 import Domain.Types.DisplayName (DisplayName)
+import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.FullName (FullName)
 import Domain.Types.HxRequest (HxRequest (..))
 import Lucid qualified
@@ -15,7 +16,7 @@ import Lucid qualified
 
 handler ::
   Maybe Text ->
-  Maybe Text ->
+  Maybe EmailAddress ->
   Maybe DisplayName ->
   Maybe FullName ->
   AppM (Lucid.Html ())

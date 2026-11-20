@@ -13,7 +13,6 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
-import Data.Bifunctor (first)
 import Data.Maybe (isJust)
 import Data.Password.Argon2 (Argon2, Password, PasswordHash, hashPassword)
 import Data.Password.Validate qualified as PW.Validate
@@ -21,7 +20,7 @@ import Data.Text (Text)
 import Data.Text.Display (Display, display)
 import Data.Text.Display.Core (Display (..))
 import Data.Validation
-import Domain.Types.EmailAddress (EmailAddress, mkEmailAddress)
+import Domain.Types.EmailAddress (EmailAddress)
 import Effects.Database.Execute (execQueryThrow)
 import Effects.Database.Tables.NewsletterSubscribers qualified as NewsletterSubscribers
 import Effects.Database.Tables.User qualified as User
@@ -39,14 +38,12 @@ import Web.HttpApiData qualified as Http
 --------------------------------------------------------------------------------
 
 data ValidationError
-  = InvalidEmailAddress
-  | InvalidPassword [PW.Validate.InvalidReason]
+  = InvalidPassword [PW.Validate.InvalidReason]
   | EmptyDisplayName
   | EmptyFullName
 
 instance Display ValidationError where
   displayBuilder = \case
-    InvalidEmailAddress -> "Email address is invalid."
     InvalidPassword reasons -> "Password is invalid: " <> foldl' (\acc x -> acc <> ", " <> displayBuilder x) "" reasons
     EmptyDisplayName -> "Display name is missing."
     EmptyFullName -> "Full name is missing."
@@ -103,7 +100,7 @@ action sockAddr mUserAgent req@Register {..} = do
       Log.logInfo "POST /user/register Request validation failure" (Aeson.object ["email" .= urEmail, "displayName" .= urDisplayName, "validationErrors" .= display errors])
       pure $ RegisterFailure registerRedirectUrl
     Success parsedRequest -> do
-      mExisting <- execQueryThrow (User.getUserByEmail (urpEmail parsedRequest))
+      mExisting <- execQueryThrow (User.getUserByEmail urEmail)
       case mExisting of
         Just _ -> do
           Log.logInfo "Email address is already registered." (Aeson.object ["email" .= urEmail])
@@ -152,9 +149,8 @@ parsePassword password =
 
 validateRequest :: (MonadIO m) => Register -> m (Validation [ValidationError] RegisterParsed)
 validateRequest Register {..} = do
-  let emailValidation = fromEither $ first (const [InvalidEmailAddress]) $ mkEmailAddress urEmail
   passwordValidation <- parsePassword urPassword
-  pure $ RegisterParsed <$> emailValidation <*> passwordValidation <*> pure urDisplayName <*> pure urFullName
+  pure $ RegisterParsed urEmail <$> passwordValidation <*> pure urDisplayName <*> pure urFullName
 
 -- | Specialized to 'AppM' rather than the prior polymorphic
 -- @(MonadLog m, MonadThrow m, MonadDB m) => m ()@ because 'syncAsync'

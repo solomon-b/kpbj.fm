@@ -15,6 +15,7 @@ import Hasql.Transaction.Sessions qualified as TRX
 import Network.Socket (SockAddr (..))
 import Test.Database.Helpers (insertTestUser)
 import Test.Database.Monad (TestDBConfig, withTestDB)
+import Test.Gen.EmailAddress (mkEmailAddressUnsafe)
 import Test.Handler.Fixtures (expectSetupRight, mkUserInsert)
 import Test.Handler.Monad (bracketAppM)
 import Test.Hspec (Spec, describe, expectationFailure, it)
@@ -44,7 +45,7 @@ showRegisterResult (RegisterFailure _) = "RegisterFailure"
 validRegisterForm :: Register
 validRegisterForm =
   Register
-    { urEmail = "new-user@test.example.com",
+    { urEmail = mkEmailAddressUnsafe "new-user@test.example.com",
       urPassword = mkPassword "ValidPassword123!",
       urDisplayName = mkDisplayNameUnsafe "New User",
       urFullName = mkFullNameUnsafe "New User Full Name",
@@ -76,7 +77,7 @@ test_registrationDuplicateEmail cfg = do
           insertTestUser userInsert
     _ <- liftIO $ expectSetupRight dbResult
 
-    let form = validRegisterForm {urEmail = "register-dup@test.example.com"}
+    let form = validRegisterForm {urEmail = mkEmailAddressUnsafe "register-dup@test.example.com"}
     result <- runExceptT $ action testSockAddr Nothing form
     liftIO $ case result of
       Right (RegisterFailure _) -> pure ()
@@ -89,7 +90,7 @@ test_registersNewUser cfg = do
   bracketAppM cfg $ do
     let form =
           validRegisterForm
-            { urEmail = "register-success@test.example.com",
+            { urEmail = mkEmailAddressUnsafe "register-success@test.example.com",
               urPassword = mkPassword "ValidPassword123!"
             }
     result <- runExceptT $ action testSockAddr Nothing form

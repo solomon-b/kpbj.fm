@@ -2,7 +2,9 @@ module API.User.ForgotPassword.Post.Route where
 
 --------------------------------------------------------------------------------
 
+import App.FormField (emailField)
 import Data.Text (Text)
+import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.HxRequest (HxRequest)
 import GHC.Generics (Generic)
 import Lucid qualified
@@ -16,14 +18,14 @@ import Web.FormUrlEncoded qualified as FormUrlEncoded
 
 -- | Form data for forgot password request
 newtype ForgotPasswordForm = ForgotPasswordForm
-  { fpfEmail :: Text
+  { fpfEmail :: EmailAddress
   }
   deriving stock (Generic, Show)
 
 instance FromForm ForgotPasswordForm where
   fromForm f =
     ForgotPasswordForm
-      <$> FormUrlEncoded.parseUnique "email" f
+      <$> (FormUrlEncoded.parseUnique "email" f >>= emailField)
 
 --------------------------------------------------------------------------------
 

@@ -2,9 +2,13 @@ module API.Dashboard.Invitations.Id.Edit.Post.Route where
 
 --------------------------------------------------------------------------------
 
+import App.FormField (emailField)
+import Data.Bifunctor (first)
 import Data.Either (fromRight)
 import Data.Text (Text)
+import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
+import Domain.Types.EmailAddress (EmailAddress)
 import Effects.Database.Tables.HostInvitation qualified as HostInvitation
 import Servant ((:>))
 import Servant qualified
@@ -20,17 +24,18 @@ import Text.HTML (HTML)
 
 -- | Form data for the edit of a pending host invitation.
 data EditInvitationForm = EditInvitationForm
-  { eifRecipientEmail :: Text,
+  { eifRecipientEmail :: EmailAddress,
     eifSchedulesJson :: Text,
     eifScheduleStartDate :: Text
   }
   deriving (Show)
 
 instance FromMultipart Mem EditInvitationForm where
-  fromMultipart multipartData =
+  fromMultipart multipartData = do
+    recipientEmail <- first Text.unpack . emailField $ fromRight "" (lookupInput "recipient_email" multipartData)
     pure
       EditInvitationForm
-        { eifRecipientEmail = fromRight "" (lookupInput "recipient_email" multipartData),
+        { eifRecipientEmail = recipientEmail,
           eifSchedulesJson = fromRight "[]" (lookupInput "schedules_json" multipartData),
           eifScheduleStartDate = fromRight "" (lookupInput "schedule_start_date" multipartData)
         }

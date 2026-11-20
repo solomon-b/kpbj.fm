@@ -2,10 +2,13 @@ module API.Invite.Token.Post.Route where
 
 --------------------------------------------------------------------------------
 
+import App.FormField (emailField)
+import Data.Bifunctor (first)
 import Data.Either (fromRight)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
+import Domain.Types.EmailAddress (EmailAddress)
 import Effects.Database.Tables.HostInvitation qualified as HostInvitation
 import Lucid qualified
 import Servant ((:>))
@@ -28,7 +31,7 @@ import Text.HTML (HTML)
 -- Combines account creation fields with initial show setup fields.
 data InviteOnboardingForm = InviteOnboardingForm
   { iofFullName :: Text,
-    iofEmail :: Text,
+    iofEmail :: EmailAddress,
     iofDisplayName :: Text,
     iofPassword :: Text,
     iofNewsletter :: Maybe Bool,
@@ -43,7 +46,7 @@ instance FromMultipart Mem InviteOnboardingForm where
   fromMultipart multipartData =
     InviteOnboardingForm
       <$> lookupInput "full_name" multipartData
-      <*> lookupInput "email" multipartData
+      <*> (lookupInput "email" multipartData >>= first Text.unpack . emailField)
       <*> lookupInput "display_name" multipartData
       <*> lookupInput "password" multipartData
       <*> pure (parseCheckbox (lookupInput "newsletter" multipartData))

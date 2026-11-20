@@ -11,8 +11,10 @@ import Component.PageHeader (pageHeader)
 import Data.Maybe (fromMaybe, isJust)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Data.Text.Display (display)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
+import Domain.Types.EmailAddress (EmailAddress)
 import Lucid qualified
 import Lucid.Form.Builder
 import Lucid.HTMX
@@ -31,9 +33,9 @@ userForgotPasswordGetUrl = Link.linkURI userLinks.forgotPasswordGet
 
 --------------------------------------------------------------------------------
 
-template :: Maybe Text -> Maybe Text -> Lucid.Html ()
+template :: Maybe EmailAddress -> Maybe Text -> Lucid.Html ()
 template emailAddress redirectLink =
-  let emailValue = fromMaybe "" emailAddress
+  let emailValue = maybe "" display emailAddress
       redirectLink' = fromMaybe "/" redirectLink
       hasError = isJust emailAddress
       postUrl = [i|/#{userLoginPostUrl redirectLink'}|]

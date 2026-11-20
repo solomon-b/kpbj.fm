@@ -236,7 +236,7 @@ test.describe("Invitations CRUD", () => {
     await page.goto(NEW_URL);
     const result = await createInvitation(page, "not-an-email");
     expect(result.hxRedirect).toBeNull();
-    expect(result.body).toMatch(/not a valid email/i);
+    expect(result.body).toMatch(/valid email address/i);
   });
 
   test("invite URL uses INV-XXXX-XXXX token format", async ({ page }) => {

@@ -113,6 +113,8 @@ import App.CustomContextSpec qualified as CustomContext
 import App.Dashboard.CurrentShowSpec qualified as CurrentShow
 import App.Dashboard.ShowContextSpec qualified as ShowContext
 import App.DomainsSpec qualified as Domains
+import App.ErrorFormattersSpec qualified as ErrorFormatters
+import App.FormFieldSpec qualified as FormField
 import App.Handler.CombinatorsSpec qualified as Combinators
 import App.Handler.ErrorSpec qualified as ErrorHandler
 import App.RequestLogSpec qualified as RequestLog
@@ -169,6 +171,8 @@ main = do
     CustomContext.spec
     ShowContext.spec
     Domains.spec
+    ErrorFormatters.spec
+    FormField.spec
     RequestLog.spec
     ScheduleDiff.spec
     ScheduleEditor.spec
