@@ -8,6 +8,7 @@ import Hedgehog (MonadGen (..))
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Test.Gen.DomainTypes (genCents)
+import Test.Gen.EmailAddress (genEmail)
 import Test.Gen.Text (genShortText, genText)
 
 --------------------------------------------------------------------------------
@@ -16,12 +17,6 @@ genOrderNumber :: (MonadGen m) => m Text
 genOrderNumber = do
   suffix <- Gen.text (Range.linear 6 10) Gen.alphaNum
   pure $ "KPBJ-" <> suffix
-
-genEmail :: (MonadGen m) => m Text
-genEmail = do
-  username <- Gen.text (Range.linear 3 10) Gen.alphaNum
-  domain <- Gen.text (Range.linear 3 8) Gen.alpha
-  pure $ username <> "@" <> domain <> ".com"
 
 genPaymentMethod :: (MonadGen m) => m Orders.PaymentMethod
 genPaymentMethod = Gen.element [Orders.Stripe, Orders.Paypal]

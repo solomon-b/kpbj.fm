@@ -49,6 +49,7 @@ import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import Data.Text.Display (Display (..))
 import Data.Time (UTCTime)
+import Domain.Types.EmailAddress (EmailAddress)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
@@ -147,7 +148,7 @@ data PasswordResetToken f = PasswordResetToken
   { prtId :: Column f Id,
     prtUserId :: Column f User.Id,
     prtToken :: Column f Token,
-    prtEmail :: Column f Text,
+    prtEmail :: Column f EmailAddress,
     prtStatus :: Column f Status,
     prtCreatedAt :: Column f UTCTime,
     prtExpiresAt :: Column f UTCTime,
@@ -201,7 +202,7 @@ passwordResetTokenSchema =
 data Insert = Insert
   { iUserId :: User.Id,
     iToken :: Token,
-    iEmail :: Text,
+    iEmail :: EmailAddress,
     iIpAddress :: Maybe Text,
     iUserAgent :: Maybe Text
   }
@@ -302,7 +303,7 @@ expirePendingForUser userId =
 -- | Count recent password reset tokens for an email address.
 --
 -- Used for rate limiting: returns count of tokens created in the last hour.
-countRecentForEmail :: Text -> Hasql.Statement () Int64
+countRecentForEmail :: EmailAddress -> Hasql.Statement () Int64
 countRecentForEmail email =
   let query =
         interp

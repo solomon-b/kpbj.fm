@@ -122,7 +122,7 @@ sendShippingEmail order trackingNumber =
     shippingConfirmationEmail
       ShippingEmailData
         { sedOrderNumber = order.oOrderNumber,
-          sedEmail = order.oEmail,
+          sedEmail = display order.oEmail,
           sedTrackingNumber = trackingNumber,
           -- Carrier is not known for manually-entered tracking numbers.
           sedCarrier = ""

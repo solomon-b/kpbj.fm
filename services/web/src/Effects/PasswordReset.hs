@@ -165,7 +165,7 @@ passwordResetErrorToText = \case
 -- | Check if an email has exceeded the rate limit for password reset requests.
 --
 -- Returns True if the email can request a new token, False if rate limited.
-checkRateLimit :: Text -> AppM (Either PasswordResetError Bool)
+checkRateLimit :: EmailAddress -> AppM (Either PasswordResetError Bool)
 checkRateLimit email = do
   result <- execQuery (ResetTokens.countRecentForEmail email)
   case result of
@@ -198,13 +198,11 @@ createPasswordResetToken ::
   Maybe Text ->
   AppM (Either PasswordResetError ResetTokens.Token)
 createPasswordResetToken userId email ipAddress userAgent = do
-  let emailText = display email
-
   -- Check rate limit
-  checkRateLimit emailText >>= \case
+  checkRateLimit email >>= \case
     Left err -> pure $ Left err
     Right False -> do
-      Log.logInfo "Password reset rate limit exceeded" emailText
+      Log.logInfo "Password reset rate limit exceeded" (display email)
       pure $ Left RateLimitExceeded
     Right True -> do
       -- Generate token
@@ -218,7 +216,7 @@ createPasswordResetToken userId email ipAddress userAgent = do
             ResetTokens.Insert
               { ResetTokens.iUserId = userId,
                 ResetTokens.iToken = token,
-                ResetTokens.iEmail = emailText,
+                ResetTokens.iEmail = email,
                 ResetTokens.iIpAddress = ipAddress,
                 ResetTokens.iUserAgent = userAgent
               }
@@ -229,10 +227,10 @@ createPasswordResetToken userId email ipAddress userAgent = do
           Log.logInfo "Failed to create password reset token" (Text.pack $ show err)
           pure $ Left $ ResetDbError "Failed to create password reset token"
         Right Nothing -> do
-          Log.logInfo "Failed to create password reset token (no ID returned)" emailText
+          Log.logInfo "Failed to create password reset token (no ID returned)" (display email)
           pure $ Left $ ResetDbError "Failed to create password reset token"
         Right (Just _) -> do
-          Log.logInfo "Password reset token created" emailText
+          Log.logInfo "Password reset token created" (display email)
           pure $ Right token
 
 -- | Validate a password reset token without consuming it.

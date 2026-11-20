@@ -51,6 +51,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (Display (..))
 import Data.Time (UTCTime)
+import Domain.Types.EmailAddress (EmailAddress)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.Util (nextId)
 import GHC.Generics (Generic)
@@ -158,7 +159,7 @@ data EmailVerificationToken f = EmailVerificationToken
   { evtId :: Column f Id,
     evtUserId :: Column f User.Id,
     evtToken :: Column f Token,
-    evtEmail :: Column f Text,
+    evtEmail :: Column f EmailAddress,
     evtStatus :: Column f Status,
     evtCreatedAt :: Column f UTCTime,
     evtExpiresAt :: Column f UTCTime,
@@ -208,7 +209,7 @@ emailVerificationTokenSchema =
 data Insert = Insert
   { iUserId :: User.Id,
     iToken :: Token,
-    iEmail :: Text
+    iEmail :: EmailAddress
   }
   deriving stock (Generic, Show, Eq)
 

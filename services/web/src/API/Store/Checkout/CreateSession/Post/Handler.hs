@@ -44,6 +44,7 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.Display (display)
 import Domain.Types.Cents (Cents (..), unCents)
 import EasyPost.Client (EasyPostClientError (..), getShipment)
 import EasyPost.Types (EasyPostApiKey, Rate (..), Shipment (..))
@@ -244,7 +245,7 @@ handler req = do
           { mode = "payment",
             uiMode = "embedded",
             returnUrl = appBase <> rootLink (storeLinks.orderConfirmation orderNumber Nothing) <> "?session_id={CHECKOUT_SESSION_ID}",
-            customerEmail = Just req.csrEmail,
+            customerEmail = Just (display req.csrEmail),
             lineItems = productLineItems <> [taxLineItem],
             shippingOptions =
               [ ShippingOption

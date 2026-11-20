@@ -34,6 +34,7 @@ import Data.ByteString (ByteString)
 import Data.Has (getter)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.Display (display)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
 import Effects.Database.Execute (execQueryThrow)
 import Effects.Database.Tables.OrderItems qualified as OrderItems
@@ -177,7 +178,7 @@ buildOrderEmailData :: Text -> Orders.Model -> [OrderItems.Model] -> OrderEmailD
 buildOrderEmailData orderDetailUrl order items =
   OrderEmailData
     { oedOrderNumber = order.oOrderNumber,
-      oedEmail = order.oEmail,
+      oedEmail = display order.oEmail,
       oedItems = map buildEmailItem items,
       oedSubtotalCents = order.oSubtotalCents,
       oedShippingCents = order.oShippingCents,
