@@ -23,7 +23,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Text.Lazy qualified as LT
-import Domain.Types.EmailAddress (EmailAddress, mkEmailAddress)
+import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.PasswordResetTokens qualified as ResetTokens
@@ -38,7 +38,7 @@ import Network.Socket (SockAddr)
 
 -- | Core business logic for password reset requests.
 --
--- Validates the email, looks up the user, creates a reset token, and queues
+-- Looks up the user, creates a reset token, and queues
 -- the email. Always succeeds — returns unit regardless of outcome (to prevent
 -- email enumeration). Logs any failures internally.
 action ::
@@ -47,30 +47,26 @@ action ::
   ForgotPasswordForm ->
   ExceptT HandlerError AppM ()
 action sockAddr mUserAgent ForgotPasswordForm {..} = do
-  case mkEmailAddress fpfEmail of
-    Left _ -> do
-      Log.logInfo "Password reset requested for invalid email format" fpfEmail
-    Right validEmail -> do
-      userResult <- execQuery (User.getUserByEmail validEmail)
-      case userResult of
+  userResult <- execQuery (User.getUserByEmail fpfEmail)
+  case userResult of
+    Left err -> do
+      Log.logInfo "Password reset lookup failed" (Text.pack $ show err)
+    Right Nothing -> do
+      Log.logInfo "Password reset requested for non-existent email" (display fpfEmail)
+    Right (Just user) -> do
+      let ipAddress = Just $ Text.pack $ show sockAddr
+      tokenResult <-
+        lift $
+          PasswordReset.createPasswordResetToken
+            (User.mId user)
+            fpfEmail
+            ipAddress
+            mUserAgent
+      case tokenResult of
         Left err -> do
-          Log.logInfo "Password reset lookup failed" (Text.pack $ show err)
-        Right Nothing -> do
-          Log.logInfo "Password reset requested for non-existent email" (display validEmail)
-        Right (Just user) -> do
-          let ipAddress = Just $ Text.pack $ show sockAddr
-          tokenResult <-
-            lift $
-              PasswordReset.createPasswordResetToken
-                (User.mId user)
-                validEmail
-                ipAddress
-                mUserAgent
-          case tokenResult of
-            Left err -> do
-              Log.logInfo "Password reset token creation failed" (Text.pack $ show err)
-            Right token -> do
-              lift $ sendResetEmail validEmail token
+          Log.logInfo "Password reset token creation failed" (Text.pack $ show err)
+        Right token -> do
+          lift $ sendResetEmail fpfEmail token
 
 handler ::
   SockAddr ->

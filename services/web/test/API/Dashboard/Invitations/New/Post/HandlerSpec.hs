@@ -18,6 +18,7 @@ import Effects.Database.Tables.HostInvitation qualified as HostInvitation
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction.Sessions qualified as TRX
 import Test.Database.Monad (TestDBConfig, withTestDB)
+import Test.Gen.EmailAddress (mkEmailAddressUnsafe)
 import Test.Handler.Fixtures (expectSetupRight, mkUserInsert, setupUserModels)
 import Test.Handler.Monad (bracketAppM)
 import Test.Hspec (Spec, describe, expectationFailure, it, shouldBe)
@@ -70,7 +71,7 @@ mondaySlot = "[{\"dayOfWeek\":\"monday\",\"weeksOfMonth\":[1,2,3,4,5],\"startTim
 form :: Text -> Text -> Text -> NewInvitationForm
 form recipient schedules startDate =
   NewInvitationForm
-    { nifRecipientEmail = recipient,
+    { nifRecipientEmail = mkEmailAddressUnsafe recipient,
       nifSchedulesJson = schedules,
       nifScheduleStartDate = startDate
     }

@@ -107,7 +107,7 @@ tuesdaySlot = "[{\"dayOfWeek\":\"tuesday\",\"weeksOfMonth\":[1,2,3,4,5],\"startT
 form :: Text -> Text -> Text -> EditInvitationForm
 form recipient schedules startDate =
   EditInvitationForm
-    { eifRecipientEmail = recipient,
+    { eifRecipientEmail = mkEmailAddressUnsafe recipient,
       eifSchedulesJson = schedules,
       eifScheduleStartDate = startDate
     }

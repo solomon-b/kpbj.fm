@@ -77,7 +77,8 @@ action invitationId form = do
       | otherwise -> pure m
 
   -- 2. Validate the recipient and the schedule, as the new invitation form does.
-  validatedEmail <- validateRecipientEmail (eifRecipientEmail form)
+  let validatedEmail = eifRecipientEmail form
+  validateRecipientEmail validatedEmail
   (scheduleData, slot) <- validateSchedulesJson (eifSchedulesJson form)
 
   -- 3. Validate the start date.

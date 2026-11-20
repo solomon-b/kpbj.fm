@@ -33,8 +33,6 @@ import Data.Time (Day)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.DisplayName qualified as DisplayName
-import Domain.Types.EmailAddress (EmailAddress)
-import Domain.Types.EmailAddress qualified as EmailAddress
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.FullName (FullName)
 import Domain.Types.FullName qualified as FullName
@@ -140,7 +138,7 @@ action token form = do
   invitation <- lookupInvitation token
 
   -- 2. Validate account fields
-  validEmail <- validateEmail (iofEmail form)
+  let validEmail = iofEmail form
 
   -- 2a. Enforce that the submitted email matches the invitation recipient.
   --     The form pre-fills this field read-only; if a client bypasses that,
@@ -301,15 +299,6 @@ lookupInvitation token = do
     Left dbErr -> throwDatabaseError dbErr
     Right Nothing -> throwValidationError "This invitation link is invalid, expired, or has already been used."
     Right (Just inv) -> pure inv
-
--- | Validate and parse an email address.
-validateEmail ::
-  Text ->
-  ExceptT HandlerError AppM EmailAddress
-validateEmail emailText =
-  case EmailAddress.mkEmailAddress emailText of
-    Left _ -> throwValidationError "Please enter a valid email address."
-    Right validEmail -> pure validEmail
 
 -- | Validate password policy and hash.
 validateAndHashPassword ::

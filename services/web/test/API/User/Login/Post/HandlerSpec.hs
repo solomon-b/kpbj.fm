@@ -21,6 +21,7 @@ import Hasql.Transaction.Sessions qualified as TRX
 import Network.Socket (SockAddr (..))
 import Test.Database.Helpers (insertTestUser, verifyTestUserEmail)
 import Test.Database.Monad (TestDBConfig, withTestDB)
+import Test.Gen.EmailAddress (mkEmailAddressUnsafe)
 import Test.Handler.Fixtures (expectSetupRight, mkUserInsert)
 import Test.Handler.Monad (bracketAppM)
 import Test.Hspec (Spec, describe, expectationFailure, it)
@@ -64,7 +65,7 @@ test_successfulLogin cfg = do
           verifyTestUserEmail userId
     _ <- liftIO $ expectSetupRight dbResult
 
-    let loginForm = Login "login-success@test.example.com" (mkPassword "testpassword") False
+    let loginForm = Login (mkEmailAddressUnsafe "login-success@test.example.com") (mkPassword "testpassword") False
     result <- runExceptT $ action testSockAddr Nothing loginForm Nothing
     liftIO $ case result of
       Right (LoginSuccess {}) -> pure ()
@@ -74,7 +75,7 @@ test_successfulLogin cfg = do
 -- | Attempting to login with a non-existent email returns invalid credentials.
 test_invalidCredentialsNoUser :: TestDBConfig -> IO ()
 test_invalidCredentialsNoUser cfg = do
-  let loginForm = Login "nobody@test.example.com" (mkPassword "somepassword") False
+  let loginForm = Login (mkEmailAddressUnsafe "nobody@test.example.com") (mkPassword "somepassword") False
   bracketAppM cfg $ do
     result <- runExceptT $ action testSockAddr Nothing loginForm Nothing
     liftIO $ case result of
@@ -93,7 +94,7 @@ test_invalidCredentialsWrongPassword cfg = do
           insertTestUser userInsert
     _ <- liftIO $ expectSetupRight dbResult
 
-    let loginForm = Login "login-wrong-pass@test.example.com" (mkPassword "wrongpassword") False
+    let loginForm = Login (mkEmailAddressUnsafe "login-wrong-pass@test.example.com") (mkPassword "wrongpassword") False
     result <- runExceptT $ action testSockAddr Nothing loginForm Nothing
     liftIO $ case result of
       Right (LoginInvalidCredentials _) -> pure ()
@@ -115,7 +116,7 @@ test_rememberMePersistsSession cfg = do
           pure userId
     userId <- liftIO $ expectSetupRight dbResult
 
-    let loginForm = Login "login-remember-me@test.example.com" (mkPassword "testpassword") True
+    let loginForm = Login (mkEmailAddressUnsafe "login-remember-me@test.example.com") (mkPassword "testpassword") True
     result <- runExceptT $ action testSockAddr Nothing loginForm Nothing
     case result of
       Right (LoginSuccess cookie _) -> do
@@ -141,7 +142,7 @@ test_noRememberMeBrowserSessionCookie cfg = do
           verifyTestUserEmail userId
     _ <- liftIO $ expectSetupRight dbResult
 
-    let loginForm = Login "login-no-remember-me@test.example.com" (mkPassword "testpassword") False
+    let loginForm = Login (mkEmailAddressUnsafe "login-no-remember-me@test.example.com") (mkPassword "testpassword") False
     result <- runExceptT $ action testSockAddr Nothing loginForm Nothing
     liftIO $ case result of
       Right (LoginSuccess cookie _) ->
@@ -204,7 +205,7 @@ test_emailNotVerified cfg = do
     _ <- liftIO $ expectSetupRight dbResult
 
     -- "testpassword" is the password set by mkUserInsert
-    let loginForm = Login "login-unverified@test.example.com" (mkPassword "testpassword") False
+    let loginForm = Login (mkEmailAddressUnsafe "login-unverified@test.example.com") (mkPassword "testpassword") False
     result <- runExceptT $ action testSockAddr Nothing loginForm Nothing
     liftIO $ case result of
       Right (LoginEmailNotVerified _) -> pure ()

@@ -2,6 +2,7 @@ module API.User.Register.Post.Route where
 
 --------------------------------------------------------------------------------
 
+import App.FormField (emailField)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Password.Argon2 (Argon2, Password, PasswordHash, mkPassword)
 import Data.Text (Text)
@@ -22,12 +23,8 @@ import Web.FormUrlEncoded qualified as FormUrlEncoded
 
 --------------------------------------------------------------------------------
 
--- | The registration form.
---
--- The email is the raw text. The handler parses it, so an invalid address
--- sends the user back to the form and not to a 400 from the form decoder.
 data Register = Register
-  { urEmail :: Text,
+  { urEmail :: EmailAddress,
     urPassword :: Password,
     urDisplayName :: DisplayName,
     urFullName :: FullName,
@@ -42,7 +39,7 @@ data Register = Register
 instance FormUrlEncoded.FromForm Register where
   fromForm f =
     Register
-      <$> FormUrlEncoded.parseUnique "email" f
+      <$> (FormUrlEncoded.parseUnique "email" f >>= emailField)
       <*> fmap mkPassword (FormUrlEncoded.parseUnique "password" f)
       <*> FormUrlEncoded.parseUnique "displayName" f
       <*> FormUrlEncoded.parseUnique "fullName" f

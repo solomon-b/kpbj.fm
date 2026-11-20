@@ -224,6 +224,7 @@ import API.Webhooks.Stripe.Post.Handler qualified as Webhooks.Stripe.Post
 import App qualified
 import App.Context (AppContext (..))
 import App.CustomContext (buildCustomContext, loadCustomConfigs)
+import App.ErrorFormatters (errorFormatters)
 import App.Monad (AppM)
 import App.RequestLog (requestLogger)
 import Component.NotFound (notFoundPage)
@@ -235,6 +236,7 @@ import Middleware.RateLimit (rateLimitMiddleware)
 import Middleware.SecurityHeaders (securityHeadersMiddleware)
 import Middleware.ValidateEncoding (validateEncodingMiddleware)
 import Network.Wai.Handler.Warp qualified as Warp
+import Servant (Context ((:.)))
 import Servant qualified
 
 --------------------------------------------------------------------------------
@@ -265,13 +267,15 @@ runApi = do
             App.mkWarpSettings (appLoggerEnv appCtx) (appWarpConfig appCtx)
               & Warp.setLogger (requestLogger (appLoggerEnv appCtx))
           -- Build the WAI application with 404 middleware. No route uses a
-          -- Servant auth handler, so the Servant context is empty.
+          -- Servant auth handler, so the Servant context holds only the
+          -- error formatters.
+          servantCtx = errorFormatters :. Servant.EmptyContext
           app =
             validateEncodingMiddleware
               . securityHeadersMiddleware
               . rateLimiter
               . notFoundMiddleware notFoundHtml
-              $ App.mkAppWithContext @API @'[] Servant.EmptyContext (const server) appCtx
+              $ App.mkAppWithContext @API @'[Servant.ErrorFormatters] servantCtx (const server) appCtx
 
       Warp.runSettings warpSettings app
 

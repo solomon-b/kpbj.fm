@@ -100,7 +100,7 @@ runClaim cfg token name showTitle =
         token
         InviteOnboardingForm
           { iofFullName = "Test Host",
-            iofEmail = name <> "@example.com",
+            iofEmail = mkEmailAddressUnsafe (name <> "@example.com"),
             iofDisplayName = name,
             iofPassword = "a-long-password",
             iofNewsletter = Nothing,

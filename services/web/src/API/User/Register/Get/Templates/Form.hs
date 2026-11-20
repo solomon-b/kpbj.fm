@@ -11,13 +11,14 @@ where
 import API.Links (apiLinks, userLinks)
 import API.Types
 import Component.PageHeader (pageHeader)
-import Data.Maybe (fromMaybe, isJust)
+import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Domain.Types.DisplayName (DisplayName)
+import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.FullName (FullName)
 import Lucid qualified
 import Lucid.Form.Builder
@@ -40,11 +41,11 @@ termsOfServiceGetUrl = Link.linkURI apiLinks.termsOfServiceGet
 
 --------------------------------------------------------------------------------
 
-template :: Maybe DisplayName -> Maybe FullName -> Maybe Text -> Maybe Text -> Lucid.Html ()
+template :: Maybe DisplayName -> Maybe FullName -> Maybe EmailAddress -> Maybe Text -> Lucid.Html ()
 template mDisplayName mFullName mEmailAddress _redirectLink =
   let displayNameValue = maybe "" display mDisplayName
       fullNameValue = maybe "" display mFullName
-      emailValue = fromMaybe "" mEmailAddress
+      emailValue = maybe "" display mEmailAddress
       hasError = isJust mEmailAddress
       postUrl = [i|/#{userRegisterPostUrl}|]
    in Lucid.div_

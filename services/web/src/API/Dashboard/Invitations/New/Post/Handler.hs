@@ -33,7 +33,7 @@ import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
 import Domain.Types.Cookie (Cookie)
-import Domain.Types.EmailAddress (EmailAddress, mkEmailAddress)
+import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.Timezone (pacificDay)
 import Effects.Clock (currentSystemTime)
 import Effects.Database.Execute (execQuery)
@@ -98,7 +98,8 @@ action ::
   ExceptT HandlerError AppM (HostInvitation.Token, EmailAddress)
 action userMetadata form = do
   -- 1. Validate the recipient. The email must not match an existing KPBJ user.
-  validatedEmail <- validateRecipientEmail (nifRecipientEmail form)
+  let validatedEmail = nifRecipientEmail form
+  validateRecipientEmail validatedEmail
 
   -- 2. Validate that schedulesJson is non-empty valid JSON
   (scheduleData, slot) <- validateSchedulesJson (nifSchedulesJson form)
@@ -136,24 +137,20 @@ action userMetadata form = do
 
 -- | Validate the recipient email of an invitation.
 --
--- The email must have a valid format, and it must not belong to an existing
--- KPBJ user. An existing user gets a show through the host-management screen.
+-- The email must not belong to an existing KPBJ user. An existing user gets a
+-- show through the host-management screen.
 validateRecipientEmail ::
-  Text ->
-  ExceptT HandlerError AppM EmailAddress
+  EmailAddress ->
+  ExceptT HandlerError AppM ()
 validateRecipientEmail recipientEmail = do
-  validatedEmail <- case mkEmailAddress (Text.strip recipientEmail) of
-    Left _ -> throwValidationError "Recipient email is not a valid email address."
-    Right addr -> pure addr
-
-  existing <- execQuery (User.getUserByEmail validatedEmail)
+  existing <- execQuery (User.getUserByEmail recipientEmail)
   case existing of
     Left dbErr -> throwDatabaseError dbErr
     Right (Just _) ->
       throwValidationError
         "That email belongs to an existing KPBJ account. \
         \Use the user's host-management screen instead."
-    Right Nothing -> pure validatedEmail
+    Right Nothing -> pure ()
 
 -- | Validate the schedules JSON and return it for storage on the invitation.
 --

@@ -12,6 +12,7 @@ import Hasql.Transaction.Sessions qualified as TRX
 import Network.Socket (SockAddr (..))
 import Test.Database.Helpers (insertTestUser)
 import Test.Database.Monad (TestDBConfig, withTestDB)
+import Test.Gen.EmailAddress (mkEmailAddressUnsafe)
 import Test.Handler.Fixtures (expectSetupRight, mkUserInsert)
 import Test.Handler.Monad (bracketAppM)
 import Test.Hspec (Spec, describe, expectationFailure, it)
@@ -37,7 +38,7 @@ testSockAddr = SockAddrUnix "test"
 -- (prevents email enumeration).
 test_succeedsForNonExistentEmail :: TestDBConfig -> IO ()
 test_succeedsForNonExistentEmail cfg = do
-  let form = ForgotPasswordForm "nonexistent@test.example.com"
+  let form = ForgotPasswordForm (mkEmailAddressUnsafe "nonexistent@test.example.com")
   bracketAppM cfg $ do
     result <- runExceptT $ action testSockAddr Nothing form
     liftIO $ case result of
@@ -55,7 +56,7 @@ test_succeedsForExistingUser cfg = do
           insertTestUser userInsert
     _ <- liftIO $ expectSetupRight dbResult
 
-    let form = ForgotPasswordForm "forgot-pw-user@test.example.com"
+    let form = ForgotPasswordForm (mkEmailAddressUnsafe "forgot-pw-user@test.example.com")
     result <- runExceptT $ action testSockAddr Nothing form
     liftIO $ case result of
       Right () -> pure ()
