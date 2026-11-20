@@ -20,7 +20,6 @@ import Data.Password.Argon2 (hashPassword, mkPassword)
 import Data.Text (Text)
 import Data.Time (DayOfWeek (..), TimeOfDay (..))
 import Domain.Types.DisplayName (mkDisplayNameUnsafe)
-import Domain.Types.EmailAddress (mkEmailAddress)
 import Domain.Types.FullName (mkFullNameUnsafe)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
@@ -29,6 +28,7 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import GHC.Stack (HasCallStack)
 import Hasql.Transaction qualified as TRX
 import Test.Database.Helpers (insertTestUser)
+import Test.Gen.EmailAddress (mkEmailAddressUnsafe)
 import Test.HUnit (assertFailure)
 
 --------------------------------------------------------------------------------
@@ -39,7 +39,7 @@ mkUserInsert emailPrefix role = do
   pass <- hashPassword $ mkPassword "testpassword"
   pure
     UserMetadata.UserWithMetadataInsert
-      { uwmiEmail = mkEmailAddress $ emailPrefix <> "@test.example.com",
+      { uwmiEmail = mkEmailAddressUnsafe $ emailPrefix <> "@test.example.com",
         uwmiPassword = pass,
         uwmiDisplayName = mkDisplayNameUnsafe "Test User",
         uwmiFullName = mkFullNameUnsafe "Test User",

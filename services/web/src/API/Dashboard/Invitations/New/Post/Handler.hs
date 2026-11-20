@@ -34,7 +34,6 @@ import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.EmailAddress (EmailAddress, mkEmailAddress)
-import Domain.Types.EmailAddress qualified as EmailAddress
 import Domain.Types.Timezone (pacificDay)
 import Effects.Clock (currentSystemTime)
 import Effects.Database.Execute (execQuery)
@@ -143,7 +142,7 @@ validateRecipientEmail ::
   Text ->
   ExceptT HandlerError AppM EmailAddress
 validateRecipientEmail recipientEmail = do
-  validatedEmail <- case EmailAddress.validate (mkEmailAddress (Text.strip recipientEmail)) of
+  validatedEmail <- case mkEmailAddress (Text.strip recipientEmail) of
     Left _ -> throwValidationError "Recipient email is not a valid email address."
     Right addr -> pure addr
 

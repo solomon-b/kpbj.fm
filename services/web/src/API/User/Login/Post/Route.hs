@@ -8,7 +8,6 @@ import Data.Password.Argon2 (Password, mkPassword)
 import Data.Text (Text)
 import Data.Text.Display (Display (..), RecordInstance (..))
 import Deriving.Aeson qualified as Deriving
-import Domain.Types.EmailAddress
 import GHC.Generics (Generic)
 import OrphanInstances.Password ()
 import Servant ((:>))
@@ -19,8 +18,12 @@ import Web.FormUrlEncoded qualified as FormUrlEncoded
 
 --------------------------------------------------------------------------------
 
+-- | The login form.
+--
+-- The email is the raw text. The handler parses it, so an invalid address
+-- gets the "invalid credentials" answer and not a 400 from the form decoder.
 data Login = Login
-  { ulEmail :: EmailAddress,
+  { ulEmail :: Text,
     ulPassword :: Password,
     ulRememberMe :: Bool
   }

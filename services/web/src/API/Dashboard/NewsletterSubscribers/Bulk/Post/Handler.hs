@@ -20,7 +20,7 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cookie (Cookie)
-import Domain.Types.EmailAddress (EmailAddress, isValid, mkEmailAddress)
+import Domain.Types.EmailAddress (EmailAddress, mkEmailAddress)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.NewsletterSubscribers qualified as NewsletterSubscribers
 import Effects.Mailchimp.Sync (SyncOp (..), syncAsync)
@@ -82,11 +82,9 @@ parseEmails raw =
       uniqueTokens = dedupe tokens
       (valid, invalid) =
         foldl'
-          ( \(vs, is) tok ->
-              let candidate = mkEmailAddress tok
-               in if isValid candidate
-                    then (candidate : vs, is)
-                    else (vs, is + 1)
+          ( \(vs, is) tok -> case mkEmailAddress tok of
+              Right email -> (email : vs, is)
+              Left _ -> (vs, is + 1)
           )
           ([], 0 :: Int)
           uniqueTokens

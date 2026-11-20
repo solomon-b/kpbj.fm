@@ -6,12 +6,13 @@ import API.Newsletter.Subscribe.Post.Handler (SubscribeResult (..), action)
 import API.Newsletter.Subscribe.Post.Route (SubscribeForm (..))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
-import Domain.Types.EmailAddress (mkEmailAddress)
+import Data.Text.Display (display)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.NewsletterSubscribers qualified as NewsletterSubscribers
 import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import Test.Database.Monad (TestDBConfig, withTestDB)
+import Test.Gen.EmailAddress (mkEmailAddressUnsafe)
 import Test.Handler.Monad (bracketAppM)
 import Test.Hspec (Spec, describe, expectationFailure, it, shouldBe)
 
@@ -30,7 +31,7 @@ spec =
 
 test_invalidEmail :: TestDBConfig -> IO ()
 test_invalidEmail cfg = bracketAppM cfg $ do
-  let form = SubscribeForm {sfEmail = mkEmailAddress "not-an-email"}
+  let form = SubscribeForm {sfEmail = "not-an-email"}
   result <- runExceptT (action form)
   liftIO $ case result of
     Right SubscribeInvalidEmail -> pure ()
@@ -38,8 +39,8 @@ test_invalidEmail cfg = bracketAppM cfg $ do
 
 test_validEmailInserts :: TestDBConfig -> IO ()
 test_validEmailInserts cfg = bracketAppM cfg $ do
-  let email = mkEmailAddress "fresh-subscriber@test.example.com"
-  let form = SubscribeForm {sfEmail = email}
+  let email = mkEmailAddressUnsafe "fresh-subscriber@test.example.com"
+  let form = SubscribeForm {sfEmail = display email}
   result <- runExceptT (action form)
   case result of
     Right SubscribeSuccess -> do
@@ -54,8 +55,8 @@ test_validEmailInserts cfg = bracketAppM cfg $ do
 
 test_duplicateEmailNoOp :: TestDBConfig -> IO ()
 test_duplicateEmailNoOp cfg = bracketAppM cfg $ do
-  let email = mkEmailAddress "dup-subscriber@test.example.com"
-  let form = SubscribeForm {sfEmail = email}
+  let email = mkEmailAddressUnsafe "dup-subscriber@test.example.com"
+  let form = SubscribeForm {sfEmail = display email}
   _ <- runExceptT (action form)
   result <- runExceptT (action form)
   case result of

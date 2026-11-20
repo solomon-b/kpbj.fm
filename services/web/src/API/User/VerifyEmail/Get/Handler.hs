@@ -71,7 +71,7 @@ handler sockAddr mUserAgent _hxRequest mToken = do
               -- Session creation failed, but email is verified
               -- Redirect to login page so user can log in manually
               Log.logInfo "Auto-login failed after email verification" errMsg
-              let loginUrl = "/" <> Http.toUrlPiece (userLinks.loginGet (Nothing :: Maybe Text) (Nothing :: Maybe EmailAddress))
+              let loginUrl = "/" <> Http.toUrlPiece (userLinks.loginGet Nothing Nothing)
               redirectWithFlash loginUrl [] $
                 FlashMessage Success "Email Verified" "Your email has been verified. Please log in."
             Right sessionCookie ->

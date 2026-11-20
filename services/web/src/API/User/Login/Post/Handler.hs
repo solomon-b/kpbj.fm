@@ -22,7 +22,7 @@ import Data.Password.Argon2 (PasswordCheck (..), checkPassword)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (NominalDiffTime, nominalDay)
-import Domain.Types.EmailAddress ()
+import Domain.Types.EmailAddress (mkEmailAddress)
 import Effects.Database.Execute (execQuery, execQueryThrow)
 import Effects.Database.Tables.EmailVerificationTokens qualified as VerificationTokens
 import Effects.Database.Tables.User qualified as User
@@ -56,7 +56,8 @@ action ::
   Maybe Text ->
   ExceptT HandlerError AppM LoginResult
 action sockAddr mUserAgent Login {..} redirectQueryParam = do
-  mUser <- execQueryThrow (User.getUserByEmail ulEmail)
+  -- An address that does not parse cannot belong to a user.
+  mUser <- either (const (pure Nothing)) (execQueryThrow . User.getUserByEmail) (mkEmailAddress ulEmail)
   case mUser of
     Just user
       | checkPassword ulPassword (User.mPassword user) == PasswordCheckSuccess -> do
@@ -71,7 +72,7 @@ action sockAddr mUserAgent Login {..} redirectQueryParam = do
               buildLoginSuccess sockAddr mUserAgent redirectLink user ulRememberMe
             _ -> do
               Log.logInfo "Login blocked - email not verified" ulEmail
-              pure $ LoginEmailNotVerified ("/" <> Http.toUrlPiece (userLinks.verifyEmailSentGet $ Just ulEmail))
+              pure $ LoginEmailNotVerified ("/" <> Http.toUrlPiece (userLinks.verifyEmailSentGet $ Just (User.mEmail user)))
     Just _user -> do
       Log.logInfo "Login Attempt" ulEmail
       Log.logInfo "Invalid Credentials" (Aeson.object ["field" .= ("password" :: Text)])

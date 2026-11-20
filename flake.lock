@@ -91,22 +91,6 @@
         "type": "github"
       }
     },
-    "nixpkgs_2": {
-      "locked": {
-        "lastModified": 1777673416,
-        "narHash": "sha256-5c2POKPOjU40Kh0MirOdScBLG0bu9TAuPYAtPRNZMBs=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "26ef669cffa904b6f6832ab57b77892a37c1a671",
-        "type": "github"
-      },
-      "original": {
-        "owner": "NixOS",
-        "ref": "nixos-25.11",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
@@ -114,6 +98,22 @@
         "nixpkgs": "nixpkgs",
         "sops-nix": "sops-nix",
         "web-server-core": "web-server-core"
+      }
+    },
+    "servant-auth-roles-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1784522730,
+        "narHash": "sha256-6RgxT7lgWYnphMpQXh4VvQ/mqPwbWL73brEsyF1WSk4=",
+        "owner": "solomon-b",
+        "repo": "servant-auth-roles",
+        "rev": "6bc838e06f04310d587f1cd37b81cd80de101bad",
+        "type": "github"
+      },
+      "original": {
+        "owner": "solomon-b",
+        "repo": "servant-auth-roles",
+        "type": "github"
       }
     },
     "sops-nix": {
@@ -200,15 +200,18 @@
     "web-server-core": {
       "inputs": {
         "flake-utils": "flake-utils_3",
-        "nixpkgs": "nixpkgs_2",
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "servant-auth-roles-src": "servant-auth-roles-src",
         "tmp-postgres-src": "tmp-postgres-src"
       },
       "locked": {
-        "lastModified": 1777919318,
-        "narHash": "sha256-11whPVqlHH9u9qiNIx5Zi+4AP/eazxPlDyspJH+QMHY=",
+        "lastModified": 1795142936,
+        "narHash": "sha256-8ti4bIGF+jMlpEY9KUS7cHx4VbKmj+uqjagDa52ZWHw=",
         "owner": "solomon-b",
         "repo": "web-server",
-        "rev": "c6df09aa3607452662b9f6d8713502c595df9511",
+        "rev": "27d2cbde2d2a9dd0c6d5bec0664ccb5e5e60f215",
         "type": "github"
       },
       "original": {

@@ -14,7 +14,6 @@ import Data.Aeson qualified as Aeson
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day, addDays, getCurrentTime)
-import Domain.Types.EmailAddress (mkEmailAddress)
 import Domain.Types.Timezone (pacificDay)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Execute (execQuery)
@@ -26,6 +25,7 @@ import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import Test.Database.Helpers (unwrapInsert)
 import Test.Database.Monad (TestDBConfig, withTestDB)
+import Test.Gen.EmailAddress (mkEmailAddressUnsafe)
 import Test.Handler.Fixtures (expectSetupRight, mkUserInsert, setupUserModels)
 import Test.Handler.Monad (bracketAppM)
 import Test.Hspec (Spec, describe, expectationFailure, it, shouldBe)
@@ -124,7 +124,7 @@ setupInvitation cfg name json startsOn change = do
             HostInvitation.Insert
               { HostInvitation.iToken = token,
                 HostInvitation.iScheduleData = json,
-                HostInvitation.iRecipientEmail = mkEmailAddress (name <> "@example.com"),
+                HostInvitation.iRecipientEmail = mkEmailAddressUnsafe (name <> "@example.com"),
                 HostInvitation.iCreatedBy = User.mId userModel,
                 HostInvitation.iStartsOn = startsOn
               }

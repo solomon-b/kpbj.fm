@@ -74,13 +74,12 @@ instance DBEq FullName
 
 -- | DBType instance for EmailAddress from web-server-core.
 --
--- Converts to/from Text for database storage. Decode runs full validation
--- so malformed rows surface as decode errors rather than silently flowing
--- through the system.
+-- Converts to/from Text for database storage. A malformed row is a decode
+-- error.
 instance DBType EmailAddress where
   typeInformation =
     parseTypeInformation
-      ( \t -> case EmailAddress.validate (EmailAddress.mkEmailAddress t) of
+      ( \t -> case EmailAddress.mkEmailAddress t of
           Left _ -> Left $ "Invalid EmailAddress: " <> Text.unpack t
           Right ea -> Right ea
       )

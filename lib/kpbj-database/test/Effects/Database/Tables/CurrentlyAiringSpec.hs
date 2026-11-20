@@ -38,7 +38,6 @@ import Data.Time
     timeOfDayToTime,
   )
 import Domain.Types.DisplayName (mkDisplayNameUnsafe)
-import Domain.Types.EmailAddress (mkEmailAddress)
 import Domain.Types.FullName (mkFullNameUnsafe)
 import Domain.Types.Slug (mkSlug)
 import Domain.Types.Timezone (pacificToUtc)
@@ -54,6 +53,7 @@ import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
 import Test.Database.Helpers (unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
+import Test.Gen.EmailAddress (mkEmailAddressUnsafe)
 import Test.Hspec (Spec, describe, expectationFailure, it, shouldBe)
 
 --------------------------------------------------------------------------------
@@ -280,7 +280,7 @@ setupTestDataFull passHash startTime endTime replayStartTime airDate mAudioPath 
   (OneRow userId) <-
     TRX.statement () $
       User.insertUser $
-        User.ModelInsert (mkEmailAddress "test@example.com") passHash
+        User.ModelInsert (mkEmailAddressUnsafe "test@example.com") passHash
 
   _ <-
     TRX.statement () $
@@ -360,7 +360,7 @@ setupRecurringTestData passHash dayOfWeek' weeksOfMonth episodeDate = do
   (OneRow userId) <-
     TRX.statement () $
       User.insertUser $
-        User.ModelInsert (mkEmailAddress "recurring@example.com") passHash
+        User.ModelInsert (mkEmailAddressUnsafe "recurring@example.com") passHash
   _ <-
     TRX.statement () $
       UserMetadata.insertUserMetadata $
@@ -633,7 +633,7 @@ basicInactiveShow cfg = bracketConn cfg $ do
     (OneRow userId) <-
       TRX.statement () $
         User.insertUser $
-          User.ModelInsert (mkEmailAddress "test@example.com") passHash
+          User.ModelInsert (mkEmailAddressUnsafe "test@example.com") passHash
     _ <-
       TRX.statement () $
         UserMetadata.insertUserMetadata $
@@ -1289,7 +1289,7 @@ transitionReplacedSlot cfg = bracketConn cfg $ do
     (OneRow userId) <-
       TRX.statement () $
         User.insertUser $
-          User.ModelInsert (mkEmailAddress "test@example.com") passHash
+          User.ModelInsert (mkEmailAddressUnsafe "test@example.com") passHash
     _ <-
       TRX.statement () $
         UserMetadata.insertUserMetadata $
@@ -1365,7 +1365,7 @@ transitionRemovedSlot cfg = bracketConn cfg $ do
     (OneRow userId) <-
       TRX.statement () $
         User.insertUser $
-          User.ModelInsert (mkEmailAddress "test@example.com") passHash
+          User.ModelInsert (mkEmailAddressUnsafe "test@example.com") passHash
     _ <-
       TRX.statement () $
         UserMetadata.insertUserMetadata $
@@ -1788,7 +1788,7 @@ addSecondShow passHash startTime endTime airDate effectiveFrom = do
   (OneRow userId) <-
     TRX.statement () $
       User.insertUser $
-        User.ModelInsert (mkEmailAddress "second@example.com") passHash
+        User.ModelInsert (mkEmailAddressUnsafe "second@example.com") passHash
   _ <-
     TRX.statement () $
       UserMetadata.insertUserMetadata $
