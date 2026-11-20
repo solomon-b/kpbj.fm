@@ -108,6 +108,8 @@ import API.Uploads.Audio.Post.HandlerSpec qualified as AudioUploadHandler
 import API.User.ForgotPassword.Post.HandlerSpec qualified as UserForgotPasswordHandler
 import API.User.Login.Post.HandlerSpec qualified as UserLoginHandler
 import API.User.Register.Post.HandlerSpec qualified as UserRegisterHandler
+import App.Auth.GateSpec qualified as Gate
+import App.Auth.RolesSpec qualified as Roles
 import App.BaseUrlSpec qualified as BaseUrl
 import App.CustomContextSpec qualified as CustomContext
 import App.Dashboard.CurrentShowSpec qualified as CurrentShow
@@ -173,6 +175,7 @@ main = do
     Domains.spec
     ErrorFormatters.spec
     FormField.spec
+    Roles.spec
     RequestLog.spec
     ScheduleDiff.spec
     ScheduleEditor.spec
@@ -200,6 +203,7 @@ main = do
   -- Handler Integration Tests (database-dependent)
   withTmpPG $ hspecWith cfg $ parallel $ do
     Combinators.spec
+    Gate.spec
     ErrorHandler.spec
     HomeHandler.spec
     PlayoutNowGetHandler.spec

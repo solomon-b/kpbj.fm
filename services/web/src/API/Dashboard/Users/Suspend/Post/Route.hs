@@ -3,12 +3,13 @@ module API.Dashboard.Users.Suspend.Post.Route where
 --------------------------------------------------------------------------------
 
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie)
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import GHC.Generics (Generic)
 import Lucid qualified
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Text.HTML (HTML)
 import Web.FormUrlEncoded qualified as FormUrlEncoded
 
@@ -20,7 +21,7 @@ type Route =
     :> "users"
     :> Servant.Capture "id" User.Id
     :> "suspend"
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Admin
     :> Servant.ReqBody '[Servant.FormUrlEncoded] SuspendForm
     :> Servant.Post '[HTML] (Lucid.Html ())
 

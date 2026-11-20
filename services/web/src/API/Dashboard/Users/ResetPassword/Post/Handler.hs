@@ -5,7 +5,7 @@ module API.Dashboard.Users.ResetPassword.Post.Handler where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Users.ResetPassword.Post.Templates qualified as Templates
-import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
+import App.Auth.Roles (RoleAuth, Satisfies)
 import App.Handler.Error (handleBannerErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Control.Monad.IO.Class (liftIO)
@@ -13,7 +13,6 @@ import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Password.Argon2 (hashPassword, mkPassword)
 import Data.Text.Display (display)
-import Domain.Types.Cookie (Cookie (..))
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -31,12 +30,10 @@ import Lucid qualified
 -- it is never persisted.
 handler ::
   User.Id ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Admin RoleAuth ->
   AppM (Lucid.Html ())
-handler targetUserId cookie =
+handler targetUserId _ =
   handleBannerErrors "Reset password" $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireAdminNotSuspended "Only admins can reset user passwords." userMetadata
     user <-
       execQuery (UserMetadata.getUserWithMetadataById targetUserId) >>= \case
         Left err -> throwDatabaseError err

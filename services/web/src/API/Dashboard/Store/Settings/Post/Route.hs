@@ -3,9 +3,10 @@ module API.Dashboard.Store.Settings.Post.Route where
 --------------------------------------------------------------------------------
 
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie)
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Text.HTML (HTML)
 import Web.FormUrlEncoded (FromForm (..))
 import Web.FormUrlEncoded qualified as Form
@@ -17,7 +18,7 @@ type Route =
   "dashboard"
     :> "store"
     :> "settings"
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Admin
     :> Servant.ReqBody '[Servant.FormUrlEncoded] SettingsForm
     :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 

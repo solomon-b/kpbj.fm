@@ -6,11 +6,10 @@ module API.Dashboard.Users.Suspend.Post.Handler where
 
 import API.Dashboard.Users.Get.Templates.Page (renderUserRow)
 import API.Dashboard.Users.Suspend.Post.Route (SuspendForm (..))
-import App.Handler.Combinators (requireAuth)
-import App.Handler.Error (HandlerError, handleBannerErrors, throwNotAuthorized)
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Handler.Error (HandlerError, handleBannerErrors)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
-import Control.Monad (unless)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe (MaybeT (..))
@@ -19,7 +18,6 @@ import Data.Aeson qualified as Aeson
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Data.Time (UTCTime, getCurrentTime)
-import Domain.Types.Cookie (Cookie (..))
 import Effects.Database.Class (runDBTransaction)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -57,17 +55,14 @@ action targetUserId reason = do
 
 handler ::
   User.Id ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Admin RoleAuth ->
   SuspendForm ->
   AppM (Lucid.Html ())
-handler targetUserId cookie SuspendForm {..} =
+handler targetUserId (Satisfies _ auth) SuspendForm {..} =
   handleBannerErrors "User suspend" $ do
-    (user, userMetadata) <- requireAuth cookie
-    unless (UserMetadata.isAdmin userMetadata.mUserRole) $
-      throwNotAuthorized "Only admins can suspend users." (Just userMetadata.mUserRole)
     result <- action targetUserId sfReason
     now <- liftIO getCurrentTime
-    renderSuspendResult (User.mId user) now result
+    renderSuspendResult (User.mId auth.raUser) now result
 
 --------------------------------------------------------------------------------
 

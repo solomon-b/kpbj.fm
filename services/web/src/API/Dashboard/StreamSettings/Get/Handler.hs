@@ -9,10 +9,10 @@ module API.Dashboard.StreamSettings.Get.Handler (handler) where
 import API.Dashboard.StreamSettings.Get.Templates.Form (IcecastStatus (..), template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.CustomContext (StreamConfig (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
 import App.Handler.Error (HandlerError, handleHtmlErrors)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -28,7 +28,6 @@ import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Either (fromRight)
 import Data.Has (getter)
 import Data.Text qualified as Text
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.PlaybackHistory qualified as PlaybackHistory
@@ -40,14 +39,12 @@ import Network.HTTP.Simple qualified as HTTP
 --------------------------------------------------------------------------------
 
 handler ::
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Admin RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler cookie (foldHxReq -> hxRequest) =
+handler (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Stream settings" apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireAdminNotSuspended "Only admins can access stream settings." userMetadata
-    vd <- action userMetadata
+    vd <- action auth.raMetadata
     lift $
       renderDashboardTemplate
         hxRequest

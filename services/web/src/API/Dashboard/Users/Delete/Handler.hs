@@ -4,7 +4,7 @@ module API.Dashboard.Users.Delete.Handler where
 
 --------------------------------------------------------------------------------
 
-import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
+import App.Auth.Roles (RoleAuth, Satisfies)
 import App.Handler.Error (HandlerError, handleBannerErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
@@ -14,7 +14,6 @@ import Control.Monad.Trans.Maybe (MaybeT (..))
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Text.Display (display)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.EmailAddress (EmailAddress)
 import Effects.Database.Class (runDBTransaction)
 import Effects.Database.Tables.User qualified as User
@@ -27,12 +26,10 @@ import Lucid qualified
 
 handler ::
   User.Id ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Admin RoleAuth ->
   AppM (Lucid.Html ())
-handler targetUserId cookie =
+handler targetUserId _ =
   handleBannerErrors "User delete" $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireAdminNotSuspended "Only admins can delete users." userMetadata
     result <- action targetUserId
     renderDeleteResult result
 

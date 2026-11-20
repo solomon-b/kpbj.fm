@@ -51,8 +51,16 @@
             rev = "a7d699be1076e2aad05a1930ca3937ffea954ad8";
             sha256 = "sha256-cCRhHH/IgM7tPy8rXHTSRec1zxohO8NWxSVZEG1OjQw=";
           };
+          servantAuthRolesSrc = pkgs.fetchgit {
+            url = "https://github.com/solomon-b/servant-auth-roles.git";
+            rev = "74db973fbb75f7725c97aee42b4f2e9f93778492";
+            sha256 = "sha256-twlgPcSJ0ToZWQZRtT2xbBF7ZwzbXkMpBtz9gTdfd2U=";
+          };
           hsPkgs = pkgs.haskellPackages.override {
             overrides = hfinal: hprev: {
+              servant-auth-roles = pkgs.haskell.lib.dontCheck
+                (hfinal.callCabal2nix "servant-auth-roles" servantAuthRolesSrc { });
+
               amazonka = pkgs.haskell.lib.dontCheck
                 (hfinal.callCabal2nix "amazonka" (amazonkaSrc + "/lib/amazonka") { });
 

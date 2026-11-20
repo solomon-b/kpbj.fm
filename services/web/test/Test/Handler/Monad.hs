@@ -7,6 +7,7 @@
 -- (including 'ExceptT HandlerError AppM') against a real test database.
 module Test.Handler.Monad
   ( bracketAppM,
+    acquireTestPool,
   )
 where
 

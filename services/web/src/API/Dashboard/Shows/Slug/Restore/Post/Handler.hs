@@ -4,7 +4,7 @@ module API.Dashboard.Shows.Slug.Restore.Post.Handler where
 
 --------------------------------------------------------------------------------
 
-import App.Handler.Combinators (requireAdminNotSuspended, requireAuth)
+import App.Auth.Roles (RoleAuth, Satisfies)
 import App.Handler.Error (HandlerError, handleBannerErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
@@ -15,10 +15,10 @@ import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Text (Text)
 import Data.Text.Display (display)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Class (runDBTransaction)
 import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Hasql.Transaction qualified as TRX
 import Log qualified
 import Lucid qualified
@@ -27,12 +27,10 @@ import Lucid qualified
 
 handler ::
   Slug ->
-  Maybe Cookie ->
+  Satisfies 'Admin RoleAuth ->
   AppM (Lucid.Html ())
-handler targetSlug cookie =
+handler targetSlug _ =
   handleBannerErrors "Show restore" $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireAdminNotSuspended "Only admins can restore shows." userMetadata
     (_, showTitle) <- action targetSlug
     pure $ do
       mempty
