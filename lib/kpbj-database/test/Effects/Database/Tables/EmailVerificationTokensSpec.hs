@@ -6,12 +6,10 @@ module Effects.Database.Tables.EmailVerificationTokensSpec where
 
 import Control.Monad.IO.Class (liftIO)
 import Data.Either (isLeft)
-import Data.Text.Display (display)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.EmailVerificationTokens qualified as UUT
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
-import Test.Gen.Tables.EmailVerificationTokens (generateVerificationToken)
 import Hasql.Interpolate (interp, sql)
 import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
@@ -21,7 +19,8 @@ import Test.Database.Helpers (insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertJust, assertNothing, assertRight, (<==))
-import Test.Gen.Tables.EmailVerificationTokens (mkInsert)
+import Test.Gen.EmailAddress (mkEmailAddressUnsafe)
+import Test.Gen.Tables.EmailVerificationTokens (generateVerificationToken, mkInsert)
 import Test.Gen.Tables.UserMetadata (userWithMetadataInsertGen)
 import Test.Hspec (Spec, describe, it)
 import Test.Hspec.Hedgehog (hedgehog)
@@ -69,19 +68,19 @@ prop_insertAndVerify cfg = do
       token <- liftIO generateVerificationToken
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
-        let emailText = display (UserMetadata.uwmiEmail userWithMetadata)
-            ins = mkInsert userId token emailText
+        let email = UserMetadata.uwmiEmail userWithMetadata
+            ins = mkInsert userId token email
         _ <- unwrapInsert (UUT.insert ins)
         mModel <- TRX.statement () (UUT.verifyToken token)
         TRX.condemn
-        pure (userId, emailText, token, mModel)
+        pure (userId, email, token, mModel)
 
       assert $ do
-        (userId, emailText, tk, mModel) <- assertRight result
+        (userId, email, tk, mModel) <- assertRight result
         model <- assertJust mModel
         UUT.evtUserId model === userId
         UUT.evtToken model === tk
-        UUT.evtEmail model === emailText
+        UUT.evtEmail model === email
         UUT.evtStatus model === UUT.Verified
         _ <- assertJust (UUT.evtVerifiedAt model)
         pure ()
@@ -95,8 +94,8 @@ prop_verifyToken_setsUserEmailVerified cfg = do
       token <- liftIO generateVerificationToken
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
-        let emailText = display (UserMetadata.uwmiEmail userWithMetadata)
-            ins = mkInsert userId token emailText
+        let email = UserMetadata.uwmiEmail userWithMetadata
+            ins = mkInsert userId token email
         _ <- unwrapInsert (UUT.insert ins)
         _ <- TRX.statement () (UUT.verifyToken token)
         mVerified <- TRX.statement () (UUT.isUserEmailVerified userId)
@@ -117,8 +116,8 @@ prop_verifyToken_expired cfg = do
       token <- liftIO generateVerificationToken
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
-        let emailText = display (UserMetadata.uwmiEmail userWithMetadata)
-            ins = mkInsert userId token emailText
+        let email = UserMetadata.uwmiEmail userWithMetadata
+            ins = mkInsert userId token email
         _ <- unwrapInsert (UUT.insert ins)
 
         -- Force token to be expired
@@ -148,8 +147,8 @@ prop_verifyToken_alreadyVerified cfg = do
       token <- liftIO generateVerificationToken
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
-        let emailText = display (UserMetadata.uwmiEmail userWithMetadata)
-            ins = mkInsert userId token emailText
+        let email = UserMetadata.uwmiEmail userWithMetadata
+            ins = mkInsert userId token email
         _ <- unwrapInsert (UUT.insert ins)
         firstVerify <- TRX.statement () (UUT.verifyToken token)
         secondVerify <- TRX.statement () (UUT.verifyToken token)
@@ -171,9 +170,9 @@ prop_invalidateForUser cfg = do
       token2 <- liftIO generateVerificationToken
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
-        let emailText = display (UserMetadata.uwmiEmail userWithMetadata)
-        _ <- unwrapInsert (UUT.insert (mkInsert userId token1 emailText))
-        _ <- unwrapInsert (UUT.insert (mkInsert userId token2 emailText))
+        let email = UserMetadata.uwmiEmail userWithMetadata
+        _ <- unwrapInsert (UUT.insert (mkInsert userId token1 email))
+        _ <- unwrapInsert (UUT.insert (mkInsert userId token2 email))
         TRX.statement () (UUT.invalidateForUser userId)
         v1 <- TRX.statement () (UUT.verifyToken token1)
         v2 <- TRX.statement () (UUT.verifyToken token2)
@@ -194,8 +193,8 @@ prop_getLastTokenCreatedAt_withinCooldown cfg = do
       token <- liftIO generateVerificationToken
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
-        let emailText = display (UserMetadata.uwmiEmail userWithMetadata)
-        _ <- unwrapInsert (UUT.insert (mkInsert userId token emailText))
+        let email = UserMetadata.uwmiEmail userWithMetadata
+        _ <- unwrapInsert (UUT.insert (mkInsert userId token email))
         mResult <- TRX.statement () (UUT.getLastTokenCreatedAt userId 60)
         TRX.condemn
         pure mResult
@@ -214,8 +213,8 @@ prop_getLastTokenCreatedAt_outsideCooldown cfg = do
       token <- liftIO generateVerificationToken
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
-        let emailText = display (UserMetadata.uwmiEmail userWithMetadata)
-        _ <- unwrapInsert (UUT.insert (mkInsert userId token emailText))
+        let email = UserMetadata.uwmiEmail userWithMetadata
+        _ <- unwrapInsert (UUT.insert (mkInsert userId token email))
 
         -- Force created_at to well past the cooldown
         TRX.statement () $
@@ -244,8 +243,8 @@ prop_deleteExpired cfg = do
       token <- liftIO generateVerificationToken
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
-        let emailText = display (UserMetadata.uwmiEmail userWithMetadata)
-        _ <- unwrapInsert (UUT.insert (mkInsert userId token emailText))
+        let email = UserMetadata.uwmiEmail userWithMetadata
+        _ <- unwrapInsert (UUT.insert (mkInsert userId token email))
 
         -- Force token to be expired
         TRX.statement () $
@@ -275,8 +274,8 @@ prop_deleteOlderThanDays cfg = do
       token <- liftIO generateVerificationToken
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         userId <- insertTestUser userWithMetadata
-        let emailText = display (UserMetadata.uwmiEmail userWithMetadata)
-        _ <- unwrapInsert (UUT.insert (mkInsert userId token emailText))
+        let email = UserMetadata.uwmiEmail userWithMetadata
+        _ <- unwrapInsert (UUT.insert (mkInsert userId token email))
 
         -- Force created_at to 31 days ago
         TRX.statement () $
@@ -303,7 +302,7 @@ prop_insertNonExistentUser cfg = do
   arrange (bracketConn cfg) $ do
     act $ do
       token <- liftIO generateVerificationToken
-      let ins = mkInsert (User.Id 999999) token "fake@example.com"
+      let ins = mkInsert (User.Id 999999) token (mkEmailAddressUnsafe "fake@example.com")
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
         TRX.statement () (UUT.insert ins)
 

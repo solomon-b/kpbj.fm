@@ -125,7 +125,7 @@ createAndSendVerification userId emailAddress = do
         VerificationTokens.Insert
           { VerificationTokens.iUserId = userId,
             VerificationTokens.iToken = token,
-            VerificationTokens.iEmail = display emailAddress
+            VerificationTokens.iEmail = emailAddress
           }
 
   execQuery (VerificationTokens.insert tokenInsert) >>= \case
@@ -153,7 +153,7 @@ createAndSendVerification userId emailAddress = do
 verifyEmail ::
   -- | Verification token
   Text ->
-  AppM (Either VerificationError (User.Id, Text))
+  AppM (Either VerificationError (User.Id, EmailAddress))
 verifyEmail tokenText = do
   let token = VerificationTokens.Token tokenText
 

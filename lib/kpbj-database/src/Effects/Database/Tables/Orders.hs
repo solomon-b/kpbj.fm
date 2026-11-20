@@ -48,6 +48,7 @@ import Data.Text qualified as Text
 import Data.Text.Display (Display (..))
 import Data.Time (UTCTime)
 import Domain.Types.Cents (Cents)
+import Domain.Types.EmailAddress (EmailAddress)
 import GHC.Generics (Generic)
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
@@ -191,7 +192,7 @@ instance Display PaymentMethod where
 data Order f = Order
   { oId :: Column f Id,
     oOrderNumber :: Column f Text,
-    oEmail :: Column f Text,
+    oEmail :: Column f EmailAddress,
     oStatus :: Column f OrderStatus,
     oShippingFirstName :: Column f Text,
     oShippingLastName :: Column f Text,
@@ -247,7 +248,7 @@ type Model = Order Result
 -- | Insert type for creating new orders.
 data Insert = Insert
   { oiOrderNumber :: Text,
-    oiEmail :: Text,
+    oiEmail :: EmailAddress,
     oiShippingFirstName :: Text,
     oiShippingLastName :: Text,
     oiShippingAddressLine1 :: Text,

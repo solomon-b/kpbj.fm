@@ -14,6 +14,7 @@ import Data.Aeson qualified as Aeson
 import Data.List (stripPrefix)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
+import Domain.Types.EmailAddress (EmailAddress)
 import Effects.Database.Tables.ProductVariants qualified as ProductVariants
 import Effects.Database.Tables.Products qualified as Products
 import GHC.Generics (Generic)
@@ -58,7 +59,7 @@ instance FromJSON ShippingRateRequest where
 --
 -- JSON fields: @email@, @first_name@, ..., @shipping_rate_id@, @shipping_shipment_id@, @cart@
 data CreateSessionRequest = CreateSessionRequest
-  { csrEmail :: Text,
+  { csrEmail :: EmailAddress,
     csrFirstName :: Text,
     csrLastName :: Text,
     csrAddressLine1 :: Text,

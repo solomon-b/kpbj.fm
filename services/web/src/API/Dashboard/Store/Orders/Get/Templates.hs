@@ -67,7 +67,7 @@ renderOrderRow order =
 
         Lucid.td_ (clickableCellAttrs detailUrl) $
           Lucid.div_ [Lucid.class_ Tokens.textSm] $
-            Lucid.toHtml order.oEmail
+            Lucid.toHtml (display order.oEmail)
 
         Lucid.td_ (clickableCellAttrs detailUrl) $
           renderStatusBadge order.oStatus

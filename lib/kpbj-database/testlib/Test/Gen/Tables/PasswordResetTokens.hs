@@ -8,6 +8,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID.V4
+import Domain.Types.EmailAddress (EmailAddress)
 import Effects.Database.Tables.PasswordResetTokens qualified as PRT
 import Effects.Database.Tables.User qualified as User
 import Hedgehog (MonadGen)
@@ -17,7 +18,7 @@ import Hedgehog.Range qualified as Range
 --------------------------------------------------------------------------------
 
 -- | Build an Insert from test setup values and generated audit fields.
-mkInsert :: User.Id -> PRT.Token -> Text -> Maybe Text -> Maybe Text -> PRT.Insert
+mkInsert :: User.Id -> PRT.Token -> EmailAddress -> Maybe Text -> Maybe Text -> PRT.Insert
 mkInsert userId token email ipAddress userAgent =
   PRT.Insert
     { iUserId = userId,

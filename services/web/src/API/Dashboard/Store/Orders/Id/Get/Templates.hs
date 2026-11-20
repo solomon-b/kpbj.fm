@@ -77,7 +77,7 @@ renderOrderHeader order =
                 $ Lucid.toHtml (formatOrderDate order.oCreatedAt)
         Lucid.div_
           [class_ $ base [Tokens.textSm, Tokens.fgMuted]]
-          $ Lucid.toHtml order.oEmail
+          $ Lucid.toHtml (display order.oEmail)
 
 renderStatusBadge :: Orders.OrderStatus -> Lucid.Html ()
 renderStatusBadge status =

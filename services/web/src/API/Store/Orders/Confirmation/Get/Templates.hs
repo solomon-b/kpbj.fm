@@ -13,6 +13,7 @@ import API.Links (rootLink, storeLinks)
 import API.Types (StoreRoutes (..))
 import Component.PageHeader (pageHeader)
 import Data.String.Interpolate (i)
+import Data.Text.Display (display)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Effects.Database.Tables.Orders qualified as Orders
@@ -49,7 +50,7 @@ template order = do
     Lucid.script_ "if (window.Alpine) { Alpine.store('cart').items = []; } localStorage.removeItem('kpbj-cart');"
   where
     orderNumber = order.oOrderNumber
-    maskedEmail = maskEmail order.oEmail
+    maskedEmail = maskEmail (display order.oEmail)
 
 -- | Rendered when no order matches the given order number.
 notFoundTemplate :: Lucid.Html ()
