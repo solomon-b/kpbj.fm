@@ -38,7 +38,7 @@ getUserInfo (coerce -> cookie) = do
     Nothing -> pure Nothing
     Just sessionId ->
       Auth.getAuth sessionId >>= \case
-        Right (Just Auth.Authz {authzUser = user}) ->
+        Right (Just (user, _session)) ->
           execQuery (UserMetadata.getUserMetadata user.mId) >>= \case
             Right userMetadata ->
               pure ((user,) <$> userMetadata)

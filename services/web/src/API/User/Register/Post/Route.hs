@@ -22,8 +22,12 @@ import Web.FormUrlEncoded qualified as FormUrlEncoded
 
 --------------------------------------------------------------------------------
 
+-- | The registration form.
+--
+-- The email is the raw text. The handler parses it, so an invalid address
+-- sends the user back to the form and not to a 400 from the form decoder.
 data Register = Register
-  { urEmail :: EmailAddress,
+  { urEmail :: Text,
     urPassword :: Password,
     urDisplayName :: DisplayName,
     urFullName :: FullName,

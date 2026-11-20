@@ -222,7 +222,6 @@ import API.Webhooks.Mailchimp.Get.Handler qualified as Webhooks.Mailchimp.Get
 import API.Webhooks.Mailchimp.Post.Handler qualified as Webhooks.Mailchimp.Post
 import API.Webhooks.Stripe.Post.Handler qualified as Webhooks.Stripe.Post
 import App qualified
-import App.Auth qualified as Auth
 import App.Context (AppContext (..))
 import App.CustomContext (buildCustomContext, loadCustomConfigs)
 import App.Monad (AppM)
@@ -236,7 +235,6 @@ import Middleware.RateLimit (rateLimitMiddleware)
 import Middleware.SecurityHeaders (securityHeadersMiddleware)
 import Middleware.ValidateEncoding (validateEncodingMiddleware)
 import Network.Wai.Handler.Warp qualified as Warp
-import Servant (Context ((:.)))
 import Servant qualified
 
 --------------------------------------------------------------------------------
@@ -262,18 +260,18 @@ runApi = do
           -- Pre-render the 404 page at startup (no user context)
           notFoundHtml = Lucid.renderBS $ notFoundPage (getter customCtx) (getter customCtx)
 
-          -- Build the WAI application with 404 middleware
-          servantCtx = Auth.authHandler (appDbPool appCtx) (appEnvironment appCtx) :. Servant.EmptyContext
           -- Replace the request logger of web-server-core. It writes secrets.
           warpSettings =
             App.mkWarpSettings (appLoggerEnv appCtx) (appWarpConfig appCtx)
               & Warp.setLogger (requestLogger (appLoggerEnv appCtx))
+          -- Build the WAI application with 404 middleware. No route uses a
+          -- Servant auth handler, so the Servant context is empty.
           app =
             validateEncodingMiddleware
               . securityHeadersMiddleware
               . rateLimiter
               . notFoundMiddleware notFoundHtml
-              $ App.mkApp @API (const server) servantCtx appCtx
+              $ App.mkAppWithContext @API @'[] Servant.EmptyContext (const server) appCtx
 
       Warp.runSettings warpSettings app
 

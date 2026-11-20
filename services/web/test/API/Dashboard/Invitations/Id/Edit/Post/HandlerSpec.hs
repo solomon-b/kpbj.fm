@@ -12,7 +12,6 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Time (Day, addDays, getCurrentTime, showGregorian)
-import Domain.Types.EmailAddress (mkEmailAddress)
 import Domain.Types.Timezone (pacificDay)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Execute (execQuery)
@@ -22,6 +21,7 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction.Sessions qualified as TRX
 import Test.Database.Helpers (unwrapInsert)
 import Test.Database.Monad (TestDBConfig, withTestDB)
+import Test.Gen.EmailAddress (mkEmailAddressUnsafe)
 import Test.Handler.Fixtures (expectSetupRight, mkUserInsert, setupUserModels)
 import Test.Handler.Monad (bracketAppM)
 import Test.Hspec (Spec, describe, expectationFailure, it, shouldBe)
@@ -39,7 +39,7 @@ spec =
         result <- runAction cfg invId (form "moved@example.com" tuesdaySlot (dateText newStart))
         expectSuccess result
         invitation <- storedInvitation cfg invId
-        HostInvitation.hiRecipientEmail invitation `shouldBe` mkEmailAddress "moved@example.com"
+        HostInvitation.hiRecipientEmail invitation `shouldBe` mkEmailAddressUnsafe "moved@example.com"
         Just (HostInvitation.hiScheduleData invitation) `shouldBe` Aeson.decodeStrict (Text.encodeUtf8 tuesdaySlot)
         HostInvitation.hiStartsOn invitation `shouldBe` newStart
 
@@ -134,7 +134,7 @@ insertInvitation cfg name schedules startsOn = do
           HostInvitation.Insert
             { HostInvitation.iToken = token,
               HostInvitation.iScheduleData = scheduleData,
-              HostInvitation.iRecipientEmail = mkEmailAddress (name <> "@example.com"),
+              HostInvitation.iRecipientEmail = mkEmailAddressUnsafe (name <> "@example.com"),
               HostInvitation.iCreatedBy = User.mId userModel,
               HostInvitation.iStartsOn = startsOn
             }

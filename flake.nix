@@ -20,6 +20,9 @@
 
     web-server-core = {
       url = github:solomon-b/web-server;
+      # web-server tracks a newer nixpkgs. Its package must use the GHC of
+      # this flake, or the package database of the dev shell breaks.
+      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     sops-nix = {
@@ -147,8 +150,8 @@
                 (pkgs.fetchgit
                   {
                     url = "https://github.com/solomon-b/web-server";
-                    rev = "c6df09aa3607452662b9f6d8713502c595df9511";
-                    sha256 = "sha256-11whPVqlHH9u9qiNIx5Zi+4AP/eazxPlDyspJH+QMHY=";
+                    rev = "27d2cbde2d2a9dd0c6d5bec0664ccb5e5e60f215";
+                    sha256 = "sha256-8ti4bIGF+jMlpEY9KUS7cHx4VbKmj+uqjagDa52ZWHw=";
                   } + "/xmlhtml-qq")
                 { });
 
@@ -156,8 +159,8 @@
                 (pkgs.fetchgit
                   {
                     url = "https://github.com/solomon-b/web-server";
-                    rev = "c6df09aa3607452662b9f6d8713502c595df9511";
-                    sha256 = "sha256-11whPVqlHH9u9qiNIx5Zi+4AP/eazxPlDyspJH+QMHY=";
+                    rev = "27d2cbde2d2a9dd0c6d5bec0664ccb5e5e60f215";
+                    sha256 = "sha256-8ti4bIGF+jMlpEY9KUS7cHx4VbKmj+uqjagDa52ZWHw=";
                   } + "/xmlhtml-lens")
                 { });
             };

@@ -306,9 +306,8 @@ lookupInvitation token = do
 validateEmail ::
   Text ->
   ExceptT HandlerError AppM EmailAddress
-validateEmail emailText = do
-  let email = EmailAddress.mkEmailAddress emailText
-  case EmailAddress.validate email of
+validateEmail emailText =
+  case EmailAddress.mkEmailAddress emailText of
     Left _ -> throwValidationError "Please enter a valid email address."
     Right validEmail -> pure validEmail
 

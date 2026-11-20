@@ -23,7 +23,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text.Encoding
 import Data.Time (UTCTime, defaultTimeLocale, parseTimeM)
-import Domain.Types.EmailAddress (EmailAddress, mkEmailAddress, validate)
+import Domain.Types.EmailAddress (EmailAddress, mkEmailAddress)
 import Mailchimp.Config (MailchimpWebhookSecret (..))
 import Network.HTTP.Types.URI (parseQuery)
 
@@ -116,18 +116,15 @@ requireField pairs key =
     Just (Just v) | not (BS.null v) -> Right v
     _ -> Left $ "Missing required field: " <> Text.Encoding.decodeUtf8 key
 
--- | Look up an email field, lift it into an 'EmailAddress', and validate it.
+-- | Look up an email field and parse it as an 'EmailAddress'.
 --
--- 'mkEmailAddress' is total and accepts any 'Text', so we run 'validate' to
--- reject malformed payloads here. Without this check, an invalid 'upemail'
--- @data[new_email]@ would slip through to the outbound 'Upsert', the
--- Mailchimp API would 400, and the row would be left at
--- @mailchimp_status='error'@ for no actionable reason.
+-- A malformed payload stops here. An invalid 'upemail' @data[new_email]@
+-- would otherwise reach the outbound 'Upsert'. The Mailchimp API would
+-- answer 400, and the row would stay at @mailchimp_status='error'@.
 requireEmail :: [(ByteString, Maybe ByteString)] -> ByteString -> Either Text EmailAddress
 requireEmail pairs key = do
   raw <- requireField pairs key
-  let candidate = mkEmailAddress (Text.Encoding.decodeUtf8 raw)
-  case validate candidate of
+  case mkEmailAddress (Text.Encoding.decodeUtf8 raw) of
     Right valid -> Right valid
     Left _ ->
       Left $

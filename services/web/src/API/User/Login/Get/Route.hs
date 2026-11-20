@@ -4,7 +4,6 @@ module API.User.Login.Get.Route where
 
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
-import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.HxRequest (HxRequest)
 import Lucid qualified
 import Servant ((:>))
@@ -14,6 +13,9 @@ import Text.HTML (HTML)
 --------------------------------------------------------------------------------
 
 -- | "GET /user/login"
+--
+-- The @email@ parameter fills the form again after a login that failed. It is
+-- the text that the user typed, so it can be an invalid address.
 type Route =
   "user"
     :> "login"
@@ -21,5 +23,5 @@ type Route =
     :> Servant.Header "HX-Current-Url" Text
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.QueryParam "redirect" Text
-    :> Servant.QueryParam "email" EmailAddress
+    :> Servant.QueryParam "email" Text
     :> Servant.Get '[HTML] (Lucid.Html ())

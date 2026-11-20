@@ -22,7 +22,7 @@ import Control.Monad.Trans.Except (ExceptT)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Text.Display (display)
-import Domain.Types.EmailAddress qualified as EmailAddress
+import Domain.Types.EmailAddress (mkEmailAddress)
 import Effects.Database.Execute (execQueryThrow)
 import Effects.Database.Tables.NewsletterSubscribers qualified as NewsletterSubscribers
 import Effects.Mailchimp.Sync (SyncOp (..), syncAsync)
@@ -69,9 +69,9 @@ handler form =
 -- and successful inserts both yield 'SubscribeSuccess'.
 action :: SubscribeForm -> ExceptT HandlerError AppM SubscribeResult
 action SubscribeForm {..} =
-  case EmailAddress.validate sfEmail of
+  case mkEmailAddress sfEmail of
     Left _ -> do
-      lift $ Log.logInfo "Newsletter subscribe: invalid email" (Aeson.object ["email" .= display sfEmail])
+      lift $ Log.logInfo "Newsletter subscribe: invalid email" (Aeson.object ["email" .= sfEmail])
       pure SubscribeInvalidEmail
     Right validEmail -> do
       mSubId <- lift $ execQueryThrow (NewsletterSubscribers.insert (NewsletterSubscribers.Insert validEmail))

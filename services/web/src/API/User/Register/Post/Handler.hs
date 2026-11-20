@@ -21,8 +21,7 @@ import Data.Text (Text)
 import Data.Text.Display (Display, display)
 import Data.Text.Display.Core (Display (..))
 import Data.Validation
-import Domain.Types.EmailAddress (EmailAddress)
-import Domain.Types.EmailAddress qualified as EmailAddress
+import Domain.Types.EmailAddress (EmailAddress, mkEmailAddress)
 import Effects.Database.Execute (execQueryThrow)
 import Effects.Database.Tables.NewsletterSubscribers qualified as NewsletterSubscribers
 import Effects.Database.Tables.User qualified as User
@@ -104,7 +103,7 @@ action sockAddr mUserAgent req@Register {..} = do
       Log.logInfo "POST /user/register Request validation failure" (Aeson.object ["email" .= urEmail, "displayName" .= urDisplayName, "validationErrors" .= display errors])
       pure $ RegisterFailure registerRedirectUrl
     Success parsedRequest -> do
-      mExisting <- execQueryThrow (User.getUserByEmail urEmail)
+      mExisting <- execQueryThrow (User.getUserByEmail (urpEmail parsedRequest))
       case mExisting of
         Just _ -> do
           Log.logInfo "Email address is already registered." (Aeson.object ["email" .= urEmail])
@@ -153,7 +152,7 @@ parsePassword password =
 
 validateRequest :: (MonadIO m) => Register -> m (Validation [ValidationError] RegisterParsed)
 validateRequest Register {..} = do
-  let emailValidation = fromEither $ first (const [InvalidEmailAddress]) $ EmailAddress.validate urEmail
+  let emailValidation = fromEither $ first (const [InvalidEmailAddress]) $ mkEmailAddress urEmail
   passwordValidation <- parsePassword urPassword
   pure $ RegisterParsed <$> emailValidation <*> passwordValidation <*> pure urDisplayName <*> pure urFullName
 

@@ -23,8 +23,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Text.Lazy qualified as LT
-import Domain.Types.EmailAddress (mkEmailAddress)
-import Domain.Types.EmailAddress qualified as EmailAddress
+import Domain.Types.EmailAddress (EmailAddress, mkEmailAddress)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.PasswordResetTokens qualified as ResetTokens
@@ -48,7 +47,7 @@ action ::
   ForgotPasswordForm ->
   ExceptT HandlerError AppM ()
 action sockAddr mUserAgent ForgotPasswordForm {..} = do
-  case EmailAddress.validate (mkEmailAddress fpfEmail) of
+  case mkEmailAddress fpfEmail of
     Left _ -> do
       Log.logInfo "Password reset requested for invalid email format" fpfEmail
     Right validEmail -> do
@@ -100,7 +99,7 @@ renderSuccess hxRequest = do
 
 -- | Send the password reset email asynchronously.
 sendResetEmail ::
-  EmailAddress.EmailAddress ->
+  EmailAddress ->
   ResetTokens.Token ->
   AppM ()
 sendResetEmail email token = do

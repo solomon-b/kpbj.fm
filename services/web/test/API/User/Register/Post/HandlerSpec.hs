@@ -8,7 +8,6 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Password.Argon2 (mkPassword)
 import Domain.Types.DisplayName (mkDisplayNameUnsafe)
-import Domain.Types.EmailAddress (mkEmailAddress)
 import Domain.Types.FullName (mkFullNameUnsafe)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -45,7 +44,7 @@ showRegisterResult (RegisterFailure _) = "RegisterFailure"
 validRegisterForm :: Register
 validRegisterForm =
   Register
-    { urEmail = mkEmailAddress "new-user@test.example.com",
+    { urEmail = "new-user@test.example.com",
       urPassword = mkPassword "ValidPassword123!",
       urDisplayName = mkDisplayNameUnsafe "New User",
       urFullName = mkFullNameUnsafe "New User Full Name",
@@ -77,7 +76,7 @@ test_registrationDuplicateEmail cfg = do
           insertTestUser userInsert
     _ <- liftIO $ expectSetupRight dbResult
 
-    let form = validRegisterForm {urEmail = mkEmailAddress "register-dup@test.example.com"}
+    let form = validRegisterForm {urEmail = "register-dup@test.example.com"}
     result <- runExceptT $ action testSockAddr Nothing form
     liftIO $ case result of
       Right (RegisterFailure _) -> pure ()
@@ -90,7 +89,7 @@ test_registersNewUser cfg = do
   bracketAppM cfg $ do
     let form =
           validRegisterForm
-            { urEmail = mkEmailAddress "register-success@test.example.com",
+            { urEmail = "register-success@test.example.com",
               urPassword = mkPassword "ValidPassword123!"
             }
     result <- runExceptT $ action testSockAddr Nothing form

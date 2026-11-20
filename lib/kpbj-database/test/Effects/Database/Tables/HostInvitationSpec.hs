@@ -10,7 +10,7 @@ import Data.Aeson qualified as Aeson
 import Data.List qualified as List
 import Data.Text (Text)
 import Data.Time (Day, fromGregorian)
-import Domain.Types.EmailAddress (EmailAddress, mkEmailAddress)
+import Domain.Types.EmailAddress (EmailAddress)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.HostInvitation qualified as UUT
 import Effects.Database.Tables.User qualified as User
@@ -24,6 +24,7 @@ import Test.Database.Helpers (insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, bracketConn, withTestDB)
 import Test.Database.Property (act, arrange, assert, runs)
 import Test.Database.Property.Assert (assertJust, assertRight)
+import Test.Gen.EmailAddress (mkEmailAddressUnsafe)
 import Test.Gen.Tables.UserMetadata (userWithMetadataInsertGen)
 import Test.Hspec (Spec, describe, it)
 import Test.Hspec.Hedgehog (hedgehog)
@@ -198,7 +199,7 @@ prop_updatePendingSkipsDeadRows cfg =
 
 -- | The recipient that the update tests write.
 newEmail :: EmailAddress
-newEmail = mkEmailAddress "moved@example.com"
+newEmail = mkEmailAddressUnsafe "moved@example.com"
 
 -- | The schedule that the update tests write.
 newSchedule :: Aeson.Value
@@ -222,7 +223,7 @@ mkInsert token userId =
   UUT.Insert
     { UUT.iToken = token,
       UUT.iScheduleData = Aeson.toJSON ([] :: [Aeson.Value]),
-      UUT.iRecipientEmail = mkEmailAddress "invitee@example.com",
+      UUT.iRecipientEmail = mkEmailAddressUnsafe "invitee@example.com",
       UUT.iCreatedBy = userId,
       UUT.iStartsOn = testStartsOn
     }
