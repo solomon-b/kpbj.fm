@@ -7,7 +7,7 @@ import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hedgehog (MonadGen (..))
 import Hedgehog.Gen qualified as Gen
 import Test.Gen.DomainTypes (genDisplayName, genFullName)
-import Test.Gen.EmailAddress (genEmail)
+import Test.Gen.EmailAddress (mkUniqueEmail)
 import Test.Gen.Password (genPassword)
 import Test.Gen.Text (genUrl)
 
@@ -29,9 +29,13 @@ genThemeName =
       UserMetadata.NordTheme
     ]
 
+-- | Generate a user with a unique email address.
+--
+-- A property can insert many users into one database, so 'genEmail' can give
+-- two of them the same address and break @users_email_key@.
 userWithMetadataInsertGen :: (MonadIO m, MonadGen m) => m UserMetadata.UserWithMetadataInsert
 userWithMetadataInsertGen = do
-  uwmiEmail <- genEmail
+  uwmiEmail <- mkUniqueEmail
   uwmiPassword <- genPassword
   uwmiDisplayName <- genDisplayName
   uwmiFullName <- genFullName
