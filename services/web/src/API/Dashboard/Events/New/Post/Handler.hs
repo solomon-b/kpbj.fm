@@ -5,7 +5,8 @@ module API.Dashboard.Events.New.Post.Handler (handler, action) where
 import API.Dashboard.Events.New.Post.Route (NewEventForm (..))
 import API.Links (dashboardEventsLinks, rootLink)
 import API.Types (DashboardEventsRoutes (..))
-import App.Handler.Combinators (requireAuth, requireRight, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Handler.Combinators (requireRight)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -20,7 +21,6 @@ import Data.Has (getter)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug ()
 import Domain.Types.Slug qualified as Slug
@@ -29,6 +29,7 @@ import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Effects.FileUpload (uploadEventPosterImage)
 import Hasql.Transaction qualified as HT
 import Log qualified
@@ -159,14 +160,12 @@ action user form = do
 
 -- | Servant handler: thin glue composing action + building redirect response.
 handler ::
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   NewEventForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler cookie form =
+handler (Satisfies _ auth) form =
   handleRedirectErrors "Event creation" dashboardEventsLinks.newGet $ do
-    (user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to create events." userMetadata
-    vd <- action user form
+    vd <- action auth.raUser form
     pure $ Servant.addHeader vd.nerRedirectUrl $ Servant.addHeader (flashCookie (Just vd.nerFlash)) Servant.NoContent
 
 -- | Handle poster image upload

@@ -2,14 +2,14 @@ module API.Dashboard.NewsletterSubscribers.Delete.Handler (handler) where
 
 --------------------------------------------------------------------------------
 
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth, Satisfies)
 import App.Handler.Error (handleBannerErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad.Trans.Class (lift)
-import Domain.Types.Cookie (Cookie)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.NewsletterSubscribers qualified as NewsletterSubscribers
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Effects.Mailchimp.Sync (SyncOp (..), syncAsync)
 import Lucid qualified
 
@@ -22,12 +22,10 @@ import Lucid qualified
 -- @hx-swap="outerHTML"@ from the caller.
 handler ::
   NewsletterSubscribers.Id ->
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   AppM (Lucid.Html ())
-handler subId cookie =
+handler subId _ =
   handleBannerErrors "Newsletter subscriber delete" $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "Only staff can delete newsletter subscribers." userMetadata
     result <- execQuery (NewsletterSubscribers.deleteById subId)
     case result of
       Left dbErr -> throwDatabaseError dbErr

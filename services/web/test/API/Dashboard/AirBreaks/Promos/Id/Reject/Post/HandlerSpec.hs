@@ -34,24 +34,23 @@ spec =
 --------------------------------------------------------------------------------
 
 -- | A staff user and a promo for "Night Shift" with this review status.
-setup :: TestDBConfig -> Text -> BreakItems.ReviewStatus -> IO (UserMetadata.Model, BreakItems.Id)
+setup :: TestDBConfig -> Text -> BreakItems.ReviewStatus -> IO BreakItems.Id
 setup cfg name status = do
   userInsert <- mkUserInsert name UserMetadata.Staff
   bracketAppM cfg $ do
     dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-      (userModel, userMeta) <- setupUserModels userInsert
+      (userModel, _) <- setupUserModels userInsert
       showId <- insertActiveShow "Night Shift" "night-shift"
       let promo = (pendingPromoInsert (User.mId userModel) showId) {BreakItems.biiReviewStatus = status}
-      promoId <- unwrapInsert (BreakItems.insertBreakItem promo)
-      pure (userMeta, promoId)
+      unwrapInsert (BreakItems.insertBreakItem promo)
     liftIO $ expectSetupRight dbResult
 
 test_rejectsPending :: TestDBConfig -> IO ()
 test_rejectsPending cfg = do
-  (userMeta, promoId) <- setup cfg "reject-pending" BreakItems.Pending
+  promoId <- setup cfg "reject-pending" BreakItems.Pending
   bracketAppM cfg $ do
     let form = RejectForm {rfNote = "  Say the day and time the show airs.  "}
-    result <- runExceptT (action userMeta promoId form)
+    result <- runExceptT (action promoId form)
     liftIO $ case result of
       Right promo -> do
         BreakItems.bimReviewStatus promo `shouldBe` BreakItems.Rejected
@@ -60,9 +59,9 @@ test_rejectsPending cfg = do
 
 test_refusesEmptyNote :: TestDBConfig -> IO ()
 test_refusesEmptyNote cfg = do
-  (userMeta, promoId) <- setup cfg "reject-empty-note" BreakItems.Pending
+  promoId <- setup cfg "reject-empty-note" BreakItems.Pending
   bracketAppM cfg $ do
-    result <- runExceptT (action userMeta promoId RejectForm {rfNote = "   \n  "})
+    result <- runExceptT (action promoId RejectForm {rfNote = "   \n  "})
     liftIO $ case result of
       Left (ValidationError _) -> pure ()
       other -> expectationFailure $ "Expected a validation error, got " <> show other
@@ -73,9 +72,9 @@ test_refusesEmptyNote cfg = do
 
 test_refusesApproved :: TestDBConfig -> IO ()
 test_refusesApproved cfg = do
-  (userMeta, promoId) <- setup cfg "reject-approved" BreakItems.Approved
+  promoId <- setup cfg "reject-approved" BreakItems.Approved
   bracketAppM cfg $ do
-    result <- runExceptT (action userMeta promoId RejectForm {rfNote = "Too late."})
+    result <- runExceptT (action promoId RejectForm {rfNote = "Too late."})
     liftIO $ case result of
       Left (NotFound _) -> pure ()
       other -> expectationFailure $ "Expected NotFound, got " <> show other

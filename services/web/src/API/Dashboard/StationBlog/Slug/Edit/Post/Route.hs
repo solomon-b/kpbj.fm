@@ -6,12 +6,13 @@ import Data.Foldable (fold)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
 import Text.HTML (HTML)
 import Web.FormUrlEncoded (FromForm (..))
@@ -26,7 +27,7 @@ type Route =
     :> Servant.Capture "id" BlogPosts.Id
     :> Servant.Capture "slug" Slug
     :> "edit"
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Staff
     :> MultipartForm Mem BlogEditForm
     :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 

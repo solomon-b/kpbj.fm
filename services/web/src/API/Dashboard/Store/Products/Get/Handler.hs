@@ -8,9 +8,9 @@ module API.Dashboard.Store.Products.Get.Handler (handler, action, ProductListVie
 import API.Dashboard.Store.Products.Get.Templates (template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -18,7 +18,6 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Products qualified as Products
@@ -50,14 +49,12 @@ action userMetadata = do
 
 -- | Servant handler: thin glue composing action + render with dashboard chrome.
 handler ::
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler cookie (foldHxReq -> hxRequest) =
+handler (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Products list" apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to access this page." userMetadata
-    vd <- action userMetadata
+    vd <- action auth.raMetadata
     lift $
       renderDashboardTemplate
         hxRequest

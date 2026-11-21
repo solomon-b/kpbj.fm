@@ -7,15 +7,14 @@ module API.Dashboard.MissingEpisodes.Get.Handler (handler, action, MissingEpisod
 import API.Dashboard.MissingEpisodes.Get.Templates.Page (template)
 import API.Links (apiLinks)
 import API.Types
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
@@ -27,14 +26,12 @@ import Utils (fromRightM)
 
 -- | Servant handler: thin glue composing action + render with dashboard chrome.
 handler ::
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler cookie (foldHxReq -> hxRequest) =
+handler (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Missing episodes" apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to access this page." userMetadata
-    vd <- action userMetadata
+    vd <- action auth.raMetadata
     let pageTemplate = template vd.mevMissingEpisodes
     lift $ renderDashboardTemplate hxRequest vd.mevUserMetadata NoShow NavMissingEpisodes Nothing Nothing pageTemplate
 

@@ -9,9 +9,9 @@ module API.Dashboard.StationBlog.Slug.Edit.Get.Handler (handler, action, Station
 import API.Dashboard.StationBlog.Slug.Edit.Get.Templates.Form (template)
 import API.Links (dashboardStationBlogLinks)
 import API.Types (DashboardStationBlogRoutes (..))
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -24,7 +24,6 @@ import Data.Has (getter)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug, matchSlug)
 import Domain.Types.StorageBackend (StorageBackend)
@@ -88,14 +87,12 @@ action userMetadata blogPostId = do
 handler ::
   BlogPosts.Id ->
   Slug ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler blogPostId urlSlug cookie (foldHxReq -> hxRequest) =
+handler blogPostId urlSlug (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleRedirectErrors "Station blog edit form" (dashboardStationBlogLinks.list Nothing) $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to edit station blog posts." userMetadata
-    vd <- action userMetadata blogPostId
+    vd <- action auth.raMetadata blogPostId
     if matchSlug vd.sbevBlogPost.bpmSlug (Just urlSlug)
       then do
         Log.logInfo "Authorized user accessing blog edit form" vd.sbevBlogPost.bpmId

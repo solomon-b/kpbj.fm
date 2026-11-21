@@ -9,7 +9,7 @@ import API.Dashboard.Invitations.Conflict (checkInvitationConflicts)
 import API.Invite.Token.Post.Handler (parseInvitationSchedules)
 import API.Links (dashboardInvitationsLinks)
 import API.Types
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -19,7 +19,6 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.Timezone (pacificDay)
 import Effects.Clock (currentSystemTime)
 import Effects.Database.Execute (execQuery)
@@ -45,14 +44,11 @@ dashboardInvitationsGetUrl =
 -- invitations. Redirects to the invitation list page with a success banner.
 handler ::
   HostInvitation.Id ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler invitationId cookie =
+handler invitationId (Satisfies _ auth) =
   handleRedirectErrors "Invitation regenerate" dashboardInvitationsLinks.list $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "Only staff can regenerate invitations." userMetadata
-
-    _token <- action userMetadata invitationId
+    _token <- action auth.raMetadata invitationId
 
     -- Redirect to the invitation list with a success flash
     let flash =

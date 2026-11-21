@@ -3,7 +3,7 @@ module API.Dashboard.AirBreaks.BreakItems.SharedSpec where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.AirBreaks.BreakItems.Form (BreakItemForm (..))
-import API.Dashboard.AirBreaks.BreakItems.Shared (ParsedBreakItem (..), Section (..), announcementSection, checkItemLength, newPostAction, parseBreakItemForm)
+import API.Dashboard.AirBreaks.BreakItems.Shared (ParsedBreakItem (..), announcementSection, checkItemLength, newPostAction, parseBreakItemForm)
 import App.Handler.Error (HandlerError (..))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
@@ -39,7 +39,6 @@ spec = do
 
   withTestDB $
     describe "API.Dashboard.AirBreaks.BreakItems.Shared.announcementSection" $ do
-      it "refuses a host" test_announcementRefusesHost
       it "saves an approved announcement for staff" test_announcementSaves
 
   describe "API.Dashboard.AirBreaks.BreakItems.Shared.checkItemLength" $ do
@@ -133,17 +132,6 @@ test_parsesPsa cfg =
 --------------------------------------------------------------------------------
 -- The announcement section
 
-test_announcementRefusesHost :: TestDBConfig -> IO ()
-test_announcementRefusesHost cfg = do
-  userInsert <- mkUserInsert "announcement-host" UserMetadata.Host
-  bracketAppM cfg $ do
-    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ setupUserModels userInsert
-    (_userModel, userMeta) <- liftIO $ expectSetupRight dbResult
-    result <- runExceptT (announcementSection.secRequire userMeta)
-    liftIO $ case result of
-      Left (NotAuthorized _ _) -> pure ()
-      other -> expectationFailure $ "Expected NotAuthorized, got " <> show other
-
 test_announcementSaves :: TestDBConfig -> IO ()
 test_announcementSaves cfg = do
   let token = "announcement-fund-drive"
@@ -151,10 +139,10 @@ test_announcementSaves cfg = do
   writeStagedAudioFile token
   bracketAppM cfg $ do
     dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-      (userModel, userMeta) <- setupUserModels userInsert
+      (userModel, _) <- setupUserModels userInsert
       _uploadId <- TRX.statement () (StagedUploads.insert (stagedBreakItemAudio token userModel 28))
-      pure (userModel, userMeta)
-    (userModel, userMeta) <- liftIO $ expectSetupRight dbResult
+      pure userModel
+    userModel <- liftIO $ expectSetupRight dbResult
 
     let form =
           psaForm
@@ -163,7 +151,7 @@ test_announcementSaves cfg = do
               bifStartsOn = "2026-10-20",
               bifEndsOn = "2026-11-15"
             }
-    result <- runExceptT (newPostAction announcementSection userModel userMeta form)
+    result <- runExceptT (newPostAction announcementSection userModel form)
     case result of
       Left err -> liftIO $ expectationFailure $ "Expected the announcement to save, got " <> show err
       Right itemId -> do

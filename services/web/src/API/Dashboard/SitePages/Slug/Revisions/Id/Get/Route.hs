@@ -3,12 +3,13 @@ module API.Dashboard.SitePages.Slug.Revisions.Id.Get.Route where
 --------------------------------------------------------------------------------
 
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
 import Effects.Database.Tables.SitePageRevisions qualified as SitePageRevisions
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Lucid qualified
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
@@ -20,6 +21,6 @@ type Route =
     :> Servant.Capture "slug" Text
     :> "revisions"
     :> Servant.Capture "id" SitePageRevisions.Id
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Staff
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

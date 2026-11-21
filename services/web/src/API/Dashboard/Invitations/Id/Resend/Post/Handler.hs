@@ -5,16 +5,16 @@ module API.Dashboard.Invitations.Id.Resend.Post.Handler (handler) where
 
 --------------------------------------------------------------------------------
 
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth, Satisfies)
 import App.Handler.Error (handleBannerErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad.Trans (lift)
 import Data.String.Interpolate (i)
 import Data.Text.Display (display)
-import Domain.Types.Cookie (Cookie)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.HostInvitation qualified as HostInvitation
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Effects.HostInvitationEmail (sendHostInvitationEmail)
 import Lucid qualified
 import Utils (fromRightM)
@@ -27,12 +27,10 @@ import Utils (fromRightM)
 -- Returns an OOB success banner.
 handler ::
   HostInvitation.Id ->
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   AppM (Lucid.Html ())
-handler invitationId cookie =
+handler invitationId _ =
   handleBannerErrors "Resend invitation" $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "Only staff can resend invitations." userMetadata
     inv <- fromRightM throwDatabaseError $ execQuery (HostInvitation.getById invitationId)
     case inv of
       Nothing -> throwNotFound "Invitation"

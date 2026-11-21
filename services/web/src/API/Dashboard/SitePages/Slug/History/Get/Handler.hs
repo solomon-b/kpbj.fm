@@ -8,9 +8,9 @@ module API.Dashboard.SitePages.Slug.History.Get.Handler (handler, action, PageHi
 import API.Dashboard.SitePages.Slug.History.Get.Templates.Page (template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -18,7 +18,6 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Execute (execTransaction)
 import Effects.Database.Tables.SitePageRevisions qualified as SitePageRevisions
@@ -32,14 +31,12 @@ import Utils (fromMaybeM, fromRightM)
 
 handler ::
   Text ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler pageSlug cookie (foldHxReq -> hxRequest) =
+handler pageSlug (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Site page history" apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to access this page." userMetadata
-    vd <- action userMetadata pageSlug
+    vd <- action auth.raMetadata pageSlug
     lift $
       renderDashboardTemplate
         hxRequest

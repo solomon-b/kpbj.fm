@@ -4,10 +4,11 @@ module API.Dashboard.Store.Products.Id.Edit.Post.Route where
 
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie)
 import Effects.Database.Tables.Products qualified as Products
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Servant.Multipart (FileData (..), FromMultipart, Mem, MultipartData (..), MultipartForm, fromMultipart, lookupInput)
 import Text.HTML (HTML)
 
@@ -20,7 +21,7 @@ type Route =
     :> "products"
     :> Servant.Capture "productId" Products.Id
     :> "edit"
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Staff
     :> MultipartForm Mem EditProductForm
     :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 

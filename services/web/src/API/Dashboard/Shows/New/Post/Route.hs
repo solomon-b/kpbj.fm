@@ -9,11 +9,12 @@ import Data.Maybe (mapMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Read qualified as Text.Read
-import Domain.Types.Cookie (Cookie)
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import GHC.Generics (Generic)
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Servant.Multipart
   ( FileData,
     FromMultipart (..),
@@ -95,6 +96,6 @@ type Route =
   "dashboard"
     :> "shows"
     :> "new"
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Staff
     :> MultipartForm Mem NewShowForm
     :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)

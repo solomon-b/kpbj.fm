@@ -8,11 +8,11 @@ module API.Dashboard.EphemeralUploads.Id.Edit.Get.Handler (handler, action, Uplo
 import API.Dashboard.EphemeralUploads.Id.Edit.Get.Templates.Form (ephemeralUploadEditForm)
 import API.Links (dashboardEphemeralUploadsLinks)
 import API.Types
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Config (Environment)
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
 import App.Domains (audioUploadUrl)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -21,7 +21,6 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Has qualified as Has
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
@@ -62,14 +61,12 @@ action userMetadata ephemeralUploadId = do
 -- | Servant handler: thin glue composing action + render with dashboard chrome.
 handler ::
   EphemeralUploads.Id ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   Maybe HxRequest ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler ephemeralUploadId cookie (foldHxReq -> hxRequest) =
+handler ephemeralUploadId (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleRedirectErrors "Ephemeral upload edit" (dashboardEphemeralUploadsLinks.list Nothing) $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "Only staff and admins can edit ephemeral uploads." userMetadata
-    vd <- action userMetadata ephemeralUploadId
+    vd <- action auth.raMetadata ephemeralUploadId
     let content = ephemeralUploadEditForm vd.uevUploadUrl vd.uevEphemeralUpload
     html <- lift $ renderDashboardTemplate hxRequest vd.uevUserMetadata NoShow NavEphemeralUploads Nothing Nothing content
     pure $ Servant.noHeader html

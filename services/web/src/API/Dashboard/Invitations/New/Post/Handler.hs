@@ -17,8 +17,8 @@ import API.Dashboard.Shows.Slug.Edit.Post.Handler (ParsedScheduleSlot, parseSche
 import API.Invite.Token.Post.Handler (parseInvitationSchedules)
 import API.Links (dashboardInvitationsLinks, inviteLinks, rootLink)
 import API.Types
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.BaseUrl (baseUrl)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -32,7 +32,6 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.EmailAddress (EmailAddress)
 import Domain.Types.Timezone (pacificDay)
 import Effects.Clock (currentSystemTime)
@@ -56,29 +55,25 @@ dashboardInvitationsGetUrl =
 
 -- | Handler for POST /dashboard/invitations/new.
 handler ::
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   NewInvitationForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler cookie form =
+handler (Satisfies _ auth) form =
   handleRedirectErrors "Invitation creation" dashboardInvitationsLinks.newGet $ do
-    -- 1. Authenticate and require staff role
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "Only staff can create invitations." userMetadata
+    -- 1. Validate and store the invitation.
+    (token, validatedEmail) <- action auth.raMetadata form
 
-    -- 2. Validate and store the invitation.
-    (token, validatedEmail) <- action userMetadata form
-
-    -- 3. Fire-and-forget invitation email. Logs internally on failure;
+    -- 2. Fire-and-forget invitation email. Logs internally on failure;
     --    must not block the redirect.
     lift $ sendHostInvitationEmail validatedEmail (HostInvitation.unToken token)
 
-    -- 4. Build the invite URL for the flash message (manual-fallback copy/paste).
+    -- 3. Build the invite URL for the flash message (manual-fallback copy/paste).
     appBaseUrl <- lift baseUrl
     let inviteUrl = appBaseUrl <> inviteLinkPath token
 
     Log.logInfo "Created host invitation" (HostInvitation.unToken token)
 
-    -- 5. Redirect to invitation list with success flash.
+    -- 4. Redirect to invitation list with success flash.
     let flash =
           FlashMessage
             Success

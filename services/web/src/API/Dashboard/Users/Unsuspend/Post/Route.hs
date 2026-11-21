@@ -2,11 +2,12 @@ module API.Dashboard.Users.Unsuspend.Post.Route where
 
 --------------------------------------------------------------------------------
 
-import Domain.Types.Cookie (Cookie)
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Lucid qualified
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
@@ -17,5 +18,5 @@ type Route =
     :> "users"
     :> Servant.Capture "id" User.Id
     :> "unsuspend"
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Staff
     :> Servant.Post '[HTML] (Lucid.Html ())

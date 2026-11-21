@@ -8,16 +8,15 @@ module API.Dashboard.SitePages.Slug.Edit.Get.Handler (handler, action, PageEditV
 import API.Dashboard.SitePages.Slug.Edit.Get.Templates.Form (template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.SitePages qualified as SitePages
@@ -29,14 +28,12 @@ import Utils (fromMaybeM, fromRightM)
 
 handler ::
   Text ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler pageSlug cookie (foldHxReq -> hxRequest) =
+handler pageSlug (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Edit site page" apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to access this page." userMetadata
-    vd <- action userMetadata pageSlug
+    vd <- action auth.raMetadata pageSlug
     lift $
       renderDashboardTemplate
         hxRequest

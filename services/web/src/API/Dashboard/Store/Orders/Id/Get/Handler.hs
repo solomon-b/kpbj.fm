@@ -10,18 +10,18 @@ module API.Dashboard.Store.Orders.Id.Get.Handler (handler) where
 import API.Dashboard.Store.Orders.Id.Get.Templates (template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (handleHtmlErrors, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Trans (lift)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Execute (execQueryThrow)
 import Effects.Database.Tables.OrderItems qualified as OrderItems
 import Effects.Database.Tables.Orders qualified as Orders
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Lucid qualified
 import Utils (fromMaybeM)
 
@@ -30,14 +30,11 @@ import Utils (fromMaybeM)
 -- | Servant handler: render the order detail page with dashboard chrome.
 handler ::
   Orders.Id ->
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler orderId cookie (foldHxReq -> hxRequest) =
+handler orderId (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Store order detail" apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to view store orders." userMetadata
-
     -- Fetch the order; 404 if not found
     order <- fromMaybeM (throwNotFound "Order") $ lift (execQueryThrow (Orders.getById orderId))
 
@@ -47,7 +44,7 @@ handler orderId cookie (foldHxReq -> hxRequest) =
     lift $
       renderDashboardTemplate
         hxRequest
-        userMetadata
+        auth.raMetadata
         NoShow
         NavStoreOrders
         Nothing

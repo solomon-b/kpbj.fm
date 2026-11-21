@@ -3,10 +3,11 @@ module API.Dashboard.SitePages.Slug.Edit.Post.Route where
 --------------------------------------------------------------------------------
 
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Text.HTML (HTML)
 import Web.FormUrlEncoded (FromForm (..), parseMaybe, parseUnique)
 
@@ -18,7 +19,7 @@ type Route =
     :> "site-pages"
     :> Servant.Capture "slug" Text
     :> "edit"
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Staff
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.ReqBody '[Servant.FormUrlEncoded] EditForm
     :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)

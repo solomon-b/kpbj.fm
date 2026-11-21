@@ -18,7 +18,7 @@ import Hasql.Transaction.Sessions qualified as TRX
 import Test.Database.Helpers (insertTestEvent, insertTestUser)
 import Test.Database.Monad (TestDBConfig, withTestDB)
 import Test.HUnit (assertFailure)
-import Test.Handler.Fixtures (expectSetupRight, mkUserInsert, setupUserModels)
+import Test.Handler.Fixtures (expectSetupRight, mkUserInsert)
 import Test.Handler.Monad (bracketAppM)
 import Test.Hspec (Spec, describe, expectationFailure, it, shouldBe)
 
@@ -31,7 +31,6 @@ spec =
       describe "action" $ do
         it "returns NotFound for a nonexistent event ID" test_notFoundForMissingEvent
         it "staff user can update an event title" test_updatesEventTitle
-        it "unrelated regular user gets NotAuthorized" test_notAuthorizedForUnrelatedUser
         it "updates the ticket url" test_updatesTicketUrl
 
 --------------------------------------------------------------------------------
@@ -60,16 +59,9 @@ validEditForm =
 
 -- | Calling action with a nonexistent event ID yields NotFound "Event".
 test_notFoundForMissingEvent :: TestDBConfig -> IO ()
-test_notFoundForMissingEvent cfg = do
-  userInsert <- mkUserInsert "ev-edit-post-notfound" UserMetadata.Staff
-
+test_notFoundForMissingEvent cfg =
   bracketAppM cfg $ do
-    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-      (userModel, userMetaModel) <- setupUserModels userInsert
-      pure (userModel, userMetaModel)
-    (userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
-
-    result <- runExceptT $ action userModel userMetaModel (Events.Id 99999) (Slug.mkSlug "no-event") validEditForm
+    result <- runExceptT $ action (Events.Id 99999) (Slug.mkSlug "no-event") validEditForm
 
     liftIO $ case result of
       Left (NotFound "Event") -> pure ()
@@ -80,12 +72,10 @@ test_notFoundForMissingEvent cfg = do
 test_updatesEventTitle :: TestDBConfig -> IO ()
 test_updatesEventTitle cfg = do
   creatorInsert <- mkUserInsert "ev-edit-post-creator" UserMetadata.Staff
-  staffInsert <- mkUserInsert "ev-edit-post-staff" UserMetadata.Staff
 
   bracketAppM cfg $ do
     dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
       creatorId <- insertTestUser creatorInsert
-      (staffModel, staffMetaModel) <- setupUserModels staffInsert
       let eventInsert =
             Events.Insert
               { Events.eiTitle = "Original Event Title",
@@ -101,11 +91,10 @@ test_updatesEventTitle cfg = do
                 Events.eiTicketUrl = Nothing,
                 Events.eiFeaturedOnHomepage = False
               }
-      eventId <- insertTestEvent eventInsert
-      pure (staffModel, staffMetaModel, eventId)
-    (staffModel, staffMetaModel, eventId) <- liftIO $ expectSetupRight dbResult
+      insertTestEvent eventInsert
+    eventId <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT $ action staffModel staffMetaModel eventId (Slug.mkSlug "original-event-title") validEditForm
+    result <- runExceptT $ action eventId (Slug.mkSlug "original-event-title") validEditForm
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
@@ -123,52 +112,14 @@ test_updatesEventTitle cfg = do
         Nothing -> assertFailure "Event not found after update"
         Just updatedEvent -> updatedEvent.emTitle `shouldBe` "Updated Event Title"
 
--- | A regular User who did not create the event gets NotAuthorized.
-test_notAuthorizedForUnrelatedUser :: TestDBConfig -> IO ()
-test_notAuthorizedForUnrelatedUser cfg = do
-  creatorInsert <- mkUserInsert "ev-edit-post-owner" UserMetadata.Staff
-  otherInsert <- mkUserInsert "ev-edit-post-other" UserMetadata.User
-
-  bracketAppM cfg $ do
-    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-      creatorId <- insertTestUser creatorInsert
-      (otherModel, otherMetaModel) <- setupUserModels otherInsert
-      let eventInsert =
-            Events.Insert
-              { Events.eiTitle = "Edit Post Unauth Event",
-                Events.eiSlug = Slug.mkSlug "edit-post-unauth-event",
-                Events.eiDescription = "Created by someone else.",
-                Events.eiStartsAt = read "2026-06-15 17:00:00 UTC",
-                Events.eiEndsAt = read "2026-06-15 19:00:00 UTC",
-                Events.eiLocationName = "Unauth Venue",
-                Events.eiLocationAddress = "2 Unauth Rd",
-                Events.eiStatus = Events.Published,
-                Events.eiAuthorId = creatorId,
-                Events.eiPosterImageUrl = Nothing,
-                Events.eiTicketUrl = Nothing,
-                Events.eiFeaturedOnHomepage = False
-              }
-      eventId <- insertTestEvent eventInsert
-      pure (otherModel, otherMetaModel, eventId)
-    (otherModel, otherMetaModel, eventId) <- liftIO $ expectSetupRight dbResult
-
-    result <- runExceptT $ action otherModel otherMetaModel eventId (Slug.mkSlug "edit-post-unauth-event") validEditForm
-
-    liftIO $ case result of
-      Left (NotAuthorized _ _) -> pure ()
-      Left err -> expectationFailure $ "Expected NotAuthorized but got: " <> show err
-      Right _ -> expectationFailure "Expected Left NotAuthorized but got Right"
-
 -- | Editing an event with a ticket url stores it on the event.
 test_updatesTicketUrl :: TestDBConfig -> IO ()
 test_updatesTicketUrl cfg = do
   creatorInsert <- mkUserInsert "ev-edit-post-ticket-creator" UserMetadata.Staff
-  staffInsert <- mkUserInsert "ev-edit-post-ticket-staff" UserMetadata.Staff
 
   bracketAppM cfg $ do
     dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
       creatorId <- insertTestUser creatorInsert
-      (staffModel, staffMetaModel) <- setupUserModels staffInsert
       let eventInsert =
             Events.Insert
               { Events.eiTitle = "Ticket Edit Event",
@@ -184,12 +135,11 @@ test_updatesTicketUrl cfg = do
                 Events.eiTicketUrl = Nothing,
                 Events.eiFeaturedOnHomepage = False
               }
-      eventId <- insertTestEvent eventInsert
-      pure (staffModel, staffMetaModel, eventId)
-    (staffModel, staffMetaModel, eventId) <- liftIO $ expectSetupRight dbResult
+      insertTestEvent eventInsert
+    eventId <- liftIO $ expectSetupRight dbResult
 
     let form = validEditForm {eefTicketUrl = "https://tickets.example.com/e/42"}
-    result <- runExceptT $ action staffModel staffMetaModel eventId (Slug.mkSlug "ticket-edit-event") form
+    result <- runExceptT $ action eventId (Slug.mkSlug "ticket-edit-event") form
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
       Right _ -> pure ()

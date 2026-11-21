@@ -5,7 +5,7 @@ module API.Dashboard.Users.Unsuspend.Post.Handler where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Users.Get.Templates.Page (renderUserRow)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Handler.Error (HandlerError, handleBannerErrors)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
@@ -16,7 +16,6 @@ import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Text.Display (display)
 import Data.Time (UTCTime, getCurrentTime)
-import Domain.Types.Cookie (Cookie (..))
 import Effects.Database.Class (runDBTransaction)
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -53,15 +52,13 @@ action targetUserId = do
 
 handler ::
   User.Id ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   AppM (Lucid.Html ())
-handler targetUserId cookie =
+handler targetUserId (Satisfies _ auth) =
   handleBannerErrors "User unsuspend" $ do
-    (user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "Only admins can unsuspend users." userMetadata
     result <- action targetUserId
     now <- liftIO getCurrentTime
-    renderUnsuspendResult (User.mId user) now result
+    renderUnsuspendResult (User.mId auth.raUser) now result
 
 --------------------------------------------------------------------------------
 

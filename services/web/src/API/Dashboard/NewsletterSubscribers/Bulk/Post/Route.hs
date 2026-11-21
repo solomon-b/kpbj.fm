@@ -3,10 +3,11 @@ module API.Dashboard.NewsletterSubscribers.Bulk.Post.Route where
 --------------------------------------------------------------------------------
 
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie)
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import GHC.Generics (Generic)
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Text.HTML (HTML)
 import Web.FormUrlEncoded (FromForm (..))
 import Web.FormUrlEncoded qualified as Form
@@ -29,7 +30,7 @@ type Route =
   "dashboard"
     :> "newsletter-subscribers"
     :> "bulk"
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Staff
     :> Servant.ReqBody '[Servant.FormUrlEncoded] BulkForm
     :> Servant.Post
          '[HTML]

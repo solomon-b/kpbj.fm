@@ -11,9 +11,9 @@ where
 import API.Dashboard.AirBreaks.Timeline.Get.Templates.Page (DayKind (..), TimelineView (..), dayNav, template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -23,10 +23,10 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Time (Day, UTCTime)
 import Domain.DayTimeline (problems, scheduled, segmentViews)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Timezone (pacificDay, parseDateYMD)
 import Effects.Clock (currentSystemTime)
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Effects.Timeline (dayTimeline)
 import Lucid qualified
 import Utils (fromRightM)
@@ -36,20 +36,18 @@ import Utils (fromRightM)
 -- | Handler for GET /dashboard/air-breaks/timeline.
 handler ::
   Maybe Text ->
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler mDay cookie (foldHxReq -> hxRequest) =
+handler mDay (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Day timeline" apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to view the timeline." userMetadata
     now <- lift currentSystemTime
     let day = fromMaybe (pacificDay now) (mDay >>= parseDateYMD)
     view <- action now day
     lift $
       renderDashboardTemplate
         hxRequest
-        userMetadata
+        auth.raMetadata
         NoShow
         NavTimeline
         (Just (dayNav view))

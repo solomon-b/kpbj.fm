@@ -8,7 +8,7 @@ import API.Dashboard.EphemeralUploads.Id.Edit.Post.Route (FormData (..))
 import API.Links (dashboardEphemeralUploadsLinks, rootLink)
 import API.Types
 import Amazonka qualified as AWS
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -23,7 +23,6 @@ import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (getCurrentTime)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileStorage (BucketType (..), ResourceType (..))
 import Domain.Types.Slug (Slug (..), mkSlug)
 import Domain.Types.StorageBackend (StorageBackend)
@@ -44,14 +43,12 @@ import Utils (fromMaybeM, fromRightM)
 -- | Servant handler: thin glue running action.
 handler ::
   EphemeralUploads.Id ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   FormData ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler ephemeralUploadId cookie form =
+handler ephemeralUploadId (Satisfies _ auth) form =
   handleRedirectErrors "Ephemeral upload edit" (dashboardEphemeralUploadsLinks.list Nothing) $ do
-    (user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "Only staff and admins can edit ephemeral uploads." userMetadata
-    action user userMetadata ephemeralUploadId form
+    action auth.raUser auth.raMetadata ephemeralUploadId form
     let listUrl = rootLink $ dashboardEphemeralUploadsLinks.list Nothing
         flash = FlashMessage Success "Ephemeral Updated" "The ephemeral upload has been updated successfully."
     pure $ Servant.addHeader listUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent

@@ -12,9 +12,9 @@ where
 import API.Dashboard.AirBreaks.Underwriting.Delivery.Get.Templates.Page (DeliveryRow (..), template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -26,7 +26,6 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day, addDays, fromGregorian, gregorianMonthLength, toGregorian)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Timezone (pacificDay, startOfPacificDay)
 import Effects.Clock (currentSystemTime)
@@ -34,6 +33,7 @@ import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.BreakItems qualified as BreakItems
 import Effects.Database.Tables.PlaybackHistory qualified as PlaybackHistory
 import Effects.Database.Tables.Underwriters qualified as Underwriters
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Lucid qualified
 import Text.Read (readMaybe)
 import Utils (fromRightM)
@@ -43,13 +43,11 @@ import Utils (fromRightM)
 -- | Handler for GET /dashboard/air-breaks/underwriting/delivery.
 handler ::
   Maybe Text ->
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler mMonth cookie (foldHxReq -> hxRequest) =
+handler mMonth (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Underwriting delivery" apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to manage underwriting." userMetadata
     today <- pacificDay <$> lift currentSystemTime
     let (y, m, _) = toGregorian today
         firstDay = fromMaybe (fromGregorian y m 1) (mMonth >>= parseMonth)
@@ -57,7 +55,7 @@ handler mMonth cookie (foldHxReq -> hxRequest) =
     lift $
       renderDashboardTemplate
         hxRequest
-        userMetadata
+        auth.raMetadata
         NoShow
         NavUnderwritingDelivery
         Nothing

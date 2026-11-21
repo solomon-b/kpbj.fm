@@ -4,13 +4,14 @@ module API.Dashboard.Shows.Get.Route where
 
 import Data.Int (Int64)
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.Filter (Filter)
 import Domain.Types.HxRequest (HxRequest)
 import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Lucid qualified
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
@@ -23,6 +24,6 @@ type Route =
     :> Servant.QueryParam "q" (Filter Text)
     :> Servant.QueryParam "status" (Filter Shows.Status)
     :> Servant.QueryFlag "deleted"
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Staff
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

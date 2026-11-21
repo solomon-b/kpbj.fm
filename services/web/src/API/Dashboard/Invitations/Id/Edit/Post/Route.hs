@@ -7,11 +7,12 @@ import Data.Bifunctor (first)
 import Data.Either (fromRight)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.EmailAddress (EmailAddress)
 import Effects.Database.Tables.HostInvitation qualified as HostInvitation
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Servant.Multipart
   ( FromMultipart (..),
     Mem,
@@ -51,7 +52,7 @@ type Route =
     :> "invitations"
     :> Servant.Capture "invitationId" HostInvitation.Id
     :> "edit"
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Staff
     :> MultipartForm Mem EditInvitationForm
     :> Servant.Post
          '[HTML]

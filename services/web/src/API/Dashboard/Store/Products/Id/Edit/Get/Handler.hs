@@ -13,9 +13,9 @@ where
 import API.Dashboard.Store.Products.Id.Edit.Get.Templates.Form (template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -29,7 +29,6 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Text (Text)
 import Data.Text.Encoding qualified as Text
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Execute (execQuery)
@@ -59,14 +58,12 @@ data ProductEditViewData = ProductEditViewData
 -- | Servant handler: thin glue composing action + render with dashboard chrome.
 handler ::
   Products.Id ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler productId cookie (foldHxReq -> hxRequest) =
+handler productId (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Product edit form" apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to edit products." userMetadata
-    vd <- action userMetadata productId
+    vd <- action auth.raMetadata productId
     lift $
       renderDashboardTemplate
         hxRequest

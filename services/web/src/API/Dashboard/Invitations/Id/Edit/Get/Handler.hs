@@ -10,9 +10,9 @@ import API.Dashboard.Shows.Slug.Edit.Post.Handler (ParsedScheduleSlot (..))
 import API.Invite.Token.Post.Handler (parseInvitationSchedules)
 import API.Links (dashboardInvitationsLinks)
 import API.Types (DashboardInvitationsRoutes (..))
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -21,12 +21,12 @@ import Control.Monad.Trans (lift)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day, showGregorian)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Timezone (pacificDay)
 import Effects.Clock (currentSystemTime)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.HostInvitation qualified as HostInvitation
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Lucid qualified
 import Utils (fromRightM)
 
@@ -38,14 +38,11 @@ import Utils (fromRightM)
 -- schedule, and its start date filled in.
 handler ::
   HostInvitation.Id ->
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler invitationId cookie (foldHxReq -> hxRequest) =
+handler invitationId (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Edit invitation form" dashboardInvitationsLinks.list $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "Only staff can edit invitations." userMetadata
-
     inv <- fromRightM throwDatabaseError $ execQuery (HostInvitation.getById invitationId)
     invitation <- case inv of
       Nothing -> throwNotFound "Invitation"
@@ -65,7 +62,7 @@ handler invitationId cookie (foldHxReq -> hxRequest) =
               sedMinDate = dateText (min today invitation.hiStartsOn)
             }
     lift $
-      renderDashboardTemplate hxRequest userMetadata NoShow NavInvitations Nothing Nothing $
+      renderDashboardTemplate hxRequest auth.raMetadata NoShow NavInvitations Nothing Nothing $
         template invitation.hiId invitation.hiRecipientEmail editorData
 
 --------------------------------------------------------------------------------

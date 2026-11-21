@@ -3,11 +3,12 @@ module API.Dashboard.StationBlog.Get.Route where
 --------------------------------------------------------------------------------
 
 import Data.Int (Int64)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Lucid qualified
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
@@ -17,6 +18,6 @@ type Route =
   "dashboard"
     :> "station-blog"
     :> Servant.QueryParam "page" Int64
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Staff
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

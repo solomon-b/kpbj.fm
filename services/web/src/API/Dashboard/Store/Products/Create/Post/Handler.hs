@@ -6,7 +6,8 @@ module API.Dashboard.Store.Products.Create.Post.Handler (handler) where
 
 import API.Dashboard.Store.Products.Create.Post.Route (InlineCreateForm (..))
 import API.Dashboard.Store.Products.Get.Templates (renderProductRow)
-import App.Handler.Combinators (requireAuth, requireRight, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Handler.Combinators (requireRight)
 import App.Handler.Error (HandlerError, handleBannerErrors, throwDatabaseError, throwHandlerFailure)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
@@ -15,7 +16,6 @@ import Data.Scientific (Scientific)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Domain.Types.Cents qualified as Cents
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug qualified as Slug
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Execute (execQuery)
@@ -120,11 +120,9 @@ action _user _userMetadata form = do
 
 -- | Servant handler: thin glue composing auth + action.
 handler ::
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   InlineCreateForm ->
   AppM (Lucid.Html ())
-handler cookie form =
+handler (Satisfies _ auth) form =
   handleBannerErrors "Inline product create" $ do
-    (user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to create products." userMetadata
-    action user userMetadata form
+    action auth.raUser auth.raMetadata form

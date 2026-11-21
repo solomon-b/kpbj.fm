@@ -5,7 +5,8 @@ module API.Dashboard.StationBlog.New.Post.Handler (handler, action) where
 import API.Dashboard.StationBlog.New.Post.Route (NewBlogPostForm (..))
 import API.Links (dashboardStationBlogLinks, rootLink)
 import API.Types (DashboardStationBlogRoutes (..))
-import App.Handler.Combinators (requireAuth, requireRight, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Handler.Combinators (requireRight)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -21,7 +22,6 @@ import Data.Has (getter)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.PostStatus (BlogPostStatus (..), decodeBlogPost)
 import Domain.Types.Slug ()
@@ -31,6 +31,7 @@ import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Effects.FileUpload (uploadBlogHeroImage)
 import Log qualified
 import Servant qualified
@@ -69,14 +70,12 @@ action user form = do
 
 -- | Servant handler: thin glue composing action + return redirect response.
 handler ::
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   NewBlogPostForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler cookie form =
+handler (Satisfies _ auth) form =
   handleRedirectErrors "Blog post creation" dashboardStationBlogLinks.newGet $ do
-    (user, _userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to create blog posts." _userMetadata
-    result <- action user form
+    result <- action auth.raUser form
     pure $ Servant.addHeader result.nbprRedirectUrl $ Servant.addHeader (flashCookie (Just result.nbprFlash)) Servant.NoContent
 
 -- | Handle hero image upload

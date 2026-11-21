@@ -5,10 +5,11 @@ module API.Dashboard.StationBlog.New.Post.Route where
 import Data.Foldable (fold)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug ()
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Servant.Multipart
   ( FileData,
     FromMultipart,
@@ -84,6 +85,6 @@ type Route =
   "dashboard"
     :> "station-blog"
     :> "new"
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Staff
     :> MultipartForm Mem NewBlogPostForm
     :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)

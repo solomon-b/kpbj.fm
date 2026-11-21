@@ -4,16 +4,16 @@ module API.Dashboard.StationBlog.Slug.Delete.Handler (handler, action) where
 
 --------------------------------------------------------------------------------
 
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth, Satisfies)
 import App.Handler.Error (HandlerError, handleBannerErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Log qualified
 import Lucid qualified
 import Utils (fromMaybeM, fromRightM)
@@ -38,12 +38,10 @@ action postId = do
 handler ::
   BlogPosts.Id ->
   Slug ->
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   AppM (Lucid.Html ())
-handler postId _postSlug cookie =
+handler postId _postSlug _ =
   handleBannerErrors "Blog delete" $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You don't have permission to delete blog posts." userMetadata
     action postId
     pure $ do
       Lucid.toHtmlRaw ("" :: Text)

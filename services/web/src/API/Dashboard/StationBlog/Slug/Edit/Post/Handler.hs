@@ -7,7 +7,8 @@ module API.Dashboard.StationBlog.Slug.Edit.Post.Handler (handler, action) where
 import API.Dashboard.StationBlog.Slug.Edit.Post.Route (BlogEditForm (..))
 import API.Links (dashboardStationBlogLinks, rootLink)
 import API.Types (DashboardStationBlogRoutes (..))
-import App.Handler.Combinators (requireAuth, requireJust, requireRight, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth, Satisfies)
+import App.Handler.Combinators (requireJust, requireRight)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -22,7 +23,6 @@ import Data.Foldable (traverse_)
 import Data.Has (getter)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.PostStatus (decodeBlogPost)
 import Domain.Types.Slug (Slug)
@@ -31,6 +31,7 @@ import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Execute (execTransaction)
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Effects.Database.Tables.BlogTags qualified as BlogTags
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Effects.FileUpload (uploadBlogHeroImage)
 import Hasql.Transaction qualified as HT
 import Log qualified
@@ -72,13 +73,11 @@ action blogPostId _slug editForm = do
 handler ::
   BlogPosts.Id ->
   Slug ->
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   BlogEditForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler blogPostId slug cookie editForm =
+handler blogPostId slug _ editForm =
   handleRedirectErrors "Station blog update" (dashboardStationBlogLinks.editGet blogPostId slug) $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to edit station blog posts." userMetadata
     result <- action blogPostId slug editForm
     pure $ Servant.addHeader result.ebprRedirectUrl $ Servant.addHeader (flashCookie (Just result.ebprFlash)) Servant.NoContent
 

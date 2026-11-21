@@ -9,7 +9,7 @@ import API.Dashboard.Shows.New.Post.Route (NewShowForm (..))
 import API.Dashboard.Shows.Slug.Edit.Post.Handler (ParsedScheduleSlot (..), checkScheduleConflicts, insertScheduleSlot, parseScheduleSlot, validateSingleSlot)
 import API.Links (dashboardShowsLinks)
 import API.Types
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth, Satisfies)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -27,7 +27,6 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Time (Day)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Recurrence (recurrenceDay)
 import Domain.Types.Slug qualified as Slug
@@ -58,13 +57,11 @@ dashboardShowDetailUrl showId slug = Links.linkURI $ dashboardShowsLinks.detail 
 --------------------------------------------------------------------------------
 
 handler ::
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   NewShowForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler cookie form =
+handler _ form =
   handleRedirectErrors "Show creation" dashboardShowsLinks.newGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "Only Admin users can create shows." userMetadata
     createdShow <- action form
     let showId = createdShow.id
         showSlug = createdShow.slug

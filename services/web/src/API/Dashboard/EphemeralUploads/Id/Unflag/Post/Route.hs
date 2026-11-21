@@ -2,11 +2,12 @@ module API.Dashboard.EphemeralUploads.Id.Unflag.Post.Route where
 
 --------------------------------------------------------------------------------
 
-import Domain.Types.Cookie (Cookie)
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Lucid qualified
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
@@ -17,5 +18,5 @@ type Route =
     :> "ephemeral-uploads"
     :> Servant.Capture "id" EphemeralUploads.Id
     :> "unflag"
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Staff
     :> Servant.Post '[HTML] (Lucid.Html ())

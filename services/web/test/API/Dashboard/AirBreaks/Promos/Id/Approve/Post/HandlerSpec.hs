@@ -27,46 +27,35 @@ spec =
     describe "API.Dashboard.AirBreaks.Promos.Id.Approve.Post.Handler.action" $ do
       it "approves a pending promo" test_approvesPending
       it "refuses to approve a promo that is already approved" test_refusesApproved
-      it "refuses a host" test_refusesHost
 
 --------------------------------------------------------------------------------
 
--- | A user with this role and a pending promo for "Night Shift".
-setup :: TestDBConfig -> Text -> UserMetadata.UserRole -> IO (UserMetadata.Model, BreakItems.Id)
-setup cfg name role = do
-  userInsert <- mkUserInsert name role
+-- | A staff user and a pending promo for "Night Shift".
+setup :: TestDBConfig -> Text -> IO BreakItems.Id
+setup cfg name = do
+  userInsert <- mkUserInsert name UserMetadata.Staff
   bracketAppM cfg $ do
     dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-      (userModel, userMeta) <- setupUserModels userInsert
+      (userModel, _) <- setupUserModels userInsert
       showId <- insertActiveShow "Night Shift" "night-shift"
-      promoId <- unwrapInsert (BreakItems.insertBreakItem (pendingPromoInsert (User.mId userModel) showId))
-      pure (userMeta, promoId)
+      unwrapInsert (BreakItems.insertBreakItem (pendingPromoInsert (User.mId userModel) showId))
     liftIO $ expectSetupRight dbResult
 
 test_approvesPending :: TestDBConfig -> IO ()
 test_approvesPending cfg = do
-  (userMeta, promoId) <- setup cfg "approve-pending" UserMetadata.Staff
+  promoId <- setup cfg "approve-pending"
   bracketAppM cfg $ do
-    result <- runExceptT (action userMeta promoId)
+    result <- runExceptT (action promoId)
     liftIO $ case result of
       Right promo -> BreakItems.bimReviewStatus promo `shouldBe` BreakItems.Approved
       Left err -> expectationFailure $ "Expected the approve to succeed, got " <> show err
 
 test_refusesApproved :: TestDBConfig -> IO ()
 test_refusesApproved cfg = do
-  (userMeta, promoId) <- setup cfg "approve-twice" UserMetadata.Staff
+  promoId <- setup cfg "approve-twice"
   bracketAppM cfg $ do
-    _ <- runExceptT (action userMeta promoId)
-    second <- runExceptT (action userMeta promoId)
+    _ <- runExceptT (action promoId)
+    second <- runExceptT (action promoId)
     liftIO $ case second of
       Left (NotFound _) -> pure ()
       other -> expectationFailure $ "Expected NotFound, got " <> show other
-
-test_refusesHost :: TestDBConfig -> IO ()
-test_refusesHost cfg = do
-  (userMeta, promoId) <- setup cfg "approve-host" UserMetadata.Host
-  bracketAppM cfg $ do
-    result <- runExceptT (action userMeta promoId)
-    liftIO $ case result of
-      Left (NotAuthorized _ _) -> pure ()
-      other -> expectationFailure $ "Expected NotAuthorized, got " <> show other

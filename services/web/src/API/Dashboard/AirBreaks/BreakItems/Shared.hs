@@ -4,12 +4,12 @@
 -- | The handlers behind the staff break item dashboard sections.
 --
 -- PSAs, underwriting announcements, and station announcements are one table.
--- They are separate dashboard sections so each can carry its own permission
--- gate, and they differ only in the values a 'Section' holds. Every handler
--- here takes one and is otherwise shared.
+-- They are separate dashboard sections, and they differ only in the values a
+-- 'Section' holds. Every handler here takes one and is otherwise shared.
 --
--- To change who may manage a section, change its 'secRequire' below. Nothing
--- else has to move.
+-- Every handler here requires Staff in its type. The @RequireRole@ in the six
+-- @Route.hs@ files of each section must also say @'Staff@, or the server does
+-- not compile.
 --
 -- Show promos are not a section, because hosts submit them and staff review
 -- them. Their pages reuse the form parsing and the audio claim from here.
@@ -50,11 +50,11 @@ import API.Links
     rootLink,
   )
 import API.Types
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Config (Environment)
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
 import App.Domains (breakItemUploadUrl)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error
   ( HandlerError,
     handleBannerErrors,
@@ -84,7 +84,6 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day, getCurrentTime)
 import Domain.BreakPlanner (categoryMaxSeconds)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.FileStorage (BucketType (..), ResourceType (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
@@ -118,8 +117,6 @@ data Section = Section
     secCategory :: BreakItems.Category,
     -- | Which sidebar entry to highlight.
     secNav :: DashboardNav,
-    -- | The permission gate. Change this alone to re-gate a section.
-    secRequire :: UserMetadata.Model -> ExceptT HandlerError AppM (),
     -- | Everything the shared rendering needs.
     secUrls :: BreakItemsUI.SectionUrls,
     -- | Where an auth or access failure on a POST sends the user.
@@ -136,7 +133,6 @@ psaSection =
   Section
     { secCategory = BreakItems.Psa,
       secNav = NavPsas,
-      secRequire = requireStaffNotSuspended "You do not have permission to manage PSAs.",
       secNewGetLink = dashboardPsasLinks.newGet,
       secListLink = dashboardPsasLinks.list Nothing,
       secLogName = "PSA",
@@ -162,7 +158,6 @@ underwritingSection =
   Section
     { secCategory = BreakItems.Underwriting,
       secNav = NavUnderwriting,
-      secRequire = requireStaffNotSuspended "You do not have permission to manage underwriting.",
       secNewGetLink = dashboardUnderwritingLinks.newGet,
       secListLink = dashboardUnderwritingLinks.list Nothing,
       secLogName = "Underwriting announcement",
@@ -188,7 +183,6 @@ announcementSection =
   Section
     { secCategory = BreakItems.Announcement,
       secNav = NavAnnouncements,
-      secRequire = requireStaffNotSuspended "You do not have permission to manage announcements.",
       secNewGetLink = dashboardAnnouncementsLinks.newGet,
       secListLink = dashboardAnnouncementsLinks.list Nothing,
       secLogName = "Announcement",
@@ -212,12 +206,9 @@ announcementSection =
 -- List
 
 -- | @GET /dashboard/air-breaks/psas@ and @GET /dashboard/air-breaks/underwriting@.
-listHandler :: Section -> Maybe PageNumber -> Maybe Cookie -> Maybe HxRequest -> AppM (Lucid.Html ())
-listHandler sec maybePage cookie (foldHxReq -> hxRequest) =
+listHandler :: Section -> Maybe PageNumber -> Satisfies 'UserMetadata.Staff RoleAuth -> Maybe HxRequest -> AppM (Lucid.Html ())
+listHandler sec maybePage (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors (sec.secLogName <> " list") apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    sec.secRequire userMetadata
-
     let page@(PageNumber pageNum) = fromMaybe (PageNumber 1) maybePage
         limit = 20 :: Limit
         offset = fromIntegral ((pageNum - 1) * fromIntegral limit) :: Offset
@@ -246,7 +237,7 @@ listHandler sec maybePage cookie (foldHxReq -> hxRequest) =
         lift $
           renderDashboardTemplate
             hxRequest
-            userMetadata
+            auth.raMetadata
             NoShow
             sec.secNav
             Nothing
@@ -257,12 +248,9 @@ listHandler sec maybePage cookie (foldHxReq -> hxRequest) =
 -- Upload
 
 -- | @GET /dashboard/air-breaks/psas/new@ and @GET /dashboard/air-breaks/underwriting/new@.
-newGetHandler :: Section -> Maybe Cookie -> Maybe HxRequest -> AppM (Lucid.Html ())
-newGetHandler sec cookie (foldHxReq -> hxRequest) =
+newGetHandler :: Section -> Satisfies 'UserMetadata.Staff RoleAuth -> Maybe HxRequest -> AppM (Lucid.Html ())
+newGetHandler sec (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors (sec.secLogName <> " upload form") apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    sec.secRequire userMetadata
-
     env <- asks (Has.getter @Environment)
     today <- pacificDay <$> liftIO getCurrentTime
     mUf <- sectionUnderwritingFields sec Nothing
@@ -270,7 +258,7 @@ newGetHandler sec cookie (foldHxReq -> hxRequest) =
     lift $
       renderDashboardTemplate
         hxRequest
-        userMetadata
+        auth.raMetadata
         NoShow
         sec.secNav
         Nothing
@@ -280,13 +268,12 @@ newGetHandler sec cookie (foldHxReq -> hxRequest) =
 -- | @POST /dashboard/air-breaks/psas/new@ and the other sections' upload posts.
 newPostHandler ::
   Section ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   BreakItemForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-newPostHandler sec cookie form =
+newPostHandler sec (Satisfies _ auth) form =
   handleRedirectErrors (sec.secLogName <> " upload") sec.secNewGetLink $ do
-    (user, userMetadata) <- requireAuth cookie
-    _ <- newPostAction sec user userMetadata form
+    _ <- newPostAction sec auth.raUser form
     -- Today's break plan is built once, so an item uploaded today can air
     -- from tomorrow at the earliest.
     pure $
@@ -294,19 +281,16 @@ newPostHandler sec cookie form =
         (rootLink sec.secListLink)
         (FlashMessage Success (sec.secLogName <> " Uploaded") "It can air from tomorrow, or from its first air date if that is later.")
 
--- | Check the gate, parse the form, claim the audio, and save the row.
+-- | Parse the form, claim the audio, and save the row.
 --
 -- Returns the ID of the new row. Every row a section saves is approved,
 -- because staff upload it.
 newPostAction ::
   Section ->
   User.Model ->
-  UserMetadata.Model ->
   BreakItemForm ->
   ExceptT HandlerError AppM BreakItems.Id
-newPostAction sec user userMetadata form = do
-  sec.secRequire userMetadata
-
+newPostAction sec user form = do
   parsed <- parseBreakItemForm sec.secCategory form
   audio <- claimBreakItemAudio user sec.secCategory form.bifAudioToken
 
@@ -341,20 +325,18 @@ newPostAction sec user userMetadata form = do
 editGetHandler ::
   Section ->
   BreakItems.Id ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   Maybe HxRequest ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-editGetHandler sec itemId cookie (foldHxReq -> hxRequest) =
+editGetHandler sec itemId (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleRedirectErrors (sec.secLogName <> " edit form") sec.secListLink $ do
-    (_user, userMetadata) <- requireAuth cookie
-    sec.secRequire userMetadata
     item <- fetchInSection sec itemId
     mUf <- sectionUnderwritingFields sec (Just item)
     html <-
       lift $
         renderDashboardTemplate
           hxRequest
-          userMetadata
+          auth.raMetadata
           NoShow
           sec.secNav
           Nothing
@@ -366,14 +348,11 @@ editGetHandler sec itemId cookie (foldHxReq -> hxRequest) =
 editPostHandler ::
   Section ->
   BreakItems.Id ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   BreakItemForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-editPostHandler sec itemId cookie form =
+editPostHandler sec itemId _ form =
   handleRedirectErrors (sec.secLogName <> " edit") sec.secListLink $ do
-    (_user, userMetadata) <- requireAuth cookie
-    sec.secRequire userMetadata
-
     -- Reads through the section, so an id from the other category is a 404
     -- rather than a cross-section edit.
     item <- fetchInSection sec itemId
@@ -401,11 +380,9 @@ editPostHandler sec itemId cookie form =
 -- Delete
 
 -- | @DELETE /dashboard/air-breaks/psas/:id@ and @DELETE /dashboard/air-breaks/underwriting/:id@.
-deleteHandler :: Section -> BreakItems.Id -> Maybe Cookie -> AppM (Lucid.Html ())
-deleteHandler sec itemId cookie =
+deleteHandler :: Section -> BreakItems.Id -> Satisfies 'UserMetadata.Staff RoleAuth -> AppM (Lucid.Html ())
+deleteHandler sec itemId _ =
   handleBannerErrors (sec.secLogName <> " delete") $ do
-    (_user, userMetadata) <- requireAuth cookie
-    sec.secRequire userMetadata
     item <- fetchInSection sec itemId
 
     result <- execQuery (BreakItems.softDeleteBreakItem item.bimId)

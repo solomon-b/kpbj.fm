@@ -8,9 +8,9 @@ module API.Dashboard.StationBlog.Slug.Get.Handler (handler, action, StationBlogD
 import API.Dashboard.StationBlog.Slug.Get.Templates.Page (template)
 import API.Links (dashboardStationBlogLinks, rootLink)
 import API.Types (DashboardStationBlogRoutes (..))
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -18,7 +18,6 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Execute (execTransaction)
@@ -60,14 +59,12 @@ action userMetadata postId = do
 handler ::
   BlogPosts.Id ->
   Slug ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler postId _slug cookie (foldHxReq -> hxRequest) =
+handler postId _slug (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Station blog post detail" (dashboardStationBlogLinks.list Nothing) $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to access this page." userMetadata
-    vd <- action userMetadata postId
+    vd <- action auth.raMetadata postId
     let postTemplate = template vd.sbdvPost vd.sbdvTags vd.sbdvAuthor
     lift $
       renderDashboardTemplate
