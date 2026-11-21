@@ -7,7 +7,7 @@ module API.Dashboard.Store.Settings.Post.Handler (handler, action) where
 import API.Dashboard.Store.Settings.Post.Route (SettingsForm (..))
 import API.Links (apiLinks, dashboardStoreSettingsLinks, rootLink)
 import API.Types (DashboardStoreSettingsRoutes (..), Routes (..))
-import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Handler.Combinators (requireRight)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError)
 import App.Monad (AppM)

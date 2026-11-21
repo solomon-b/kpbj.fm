@@ -6,7 +6,7 @@ module API.Dashboard.Store.Products.Create.Post.Handler (handler) where
 
 import API.Dashboard.Store.Products.Create.Post.Route (InlineCreateForm (..))
 import API.Dashboard.Store.Products.Get.Templates (renderProductRow)
-import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Handler.Combinators (requireRight)
 import App.Handler.Error (HandlerError, handleBannerErrors, throwDatabaseError, throwHandlerFailure)
 import App.Monad (AppM)

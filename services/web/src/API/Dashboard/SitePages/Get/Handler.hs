@@ -8,7 +8,7 @@ module API.Dashboard.SitePages.Get.Handler (handler, action, PageListViewData (.
 import API.Dashboard.SitePages.Get.Templates.Page (template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
-import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)

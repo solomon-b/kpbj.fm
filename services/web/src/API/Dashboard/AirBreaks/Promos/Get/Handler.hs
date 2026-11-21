@@ -14,7 +14,7 @@ where
 import API.Dashboard.AirBreaks.Promos.Get.Templates (renderItemsFragment, template)
 import API.Links (apiLinks)
 import API.Types
-import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)

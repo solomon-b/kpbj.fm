@@ -8,7 +8,7 @@ module API.Dashboard.EphemeralUploads.Id.Edit.Get.Handler (handler, action, Uplo
 import API.Dashboard.EphemeralUploads.Id.Edit.Get.Templates.Form (ephemeralUploadEditForm)
 import API.Links (dashboardEphemeralUploadsLinks)
 import API.Types
-import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Config (Environment)
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)

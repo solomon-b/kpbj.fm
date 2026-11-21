@@ -5,7 +5,7 @@ module API.Dashboard.Episodes.Slug.Delete.Handler where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Episodes.Get.Templates.EpisodeRow (renderEpisodeTableRow)
-import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Handler.Error (HandlerError (..), logHandlerError, throwDatabaseError, throwHandlerFailure, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)

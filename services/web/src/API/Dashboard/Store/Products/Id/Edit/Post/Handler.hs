@@ -7,7 +7,7 @@ module API.Dashboard.Store.Products.Id.Edit.Post.Handler (handler, action) where
 import API.Dashboard.Store.Products.Id.Edit.Post.Route (EditProductForm (..))
 import API.Links (apiLinks, dashboardStoreProductsLinks, rootLink)
 import API.Types (DashboardStoreProductsRoutes (..), Routes (..))
-import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Handler.Combinators (requireRight)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import App.Monad (AppM)

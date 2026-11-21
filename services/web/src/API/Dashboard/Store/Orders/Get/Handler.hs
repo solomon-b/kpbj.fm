@@ -7,7 +7,7 @@ module API.Dashboard.Store.Orders.Get.Handler (handler) where
 import API.Dashboard.Store.Orders.Get.Templates (template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
-import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (handleHtmlErrors)

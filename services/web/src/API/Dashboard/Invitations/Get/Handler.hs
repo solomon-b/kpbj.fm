@@ -7,7 +7,7 @@ module API.Dashboard.Invitations.Get.Handler (handler) where
 import API.Dashboard.Invitations.Get.Templates.Page (template)
 import API.Links (apiLinks, dashboardInvitationsLinks, rootLink)
 import API.Types (DashboardInvitationsRoutes (..), Routes (..))
-import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.BaseUrl qualified
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)

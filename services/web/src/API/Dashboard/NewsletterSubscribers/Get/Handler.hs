@@ -10,7 +10,7 @@ import API.Dashboard.NewsletterSubscribers.Get.Templates.ItemsFragment (renderIt
 import API.Dashboard.NewsletterSubscribers.Get.Templates.Page (template)
 import API.Links (apiLinks, dashboardNewsletterSubscribersLinks)
 import API.Types
-import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError)

@@ -10,7 +10,7 @@ import API.Dashboard.Users.Get.Templates.ItemsFragment (renderItemsFragment)
 import API.Dashboard.Users.Get.Templates.Page (template)
 import API.Links (apiLinks, dashboardUsersLinks)
 import API.Types
-import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
