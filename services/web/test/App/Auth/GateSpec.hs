@@ -4,9 +4,10 @@
 
 -- | Routing tests for the role gate of "App.Auth.Roles".
 --
--- Each test serves a small API with one @'Admin@ gate, with the real auth
--- handler and the real rejection handler in the Servant context. It sends
--- one request with a real session from the test database.
+-- Each test serves a small API with an @'Admin@ gate and a @'Staff@ gate,
+-- with the real auth handler and the real rejection handler in the Servant
+-- context. It sends one request with a real session from the test database.
+-- The request is an HTMX request, a page load, or a @fetch@ call.
 module App.Auth.GateSpec (spec) where
 
 --------------------------------------------------------------------------------
@@ -64,6 +65,13 @@ spec =
       it "lets a Staff user through a Staff gate" test_staffGateStaff
       it "lets an Admin through a Staff gate" test_staffGateAdmin
       it "sends a Host on a Staff gate to the dashboard" test_staffGateHost
+      it "sends a page load with no cookie to the login page" test_browserNoCookie
+      it "sends a page load by a Host to the dashboard" test_browserHost
+      it "answers a fetch with no cookie with a 401" test_fetchNoCookie
+      it "answers a fetch with an expired session with a 401" test_fetchExpiredSession
+      it "answers a fetch by a Host with a 403" test_fetchHost
+      it "answers a fetch by a suspended Admin with a 403" test_fetchSuspendedAdmin
+      it "lets a fetch by an Admin through" test_fetchAdmin
 
 --------------------------------------------------------------------------------
 -- Tests
@@ -165,6 +173,47 @@ test_staffGateHost cfg = withPool cfg $ \pool -> do
   response <- staffProbe pool [cookie]
   shouldBeRedirect response (rootLink dashboardLinks.home) (deniedFlash "You need Staff permissions to do this.")
 
+test_browserNoCookie :: TestDBConfig -> IO ()
+test_browserNoCookie cfg = withPool cfg $ \pool -> do
+  response <- browserProbe pool []
+  shouldBeRedirect response loginUrl loginFlash
+
+test_browserHost :: TestDBConfig -> IO ()
+test_browserHost cfg = withPool cfg $ \pool -> do
+  cookie <- userWithSession pool "gate-browser-host" UserMetadata.Host NotSuspended 3600
+  response <- browserProbe pool [cookie]
+  shouldBeRedirect response (rootLink dashboardLinks.home) (deniedFlash "You need Admin permissions to do this.")
+
+test_fetchNoCookie :: TestDBConfig -> IO ()
+test_fetchNoCookie cfg = withPool cfg $ \pool -> do
+  response <- fetchProbe pool []
+  shouldBeStatus response 401
+
+test_fetchExpiredSession :: TestDBConfig -> IO ()
+test_fetchExpiredSession cfg = withPool cfg $ \pool -> do
+  cookie <- userWithSession pool "gate-fetch-expired" UserMetadata.Admin NotSuspended (-3600)
+  response <- fetchProbe pool [cookie]
+  shouldBeStatus response 401
+
+test_fetchHost :: TestDBConfig -> IO ()
+test_fetchHost cfg = withPool cfg $ \pool -> do
+  cookie <- userWithSession pool "gate-fetch-host" UserMetadata.Host NotSuspended 3600
+  response <- fetchProbe pool [cookie]
+  shouldBeStatus response 403
+
+test_fetchSuspendedAdmin :: TestDBConfig -> IO ()
+test_fetchSuspendedAdmin cfg = withPool cfg $ \pool -> do
+  cookie <- userWithSession pool "gate-fetch-suspended-admin" UserMetadata.Admin Suspended 3600
+  response <- fetchProbe pool [cookie]
+  shouldBeStatus response 403
+
+test_fetchAdmin :: TestDBConfig -> IO ()
+test_fetchAdmin cfg = withPool cfg $ \pool -> do
+  cookie <- userWithSession pool "gate-fetch-admin" UserMetadata.Admin NotSuspended 3600
+  response <- fetchProbe pool [cookie]
+  statusCode (simpleStatus response) `shouldBe` 200
+  simpleBody response `shouldBe` "Admin"
+
 --------------------------------------------------------------------------------
 -- The probe API
 
@@ -182,14 +231,28 @@ probeServer =
 storedRole :: RoleAuth r -> Servant.Handler Text
 storedRole auth = pure (display auth.raMetadata.mUserRole)
 
--- | Send @GET /probe@ with the given headers through the real @'Admin@ gate.
+-- | Send @GET /probe@ as an HTMX request with the given headers, through the
+-- real @'Admin@ gate.
 probe :: HSQL.Pool -> [Header] -> IO SResponse
-probe pool = probePath pool "/probe"
+probe pool headers = probePath pool "/probe" (htmxHeader : headers)
 
--- | Send @GET /staff-probe@ with the given headers through the real @'Staff@
--- gate.
+-- | Send @GET /staff-probe@ as an HTMX request with the given headers, through
+-- the real @'Staff@ gate.
 staffProbe :: HSQL.Pool -> [Header] -> IO SResponse
-staffProbe pool = probePath pool "/staff-probe"
+staffProbe pool headers = probePath pool "/staff-probe" (htmxHeader : headers)
+
+-- | Send @GET /probe@ as a @fetch@ call with the default headers of the
+-- browser, through the real @'Admin@ gate.
+fetchProbe :: HSQL.Pool -> [Header] -> IO SResponse
+fetchProbe pool headers = probePath pool "/probe" (("Accept", "*/*") : headers)
+
+-- | Send @GET /probe@ as a page load in a browser, through the real @'Admin@
+-- gate.
+browserProbe :: HSQL.Pool -> [Header] -> IO SResponse
+browserProbe pool headers = probePath pool "/probe" (("Accept", "text/html,application/xhtml+xml,*/*;q=0.8") : headers)
+
+htmxHeader :: Header
+htmxHeader = ("HX-Request", "true")
 
 probePath :: HSQL.Pool -> ByteString -> [Header] -> IO SResponse
 probePath pool path headers =
@@ -247,6 +310,13 @@ shouldBeRedirect response url flash = do
   statusCode (simpleStatus response) `shouldBe` 200
   lookup "HX-Redirect" (simpleHeaders response) `shouldBe` Just (encodeUtf8 url)
   lookup "Set-Cookie" (simpleHeaders response) `shouldBe` Just (encodeUtf8 (flashCookie (Just flash)))
+
+-- | A plain error status with no redirect and no flash.
+shouldBeStatus :: SResponse -> Int -> IO ()
+shouldBeStatus response code = do
+  statusCode (simpleStatus response) `shouldBe` code
+  lookup "HX-Redirect" (simpleHeaders response) `shouldBe` Nothing
+  lookup "Set-Cookie" (simpleHeaders response) `shouldBe` Nothing
 
 loginUrl :: Text
 loginUrl = rootLink (userLinks.loginGet Nothing Nothing)
