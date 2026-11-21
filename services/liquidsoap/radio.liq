@@ -289,7 +289,7 @@ start_schedule = ref(fun () -> ())
 # handler, the chain then stops, and mksafe plays silence until a manual
 # restart. Every task of the chain uses this handler.
 def rec on_schedule_error(err)
-  log.critical("[KPBJ] Error in the schedule: #{err.kind}: #{err.message}. Start again in 5 seconds")
+  log.critical("[KPBJ] Error in the schedule: #{error.kind(err)}: #{error.message(err)}. Start again in 5 seconds")
   thread.run(fast=false, delay=5., on_error=fun(e) -> on_schedule_error(e), fun() -> begin
     start = start_schedule()
     start()
@@ -384,7 +384,7 @@ thread.run(fast=false, on_error=on_schedule_error, fun() -> play_current(plan))
 # The POST runs in a separate task. on_track runs in the streaming loop, and a
 # slow POST there stops the audio for up to the 5 second timeout. The values
 # for the body are read before the task starts.
-timeline.on_track(fun(m) -> begin
+timeline.on_track(synchronous=true, fun(m) -> begin
   title = m["title"] ?? "unknown"
   artist = m["artist"] ?? ""
   source_type = m["source_type"] ?? "unknown"
@@ -428,7 +428,7 @@ timeline.on_track(fun(m) -> begin
     end
 
     def on_post_error(err)
-      log.critical("[KPBJ] Playout POST error: #{err.kind}: #{err.message}")
+      log.critical("[KPBJ] Playout POST error: #{error.kind(err)}: #{error.message(err)}")
     end
 
     thread.run(fast=false, on_error=on_post_error, post_played)
