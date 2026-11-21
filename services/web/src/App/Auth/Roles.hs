@@ -47,6 +47,7 @@ module App.Auth.Roles
     roleRejectionHandler,
 
     -- * Failure responses
+    rendersHtml,
     toLoginRedirect,
     rejectionError,
   )
@@ -66,6 +67,8 @@ import Control.Monad.IO.Class (liftIO)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Bifunctor (second)
+import Data.ByteString qualified as ByteString
+import Data.Maybe (isJust)
 import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text.Encoding
 import Data.Time (getCurrentTime)
@@ -121,7 +124,7 @@ roleAuthHandler ::
   AuthHandler Request (SomeRole RoleAuth)
 roleAuthHandler logEnv pool env =
   mkAuthHandler $ \request ->
-    unAuthHandler inner request `catchError` (throwError . toLoginRedirect)
+    unAuthHandler inner request `catchError` (throwError . toLoginRedirect request)
   where
     inner = authHandlerFor withMetadata pool env defaultSessionConfig {sessionIdleTimeout = Nothing}
 
@@ -153,12 +156,26 @@ roleRejectionHandler logEnv =
           "required_role" .= display required,
           "path" .= Text.Encoding.decodeUtf8Lenient (Wai.rawPathInfo request)
         ]
-    pure (rejectionError required auth.raMetadata)
+    pure (rejectionError request required auth.raMetadata)
 
 --------------------------------------------------------------------------------
 
+-- | True when the client of a request renders HTML, so it can follow the
+-- redirect of 'hxRedirectError'.
+--
+-- HTMX sends the @HX-Request@ header. A browser that loads a page names
+-- @text/html@ in its @Accept@ header. A @fetch@ call sends @Accept: */*@ by
+-- default, so it does not count.
+rendersHtml :: Request -> Bool
+rendersHtml request =
+  isJust (lookup "HX-Request" headers)
+    || maybe False ("text/html" `ByteString.isInfixOf`) (lookup "Accept" headers)
+  where
+    headers = Wai.requestHeaders request
+
 -- | Change an auth failure into the login redirect with the "Login Required"
--- flash.
+-- flash. A client that does not render HTML gets a plain 401 (see
+-- 'rendersHtml').
 --
 -- The auth handler of @web-server-core@ fails with a 307 when the cookie is
 -- absent or not valid, and with a 401 when the session is absent or expired.
@@ -167,26 +184,31 @@ roleRejectionHandler logEnv =
 -- A database error in the session query does not come here.
 -- @authHandlerFor@ raises it as an exception, so it passes the 'catchError'
 -- in 'roleAuthHandler', and Warp answers it with a 500.
-toLoginRedirect :: Servant.ServerError -> Servant.ServerError
-toLoginRedirect err
-  | Servant.errHTTPCode err `elem` [401, 307] =
+toLoginRedirect :: Request -> Servant.ServerError -> Servant.ServerError
+toLoginRedirect request err
+  | Servant.errHTTPCode err `notElem` [401, 307] = err
+  | rendersHtml request =
       uncurry hxRedirectError (second Just (errorRedirectParams apiLinks.rootGet NotAuthenticated))
-  | otherwise = err
+  | otherwise = Servant.err401
 
--- | The response for a user whose role does not satisfy a gate.
+-- | The response for a user whose role does not satisfy a gate. A client
+-- that does not render HTML gets a plain 403 (see 'rendersHtml').
 --
 -- The target comes from the stored role, not from 'effectiveRole'. Thus a
 -- suspended host goes to the dashboard home, as the handlers send them today.
 rejectionError ::
+  Request ->
   -- | The role that the gate requires
   UserMetadata.UserRole ->
   -- | The metadata of the user
   UserMetadata.Model ->
   Servant.ServerError
-rejectionError required metadata =
-  hxRedirectError
-    (rootLink (notAuthorizedRedirect (Just metadata.mUserRole)))
-    (Just (FlashMessage Error "Access Denied" message))
+rejectionError request required metadata
+  | rendersHtml request =
+      hxRedirectError
+        (rootLink (notAuthorizedRedirect (Just metadata.mUserRole)))
+        (Just (FlashMessage Error "Access Denied" message))
+  | otherwise = Servant.err403
   where
     message
       | UserMetadata.isSuspended metadata = "Your account is suspended."
