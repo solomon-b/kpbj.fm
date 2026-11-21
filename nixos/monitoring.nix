@@ -245,6 +245,11 @@ in
             http_port = cfg.grafanaPort;
           };
 
+          # The old default of NixOS before 26.05. Grafana encrypts
+          # the secrets in its database with this key, so a new key
+          # needs a rotation of those secrets.
+          security.secret_key = "SW2YcwTIb9zpOOhoPsMm";
+
           # Disable login for localhost-only access via SSH tunnel
           "auth.anonymous" = {
             enabled = true;
