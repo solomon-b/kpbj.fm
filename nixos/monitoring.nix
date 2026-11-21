@@ -1,9 +1,9 @@
 # ──────────────────────────────────────────────────────────────
-# Monitoring: Grafana + Loki + Promtail
+# Monitoring: Grafana + Loki + Alloy
 # ──────────────────────────────────────────────────────────────
 #
-# Centralized log aggregation for all KPBJ services. Promtail
-# scrapes journald for kpbj-* units and postgresql, ships to
+# Centralized log aggregation for all KPBJ services. Alloy
+# reads journald for kpbj-* units and postgresql, ships to
 # Loki. Grafana provides the query/dashboard UI.
 #
 # All services bind to localhost only. Access via SSH tunnel:
@@ -97,7 +97,7 @@ let
 in
 {
   options.kpbj.monitoring = {
-    enable = lib.mkEnableOption "KPBJ monitoring (Grafana + Loki + Promtail)";
+    enable = lib.mkEnableOption "KPBJ monitoring (Grafana + Loki + Alloy)";
 
     grafanaPort = lib.mkOption {
       type = lib.types.port;
@@ -175,51 +175,45 @@ in
         };
       };
 
-      # ── Promtail: scrapes journald, ships to Loki ──────────────
+      # ── Alloy: reads journald, ships to Loki ───────────────────
       #
-      # Disable namespace sandboxing. The NixOS module enables
-      # PrivateTmp / ProtectSystem by default, which requires
-      # user-namespace support.  Some VPS kernels block this,
-      # causing ExecStartPre to exit 226/NAMESPACE.
-      systemd.services.promtail.serviceConfig = {
-        PrivateTmp = lib.mkForce false;
-        ProtectSystem = lib.mkForce false;
-        ProtectHome = lib.mkForce false;
-        PrivateDevices = lib.mkForce false;
-      };
-
-      services.promtail = {
+      # Alloy keeps only the journal entries of the units below and
+      # gives each entry a unit label. Its own HTTP server listens
+      # on 127.0.0.1:12345, the default.
+      services.alloy = {
         enable = true;
-        configuration = {
-          server = {
-            http_listen_address = "127.0.0.1";
-            http_listen_port = 9080;
-            grpc_listen_port = 0; # Disable unused gRPC server
-          };
-
-          clients = [{
-            url = "http://127.0.0.1:${toString cfg.lokiPort}/loki/api/v1/push";
-          }];
-
-          scrape_configs = [{
-            job_name = "journal";
-            journal = {
-              max_age = "12h";
-              labels.job = "systemd-journal";
-            };
-            relabel_configs = [{
-              source_labels = [ "__journal__systemd_unit" ];
-              target_label = "unit";
-            }];
-            pipeline_stages = [{
-              match = {
-                selector = ''{unit!~"kpbj-.*|postgresql.service|icecast.service|friendly-ghost.service"}'';
-                action = "drop";
-              };
-            }];
-          }];
-        };
+        extraFlags = [ "--disable-reporting" ];
       };
+
+      environment.etc."alloy/config.alloy".text = ''
+        loki.relabel "journal" {
+          forward_to = []
+
+          rule {
+            source_labels = ["__journal__systemd_unit"]
+            regex         = "kpbj-.*|postgresql.service|icecast.service|friendly-ghost.service"
+            action        = "keep"
+          }
+
+          rule {
+            source_labels = ["__journal__systemd_unit"]
+            target_label  = "unit"
+          }
+        }
+
+        loki.source.journal "journal" {
+          max_age       = "12h"
+          labels        = { job = "systemd-journal" }
+          relabel_rules = loki.relabel.journal.rules
+          forward_to    = [loki.write.local.receiver]
+        }
+
+        loki.write "local" {
+          endpoint {
+            url = "http://127.0.0.1:${toString cfg.lokiPort}/loki/api/v1/push"
+          }
+        }
+      '';
 
       # ── Prometheus: metrics collection ──────────────────────────
       services.prometheus = {

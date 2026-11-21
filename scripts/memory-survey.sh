@@ -26,7 +26,7 @@ SERVICES=(
   nginx.service
   loki.service
   grafana.service
-  promtail.service
+  alloy.service
   fail2ban.service
 )
 
