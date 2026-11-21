@@ -14,7 +14,7 @@ module API.Dashboard.Store.Orders.Id.Status.Post.Handler (handler) where
 
 import API.Dashboard.Store.Orders.Id.Get.Templates (orderDetailContent)
 import API.Dashboard.Store.Orders.Id.Status.Post.Route (StatusForm (..))
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth, Satisfies)
 import App.Handler.Error (HandlerError, handleBannerErrors, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
@@ -25,12 +25,12 @@ import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
-import Domain.Types.Cookie (Cookie)
 import Effects.Database.Execute (execQueryThrow)
 import Effects.Database.Tables.OrderItems qualified as OrderItems
 import Effects.Database.Tables.Orders qualified as Orders
 import Effects.Database.Tables.ProductVariants qualified as ProductVariants
 import Effects.Database.Tables.Products qualified as Products
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Effects.Email.Send (sendAsync)
 import Lucid qualified
 import Store.Checkout.Emails (ShippingEmailData (..), shippingConfirmationEmail)
@@ -41,14 +41,11 @@ import Utils (fromMaybeM)
 -- | Servant handler: authenticate, validate, apply status transition.
 handler ::
   Orders.Id ->
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   StatusForm ->
   AppM (Lucid.Html ())
-handler orderId cookie form =
+handler orderId _ form =
   handleBannerErrors "Order status update" $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to update order status." userMetadata
-
     -- Fetch the order; 404 if not found
     order <- fromMaybeM (throwNotFound "Order") $ lift (execQueryThrow (Orders.getById orderId))
 

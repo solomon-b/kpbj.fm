@@ -4,18 +4,15 @@ module API.Dashboard.Events.Slug.Delete.Handler (handler, action) where
 
 --------------------------------------------------------------------------------
 
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
-import App.Handler.Error (HandlerError, handleBannerErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
+import App.Auth.Roles (RoleAuth, Satisfies)
+import App.Handler.Error (HandlerError, handleBannerErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
-import Control.Monad (unless)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Events qualified as Events
-import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
@@ -23,35 +20,23 @@ import Utils (fromMaybeM, fromRightM)
 
 --------------------------------------------------------------------------------
 
--- | Business logic: fetch, authorize, delete.
+-- | Business logic: fetch, delete.
 action ::
-  User.Model ->
-  UserMetadata.Model ->
   Events.Id ->
   ExceptT HandlerError AppM ()
-action user userMetadata eventId = do
-  -- 1. Fetch event
+action eventId = do
   event <- fetchEvent eventId
-
-  -- 2. Check authorization: must be staff/admin or the creator
-  let isAuthorized = event.emAuthorId == user.mId || UserMetadata.isStaffOrHigher userMetadata.mUserRole
-  unless isAuthorized $
-    throwNotAuthorized "You don't have permission to delete this event." (Just userMetadata.mUserRole)
-
-  -- 3. Delete the event
   deleteEvent event
 
 -- | Servant handler: thin glue composing action + banner response.
 handler ::
   Events.Id ->
   Slug ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   AppM (Lucid.Html ())
-handler eventId _eventSlug cookie =
+handler eventId _eventSlug _ =
   handleBannerErrors "Event delete" $ do
-    (user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to delete events." userMetadata
-    action user userMetadata eventId
+    action eventId
     pure $ do
       Lucid.toHtmlRaw ("" :: Text)
       renderBanner Success "Event Deleted" "The event has been deleted successfully."

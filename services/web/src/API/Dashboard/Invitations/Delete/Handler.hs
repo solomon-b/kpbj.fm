@@ -1,16 +1,14 @@
-{-# LANGUAGE OverloadedRecordDot #-}
-
 module API.Dashboard.Invitations.Delete.Handler (handler) where
 
 --------------------------------------------------------------------------------
 
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth, Satisfies)
 import App.Handler.Error (handleBannerErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
-import Domain.Types.Cookie (Cookie)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.HostInvitation qualified as HostInvitation
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Lucid qualified
 
 --------------------------------------------------------------------------------
@@ -21,12 +19,10 @@ import Lucid qualified
 -- Returns an OOB banner confirming the revocation.
 handler ::
   HostInvitation.Id ->
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   AppM (Lucid.Html ())
-handler invitationId cookie =
+handler invitationId _ =
   handleBannerErrors "Invitation revoke" $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "Only staff can revoke invitations." userMetadata
     revokeResult <- execQuery (HostInvitation.revokeInvitation invitationId)
     case revokeResult of
       Left dbErr -> throwDatabaseError dbErr

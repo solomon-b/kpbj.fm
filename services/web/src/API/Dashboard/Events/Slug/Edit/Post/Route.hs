@@ -5,12 +5,13 @@ module API.Dashboard.Events.Slug.Edit.Post.Route where
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Timezone (parsePacificFromDateTimeInput)
 import Effects.Database.Tables.Events qualified as Events
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Servant.Multipart (FileData (..), FromMultipart, Mem, MultipartData (..), MultipartForm, fromMultipart, lookupFile, lookupInput)
 import Text.HTML (HTML)
 
@@ -23,7 +24,7 @@ type Route =
     :> Servant.Capture "id" Events.Id
     :> Servant.Capture "slug" Slug
     :> "edit"
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Staff
     :> MultipartForm Mem EventEditForm
     :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 

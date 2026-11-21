@@ -16,7 +16,7 @@ module API.Dashboard.Store.Orders.Id.Label.Post.Handler (handler) where
 
 import API.Dashboard.Store.Orders.Id.Label.Post.Route (LabelForm (..))
 import API.Dashboard.Store.Orders.Id.Label.Post.Templates qualified as Templates
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth, Satisfies)
 import App.Handler.Error (HandlerError, handleBannerErrors, throwHandlerFailure, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
@@ -29,7 +29,6 @@ import Data.Has (getter)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.Text qualified as Text
-import Domain.Types.Cookie (Cookie)
 import EasyPost.Client (EasyPostClientError (..), buyShipment, createShipment)
 import EasyPost.Types
   ( AddressParams (..),
@@ -46,6 +45,7 @@ import Effects.Database.Tables.Orders qualified as Orders
 import Effects.Database.Tables.ProductVariants qualified as ProductVariants
 import Effects.Database.Tables.Products qualified as Products
 import Effects.Database.Tables.StoreSettings qualified as StoreSettings
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Log qualified
 import Lucid qualified
 import Network.HTTP.Client (Manager)
@@ -58,14 +58,11 @@ import Utils (fromMaybeM)
 -- | Servant handler: authenticate, then dispatch to step 1 or step 2.
 handler ::
   Orders.Id ->
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   LabelForm ->
   AppM (Lucid.Html ())
-handler orderId cookie form =
+handler orderId _ form =
   handleBannerErrors "Label purchase" $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to purchase shipping labels." userMetadata
-
     order <- fromMaybeM (throwNotFound "Order") $ lift (execQueryThrow (Orders.getById orderId))
 
     if Text.null (lfRateId form)

@@ -8,7 +8,7 @@ module API.Dashboard.NewsletterSubscribers.Bulk.Post.Handler (handler) where
 import API.Dashboard.NewsletterSubscribers.Bulk.Post.Route (BulkForm (..))
 import API.Links (dashboardNewsletterSubscribersLinks)
 import API.Types
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth, Satisfies)
 import App.Handler.Error (handleRedirectErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -19,10 +19,10 @@ import Data.Set qualified as Set
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.EmailAddress (EmailAddress, mkEmailAddress)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.NewsletterSubscribers qualified as NewsletterSubscribers
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Effects.Mailchimp.Sync (SyncOp (..), syncAsync)
 import Log qualified
 import Servant qualified
@@ -32,14 +32,11 @@ import Servant.Links qualified as Links
 
 -- | Handler for POST /dashboard/newsletter-subscribers/bulk.
 handler ::
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   BulkForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler cookie form =
+handler _ form =
   handleRedirectErrors "Newsletter subscribers bulk add" dashboardNewsletterSubscribersLinks.bulkGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "Only staff can add newsletter subscribers." userMetadata
-
     let (valid, invalidCount) = parseEmails form.bfEmails
 
     (added, duplicate) <- foldM insertOne (0 :: Int, 0 :: Int) valid

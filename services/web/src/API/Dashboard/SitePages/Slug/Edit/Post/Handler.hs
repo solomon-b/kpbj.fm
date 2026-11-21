@@ -7,7 +7,8 @@ module API.Dashboard.SitePages.Slug.Edit.Post.Handler (handler, action) where
 import API.Dashboard.SitePages.Slug.Edit.Post.Route (EditForm (..))
 import API.Links (dashboardSitePagesLinks, rootLink)
 import API.Types (DashboardSitePagesRoutes (..))
-import App.Handler.Combinators (requireAuth, requireRight, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Handler.Combinators (requireRight)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -17,13 +18,13 @@ import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Execute (execTransaction)
 import Effects.Database.Tables.SitePageRevisions qualified as SitePageRevisions
 import Effects.Database.Tables.SitePages qualified as SitePages
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Servant qualified
@@ -33,15 +34,13 @@ import Utils (fromMaybeM, fromRightM)
 
 handler ::
   Text ->
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   Maybe HxRequest ->
   EditForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler pageSlug cookie _hxRequest editForm =
+handler pageSlug (Satisfies _ auth) _hxRequest editForm =
   handleRedirectErrors "Site page update" dashboardSitePagesLinks.list $ do
-    (user, _userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to edit site pages." _userMetadata
-    wasUpdated <- action user pageSlug editForm
+    wasUpdated <- action auth.raUser pageSlug editForm
     let listUrl = rootLink dashboardSitePagesLinks.list
         flash =
           if wasUpdated

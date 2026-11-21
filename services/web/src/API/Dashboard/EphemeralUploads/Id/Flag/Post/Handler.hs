@@ -6,7 +6,7 @@ module API.Dashboard.EphemeralUploads.Id.Flag.Post.Handler where
 
 import API.Dashboard.EphemeralUploads.Get.Templates.Page (renderEphemeralUploadRow)
 import API.Dashboard.EphemeralUploads.Id.Flag.Post.Route (FlagForm (..))
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Handler.Error (HandlerError, handleBannerErrors, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
@@ -18,11 +18,11 @@ import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Has (getter)
 import Data.Text.Display (display)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Class (runDBTransaction)
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Hasql.Pool qualified as HSQL
 import Hasql.Transaction qualified as TRX
 import Log qualified
@@ -58,14 +58,12 @@ action user targetId FlagForm {..} = do
 -- | Servant handler: thin glue running action and rendering row + banner.
 handler ::
   EphemeralUploads.Id ->
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   FlagForm ->
   AppM (Lucid.Html ())
-handler targetId cookie flagForm =
+handler targetId (Satisfies _ auth) flagForm =
   handleBannerErrors "Ephemeral upload flag" $ do
-    (user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "Only staff can flag ephemeral uploads." userMetadata
-    vd <- action user targetId flagForm
+    vd <- action auth.raUser targetId flagForm
     lift $ renderFlagResult vd.ufvBackend vd.ufvResult
 
 --------------------------------------------------------------------------------

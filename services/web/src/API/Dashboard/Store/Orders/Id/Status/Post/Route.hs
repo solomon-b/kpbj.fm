@@ -3,11 +3,12 @@ module API.Dashboard.Store.Orders.Id.Status.Post.Route where
 --------------------------------------------------------------------------------
 
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie)
 import Effects.Database.Tables.Orders qualified as Orders
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Lucid qualified
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Text.HTML (HTML)
 import Web.FormUrlEncoded (FromForm (..))
 import Web.FormUrlEncoded qualified as Form
@@ -41,6 +42,6 @@ type Route =
     :> "orders"
     :> Servant.Capture "id" Orders.Id
     :> "status"
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Staff
     :> Servant.ReqBody '[Servant.FormUrlEncoded] StatusForm
     :> Servant.Post '[HTML] (Lucid.Html ())

@@ -8,15 +8,14 @@ module API.Dashboard.Shows.New.Get.Handler (handler, action, ShowNewGetViewData 
 import API.Dashboard.Shows.New.Get.Templates.Page (template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -48,13 +47,10 @@ action userMetadata = do
       }
 
 handler ::
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler cookie (foldHxReq -> hxRequest) =
+handler (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "New show form" apiLinks.rootGet $ do
-    -- 1. Require authentication and staff role
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to access this page." userMetadata
-    vd <- action userMetadata
+    vd <- action auth.raMetadata
     lift $ renderDashboardTemplate hxRequest vd.sngvUserMetadata NoShow NavShows Nothing Nothing (template vd.sngvEligibleHosts)

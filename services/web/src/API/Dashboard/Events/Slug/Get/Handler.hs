@@ -8,9 +8,9 @@ module API.Dashboard.Events.Slug.Get.Handler (handler, action, EventDetailViewDa
 import API.Dashboard.Events.Slug.Get.Templates.Page (template)
 import API.Links (dashboardEventsLinks, rootLink)
 import API.Types (DashboardEventsRoutes (..))
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -18,7 +18,6 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Execute (execTransaction)
@@ -57,14 +56,12 @@ action userMetadata eventId = do
 handler ::
   Events.Id ->
   Slug ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler eventId _slug cookie (foldHxReq -> hxRequest) =
+handler eventId _slug (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Event detail" (dashboardEventsLinks.list Nothing) $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to access this page." userMetadata
-    vd <- action userMetadata eventId
+    vd <- action auth.raMetadata eventId
     let eventTemplate = template vd.edvEvent vd.edvAuthor
     lift $
       renderDashboardTemplate

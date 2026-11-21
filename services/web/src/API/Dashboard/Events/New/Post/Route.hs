@@ -4,9 +4,10 @@ module API.Dashboard.Events.New.Post.Route where
 
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Domain.Types.Cookie (Cookie)
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
 import Text.HTML (HTML)
 
@@ -17,7 +18,7 @@ type Route =
   "dashboard"
     :> "events"
     :> "new"
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Staff
     :> MultipartForm Mem NewEventForm
     :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 

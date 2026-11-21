@@ -4,16 +4,16 @@ module API.Dashboard.AirBreaks.Underwriters.Id.Edit.Post.Handler (handler, actio
 
 import API.Dashboard.AirBreaks.Underwriters.Form (UnderwriterForm (..))
 import API.Dashboard.AirBreaks.Underwriters.Get.Templates.Page (renderTableBody)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth, Satisfies)
 import App.Handler.Error (HandlerError, handleBannerErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad (when)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Text qualified as Text
-import Domain.Types.Cookie (Cookie)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Underwriters qualified as Underwriters
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Lucid qualified
 import Utils (fromMaybeM, fromRightM)
 
@@ -22,13 +22,11 @@ import Utils (fromMaybeM, fromRightM)
 -- | Handler for POST /dashboard/air-breaks/underwriters/:underwriter_id/edit.
 handler ::
   Underwriters.Id ->
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   UnderwriterForm ->
   AppM (Lucid.Html ())
-handler underwriterId cookie form =
+handler underwriterId _ form =
   handleBannerErrors "Underwriter rename" $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to manage underwriters." userMetadata
     underwriters <- action underwriterId form
     pure $ do
       renderTableBody underwriters

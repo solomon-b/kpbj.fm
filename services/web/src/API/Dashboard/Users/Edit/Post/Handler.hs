@@ -7,7 +7,7 @@ module API.Dashboard.Users.Edit.Post.Handler where
 
 import API.Links (dashboardUsersLinks)
 import API.Types
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth, Satisfies)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -20,7 +20,6 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.DisplayName qualified as DisplayName
 import Domain.Types.FileUpload qualified
@@ -48,13 +47,11 @@ userDetailUrl userId =
 
 handler ::
   User.Id ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   MultipartData Mem ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler targetUserId cookie multipartData =
+handler targetUserId _ multipartData =
   handleRedirectErrors "User edit" (dashboardUsersLinks.detail targetUserId) $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to edit users." userMetadata
     action targetUserId multipartData
     let detailUrl = userDetailUrl targetUserId
         flash = FlashMessage Success "User Updated" "The user's information has been updated."

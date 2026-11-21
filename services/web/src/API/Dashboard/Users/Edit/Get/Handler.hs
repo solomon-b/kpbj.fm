@@ -8,9 +8,9 @@ module API.Dashboard.Users.Edit.Get.Handler where
 import API.Dashboard.Users.Edit.Get.Templates.Page (template)
 import API.Links (apiLinks)
 import API.Types
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -18,7 +18,6 @@ import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Has (getter)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Execute (execTransaction)
@@ -59,14 +58,12 @@ action userMetadata targetUserId = do
 
 handler ::
   User.Id ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler targetUserId cookie (foldHxReq -> hxRequest) =
+handler targetUserId (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "User edit" apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to access this page." userMetadata
-    vd <- action userMetadata targetUserId
+    vd <- action auth.raMetadata targetUserId
     lift $ renderDashboardTemplate hxRequest vd.uevUserMetadata NoShow NavUsers Nothing Nothing (template vd.uevBackend vd.uevTargetUser vd.uevTargetMetadata)
 
 -- | Fetch target user and their metadata, or throw NotFound

@@ -6,7 +6,7 @@ module API.Dashboard.SitePages.Slug.Revisions.Id.Restore.Post.Handler (handler, 
 
 import API.Links (dashboardSitePagesLinks, rootLink)
 import API.Types (DashboardSitePagesRoutes (..))
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -15,12 +15,12 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
 import Effects.Database.Execute (execTransaction)
 import Effects.Database.Tables.SitePageRevisions qualified as SitePageRevisions
 import Effects.Database.Tables.SitePages qualified as SitePages
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Servant qualified
@@ -31,14 +31,12 @@ import Utils (fromMaybeM, fromRightM)
 handler ::
   Text ->
   SitePageRevisions.Id ->
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   Maybe HxRequest ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler pageSlug revisionId cookie _hxRequest =
+handler pageSlug revisionId (Satisfies _ auth) _hxRequest =
   handleRedirectErrors "Restore revision" (dashboardSitePagesLinks.historyGet pageSlug) $ do
-    (user, _userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to restore revisions." _userMetadata
-    action user pageSlug revisionId
+    action auth.raUser pageSlug revisionId
     let historyUrl = rootLink $ dashboardSitePagesLinks.historyGet pageSlug
         flash = FlashMessage Success "Revision Restored" "The page has been restored to the selected revision."
     pure $ Servant.addHeader historyUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent

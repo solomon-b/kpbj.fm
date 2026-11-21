@@ -28,7 +28,6 @@ spec =
       describe "action" $ do
         it "returns NotFound for a nonexistent event ID" test_notFoundForMissingEvent
         it "staff user can access the edit form for any event" test_staffCanAccessEditForm
-        it "unrelated regular user gets NotAuthorized" test_notAuthorizedForUnrelatedUser
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -40,11 +39,10 @@ test_notFoundForMissingEvent cfg = do
 
   bracketAppM cfg $ do
     dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-      (userModel, userMetaModel) <- setupUserModels userInsert
-      pure (userModel, userMetaModel)
-    (userModel, userMetaModel) <- liftIO $ expectSetupRight dbResult
+      snd <$> setupUserModels userInsert
+    userMetaModel <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT $ action userModel userMetaModel (Events.Id 99999)
+    result <- runExceptT $ action userMetaModel (Events.Id 99999)
 
     liftIO $ case result of
       Left (NotFound "Event") -> pure ()
@@ -60,7 +58,7 @@ test_staffCanAccessEditForm cfg = do
   bracketAppM cfg $ do
     dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
       creatorId <- insertTestUser creatorInsert
-      (staffModel, staffMetaModel) <- setupUserModels staffInsert
+      (_, staffMetaModel) <- setupUserModels staffInsert
       let eventInsert =
             Events.Insert
               { Events.eiTitle = "Edit Get Staff Test Event",
@@ -77,47 +75,11 @@ test_staffCanAccessEditForm cfg = do
                 Events.eiFeaturedOnHomepage = False
               }
       eventId <- insertTestEvent eventInsert
-      pure (staffModel, staffMetaModel, eventId)
-    (staffModel, staffMetaModel, eventId) <- liftIO $ expectSetupRight dbResult
+      pure (staffMetaModel, eventId)
+    (staffMetaModel, eventId) <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT $ action staffModel staffMetaModel eventId
+    result <- runExceptT $ action staffMetaModel eventId
 
     liftIO $ case result of
       Left err -> expectationFailure $ "Expected Right but got Left: " <> show err
       Right vd -> vd.eevEvent.emId `shouldBe` eventId
-
--- | A regular User who did not create the event gets NotAuthorized.
-test_notAuthorizedForUnrelatedUser :: TestDBConfig -> IO ()
-test_notAuthorizedForUnrelatedUser cfg = do
-  creatorInsert <- mkUserInsert "ev-edit-get-owner" UserMetadata.Staff
-  otherInsert <- mkUserInsert "ev-edit-get-other" UserMetadata.User
-
-  bracketAppM cfg $ do
-    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-      creatorId <- insertTestUser creatorInsert
-      (otherModel, otherMetaModel) <- setupUserModels otherInsert
-      let eventInsert =
-            Events.Insert
-              { Events.eiTitle = "Edit Get Unauth Test Event",
-                Events.eiSlug = Slug.mkSlug "edit-get-unauth-test-event",
-                Events.eiDescription = "An event created by someone else.",
-                Events.eiStartsAt = read "2026-06-15 17:00:00 UTC",
-                Events.eiEndsAt = read "2026-06-15 19:00:00 UTC",
-                Events.eiLocationName = "Unauth Venue",
-                Events.eiLocationAddress = "2 Unauth Rd",
-                Events.eiStatus = Events.Published,
-                Events.eiAuthorId = creatorId,
-                Events.eiPosterImageUrl = Nothing,
-                Events.eiTicketUrl = Nothing,
-                Events.eiFeaturedOnHomepage = False
-              }
-      eventId <- insertTestEvent eventInsert
-      pure (otherModel, otherMetaModel, eventId)
-    (otherModel, otherMetaModel, eventId) <- liftIO $ expectSetupRight dbResult
-
-    result <- runExceptT $ action otherModel otherMetaModel eventId
-
-    liftIO $ case result of
-      Left (NotAuthorized _ _) -> pure ()
-      Left err -> expectationFailure $ "Expected NotAuthorized but got: " <> show err
-      Right _ -> expectationFailure "Expected Left NotAuthorized but got Right"

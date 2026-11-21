@@ -463,8 +463,9 @@ server =
         }
 
     -- The staff break item sections run the same handlers. They differ only
-    -- in the Section value, which carries the category, the URLs, and the
-    -- permission gate. See "API.Dashboard.AirBreaks.BreakItems.Shared".
+    -- in the Section value, which carries the category and the URLs. The
+    -- gate of each section is the role in its route types. See
+    -- "API.Dashboard.AirBreaks.BreakItems.Shared".
     dashboardAnnouncementsRoutes =
       DashboardAnnouncementsRoutes
         { list = BreakItems.Shared.listHandler BreakItems.Shared.announcementSection,

@@ -11,7 +11,7 @@ import API.Dashboard.Invitations.New.Post.Handler (validateRecipientEmail, valid
 import API.Dashboard.Shows.Slug.Edit.Post.Handler (parseScheduleStartDate)
 import API.Links (dashboardInvitationsLinks)
 import API.Types
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth, Satisfies)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -22,11 +22,11 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day, showGregorian)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.Timezone (pacificDay)
 import Effects.Clock (currentSystemTime)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.HostInvitation qualified as HostInvitation
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Servant qualified
 import Servant.Links qualified as Links
 import Utils (fromRightM)
@@ -46,14 +46,11 @@ dashboardInvitationsGetUrl =
 -- invitation. Redirects to the invitation list with a success flash.
 handler ::
   HostInvitation.Id ->
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   EditInvitationForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler invitationId cookie form =
+handler invitationId _ form =
   handleRedirectErrors "Invitation update" (dashboardInvitationsLinks.editGet invitationId) $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "Only staff can edit invitations." userMetadata
-
     action invitationId form
 
     let flash = FlashMessage Success "Invitation updated" "The invitation link stays the same. No email was sent."

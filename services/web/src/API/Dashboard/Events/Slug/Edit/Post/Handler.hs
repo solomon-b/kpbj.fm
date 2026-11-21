@@ -7,8 +7,9 @@ module API.Dashboard.Events.Slug.Edit.Post.Handler (handler, action) where
 import API.Dashboard.Events.Slug.Edit.Post.Route (EventEditForm (..), parseDateTime, parseStatus)
 import API.Links (dashboardEventsLinks, rootLink)
 import API.Types (DashboardEventsRoutes (..))
-import App.Handler.Combinators (requireAuth, requireJust, requireRight, requireStaffNotSuspended)
-import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwNotAuthorized, throwNotFound, throwValidationError)
+import App.Auth.Roles (RoleAuth, Satisfies)
+import App.Handler.Combinators (requireJust, requireRight)
+import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Flash (FlashMessage (..), flashCookie)
@@ -25,7 +26,6 @@ import Data.Maybe (catMaybes)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text.Encoding
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
@@ -33,7 +33,6 @@ import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.EventImages qualified as EventImages
 import Effects.Database.Tables.Events qualified as Events
-import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.FileUpload (uploadEventGalleryImage, uploadEventPosterImage)
 import Effects.Storage (deleteFile)
@@ -51,24 +50,18 @@ data EventEditRedirectData = EventEditRedirectData
     eerFlash :: FlashMessage
   }
 
--- | Business logic: fetch event, authorize, validate, update, build redirect data.
+-- | Business logic: fetch event, validate, update, build redirect data.
 action ::
-  User.Model ->
-  UserMetadata.Model ->
   Events.Id ->
   Slug ->
   EventEditForm ->
   ExceptT HandlerError AppM EventEditRedirectData
-action user userMetadata eventId _slug editForm = do
+action eventId _slug editForm = do
   -- 1. Fetch event
   event <-
     fromMaybeM (throwNotFound "Event") $
       fromRightM throwDatabaseError $
         execQuery (Events.getEventById eventId)
-
-  -- 2. Check authorization: must be staff/admin or the creator
-  unless (event.emAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole) $
-    throwNotAuthorized "You can only edit events you created or have staff permissions." (Just userMetadata.mUserRole)
 
   updateEvent eventId event editForm
 
@@ -76,14 +69,12 @@ action user userMetadata eventId _slug editForm = do
 handler ::
   Events.Id ->
   Slug ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   EventEditForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler eventId slug cookie editForm =
+handler eventId slug _ editForm =
   handleRedirectErrors "Event update" (dashboardEventsLinks.editGet eventId slug) $ do
-    (user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to edit events." userMetadata
-    vd <- action user userMetadata eventId slug editForm
+    vd <- action eventId slug editForm
     pure $ Servant.addHeader vd.eerRedirectUrl $ Servant.addHeader (flashCookie (Just vd.eerFlash)) Servant.NoContent
 
 updateEvent ::

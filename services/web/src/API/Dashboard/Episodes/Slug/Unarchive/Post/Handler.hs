@@ -5,7 +5,7 @@ module API.Dashboard.Episodes.Slug.Unarchive.Post.Handler where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Episodes.Get.Templates.EpisodeRow (renderEpisodeTableRow)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Handler.Error (HandlerError, handleBannerErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
@@ -14,11 +14,11 @@ import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Maybe (isNothing)
 import Data.Text.Display (display)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Log qualified
 import Lucid qualified
 import Utils (fromMaybeM, fromRightM)
@@ -35,17 +35,13 @@ import Utils (fromMaybeM, fromRightM)
 handler ::
   Slug ->
   Episodes.EpisodeNumber ->
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   AppM (Lucid.Html ())
-handler showSlug episodeNumber cookie =
+handler showSlug episodeNumber (Satisfies _ auth) =
   handleBannerErrors "Episode unarchive" $ do
-    (_user, userMeta) <- requireAuth cookie
-    requireStaffNotSuspended
-      "Only staff members can unarchive episodes."
-      userMeta
     (showModel, episode) <- action showSlug episodeNumber
     pure $ do
-      renderEpisodeTableRow userMeta showModel episode
+      renderEpisodeTableRow auth.raMetadata showModel episode
       renderBanner Success "Episode Unarchived" "The episode is public again."
 
 -- | Business logic: fetch, verify, restore, and read the row back.

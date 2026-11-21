@@ -10,9 +10,9 @@ import API.Dashboard.Users.Get.Templates.ItemsFragment (renderItemsFragment)
 import API.Dashboard.Users.Get.Templates.Page (template)
 import API.Links (apiLinks, dashboardUsersLinks)
 import API.Types
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -26,7 +26,6 @@ import Data.Text (Text)
 import Data.Time (getCurrentTime)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Filter (Filter (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
@@ -102,14 +101,12 @@ handler ::
   Maybe (Filter Text) ->
   Maybe (Filter UserMetadata.UserRole) ->
   Maybe (Filter UserSortBy) ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler maybePage queryFilterParam roleFilterParam sortFilterParam cookie (foldHxReq -> hxRequest) =
+handler maybePage queryFilterParam roleFilterParam sortFilterParam (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Users list" apiLinks.rootGet $ do
-    (user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to access this page." userMetadata
-    vd <- action user userMetadata maybePage queryFilterParam roleFilterParam sortFilterParam hxRequest
+    vd <- action auth.raUser auth.raMetadata maybePage queryFilterParam roleFilterParam sortFilterParam hxRequest
     now <- liftIO getCurrentTime
     if vd.ulvIsAppendRequest
       then

@@ -3,7 +3,6 @@ module API.Dashboard.AirBreaks.Promos.Get.HandlerSpec where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.AirBreaks.Promos.Get.Handler (PromoListViewData (..), action)
-import App.Handler.Error (HandlerError (..))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Map.Strict qualified as Map
@@ -13,7 +12,7 @@ import Effects.Database.Tables.BreakItems qualified as BreakItems
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction.Sessions qualified as TRX
-import Test.Database.Helpers (addTestShowHost, unwrapInsert)
+import Test.Database.Helpers (unwrapInsert)
 import Test.Database.Monad (TestDBConfig, withTestDB)
 import Test.Handler.BreakItemFixtures (insertActiveShow, pendingPromoInsert)
 import Test.Handler.Fixtures (expectSetupRight, mkUserInsert, setupUserModels)
@@ -28,7 +27,6 @@ spec =
     describe "API.Dashboard.AirBreaks.Promos.Get.Handler.action" $ do
       it "lists the promos and their shows for staff" test_listsForStaff
       it "lists pending promos on page 1 only" test_pendingOnFirstPageOnly
-      it "refuses a host, also for a promo of their own show" test_refusesHost
 
 --------------------------------------------------------------------------------
 
@@ -37,13 +35,13 @@ test_listsForStaff cfg = do
   userInsert <- mkUserInsert "promo-review-staff" UserMetadata.Staff
   bracketAppM cfg $ do
     dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-      (userModel, userMeta) <- setupUserModels userInsert
+      (userModel, _) <- setupUserModels userInsert
       showId <- insertActiveShow "Night Shift" "night-shift"
       promoId <- unwrapInsert (BreakItems.insertBreakItem (pendingPromoInsert (User.mId userModel) showId))
-      pure (userMeta, showId, promoId)
-    (userMeta, showId, promoId) <- liftIO $ expectSetupRight dbResult
+      pure (showId, promoId)
+    (showId, promoId) <- liftIO $ expectSetupRight dbResult
 
-    result <- runExceptT (action userMeta Nothing)
+    result <- runExceptT (action Nothing)
     liftIO $ case result of
       Right vd -> do
         map BreakItems.bimId (plvPromos vd) `shouldBe` [promoId]
@@ -58,37 +56,19 @@ test_pendingOnFirstPageOnly cfg = do
   userInsert <- mkUserInsert "promo-review-pages" UserMetadata.Staff
   bracketAppM cfg $ do
     dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-      (userModel, userMeta) <- setupUserModels userInsert
+      (userModel, _) <- setupUserModels userInsert
       showId <- insertActiveShow "Night Shift" "night-shift"
       let promoInsert = pendingPromoInsert (User.mId userModel) showId
       pendingId <- unwrapInsert (BreakItems.insertBreakItem promoInsert)
       approvedId <- unwrapInsert (BreakItems.insertBreakItem promoInsert {BreakItems.biiReviewStatus = BreakItems.Approved})
-      pure (userMeta, pendingId, approvedId)
-    (userMeta, pendingId, approvedId) <- liftIO $ expectSetupRight dbResult
+      pure (pendingId, approvedId)
+    (pendingId, approvedId) <- liftIO $ expectSetupRight dbResult
 
-    firstPage <- runExceptT (action userMeta (Just (PageNumber 1)))
-    secondPage <- runExceptT (action userMeta (Just (PageNumber 2)))
+    firstPage <- runExceptT (action (Just (PageNumber 1)))
+    secondPage <- runExceptT (action (Just (PageNumber 2)))
     liftIO $ case (firstPage, secondPage) of
       (Right first, Right second) -> do
         map BreakItems.bimId (plvPromos first) `shouldBe` [pendingId, approvedId]
         map BreakItems.bimId (plvPromos second) `shouldBe` []
       (Left err, _) -> expectationFailure $ "Expected page 1, got " <> show err
       (_, Left err) -> expectationFailure $ "Expected page 2, got " <> show err
-
-test_refusesHost :: TestDBConfig -> IO ()
-test_refusesHost cfg = do
-  userInsert <- mkUserInsert "promo-review-host" UserMetadata.Host
-  bracketAppM cfg $ do
-    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-      (userModel, userMeta) <- setupUserModels userInsert
-      showId <- insertActiveShow "Night Shift" "night-shift"
-      addTestShowHost showId (User.mId userModel)
-      _ <- unwrapInsert (BreakItems.insertBreakItem (pendingPromoInsert (User.mId userModel) showId))
-      pure userMeta
-    userMeta <- liftIO $ expectSetupRight dbResult
-
-    result <- runExceptT (action userMeta Nothing)
-    liftIO $ case result of
-      Left (NotAuthorized _ _) -> pure ()
-      Left err -> expectationFailure $ "Expected NotAuthorized, got " <> show err
-      Right _ -> expectationFailure "Expected NotAuthorized, got the list"

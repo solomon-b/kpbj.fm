@@ -5,7 +5,7 @@ module API.Dashboard.EphemeralUploads.Id.Unflag.Post.Handler where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.EphemeralUploads.Get.Templates.Page (renderEphemeralUploadRow)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth, Satisfies)
 import App.Handler.Error (HandlerError, handleBannerErrors)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
@@ -17,10 +17,10 @@ import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Has (getter)
 import Data.Text.Display (display)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Class (runDBTransaction)
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Hasql.Pool qualified as HSQL
 import Hasql.Transaction qualified as TRX
 import Log qualified
@@ -49,12 +49,10 @@ action targetId = do
 -- | Servant handler: thin glue running action and rendering row + banner.
 handler ::
   EphemeralUploads.Id ->
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   AppM (Lucid.Html ())
-handler targetId cookie =
+handler targetId _ =
   handleBannerErrors "Ephemeral upload unflag" $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "Only staff can unflag ephemeral uploads." userMetadata
     vd <- action targetId
     lift $ renderUnflagResult vd.uuvBackend vd.uuvResult
 

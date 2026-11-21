@@ -20,6 +20,7 @@ import Component.Banner (BannerType (..))
 import Component.Flash (FlashMessage (..), flashCookie)
 import Control.Exception (bracket)
 import Control.Monad (void)
+import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Data.Text.Encoding (encodeUtf8)
@@ -35,7 +36,7 @@ import Hasql.Transaction.Sessions qualified as TRX
 import Network.HTTP.Types (Header, statusCode)
 import Network.Wai qualified as Wai
 import Network.Wai.Test (SResponse (..), defaultRequest, request, runSession, setPath)
-import Servant (Context (..), (:>))
+import Servant (Context (..), (:<|>) (..), (:>))
 import Servant qualified
 import Test.Database.Monad (TestDBConfig (..), noOpLoggerEnv, withTestDB)
 import Test.Handler.Fixtures (expectSetupRight, mkUserInsert, setupUserModels)
@@ -60,6 +61,9 @@ spec =
       it "sends a user with no metadata row to the login page" test_noMetadata
       it "lets a database error through as a 500 exception" test_databaseError
       it "lets an Admin through" test_admin
+      it "lets a Staff user through a Staff gate" test_staffGateStaff
+      it "lets an Admin through a Staff gate" test_staffGateAdmin
+      it "sends a Host on a Staff gate to the dashboard" test_staffGateHost
 
 --------------------------------------------------------------------------------
 -- Tests
@@ -140,18 +144,56 @@ test_admin cfg = withPool cfg $ \pool -> do
   statusCode (simpleStatus response) `shouldBe` 200
   simpleBody response `shouldBe` "Admin"
 
+test_staffGateStaff :: TestDBConfig -> IO ()
+test_staffGateStaff cfg = withPool cfg $ \pool -> do
+  cookie <- userWithSession pool "gate-staff-gate-staff" UserMetadata.Staff NotSuspended 3600
+  response <- staffProbe pool [cookie]
+  statusCode (simpleStatus response) `shouldBe` 200
+  simpleBody response `shouldBe` "Staff"
+
+-- | A gate admits every role above the one it requires.
+test_staffGateAdmin :: TestDBConfig -> IO ()
+test_staffGateAdmin cfg = withPool cfg $ \pool -> do
+  cookie <- userWithSession pool "gate-staff-gate-admin" UserMetadata.Admin NotSuspended 3600
+  response <- staffProbe pool [cookie]
+  statusCode (simpleStatus response) `shouldBe` 200
+  simpleBody response `shouldBe` "Admin"
+
+test_staffGateHost :: TestDBConfig -> IO ()
+test_staffGateHost cfg = withPool cfg $ \pool -> do
+  cookie <- userWithSession pool "gate-staff-gate-host" UserMetadata.Host NotSuspended 3600
+  response <- staffProbe pool [cookie]
+  shouldBeRedirect response (rootLink dashboardLinks.home) (deniedFlash "You need Staff permissions to do this.")
+
 --------------------------------------------------------------------------------
 -- The probe API
 
-type ProbeAPI = RequireRole "cookie-auth" 'UserMetadata.Admin :> "probe" :> Servant.Get '[Servant.PlainText] Text
+-- | One route behind an @'Admin@ gate and one behind a @'Staff@ gate. Each
+-- answers with the stored role of the user.
+type ProbeAPI =
+  RequireRole "cookie-auth" 'UserMetadata.Admin :> "probe" :> Servant.Get '[Servant.PlainText] Text
+    :<|> RequireRole "cookie-auth" 'UserMetadata.Staff :> "staff-probe" :> Servant.Get '[Servant.PlainText] Text
 
 probeServer :: Servant.Server ProbeAPI
-probeServer (Satisfies _ auth) = pure (display auth.raMetadata.mUserRole)
+probeServer =
+  (\(Satisfies _ auth) -> storedRole auth)
+    :<|> (\(Satisfies _ auth) -> storedRole auth)
 
--- | Send @GET /probe@ with the given headers through the real gate.
+storedRole :: RoleAuth r -> Servant.Handler Text
+storedRole auth = pure (display auth.raMetadata.mUserRole)
+
+-- | Send @GET /probe@ with the given headers through the real @'Admin@ gate.
 probe :: HSQL.Pool -> [Header] -> IO SResponse
-probe pool headers =
-  runSession (request (setPath defaultRequest "/probe") {Wai.requestHeaders = headers}) app
+probe pool = probePath pool "/probe"
+
+-- | Send @GET /staff-probe@ with the given headers through the real @'Staff@
+-- gate.
+staffProbe :: HSQL.Pool -> [Header] -> IO SResponse
+staffProbe pool = probePath pool "/staff-probe"
+
+probePath :: HSQL.Pool -> ByteString -> [Header] -> IO SResponse
+probePath pool path headers =
+  runSession (request (setPath defaultRequest path) {Wai.requestHeaders = headers}) app
   where
     app =
       Servant.serveWithContext

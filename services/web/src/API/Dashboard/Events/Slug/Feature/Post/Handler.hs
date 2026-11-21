@@ -5,17 +5,17 @@ module API.Dashboard.Events.Slug.Feature.Post.Handler (handler, action, FeatureE
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Events.Get.Templates.Page (renderEventRow)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth, Satisfies)
 import App.Handler.Error (HandlerError, handleBannerErrors, throwDatabaseError, throwHandlerFailure, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad (void)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.Events qualified as Events
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Hasql.Transaction qualified as HT
 import Log qualified
 import Lucid qualified
@@ -82,12 +82,10 @@ action eventId = do
 handler ::
   Events.Id ->
   Slug ->
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   AppM (Lucid.Html ())
-handler eventId _slug cookie =
+handler eventId _slug _ =
   handleBannerErrors "Event feature" $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to feature events." userMetadata
     vd <- action eventId
     pure $ do
       renderEventRow vd.fevUpdatedEvent

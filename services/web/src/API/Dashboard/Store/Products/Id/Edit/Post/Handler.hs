@@ -7,7 +7,8 @@ module API.Dashboard.Store.Products.Id.Edit.Post.Handler (handler, action) where
 import API.Dashboard.Store.Products.Id.Edit.Post.Route (EditProductForm (..))
 import API.Links (apiLinks, dashboardStoreProductsLinks, rootLink)
 import API.Types (DashboardStoreProductsRoutes (..), Routes (..))
-import App.Handler.Combinators (requireAuth, requireRight, requireStaffNotSuspended)
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Handler.Combinators (requireRight)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -29,7 +30,6 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text.Encoding
 import Domain.Types.Cents qualified as Cents
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
 import Domain.Types.VariantsPayload (OptionPayload (..), VariantPayload (..), VariantsPayload (..))
@@ -57,15 +57,12 @@ import Utils (fromRightM)
 -- | Servant handler: thin glue composing action + building redirect response.
 handler ::
   Products.Id ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   EditProductForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler productId cookie editForm =
+handler productId (Satisfies _ auth) editForm =
   handleRedirectErrors "Product update" apiLinks.rootGet $ do
-    (user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to edit products." userMetadata
-
-    vd <- action user userMetadata productId editForm
+    vd <- action auth.raUser auth.raMetadata productId editForm
     pure $ Servant.addHeader vd.eprRedirectUrl $ Servant.addHeader (flashCookie (Just vd.eprFlash)) Servant.NoContent
 
 --------------------------------------------------------------------------------

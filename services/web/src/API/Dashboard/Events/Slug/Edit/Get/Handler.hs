@@ -8,26 +8,23 @@ module API.Dashboard.Events.Slug.Edit.Get.Handler (handler, action, EventEditVie
 import API.Dashboard.Events.Slug.Edit.Get.Templates.Form (template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
-import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
+import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
-import Control.Monad (unless)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe
 import Data.Has (getter)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.EventImages qualified as EventImages
 import Effects.Database.Tables.Events qualified as Events
-import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as HT
 import Log qualified
@@ -44,29 +41,24 @@ data EventEditViewData = EventEditViewData
     eevStorageBackend :: StorageBackend
   }
 
--- | Business logic: fetch event, authorize, get storage backend.
+-- | Business logic: fetch event, get storage backend.
 action ::
-  User.Model ->
   UserMetadata.Model ->
   Events.Id ->
   ExceptT HandlerError AppM EventEditViewData
-action user userMetadata eventId = do
+action userMetadata eventId = do
   -- 1. Fetch event
   event <- fetchEvent eventId
 
-  -- 2. Check authorization: must be staff/admin or the creator
-  unless (event.emAuthorId == User.mId user || UserMetadata.isStaffOrHigher userMetadata.mUserRole) $
-    throwNotAuthorized "You can only edit events you created or have staff permissions." (Just userMetadata.mUserRole)
-
-  -- 3. Fetch existing gallery photos
+  -- 2. Fetch existing gallery photos
   galleryImages <-
     fromRightM throwDatabaseError $
       execQuery (EventImages.getByEventId eventId)
 
-  -- 4. Get storage backend for URL construction
+  -- 3. Get storage backend for URL construction
   storageBackend <- asks getter
 
-  Log.logInfo "Authorized user accessing event edit form" event.emId
+  Log.logInfo "Staff user accessing event edit form" event.emId
   pure
     EventEditViewData
       { eevUserMetadata = userMetadata,
@@ -79,14 +71,12 @@ action user userMetadata eventId = do
 handler ::
   Events.Id ->
   Slug ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler eventId _urlSlug cookie (foldHxReq -> hxRequest) =
+handler eventId _urlSlug (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Event edit form" apiLinks.rootGet $ do
-    (user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to edit events." userMetadata
-    vd <- action user userMetadata eventId
+    vd <- action auth.raMetadata eventId
     let editTemplate = template vd.eevStorageBackend vd.eevEvent vd.eevGalleryImages vd.eevUserMetadata
     lift $
       renderDashboardTemplate

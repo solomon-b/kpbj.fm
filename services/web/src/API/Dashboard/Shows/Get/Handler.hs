@@ -9,9 +9,9 @@ import API.Dashboard.Shows.Get.Templates.ItemsFragment (renderItemsFragment)
 import API.Dashboard.Shows.Get.Templates.Page (template)
 import API.Links (apiLinks, dashboardShowsLinks, rootLink)
 import API.Types (DashboardShowsRoutes (..), Routes (..))
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -22,7 +22,6 @@ import Data.Maybe (fromMaybe, isNothing)
 import Data.Text (Text)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Filter (Filter (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
@@ -96,15 +95,12 @@ handler ::
   Maybe (Filter Text) ->
   Maybe (Filter Shows.Status) ->
   Bool ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler maybePage queryFilterParam statusFilterParam deletedView cookie (foldHxReq -> hxRequest) =
+handler maybePage queryFilterParam statusFilterParam deletedView (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Shows list" apiLinks.rootGet $ do
-    -- 1. Require authentication and staff role
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to access this page." userMetadata
-    vd <- action userMetadata maybePage queryFilterParam statusFilterParam deletedView hxRequest
+    vd <- action auth.raMetadata maybePage queryFilterParam statusFilterParam deletedView hxRequest
     if vd.slvIsAppendRequest
       then pure $ renderItemsFragment vd.slvIsAdmin vd.slvDeletedView vd.slvShows vd.slvPage vd.slvHasMore vd.slvQueryFilter vd.slvStatusFilter
       else do

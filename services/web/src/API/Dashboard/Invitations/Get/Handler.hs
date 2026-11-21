@@ -7,20 +7,20 @@ module API.Dashboard.Invitations.Get.Handler (handler) where
 import API.Dashboard.Invitations.Get.Templates.Page (template)
 import API.Links (apiLinks, dashboardInvitationsLinks, rootLink)
 import API.Types (DashboardInvitationsRoutes (..), Routes (..))
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.BaseUrl qualified
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Trans (lift)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.HostInvitation qualified as HostInvitation
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Lucid qualified
 import Lucid.HTMX
 import Utils (fromRightM)
@@ -29,19 +29,17 @@ import Utils (fromRightM)
 
 -- | Handler for GET /dashboard/invitations.
 handler ::
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler cookie (foldHxReq -> hxRequest) =
+handler (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Invitation list" apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "Only staff can view invitations." userMetadata
     invitations <- fromRightM throwDatabaseError $ execQuery HostInvitation.getAllWithCreator
     appBaseUrl <- lift App.BaseUrl.baseUrl
     lift $
       renderDashboardTemplate
         hxRequest
-        userMetadata
+        auth.raMetadata
         NoShow
         NavInvitations
         Nothing

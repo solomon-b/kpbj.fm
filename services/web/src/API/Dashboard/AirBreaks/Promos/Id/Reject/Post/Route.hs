@@ -3,12 +3,13 @@ module API.Dashboard.AirBreaks.Promos.Id.Reject.Post.Route where
 --------------------------------------------------------------------------------
 
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie)
 import Effects.Database.Tables.BreakItems qualified as BreakItems
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import GHC.Generics (Generic)
 import Lucid qualified
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Text.HTML (HTML)
 import Web.FormUrlEncoded qualified as FormUrlEncoded
 
@@ -21,7 +22,7 @@ type Route =
     :> "promos"
     :> Servant.Capture "promo_id" BreakItems.Id
     :> "reject"
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Staff
     :> Servant.ReqBody '[Servant.FormUrlEncoded] RejectForm
     :> Servant.Post '[HTML] (Lucid.Html ())
 

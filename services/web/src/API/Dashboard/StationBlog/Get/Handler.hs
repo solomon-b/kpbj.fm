@@ -9,9 +9,9 @@ import API.Dashboard.StationBlog.Get.Templates.ItemsFragment (renderItemsFragmen
 import API.Dashboard.StationBlog.Get.Templates.Page (template)
 import API.Links (apiLinks, dashboardStationBlogLinks, rootLink)
 import API.Types
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -21,7 +21,6 @@ import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
@@ -75,14 +74,12 @@ action userMetadata maybePage hxRequest = do
 -- | Servant handler: thin glue composing action + render with dashboard chrome.
 handler ::
   Maybe Int64 ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Staff RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler maybePage cookie (foldHxReq -> hxRequest) =
+handler maybePage (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Station blog list" apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "You do not have permission to access this page." userMetadata
-    vd <- action userMetadata maybePage hxRequest
+    vd <- action auth.raMetadata maybePage hxRequest
     if vd.sbvdIsAppendRequest
       then pure $ renderItemsFragment vd.sbvdPosts vd.sbvdPage vd.sbvdHasMore
       else do

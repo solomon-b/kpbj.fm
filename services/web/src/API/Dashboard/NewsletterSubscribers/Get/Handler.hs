@@ -10,9 +10,9 @@ import API.Dashboard.NewsletterSubscribers.Get.Templates.ItemsFragment (renderIt
 import API.Dashboard.NewsletterSubscribers.Get.Templates.Page (template)
 import API.Links (apiLinks, dashboardNewsletterSubscribersLinks)
 import API.Types
+import App.Auth.Roles (RoleAuth (..), Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireStaffNotSuspended)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -24,10 +24,10 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.NewsletterSubscribers qualified as NewsletterSubscribers
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Lucid qualified
 import Lucid.HTMX
 import Servant.Links qualified as Links
@@ -41,16 +41,13 @@ pageSize = 50
 
 -- | Handler for GET /dashboard/newsletter-subscribers.
 handler ::
-  Maybe Cookie ->
+  Satisfies 'Staff RoleAuth ->
   Maybe HxRequest ->
   Maybe Text ->
   Maybe Int64 ->
   AppM (Lucid.Html ())
-handler cookie (foldHxReq -> hxRequest) mSearchRaw mPage =
+handler (Satisfies _ auth) (foldHxReq -> hxRequest) mSearchRaw mPage =
   handleHtmlErrors "Newsletter subscribers list" apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "Only staff can view newsletter subscribers." userMetadata
-
     let mSearch = normalizeSearch mSearchRaw
         page = max 1 (fromMaybe 1 mPage)
         offset = (page - 1) * pageSize
@@ -67,7 +64,7 @@ handler cookie (foldHxReq -> hxRequest) mSearchRaw mPage =
         lift $
           renderDashboardTemplate
             hxRequest
-            userMetadata
+            auth.raMetadata
             NoShow
             NavNewsletterSubscribers
             Nothing
