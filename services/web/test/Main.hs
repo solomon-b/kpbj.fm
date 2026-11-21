@@ -103,6 +103,7 @@ import API.Shows.Slug.Get.HandlerSpec qualified as ShowDetailHandler
 import API.Store.Cart.Validate.Post.HandlerSpec qualified as StoreCartValidateHandler
 import API.Store.List.Get.HandlerSpec qualified as StoreListHandler
 import API.Store.Products.Slug.Get.HandlerSpec qualified as StoreProductHandler
+import API.Store.TypesSpec qualified as StoreTypes
 import API.Stream.NowPlaying.Get.HandlerSpec qualified as StreamNowPlayingGetHandler
 import API.Uploads.Audio.Post.HandlerSpec qualified as AudioUploadHandler
 import API.User.ForgotPassword.Post.HandlerSpec qualified as UserForgotPasswordHandler
@@ -198,6 +199,7 @@ main = do
     StoreCheckoutEmails.spec
     StoreCheckoutLogic.spec
     StoreCheckoutShippingErrors.spec
+    StoreTypes.spec
     ValidateEncoding.spec
 
   -- Handler Integration Tests (database-dependent)
