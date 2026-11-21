@@ -9,11 +9,13 @@ where
 
 --------------------------------------------------------------------------------
 
-import Data.Aeson (FromJSON (..), ToJSON (..), genericParseJSON, genericToJSON)
+import App.FormField (emailField)
+import Data.Aeson (FromJSON (..), ToJSON (..), genericParseJSON, genericToJSON, (.:))
 import Data.Aeson qualified as Aeson
 import Data.List (stripPrefix)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
+import Data.Text qualified as Text
 import Domain.Types.EmailAddress (EmailAddress)
 import Effects.Database.Tables.ProductVariants qualified as ProductVariants
 import Effects.Database.Tables.Products qualified as Products
@@ -73,8 +75,22 @@ data CreateSessionRequest = CreateSessionRequest
   }
   deriving stock (Show, Generic)
 
+-- | The email goes through 'emailField', so an address that is not valid
+-- fails with the message for the customer. The checkout page shows it.
 instance FromJSON CreateSessionRequest where
-  parseJSON = genericParseJSON (prefixOptions "csr")
+  parseJSON = Aeson.withObject "CreateSessionRequest" $ \o ->
+    CreateSessionRequest
+      <$> (o .: "email" >>= either (fail . Text.unpack) pure . emailField)
+      <*> o .: "first_name"
+      <*> o .: "last_name"
+      <*> o .: "address_line1"
+      <*> o .: "address_line2"
+      <*> o .: "city"
+      <*> o .: "state"
+      <*> o .: "zip"
+      <*> o .: "shipping_rate_id"
+      <*> o .: "shipping_shipment_id"
+      <*> o .: "cart"
 
 --------------------------------------------------------------------------------
 

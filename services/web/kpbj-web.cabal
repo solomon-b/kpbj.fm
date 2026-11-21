@@ -878,6 +878,7 @@ test-suite kpbj-web-test
        API.Store.Cart.Validate.Post.HandlerSpec
        API.Store.List.Get.HandlerSpec
        API.Store.Products.Slug.Get.HandlerSpec
+       API.Store.TypesSpec
        API.Stream.NowPlaying.Get.HandlerSpec
        Store.Checkout.EmailsSpec
        Store.Checkout.LogicSpec
