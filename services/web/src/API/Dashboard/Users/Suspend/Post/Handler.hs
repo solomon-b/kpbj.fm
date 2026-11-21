@@ -6,7 +6,7 @@ module API.Dashboard.Users.Suspend.Post.Handler where
 
 import API.Dashboard.Users.Get.Templates.Page (renderUserRow)
 import API.Dashboard.Users.Suspend.Post.Route (SuspendForm (..))
-import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Handler.Error (HandlerError, handleBannerErrors)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)

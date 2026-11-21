@@ -50,7 +50,7 @@ import API.Links
     rootLink,
   )
 import API.Types
-import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Config (Environment)
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)

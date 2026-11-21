@@ -5,7 +5,7 @@ module API.Dashboard.Events.New.Post.Handler (handler, action) where
 import API.Dashboard.Events.New.Post.Route (NewEventForm (..))
 import API.Links (dashboardEventsLinks, rootLink)
 import API.Types (DashboardEventsRoutes (..))
-import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Handler.Combinators (requireRight)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure)
 import App.Monad (AppM)

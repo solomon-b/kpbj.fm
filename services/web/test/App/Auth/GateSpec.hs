@@ -15,7 +15,7 @@ module App.Auth.GateSpec (spec) where
 import API.Links (apiLinks, dashboardLinks, rootLink, userLinks)
 import API.Types (DashboardRoutes (..), Routes (..), UserRoutes (..))
 import App.Auth (sessionCookieName)
-import App.Auth.Roles (RequireRole, RoleAuth (..), Satisfies (..), roleAuthHandler, roleRejectionHandler)
+import App.Auth.Roles (RequireRole, RoleAuth, Satisfies (..), roleAuthHandler, roleRejectionHandler)
 import App.Config (Environment (..))
 import Component.Banner (BannerType (..))
 import Component.Flash (FlashMessage (..), flashCookie)

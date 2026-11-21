@@ -5,6 +5,7 @@
 {-# LANGUAGE EmptyCase #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -39,7 +40,7 @@ module App.Auth.Roles
     SomeRole (..),
 
     -- * Auth value
-    RoleAuth (..),
+    RoleAuth,
     effectiveRole,
 
     -- * Servant context entries
@@ -75,6 +76,7 @@ import Data.Time (getCurrentTime)
 import Effects.Database.Tables.ServerSessions qualified as ServerSessions
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
+import GHC.Records (HasField (..))
 import Hasql.Pool qualified as HSQL
 import Hasql.Session qualified as HSQL
 import Log qualified
@@ -94,11 +96,37 @@ $(deriveOrdRole ''UserMetadata.UserRole)
 -- | The authenticated user, indexed by the role that the auth handler found.
 --
 -- A gate gives this value to the handler inside a 'Satisfies'.
+--
+-- The type is abstract. Only 'roleAuthHandler' makes a 'RoleAuth', so the
+-- index is always the 'effectiveRole' of the metadata. A handler reads the
+-- fields as @auth.raUser@, @auth.raSession@, and @auth.raMetadata@, through
+-- the 'HasField' instances below. Three things keep the index honest outside
+-- this module:
+--
+-- * The constructor is not exported.
+-- * The record fields are private, because a record update can change the
+--   index.
+-- * The index has the role @nominal@. With the inferred role @phantom@,
+--   'Data.Coerce.coerce' can change the index without the constructor.
+type role RoleAuth nominal
+
 data RoleAuth (r :: UserMetadata.UserRole) = RoleAuth
-  { raUser :: User.Model,
-    raSession :: ServerSessions.Model,
-    raMetadata :: UserMetadata.Model
+  { roleAuthUser :: User.Model,
+    roleAuthSession :: ServerSessions.Model,
+    roleAuthMetadata :: UserMetadata.Model
   }
+
+instance HasField "raUser" (RoleAuth r) User.Model where
+  getField :: RoleAuth r -> User.Model
+  getField = roleAuthUser
+
+instance HasField "raSession" (RoleAuth r) ServerSessions.Model where
+  getField :: RoleAuth r -> ServerSessions.Model
+  getField = roleAuthSession
+
+instance HasField "raMetadata" (RoleAuth r) UserMetadata.Model where
+  getField :: RoleAuth r -> UserMetadata.Model
+  getField = roleAuthMetadata
 
 type instance AuthServerData CookieAuth = SomeRole RoleAuth
 

@@ -17,7 +17,7 @@ import API.Dashboard.Shows.Slug.Edit.Post.Handler (ParsedScheduleSlot, parseSche
 import API.Invite.Token.Post.Handler (parseInvitationSchedules)
 import API.Links (dashboardInvitationsLinks, inviteLinks, rootLink)
 import API.Types
-import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.BaseUrl (baseUrl)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwValidationError)
 import App.Monad (AppM)

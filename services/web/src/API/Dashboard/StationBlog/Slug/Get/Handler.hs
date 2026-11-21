@@ -8,7 +8,7 @@ module API.Dashboard.StationBlog.Slug.Get.Handler (handler, action, StationBlogD
 import API.Dashboard.StationBlog.Slug.Get.Templates.Page (template)
 import API.Links (dashboardStationBlogLinks, rootLink)
 import API.Types (DashboardStationBlogRoutes (..))
-import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)

@@ -12,7 +12,7 @@ where
 import API.Dashboard.Analytics.Get.Templates.Page qualified as Templates
 import API.Links (apiLinks)
 import API.Types (Routes (..))
-import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.CustomContext (StreamConfig (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)

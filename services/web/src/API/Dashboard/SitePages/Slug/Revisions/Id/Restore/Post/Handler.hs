@@ -6,7 +6,7 @@ module API.Dashboard.SitePages.Slug.Revisions.Id.Restore.Post.Handler (handler, 
 
 import API.Links (dashboardSitePagesLinks, rootLink)
 import API.Types (DashboardSitePagesRoutes (..))
-import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))

@@ -6,7 +6,7 @@ module API.Dashboard.EphemeralUploads.Id.Flag.Post.Handler where
 
 import API.Dashboard.EphemeralUploads.Get.Templates.Page (renderEphemeralUploadRow)
 import API.Dashboard.EphemeralUploads.Id.Flag.Post.Route (FlagForm (..))
-import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Handler.Error (HandlerError, handleBannerErrors, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)

@@ -7,7 +7,7 @@ module API.Dashboard.SitePages.Slug.Edit.Post.Handler (handler, action) where
 import API.Dashboard.SitePages.Slug.Edit.Post.Route (EditForm (..))
 import API.Links (dashboardSitePagesLinks, rootLink)
 import API.Types (DashboardSitePagesRoutes (..))
-import App.Auth.Roles (RoleAuth (..), Satisfies (..))
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Handler.Combinators (requireRight)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
