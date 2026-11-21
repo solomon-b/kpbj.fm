@@ -115,7 +115,8 @@ effectiveRole metadata
 --
 -- The session checks are the ones of 'authHandlerFor'. The session has no
 -- idle timeout. It ends at its @expires_at@ time. An auth failure becomes the
--- login redirect (see 'toLoginRedirect').
+-- login redirect (see 'toLoginRedirect'). A failure of the metadata query is
+-- a 500.
 roleAuthHandler ::
   Log.LoggerEnv ->
   HSQL.Pool ->
@@ -134,6 +135,8 @@ roleAuthHandler logEnv pool env =
           pure $ someUserRole (effectiveRole metadata) (RoleAuth user session metadata)
         result -> do
           -- A user always has a metadata row, so this is a database fault.
+          -- A 500 passes 'toLoginRedirect', so the user does not go to the
+          -- login page with a session that is valid.
           liftIO $ do
             now <- getCurrentTime
             Log.logMessageIO logEnv now Log.LogAttention "Role auth: no user metadata" $
@@ -141,7 +144,7 @@ roleAuthHandler logEnv pool env =
                 [ "user_id" .= display user.mId,
                   "error" .= either show (const "no row") result
                 ]
-          throwError Servant.err401
+          throwError Servant.err500
 
 -- | Answer a user whose role does not satisfy a gate with 'rejectionError',
 -- and write one log line.

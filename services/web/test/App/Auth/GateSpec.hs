@@ -59,7 +59,7 @@ spec =
       it "sends a suspended Admin to the dashboard" test_suspendedAdmin
       it "sends a suspended Host to the dashboard" test_suspendedHost
       it "sends a suspended User to the home page" test_suspendedUser
-      it "sends a user with no metadata row to the login page" test_noMetadata
+      it "answers a user with no metadata row with a 500" test_noMetadata
       it "lets a database error through as a 500 exception" test_databaseError
       it "lets an Admin through" test_admin
       it "lets a Staff user through a Staff gate" test_staffGateStaff
@@ -130,11 +130,13 @@ test_suspendedUser cfg = withPool cfg $ \pool -> do
   response <- probe pool [cookie]
   shouldBeRedirect response (rootLink apiLinks.rootGet) (deniedFlash "Your account is suspended.")
 
+-- | Every user has a metadata row, so a missing row is a data fault and not
+-- an auth failure.
 test_noMetadata :: TestDBConfig -> IO ()
 test_noMetadata cfg = withPool cfg $ \pool -> do
   cookie <- userWithSession pool "gate-no-metadata" UserMetadata.Admin NoMetadata 3600
   response <- probe pool [cookie]
-  shouldBeRedirect response loginUrl loginFlash
+  shouldBeStatus response 500
 
 -- | @authHandlerFor@ raises a session query error as an exception, not as a
 -- 'Servant.ServerError' value. It passes the login redirect, and Warp answers
