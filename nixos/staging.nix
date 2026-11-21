@@ -94,7 +94,7 @@
     icecastPort = 8001;
   };
 
-  # ── Monitoring (Grafana + Loki + Promtail) ───────────────────
+  # ── Monitoring (Grafana + Loki + Alloy) ──────────────────────
   kpbj.monitoring.enable = true;
   kpbj.monitoring.alerting.enable = true;
   kpbj.monitoring.alerting.environment = "staging";
