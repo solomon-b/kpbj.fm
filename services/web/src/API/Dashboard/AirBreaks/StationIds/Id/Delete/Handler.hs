@@ -4,13 +4,12 @@ module API.Dashboard.AirBreaks.StationIds.Id.Delete.Handler (handler, action) wh
 
 --------------------------------------------------------------------------------
 
-import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Handler.Error (HandlerError, handleBannerErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad (unless)
 import Control.Monad.Trans.Except (ExceptT)
-import Domain.Types.Cookie (Cookie (..))
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.StationIds qualified as StationIds
 import Effects.Database.Tables.User qualified as User
@@ -24,13 +23,11 @@ import Utils (fromMaybeM, fromRightM)
 -- | Servant handler: thin glue composing action + OOB banner.
 handler ::
   StationIds.Id ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   AppM (Lucid.Html ())
-handler stationIdId cookie =
+handler stationIdId (Satisfies _ auth) =
   handleBannerErrors "Station ID delete" $ do
-    (user, userMetadata) <- requireAuth cookie
-    requireHostNotSuspended "You do not have permission to delete station IDs." userMetadata
-    action user userMetadata stationIdId
+    action auth.raUser auth.raMetadata stationIdId
     pure $ do
       mempty
       renderBanner Success "Station ID Deleted" "The station ID has been deleted successfully."

@@ -8,9 +8,9 @@ module API.Dashboard.Blogs.New.Get.Handler where
 import API.Dashboard.Blogs.New.Get.Templates.Page (newBlogPostForm)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotAuthorized)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -18,7 +18,6 @@ import Control.Monad (guard, unless)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Execute (execTransaction)
@@ -36,14 +35,12 @@ import Utils (fromRightM)
 -- | Servant handler: thin glue composing action + render with dashboard chrome.
 handler ::
   Slug ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler showSlug cookie (foldHxReq -> hxRequest) =
+handler showSlug (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "New blog post form" apiLinks.rootGet $ do
-    (user, userMetadata) <- requireAuth cookie
-    requireHostNotSuspended "You do not have permission to create blog posts." userMetadata
-    vd <- action user userMetadata showSlug
+    vd <- action auth.raUser auth.raMetadata showSlug
     lift $ renderDashboardTemplate hxRequest vd.bnvUserMetadata (ForShow vd.bnvShowModel) NavBlog Nothing Nothing $ newBlogPostForm vd.bnvShowModel
 
 --------------------------------------------------------------------------------

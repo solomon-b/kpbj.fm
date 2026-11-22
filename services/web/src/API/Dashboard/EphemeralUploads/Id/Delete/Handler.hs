@@ -5,7 +5,7 @@ module API.Dashboard.EphemeralUploads.Id.Delete.Handler (handler, action) where
 --------------------------------------------------------------------------------
 
 import Amazonka qualified as AWS
-import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Handler.Error (HandlerError, handleBannerErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
@@ -13,7 +13,6 @@ import Control.Monad (unless)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Has qualified as Has
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
@@ -29,13 +28,11 @@ import Utils (fromMaybeM, fromRightM)
 -- | Servant handler: thin glue running action and returning banner response.
 handler ::
   EphemeralUploads.Id ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   AppM (Lucid.Html ())
-handler ephemeralUploadId cookie =
+handler ephemeralUploadId (Satisfies _ auth) =
   handleBannerErrors "Ephemeral upload delete" $ do
-    (user, userMetadata) <- requireAuth cookie
-    requireHostNotSuspended "You do not have permission to delete ephemeral uploads." userMetadata
-    action user userMetadata ephemeralUploadId
+    action auth.raUser auth.raMetadata ephemeralUploadId
     pure $ do
       mempty -- Empty response removes the target element
       renderBanner Success "Ephemeral Deleted" "The ephemeral upload has been deleted successfully."

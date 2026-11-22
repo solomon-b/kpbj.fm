@@ -8,11 +8,11 @@ module API.Dashboard.EphemeralUploads.New.Get.Handler (handler, action, UploadNe
 import API.Dashboard.EphemeralUploads.New.Get.Templates.Form (ephemeralUploadForm)
 import API.Links (apiLinks)
 import API.Types
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Config (Environment)
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
 import App.Domains (audioUploadUrl)
-import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -21,7 +21,6 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Has qualified as Has
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
@@ -51,13 +50,11 @@ action userMetadata = do
 
 -- | Servant handler: thin glue composing action + render with dashboard chrome.
 handler ::
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler cookie (foldHxReq -> hxRequest) =
+handler (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Ephemeral upload form" apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireHostNotSuspended "You do not have permission to upload ephemeral clips." userMetadata
-    vd <- action userMetadata
+    vd <- action auth.raMetadata
     let content = ephemeralUploadForm vd.unvUploadUrl
     lift $ renderDashboardTemplate hxRequest vd.unvUserMetadata NoShow NavEphemeralUploads Nothing Nothing content

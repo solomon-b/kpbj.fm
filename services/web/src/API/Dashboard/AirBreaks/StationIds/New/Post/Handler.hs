@@ -5,7 +5,7 @@ module API.Dashboard.AirBreaks.StationIds.New.Post.Handler (handler, action) whe
 import API.Dashboard.AirBreaks.StationIds.New.Post.Route (FormData (..))
 import API.Links (dashboardStationIdsLinks, rootLink)
 import API.Types
-import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -18,13 +18,13 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (getCurrentTime)
 import Domain.BreakPlanner (stationIdMaxSeconds)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileStorage (BucketType (..), ResourceType (..))
 import Effects.ContentSanitization qualified as Sanitize
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.StagedUploads qualified as StagedUploads
 import Effects.Database.Tables.StationIds qualified as StationIds
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.StagedUploads (claimAndRelocateUpload)
 import Log qualified
 import Servant qualified
@@ -34,14 +34,12 @@ import Utils (fromMaybeM, fromRightM)
 
 -- | Servant handler: thin glue composing action + redirect.
 handler ::
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   FormData ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler cookie form =
+handler (Satisfies _ auth) form =
   handleRedirectErrors "Station ID upload" dashboardStationIdsLinks.newGet $ do
-    (user, userMetadata) <- requireAuth cookie
-    requireHostNotSuspended "You do not have permission to upload station IDs." userMetadata
-    action user form
+    action auth.raUser form
     let listUrl = rootLink $ dashboardStationIdsLinks.list Nothing
         flash = FlashMessage Success "Station ID Uploaded" "Your station ID has been uploaded successfully."
     pure $ Servant.addHeader listUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent

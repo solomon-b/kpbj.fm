@@ -2,11 +2,12 @@ module API.Dashboard.EphemeralUploads.Id.Delete.Route where
 
 --------------------------------------------------------------------------------
 
-import Domain.Types.Cookie (Cookie)
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Lucid qualified
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
@@ -16,5 +17,5 @@ type Route =
   "dashboard"
     :> "ephemeral-uploads"
     :> Servant.Capture "ephemeral_upload_id" EphemeralUploads.Id
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Host
     :> Servant.Delete '[HTML] (Lucid.Html ())

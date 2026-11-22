@@ -7,7 +7,8 @@ module API.Dashboard.Blogs.Slug.Edit.Post.Handler where
 import API.Dashboard.Blogs.Slug.Edit.Post.Route (ShowBlogEditForm (..))
 import API.Links (dashboardBlogsLinks, rootLink)
 import API.Types (DashboardBlogsRoutes (..))
-import App.Handler.Combinators (requireAuth, requireHostNotSuspended, requireJust)
+import App.Auth.Roles (RoleAuth, Satisfies (..))
+import App.Handler.Combinators (requireJust)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwNotAuthorized, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -18,7 +19,6 @@ import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe
 import Data.Foldable (traverse_)
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.PostStatus (BlogPostStatus (..))
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
@@ -50,14 +50,12 @@ parseStatus _ = Nothing
 handler ::
   Slug ->
   ShowBlogPosts.Id ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   ShowBlogEditForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler showSlug postId cookie editForm =
+handler showSlug postId (Satisfies _ auth) editForm =
   handleRedirectErrors "Blog post update" (dashboardBlogsLinks.editGet showSlug postId) $ do
-    (user, userMetadata) <- requireAuth cookie
-    requireHostNotSuspended "You do not have permission to edit blog posts." userMetadata
-    (showModel, updatedPostId) <- action user userMetadata showSlug postId editForm
+    (showModel, updatedPostId) <- action auth.raUser auth.raMetadata showSlug postId editForm
     let detailUrl = rootLink $ dashboardBlogsLinks.detail (Shows.slug showModel) updatedPostId
         flash = FlashMessage Success "Blog Post Updated" "Your blog post has been updated successfully."
     pure $ Servant.addHeader detailUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent

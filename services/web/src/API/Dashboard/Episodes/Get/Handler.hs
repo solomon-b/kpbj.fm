@@ -9,10 +9,10 @@ import API.Dashboard.Episodes.Get.Templates.ItemsFragment (renderItemsFragment)
 import API.Dashboard.Episodes.Get.Templates.Page (template)
 import API.Links (apiLinks, dashboardShowsLinks)
 import API.Types
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Dashboard.CurrentShow (fetchDashboardShows)
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -29,7 +29,6 @@ import Data.Time (Day, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
@@ -113,14 +112,12 @@ action userMetadata showSlug maybePage = do
 handler ::
   Slug ->
   Maybe Int64 ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler showSlug maybePage cookie (foldHxReq -> hxRequest) =
+handler showSlug maybePage (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Episodes list" apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireHostNotSuspended "You do not have permission to access this page." userMetadata
-    vd <- action userMetadata showSlug maybePage
+    vd <- action auth.raMetadata showSlug maybePage
     let isAppendRequest = hxRequest == IsHxRequest && vd.elvPage > 1
     case (isAppendRequest, vd.elvSelectedShow) of
       (True, Just showToFetch) ->

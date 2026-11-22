@@ -8,10 +8,10 @@ module API.Dashboard.CurrentShow.Get.Handler (handler, action) where
 import API.Dashboard.CurrentShow.Get.Templates (noShowsEmptyState)
 import API.Links (apiLinks)
 import API.Types
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Dashboard.CurrentShow (resolveCurrentShow)
 import App.Dashboard.ShowContext (ShowContext (..), ShowSection (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..), pageSwap, sectionUrl)
@@ -46,17 +46,16 @@ action mCookie userMetadata section = do
 -- clients get a full page redirect.
 handler ::
   ShowSection ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler section cookie (foldHxReq -> hxRequest) =
+handler section (Satisfies _ auth) cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Current show redirect" apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireHostNotSuspended "You do not have permission to access this page." userMetadata
-    mUrl <- action cookie userMetadata section
+    mUrl <- action cookie auth.raMetadata section
     case mUrl of
       Nothing ->
-        lift $ renderDashboardTemplate hxRequest userMetadata NoShow (navFor section) Nothing Nothing noShowsEmptyState
+        lift $ renderDashboardTemplate hxRequest auth.raMetadata NoShow (navFor section) Nothing Nothing noShowsEmptyState
       Just url -> do
         Log.logInfo "Redirecting to the current show" (show url)
         lift $ case hxRequest of

@@ -9,9 +9,9 @@ import API.Dashboard.AirBreaks.StationIds.Get.Templates.ItemsFragment (renderIte
 import API.Dashboard.AirBreaks.StationIds.Get.Templates.Page (template)
 import API.Links (apiLinks, dashboardStationIdsLinks, rootLink)
 import API.Types
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -20,7 +20,6 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Has qualified as Has
 import Data.Maybe (fromMaybe)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
@@ -38,14 +37,12 @@ import Utils (fromRightM)
 -- | Servant handler: thin glue composing action + render with dashboard chrome.
 handler ::
   Maybe PageNumber ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler maybePage cookie (foldHxReq -> hxRequest) =
+handler maybePage (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Station IDs list" apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireHostNotSuspended "You do not have permission to access this page." userMetadata
-    vd <- action userMetadata maybePage
+    vd <- action auth.raMetadata maybePage
     let isAppendRequest = hxRequest == IsHxRequest && vd.sivPage > PageNumber 1
     if isAppendRequest
       then pure $ renderItemsFragment vd.sivBackend vd.sivStationIds vd.sivPage vd.sivHasMore

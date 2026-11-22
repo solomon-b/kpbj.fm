@@ -8,9 +8,9 @@ module API.Dashboard.Episodes.Slug.Get.Handler where
 import API.Dashboard.Episodes.Slug.Get.Templates.Page (template)
 import API.Links (apiLinks)
 import API.Types
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -19,7 +19,6 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Either (fromRight)
 import Data.Has (getter)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
 import Domain.Types.StorageBackend (StorageBackend)
@@ -84,14 +83,12 @@ action user userMetadata showSlug episodeNumber = do
 handler ::
   Slug ->
   Episodes.EpisodeNumber ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler showSlug episodeNumber cookie (foldHxReq -> hxRequest) =
+handler showSlug episodeNumber (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Episode detail" apiLinks.rootGet $ do
-    (user, userMetadata) <- requireAuth cookie
-    requireHostNotSuspended "You do not have permission to access this page." userMetadata
-    vd <- action user userMetadata showSlug episodeNumber
+    vd <- action auth.raUser auth.raMetadata showSlug episodeNumber
     let content = template vd.edvBackend vd.edvUserMetadata vd.edvShowModel vd.edvEpisode vd.edvTracks vd.edvTags
     lift $
       renderDashboardTemplate
