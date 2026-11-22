@@ -10,20 +10,18 @@ import API.Dashboard.Shows.Slug.Get.Templates.Page (template)
 import API.Links (apiLinks)
 import API.Types
 import App.Auth.Roles (RoleAuth, Satisfies (..))
-import App.Dashboard.CurrentShow (fetchDashboardShows)
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Combinators (authorizeShow)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
-import Control.Monad (void)
+import Control.Monad (unless)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Has (getter)
 import Data.Int (Int64)
-import Data.List (find)
 import Data.Maybe (fromMaybe)
 import Data.Time (UTCTime)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
@@ -60,32 +58,28 @@ data ShowDetailViewData = ShowDetailViewData
     sdvPage :: Int
   }
 
--- | Business logic: fetch shows, find show.
+-- | Business logic: check that the show ID in the path names the show.
+--
+-- The handler checks access with 'authorizeShow', which loads the show by
+-- slug. A show ID that names a different show is not found.
 action ::
   UserMetadata.Model ->
+  -- | The show ID in the path
   Shows.Id ->
-  Slug ->
+  -- | The show of the slug in the path
+  Shows.Model ->
   Maybe Int ->
   ExceptT HandlerError AppM ShowDetailViewData
-action userMetadata showId _showSlug mPage = do
-  -- 1. Get storage backend
+action userMetadata showId showModel mPage = do
+  unless (showModel.id == showId) $ throwNotFound "Show"
   backend <- asks getter
-
-  -- 2. Fetch the shows this user may open. This list is the access check: a
-  -- show outside it is not found.
-  accessibleShows <- lift $ fetchDashboardShows userMetadata
-
-  -- 3. Find the selected show
-  case find (\s -> s.id == showId) accessibleShows of
-    Nothing -> throwNotFound "Show"
-    Just showModel ->
-      pure
-        ShowDetailViewData
-          { sdvUserMetadata = userMetadata,
-            sdvShowModel = showModel,
-            sdvBackend = backend,
-            sdvPage = fromMaybe 1 mPage
-          }
+  pure
+    ShowDetailViewData
+      { sdvUserMetadata = userMetadata,
+        sdvShowModel = showModel,
+        sdvBackend = backend,
+        sdvPage = fromMaybe 1 mPage
+      }
 
 handler ::
   Shows.Id ->
@@ -96,8 +90,8 @@ handler ::
   AppM (Lucid.Html ())
 handler showId showSlug mPage host@(Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Show details" apiLinks.rootGet $ do
-    void $ authorizeShow host showSlug
-    vd <- action auth.raMetadata showId showSlug mPage
+    showModel <- authorizeShow host showSlug
+    vd <- action auth.raMetadata showId showModel mPage
     lift $ renderShowDetails vd.sdvBackend hxRequest vd.sdvUserMetadata vd.sdvShowModel (Just vd.sdvPage)
 
 -- | Render show details page within dashboard frame
