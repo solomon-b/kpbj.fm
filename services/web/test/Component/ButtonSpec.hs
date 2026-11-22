@@ -96,6 +96,20 @@ spec = describe "Component.Button" $ do
       html `shouldSatisfy` Text.isInfixOf "href=\"#now\""
       html `shouldSatisfy` Text.isInfixOf "onclick=\"f()\""
 
+  describe "safelist" $ do
+    it "holds every class that a button can render" $
+      mapM_
+        (\c -> Button.safelist `shouldSatisfy` elem c)
+        [ "bg-[color-mix(in_srgb,var(--theme-warning)_15%,transparent)]",
+          "disabled:opacity-50",
+          "disabled:cursor-not-allowed",
+          "px-2",
+          "py-1",
+          "w-full",
+          Tokens.bgButton,
+          Tokens.bgInverse
+        ]
+
   describe "toggle" $ do
     let html = render (Button.defaults & Button.small & Button.primary & Button.toggle "a === 1" Secondary) "One"
 
