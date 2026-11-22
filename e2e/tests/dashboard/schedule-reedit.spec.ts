@@ -103,13 +103,13 @@ async function postScheduleChange(
 }
 
 // ---------------------------------------------------------------------------
-// Tests (serial -- each step depends on the previous)
+// Tests (one test -- each step depends on the previous)
 // ---------------------------------------------------------------------------
 
 test.describe("Schedule re-edit", () => {
-  test.describe.serial("pending schedule replacement", () => {
-    // Step 1: Change duration from 2hr to 1hr, set future start date
-    test("create pending schedule via edit", async ({ page }) => {
+  test("re-edit replaces the pending schedule", async ({ page }) => {
+    await test.step("create pending schedule via edit", async () => {
+      // Change duration from 2hr to 1hr, set future start date.
       await page.goto(EDIT_URL);
       await expect(page.getByText("EDIT SHOW")).toBeVisible();
 
@@ -125,8 +125,7 @@ test.describe("Schedule re-edit", () => {
       );
     });
 
-    // Step 2: Verify pending schedule appears in preview
-    test("edit page shows current and pending schedule", async ({ page }) => {
+    await test.step("edit page shows current and pending schedule", async () => {
       await page.goto(EDIT_URL);
 
       await expect(page.getByText("CURRENT SCHEDULE")).toBeVisible();
@@ -135,11 +134,9 @@ test.describe("Schedule re-edit", () => {
       ).toBeVisible();
     });
 
-    // Step 3: Change duration to 30min with a different start date
-    test("re-edit replaces pending schedule", async ({ page }) => {
-      await page.goto(EDIT_URL);
-      await expect(page.getByText("EDIT SHOW")).toBeVisible();
-
+    await test.step("re-edit with a different start date", async () => {
+      // Change duration to 30min. The page is the fresh edit page from the
+      // step before.
       await postScheduleChange(
         page,
         {
@@ -152,8 +149,7 @@ test.describe("Schedule re-edit", () => {
       );
     });
 
-    // Step 4: Verify the old pending was replaced
-    test("edit page shows replaced pending schedule", async ({ page }) => {
+    await test.step("edit page shows replaced pending schedule", async () => {
       await page.goto(EDIT_URL);
 
       // Active schedule should still be present

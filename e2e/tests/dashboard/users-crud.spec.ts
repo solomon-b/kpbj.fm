@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { ADMIN_AUTH } from "../../playwright.config";
 
 // ---------------------------------------------------------------------------
@@ -8,7 +8,9 @@ import { ADMIN_AUTH } from "../../playwright.config";
 // the users dashboard. Uses ADMIN_AUTH (only admins can manage users).
 //
 // Suspend/unsuspend tests use musicfan@example.com (expendable mock user).
-// Role change tests use listener@example.com and restore the original role.
+// Role change tests use vinyl.collector@example.com and restore the
+// original role. They do not use listener@example.com, because USER_AUTH
+// logs in as that user and other specs run at the same time.
 // User delete is skipped — too destructive for shared mock data.
 //
 // NOTE: The inline role change uses HTMX innerHTML swap which creates a
@@ -19,39 +21,30 @@ import { ADMIN_AUTH } from "../../playwright.config";
 
 test.use({ storageState: ADMIN_AUTH });
 
+function userRow(page: Page, email: string) {
+  return page.locator("#users-table-body tr", { hasText: email });
+}
+
+// Open the detail page of a user from the list. The search keeps the user
+// on the first page of 20 rows.
+async function openUser(page: Page, email: string) {
+  await page.goto(`/dashboard/users?q=${encodeURIComponent(email)}`);
+  await userRow(page, email).locator("td").first().click();
+  await page.waitForURL(/\/dashboard\/users\/\d+/);
+}
+
 test.describe("Users CRUD", () => {
   // -------------------------------------------------------------------------
-  // List
+  // List and detail
   // -------------------------------------------------------------------------
 
-  test("list page loads with users table", async ({ page }) => {
+  test("list shows the mock users and a row opens the detail page", async ({ page }) => {
     await page.goto("/dashboard/users");
-    await expect(page.locator("#users-table-body")).toBeVisible();
-    const rows = page.locator("#users-table-body tr");
-    await expect(rows.first()).toBeVisible();
-  });
+    const tableBody = page.locator("#users-table-body");
+    await expect(tableBody).toContainText("listener@example.com");
+    await expect(tableBody).toContainText("musicfan@example.com");
 
-  test("list shows known mock users", async ({ page }) => {
-    await page.goto("/dashboard/users");
-    await expect(page.locator("#users-table-body")).toContainText(
-      "listener@example.com"
-    );
-    await expect(page.locator("#users-table-body")).toContainText(
-      "musicfan@example.com"
-    );
-  });
-
-  // -------------------------------------------------------------------------
-  // Detail (via table row click)
-  // -------------------------------------------------------------------------
-
-  test("clicking a row navigates to user detail", async ({ page }) => {
-    await page.goto("/dashboard/users");
-    const row = page.locator("#users-table-body tr", {
-      hasText: "listener@example.com",
-    });
-    await row.locator("td").first().click();
-    await page.waitForURL(/\/dashboard\/users\/\d+/);
+    await openUser(page, "listener@example.com");
     await expect(page.getByText("listener@example.com")).toBeVisible();
     await expect(page.getByText("RadioHead42")).toBeVisible();
   });
@@ -61,18 +54,10 @@ test.describe("Users CRUD", () => {
   // -------------------------------------------------------------------------
 
   test("inline role change updates and restores", async ({ page }) => {
-    // Navigate to listener@example.com detail page.
-    await page.goto("/dashboard/users");
-    const row = page.locator("#users-table-body tr", {
-      hasText: "listener@example.com",
-    });
-    await row.locator("td").first().click();
-    await page.waitForURL(/\/dashboard\/users\/\d+/);
+    await openUser(page, "vinyl.collector@example.com");
 
     // Use dd# to target the original container specifically.
-    const roleSelect = page.locator(
-      'dd#role-dropdown-container select[name="role"]'
-    );
+    const roleSelect = page.locator('dd#role-dropdown-container select[name="role"]');
     await expect(roleSelect).toBeVisible();
 
     // Change User → Host.
@@ -84,10 +69,7 @@ test.describe("Users CRUD", () => {
     // Restore Host → User.
     // After the swap, there are two select[name="role"] on the page (one in
     // the header, one in the detail section). Scope to #main-content.
-    const restoredSelect = page.locator(
-      '#main-content select[name="role"]'
-    );
-    await restoredSelect.selectOption("User");
+    await page.locator('#main-content select[name="role"]').selectOption("User");
     await expect(page.getByText("Saved").first()).toBeVisible();
   });
 
@@ -97,62 +79,40 @@ test.describe("Users CRUD", () => {
 
   test("edit form loads and saves changes", async ({ page }) => {
     await page.goto("/dashboard/users");
-    const row = page.locator("#users-table-body tr", {
-      hasText: "listener@example.com",
-    });
-    await row.locator("select").selectOption("edit");
+    await userRow(page, "listener@example.com").locator("select").selectOption("edit");
     await page.waitForURL(/\/edit/);
 
-    // Verify form is pre-filled.
-    await expect(page.locator('input[name="display_name"]')).toHaveValue(
-      "RadioHead42"
-    );
+    await expect(page.locator('input[name="display_name"]')).toHaveValue("RadioHead42");
 
     // Submit without changes.
     await page.getByRole("button", { name: "SAVE CHANGES" }).click();
     await page.waitForURL(/\/dashboard\/users\/\d+$/);
-    await expect(page.locator("#banner-container")).toContainText(
-      /updated|Updated/i
-    );
+    await expect(page.locator("#banner-container")).toContainText(/updated|Updated/i);
   });
 
   // -------------------------------------------------------------------------
-  // Suspend / Unsuspend (serial, uses musicfan@example.com)
+  // Suspend / Unsuspend (uses musicfan@example.com)
   // -------------------------------------------------------------------------
 
-  test.describe.serial("suspend and unsuspend user", () => {
-    test("suspend user", async ({ page }) => {
-      await page.goto("/dashboard/users");
-      const row = page.locator("#users-table-body tr", {
-        hasText: "musicfan@example.com",
-      });
-      await expect(row).toBeVisible();
+  test("suspend and unsuspend user", async ({ page }) => {
+    await page.goto("/dashboard/users");
+    const row = userRow(page, "musicfan@example.com");
+    await expect(row).toBeVisible();
 
+    await test.step("suspend", async () => {
       page.once("dialog", (d) => d.accept());
       await row.locator("select").selectOption("suspend");
-
-      // Row should update to show "Suspended" status.
       await expect(row).toContainText(/Suspended/);
-      await expect(page.locator("#banner-container")).toContainText(
-        /Suspended/i
-      );
+      await expect(page.locator("#banner-container")).toContainText(/Suspended/i);
     });
 
-    test("unsuspend user", async ({ page }) => {
+    await test.step("unsuspend", async () => {
+      // Reload so the row has the actions of a suspended user.
       await page.goto("/dashboard/users");
-      const row = page.locator("#users-table-body tr", {
-        hasText: "musicfan@example.com",
-      });
-      await expect(row).toBeVisible();
-
       page.once("dialog", (d) => d.accept());
       await row.locator("select").selectOption("unsuspend");
-
-      // Row should update back to "Active" status.
       await expect(row).toContainText(/Active/);
-      await expect(page.locator("#banner-container")).toContainText(
-        /Unsuspended/i
-      );
+      await expect(page.locator("#banner-container")).toContainText(/Unsuspended/i);
     });
   });
 });

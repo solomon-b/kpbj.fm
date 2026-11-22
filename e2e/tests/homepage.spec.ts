@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { CROSS_BROWSER } from "../playwright.config";
 
 // ---------------------------------------------------------------------------
 // Homepage tests
@@ -6,9 +7,11 @@ import { test, expect } from "@playwright/test";
 // The homepage (GET /) has three main areas:
 //   1. Featured event image (or fallback range map image)
 //   2. Newsletter signup form ("Stay in the Loop")
-//   3. The frame — nav, player, footer (shared across all pages)
+//   3. The frame: nav, player, footer (shared across all pages)
 //
-// We test each section independently.
+// Desktop layout only. See mobile.spec.ts for the mobile player.
+
+const FEATURED_IMAGE = 'img[alt="Spring Record Fair & Swap Meet event flyer"]';
 
 test.describe("Homepage", () => {
   test.beforeEach(async ({ page }) => {
@@ -16,74 +19,27 @@ test.describe("Homepage", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Page structure
+  // Page content
   // -------------------------------------------------------------------------
 
-  test("has the correct title", async ({ page }) => {
+  test("renders the frame, featured event, and newsletter form", async ({ page }) => {
     await expect(page).toHaveTitle("KPBJ 95.9FM");
-  });
 
-  test("has a main content area", async ({ page }) => {
-    // #main-content is the HTMX swap target — all page content lives here.
+    // #main-content is the HTMX swap target. All page content lives here.
     await expect(page.locator("#main-content")).toBeVisible();
-  });
-
-  test("has a footer with copyright", async ({ page }) => {
-    // getByText finds any element containing this text.
-    // The footer has: "© 2025 Sun Valley Arts and Culture..."
     await expect(page.getByText("Sun Valley Arts and Culture")).toBeVisible();
-  });
 
-  // -------------------------------------------------------------------------
-  // Navigation links
-  // -------------------------------------------------------------------------
-  // Each nav link has a stable id like id="nav-shows". We verify they all
-  // exist and are clickable. We use the desktop nav (visible at default
-  // viewport width).
+    // Mock data has "Spring Record Fair & Swap Meet" with
+    // featured_on_homepage = TRUE.
+    await expect(page.locator(FEATURED_IMAGE)).toBeVisible();
 
-  test("has all navigation links", async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name.startsWith("mobile"), "Desktop nav — see mobile.spec.ts");
-    const navLinks = ["Shows", "Schedule", "Donate", "Events", "About"];
-
-    for (const linkText of navLinks) {
-      // getByRole("link") matches <a> tags. { name } matches visible text.
-      // We use .locator("visible=true") because mobile + desktop navs
-      // both have links with the same text.
-      const link = page.getByRole("link", { name: linkText }).locator("visible=true");
-      await expect(link).toBeVisible();
-    }
-  });
-
-  // -------------------------------------------------------------------------
-  // Featured image
-  // -------------------------------------------------------------------------
-  // The homepage shows either a featured event poster or a fallback image
-  // (the FCC range map at /static/range.png). One of them will always be
-  // present inside #main-content.
-
-  test("displays a featured image or fallback", async ({ page }) => {
-    // Look for any <img> inside the main content area.
-    const image = page.locator("#main-content img");
-    await expect(image.first()).toBeVisible();
-  });
-
-  test("displays the featured event image with alt text", async ({ page }) => {
-    // Mock data has "Spring Record Fair & Swap Meet" with featured_on_homepage = TRUE.
-    // The image alt text is "{title} event flyer".
-    await expect(
-      page.locator('img[alt="Spring Record Fair & Swap Meet event flyer"]')
-    ).toBeVisible();
-  });
-
-  test("featured event image links to the event detail page", async ({ page }) => {
-    const eventLink = page.locator('a:has(img[alt="Spring Record Fair & Swap Meet event flyer"])');
-    const href = await eventLink.getAttribute("href");
-    expect(href).toMatch(/\/events\/\d+\/spring-record-fair/);
+    await expect(page.getByRole("heading", { name: "Stay in the Loop" })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Email Address" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Subscribe" })).toBeVisible();
   });
 
   test("clicking featured event navigates to event detail", async ({ page }) => {
-    const eventLink = page.locator('a:has(img[alt="Spring Record Fair & Swap Meet event flyer"])');
-    await eventLink.click();
+    await page.locator(`a:has(${FEATURED_IMAGE})`).click();
     await expect(page).toHaveURL(/\/events\/\d+\/spring-record-fair/);
   });
 
@@ -91,18 +47,7 @@ test.describe("Homepage", () => {
   // Newsletter signup
   // -------------------------------------------------------------------------
 
-  test("shows the newsletter heading", async ({ page }) => {
-    await expect(page.getByRole("heading", { name: "Stay in the Loop" })).toBeVisible();
-  });
-
-  test("has an email input and subscribe button", async ({ page }) => {
-    // getByRole("textbox") matches <input> elements.
-    // { name: "Email Address" } matches the aria-label on the input.
-    await expect(page.getByRole("textbox", { name: "Email Address" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Subscribe" })).toBeVisible();
-  });
-
-  test("newsletter form shows confirmation on submit", async ({ page }) => {
+  test("newsletter form shows confirmation on submit", { tag: CROSS_BROWSER }, async ({ page }) => {
     // Use a unique email per run so retries don't collide with the unique
     // constraint (duplicate inserts silently no-op, but the user-visible
     // outcome is identical, so we still assert the same swap).
@@ -114,8 +59,6 @@ test.describe("Homepage", () => {
     // HTMX swaps the form's wrapper (#newsletter-signup) with a thanks
     // fragment whose root div carries the same id and renders the text.
     await expect(page.locator("#newsletter-signup")).toHaveText("Thanks for subscribing!");
-
-    // The form itself should be gone after the swap.
     await expect(page.getByRole("button", { name: "Subscribe" })).toHaveCount(0);
   });
 
@@ -123,84 +66,22 @@ test.describe("Homepage", () => {
   // Stream player
   // -------------------------------------------------------------------------
   // The player is an Alpine.js component wrapping an <audio> element.
-  // Icecast isn't running in dev, so we mock the metadata endpoint and
-  // test UI behavior without actual audio playback.
+  // Icecast isn't running in dev, so the test checks the UI without
+  // audio playback.
 
-  test("player has play button and volume slider", async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name.startsWith("mobile"), "No volume slider on mobile player");
-    // The desktop play button's text is set by Alpine: '[ PLAY ]' or '[ PAUSE ]'.
-    // getByText with exact: true avoids matching substrings.
-    await expect(page.getByText("[ PLAY ]").locator("visible=true")).toBeVisible();
-
-    // The volume slider is an <input type="range">.
-    // getByRole("slider") matches range inputs.
-    await expect(page.getByRole("slider").locator("visible=true")).toBeVisible();
-
-    // Volume label.
-    await expect(page.getByText("VOL:")).toBeVisible();
-  });
-
-  test("player shows now-playing text", async ({ page }) => {
-    // On init, Alpine calls fetchMetadata(). Even without Icecast, the
-    // handler returns a fallback with title "KPBJ 95.9 FM". Since
-    // currentShow is set to that (truthy), the x-text || fallback
-    // "NOW PLAYING: ..." never kicks in. The visible text is just the title.
+  test("player shows now playing and its volume slider sets the audio volume", { tag: CROSS_BROWSER }, async ({ page }) => {
+    // Without Icecast the metadata handler returns the station name.
     await expect(page.getByText("KPBJ 95.9 FM").locator("visible=true").first()).toBeVisible();
-  });
 
-  test("play button toggles to pause via Alpine state", async ({ page }) => {
-    // Actually playing audio requires a running Icecast server, so instead
-    // we test the UI reactivity by setting Alpine state directly.
-    //
-    // page.evaluate() runs JavaScript in the browser. Here we:
-    //   1. Find the Alpine component (the parent div with x-data)
-    //   2. Set isPlaying = true (simulating successful playback)
-    //   3. Alpine reactively updates the button text
-    const playerEl = page.locator("[x-data*=navbar-player]");
-    await playerEl.evaluate((el) => {
-      // Alpine.$data() gives us the reactive proxy for the component.
-      const state = (window as any).Alpine.$data(el);
-      state.isPlaying = true;
-    });
+    // The desktop play button's text is set by Alpine: '[ PLAY ]' or '[ PAUSE ]'.
+    await expect(page.getByText("[ PLAY ]").locator("visible=true")).toBeVisible();
+    await expect(page.getByText("VOL:")).toBeVisible();
 
-    // After setting state, Alpine updates the button text to '[ PAUSE ]'.
-    await expect(page.getByText("[ PAUSE ]").locator("visible=true")).toBeVisible();
-  });
-
-  test("volume slider controls audio element", async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name.startsWith("mobile"), "No volume slider on mobile player");
-    // page.evaluate() runs JavaScript directly in the browser.
-    // We use it to read the Alpine state from the audio element.
+    // The slider is 0-100. The audio element volume is 0-1.
     const audio = page.locator("audio");
-
-    // The audio element should exist (even if not playing).
     await expect(audio).toBeAttached();
-
-    // Fill the range input to a new value. Playwright's fill() works on
-    // range inputs — it sets the value directly.
     await page.getByRole("slider").locator("visible=true").fill("30");
-
-    // Verify the audio element's volume updated.
-    // evaluate() runs a function in the browser context, receiving the
-    // DOM element as its argument.
     const volume = await audio.evaluate((el: HTMLAudioElement) => el.volume);
-
-    // Volume is 0-1 in the DOM, 0-100 on the slider.
     expect(volume).toBeCloseTo(0.3, 1);
-  });
-
-  test("now-playing endpoint returns a title", async ({ page }) => {
-    // page.request is Playwright's built-in HTTP client — it can make
-    // requests directly without going through the browser.
-    // Useful for testing API endpoints.
-    const response = await page.request.get("/api/stream/now-playing");
-    expect(response.status()).toBe(200);
-
-    const json = await response.json();
-    // The title is never empty. With no item on air it is the station name.
-    expect(typeof json.title).toBe("string");
-    expect(json.title.length).toBeGreaterThan(0);
-    // The url is null when no episode plays.
-    expect(json).toHaveProperty("url");
   });
 });

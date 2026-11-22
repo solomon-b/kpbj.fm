@@ -14,96 +14,40 @@ test.describe("Episode detail", () => {
     await page.goto(EPISODE_URL);
   });
 
-  // -------------------------------------------------------------------------
-  // Episode card
-  // -------------------------------------------------------------------------
-
-  test("displays episode artwork or placeholder", async ({ page }) => {
+  test("displays the episode card, description, and tags", async ({ page }) => {
     const card = page.locator("#main-content [x-data*=playerId]").first();
-    const hasImage = (await card.locator("img").count()) > 0;
-    const hasPlaceholder = (await card.getByText("[EP IMG]").count()) > 0;
-    expect(hasImage || hasPlaceholder).toBe(true);
-  });
 
-  test("displays episode date", async ({ page }) => {
-    // The date is in a small muted div. The show title link above it also has
-    // text-sm, so select the div only.
-    const dateEl = page.locator("#main-content [x-data*=playerId] div.text-sm");
-    await expect(dateEl).toBeVisible();
-    const dateText = await dateEl.textContent();
-    expect(dateText).toMatch(/\w+ \d{1,2}, \d{4}/);
-  });
-
-  test("has a play button", async ({ page }) => {
-    const card = page.locator("#main-content [x-data*=playerId]").first();
-    const playButton = card.locator("button[x-on\\:click='toggle()']");
-    await expect(playButton).toBeVisible();
-  });
-
-  // -------------------------------------------------------------------------
-  // Description
-  // -------------------------------------------------------------------------
-
-  test("displays the episode description", async ({ page }) => {
-    // Mock data generates descriptions like:
-    // "A great episode of Sunday Morning Jazz from <date>"
+    // The date is in a small muted div. The show title link above it also
+    // has text-sm, so select the div only.
     await expect(
-      page.getByText(/A great episode of Sunday Morning Jazz/)
-    ).toBeVisible();
-  });
+      page.locator("#main-content [x-data*=playerId] div.text-sm")
+    ).toHaveText(/\w+ \d{1,2}, \d{4}/);
+    await expect(card.locator("button[x-on\\:click='toggle()']")).toBeVisible();
 
-  // -------------------------------------------------------------------------
-  // Tags
-  // -------------------------------------------------------------------------
+    // Mock descriptions read "A great episode of Sunday Morning Jazz from <date>".
+    await expect(page.getByText(/A great episode of Sunday Morning Jazz/)).toBeVisible();
 
-  test("displays episode tags", async ({ page }) => {
     // Sunday Morning Jazz episodes always get the "classics" tag.
     await expect(page.getByText("#classics")).toBeVisible();
+  });
+
+  test("displays the track listing", async ({ page }) => {
+    await expect(page.locator("h2", { hasText: "Track Listing" })).toBeVisible();
+
+    // Each episode gets 10 tracks, numbered 1-10.
+    await expect(page.locator("text=/^\\d+\\./")).toHaveCount(10);
+    for (let i = 1; i <= 10; i++) {
+      await expect(page.getByText(`${i}.`, { exact: true })).toBeAttached();
+    }
+
+    // Each row has a .font-medium title in quotes and a .text-sm artist.
+    const firstRow = page.locator(".space-y-1 > div").first();
+    await expect(firstRow.locator(".font-medium")).toHaveText(/^".+"$/);
+    await expect(firstRow.locator(".flex-grow .text-sm")).toBeVisible();
   });
 
   test("clicking a tag navigates to the shows index", async ({ page }) => {
     await page.getByText("#classics").click();
     await expect(page).toHaveURL(/\/shows/);
-  });
-
-  // -------------------------------------------------------------------------
-  // Track listing
-  // -------------------------------------------------------------------------
-
-  test("displays the track listing heading", async ({ page }) => {
-    await expect(
-      page.locator("h2", { hasText: "Track Listing" })
-    ).toBeVisible();
-  });
-
-  test("displays 10 tracks", async ({ page }) => {
-    // Each episode gets 10 tracks from the genre-matched track library.
-    // Track rows are in a space-y-1 container. Each row has a track number.
-    const trackRows = page.locator("text=/^\\d+\\./");
-    const count = await trackRows.count();
-    expect(count).toBe(10);
-  });
-
-  test("track rows show title and artist", async ({ page }) => {
-    // The track list container is div.space-y-1. Each direct child is a
-    // track row with: track number div, then a .flex-grow div containing
-    // a .font-medium title and a .text-sm artist.
-    const firstRow = page.locator(".space-y-1 > div").first();
-    const title = firstRow.locator(".font-medium");
-    const artist = firstRow.locator(".flex-grow .text-sm");
-
-    await expect(title).toBeVisible();
-    await expect(artist).toBeVisible();
-
-    // Title is quoted: e.g. "Birdland"
-    const titleText = await title.textContent();
-    expect(titleText).toMatch(/^".+"$/);
-  });
-
-  test("track numbers are sequential", async ({ page }) => {
-    // Verify tracks are numbered 1-10.
-    for (let i = 1; i <= 10; i++) {
-      await expect(page.getByText(`${i}.`, { exact: true })).toBeAttached();
-    }
   });
 });

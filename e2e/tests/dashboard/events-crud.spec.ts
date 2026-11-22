@@ -35,162 +35,102 @@ async function dragCard(page: Page, fromIdx: number, toIdx: number) {
   );
 }
 
+// Fill the new event form and submit it. The server redirects to the
+// dashboard detail page of the event.
+async function createEvent(page: Page, title: string, date: string, venue: string) {
+  await page.goto("/dashboard/events/new");
+  await expect(page.getByText("NEW EVENT")).toBeVisible();
+  await page.locator('input[name="title"]').fill(title);
+  await page
+    .locator('textarea[name="description"]')
+    .fill("An end-to-end test event created by Playwright.");
+  await page.locator('input[name="starts_at"]').fill(`${date}T14:00`);
+  await page.locator('input[name="ends_at"]').fill(`${date}T18:00`);
+  await page.locator('input[name="location_name"]').fill(venue);
+  await page
+    .locator('input[name="location_address"]')
+    .fill("123 Test Street, Sun Valley, CA 91352");
+  await page.getByRole("button", { name: "CREATE EVENT" }).click();
+  await page.waitForURL(/\/dashboard\/events\/\d+\//);
+}
+
+// Delete an event from the list. Delete redirects to the list with a banner.
+async function deleteEvent(page: Page, title: string) {
+  await page.goto("/dashboard/events");
+  const row = page.locator("#events-table-body tr", { hasText: title });
+  await expect(row).toBeVisible();
+  page.once("dialog", (d) => d.accept());
+  await row.locator("select").selectOption("delete");
+  await page.waitForURL(/\/dashboard\/events/);
+}
+
+// Save the edit form and wait for the dashboard detail page.
+async function saveEvent(page: Page) {
+  await page.getByRole("button", { name: "UPDATE EVENT" }).click();
+  await page.waitForURL(/\/dashboard\/events\/\d+\//);
+  await expect(page.locator("#banner-container")).toContainText(/updated/i);
+}
+
 // ---------------------------------------------------------------------------
 // Events CRUD tests
 //
 // Covers list, create, detail, edit, feature toggle, and delete for the
 // events dashboard. Uses STAFF_AUTH (minimum role for event management).
 //
-// Create and delete are grouped in a serial block so the created event
-// can be cleaned up. Edit and feature tests use existing mock data.
+// Edit and feature tests use existing mock data.
 // ---------------------------------------------------------------------------
 
 test.use({ storageState: STAFF_AUTH });
 
 test.describe("Events CRUD", () => {
-  // -------------------------------------------------------------------------
-  // List
-  // -------------------------------------------------------------------------
+  function blockPartyRow(page: Page) {
+    return page.locator("#events-table-body tr", { hasText: "Summer Block Party" });
+  }
 
-  test("list page loads with events table", async ({ page }) => {
+  test("list shows the mock events and a row opens the detail page", async ({ page }) => {
     await page.goto("/dashboard/events");
-    await expect(page.locator("#events-table-body")).toBeVisible();
-    const rows = page.locator("#events-table-body tr");
-    await expect(rows.first()).toBeVisible();
-  });
+    await expect(blockPartyRow(page)).toBeVisible();
 
-  test("list page shows known mock event", async ({ page }) => {
-    await page.goto("/dashboard/events");
-    await expect(page.locator("#events-table-body")).toContainText(
-      "Summer Block Party"
-    );
-  });
-
-  // -------------------------------------------------------------------------
-  // Detail (via table row click)
-  // -------------------------------------------------------------------------
-
-  test("clicking a row navigates to event detail", async ({ page }) => {
-    await page.goto("/dashboard/events");
-    const row = page.locator("#events-table-body tr", {
-      hasText: "Summer Block Party",
-    });
     // Click a non-action cell (the title cell).
-    await row.locator("td").first().click();
+    await blockPartyRow(page).locator("td").first().click();
     await page.waitForURL(/\/dashboard\/events\/\d+\//);
     await expect(page.getByText("Summer Block Party")).toBeVisible();
     await expect(page.getByText("KPBJ Community Plaza")).toBeVisible();
   });
 
-  // -------------------------------------------------------------------------
-  // Edit (existing mock event)
-  // -------------------------------------------------------------------------
-
   test("edit form loads pre-filled and saves changes", async ({ page }) => {
     await page.goto("/dashboard/events");
-    const row = page.locator("#events-table-body tr", {
-      hasText: "Summer Block Party",
-    });
-    // Use actions dropdown to navigate to edit.
-    await row.locator("select").selectOption("edit");
+    await blockPartyRow(page).locator("select").selectOption("edit");
     await page.waitForURL(/\/edit/);
+    await expect(page.locator('input[name="title"]')).toHaveValue("Summer Block Party");
 
-    // Verify form is pre-filled.
-    await expect(page.locator('input[name="title"]')).toHaveValue(
-      "Summer Block Party"
-    );
-
-    // Submit without changes — should still redirect with banner.
-    await page.getByRole("button", { name: "UPDATE EVENT" }).click();
-    await page.waitForURL(/\/dashboard\/events\/\d+\//);
-    await expect(page.locator("#banner-container")).toContainText(/updated|Updated/i);
+    // Submit without changes. It still redirects with a banner.
+    await saveEvent(page);
   });
-
-  // -------------------------------------------------------------------------
-  // Feature toggle (existing mock event)
-  // -------------------------------------------------------------------------
 
   test("feature toggle updates row with banner", async ({ page }) => {
     await page.goto("/dashboard/events");
-    const row = page.locator("#events-table-body tr", {
-      hasText: "Summer Block Party",
-    });
-    // "Promote" or "Demote" — no confirm dialog for this action.
-    const dropdown = row.locator("select");
-    // Get current option text for the feature action.
-    const featureOption = dropdown.locator('option[value="feature"]');
-    await expect(featureOption).toBeAttached();
+    // "Promote" or "Demote". No confirm dialog for this action.
+    const dropdown = blockPartyRow(page).locator("select");
+    await expect(dropdown.locator('option[value="feature"]')).toBeAttached();
     await dropdown.selectOption("feature");
-    // Should see a banner response.
-    await expect(page.locator("#banner-container")).toContainText(
-      /Promoted|Demoted/
-    );
+    await expect(page.locator("#banner-container")).toContainText(/Promoted|Demoted/);
   });
 
-  // -------------------------------------------------------------------------
-  // Create → Delete (serial to clean up)
-  // -------------------------------------------------------------------------
+  // One test, so the delete step cleans up what the create step made.
+  test("create and delete event", async ({ page }) => {
+    const title = `E2E Test Event ${Date.now()}`;
 
-  test.describe.serial("create and delete event", () => {
-    const eventTitle = `E2E Test Event ${Date.now()}`;
-
-    test("create event via form", async ({ page }) => {
-      await page.goto("/dashboard/events/new");
-      await expect(page.getByText("NEW EVENT")).toBeVisible();
-
-      // Fill required fields.
-      await page.locator('input[name="title"]').fill(eventTitle);
-      await page
-        .locator('textarea[name="description"]')
-        .fill("An end-to-end test event created by Playwright.");
-      await page
-        .locator('input[name="starts_at"]')
-        .fill("2027-06-15T14:00");
-      await page
-        .locator('input[name="ends_at"]')
-        .fill("2027-06-15T18:00");
-      await page
-        .locator('input[name="location_name"]')
-        .fill("E2E Test Venue");
-      await page
-        .locator('input[name="location_address"]')
-        .fill("123 Test Street, Sun Valley, CA 91352");
-
-      await page.getByRole("button", { name: "CREATE EVENT" }).click();
-      await page.waitForURL(/\/dashboard\/events\/\d+\//);
-      await expect(page.locator("#banner-container")).toContainText(
-        /created/i
-      );
-      await expect(page.getByText(eventTitle)).toBeVisible();
+    await test.step("create via form", async () => {
+      await createEvent(page, title, "2027-06-15", "E2E Test Venue");
+      await expect(page.locator("#banner-container")).toContainText(/created/i);
+      await expect(page.getByText(title)).toBeVisible();
     });
 
-    test("created event appears in list", async ({ page }) => {
-      await page.goto("/dashboard/events");
-      await expect(page.locator("#events-table-body")).toContainText(
-        eventTitle
-      );
-    });
-
-    test("delete created event", async ({ page }) => {
-      await page.goto("/dashboard/events");
-      const row = page.locator("#events-table-body tr", {
-        hasText: eventTitle,
-      });
-      await expect(row).toBeVisible();
-
-      // Accept the confirmation dialog before triggering delete.
-      page.once("dialog", (d) => d.accept());
-      await row.locator("select").selectOption("delete");
-
-      // Delete redirects to events list with banner.
-      await page.waitForURL(/\/dashboard\/events/);
-      await expect(page.locator("#banner-container")).toContainText(
-        /deleted/i
-      );
-      // Event should no longer be in the table.
-      await expect(
-        page.locator("#events-table-body").getByText(eventTitle)
-      ).not.toBeVisible();
+    await test.step("delete from the list", async () => {
+      await deleteEvent(page, title);
+      await expect(page.locator("#banner-container")).toContainText(/deleted/i);
+      await expect(page.locator("#events-table-body").getByText(title)).not.toBeVisible();
     });
   });
 });
@@ -198,114 +138,82 @@ test.describe("Events CRUD", () => {
 // ---------------------------------------------------------------------------
 // Event photo gallery editor
 //
-// Serial block: creates its own event, exercises upload / caption / reorder /
+// One test: it creates its own event, exercises upload / caption / reorder /
 // delete through the edit form, verifies against the public page, then cleans
 // up the event.
 // ---------------------------------------------------------------------------
 
-test.describe.serial("Event photo gallery editor", () => {
-  const title = `E2E Gallery Event ${Date.now()}`;
-  let editUrl = "";
-  let publicUrl = "";
-
-  test("create an event to attach photos to", async ({ page }) => {
-    await page.goto("/dashboard/events/new");
-    await page.locator('input[name="title"]').fill(title);
-    await page
-      .locator('textarea[name="description"]')
-      .fill("Event created by the gallery e2e test.");
-    await page.locator('input[name="starts_at"]').fill("2027-07-15T14:00");
-    await page.locator('input[name="ends_at"]').fill("2027-07-15T18:00");
-    await page.locator('input[name="location_name"]').fill("Gallery Venue");
-    await page
-      .locator('input[name="location_address"]')
-      .fill("1 Gallery Way, Sun Valley, CA 91352");
-    await page.getByRole("button", { name: "CREATE EVENT" }).click();
-    await page.waitForURL(/\/dashboard\/events\/\d+\//);
+test.describe("Event photo gallery editor", () => {
+  test("upload, caption, reorder, and delete photos", async ({ page }) => {
+    const title = `E2E Gallery Event ${Date.now()}`;
+    await createEvent(page, title, "2027-07-15", "Gallery Venue");
 
     const m = page.url().match(/\/dashboard\/events\/(\d+)\/([^/?]+)/);
     expect(m).not.toBeNull();
     const [, id, slug] = m!;
-    editUrl = `/dashboard/events/${id}/${slug}/edit`;
-    publicUrl = `/events/${id}/${slug}`;
-  });
+    const editUrl = `/dashboard/events/${id}/${slug}/edit`;
+    const publicUrl = `/events/${id}/${slug}`;
+    const cards = page.locator(".fb-images-card");
+    const captionInputs = page.getByPlaceholder("Caption (optional)");
 
-  test("upload a photo with a caption and save", async ({ page }) => {
-    await page.goto(editUrl);
-    await page.locator("#event-gallery-add-input").setInputFiles(IMAGE_FIXTURE);
-    // Alpine renders a preview card for the new photo.
-    await expect(page.locator(".fb-images-card")).toHaveCount(1);
-    await page.getByPlaceholder("Caption (optional)").fill("Opening night");
+    await test.step("upload a photo with a caption and save", async () => {
+      await page.goto(editUrl);
+      await page.locator("#event-gallery-add-input").setInputFiles(IMAGE_FIXTURE);
+      // Alpine renders a preview card for the new photo.
+      await expect(cards).toHaveCount(1);
+      await captionInputs.fill("Opening night");
+      await saveEvent(page);
+    });
 
-    await page.getByRole("button", { name: "UPDATE EVENT" }).click();
-    await page.waitForURL(/\/dashboard\/events\/\d+\//);
-    await expect(page.locator("#banner-container")).toContainText(/updated/i);
-  });
+    await test.step("photo persists and appears on the public page", async () => {
+      await page.goto(editUrl);
+      await expect(cards).toHaveCount(1);
+      await expect(captionInputs.first()).toHaveValue("Opening night");
 
-  test("uploaded photo persists on reload", async ({ page }) => {
-    await page.goto(editUrl);
-    await expect(page.locator(".fb-images-card")).toHaveCount(1);
-    await expect(
-      page.getByPlaceholder("Caption (optional)").first()
-    ).toHaveValue("Opening night");
-  });
+      await page.goto(publicUrl);
+      await expect(page.getByRole("heading", { name: "PHOTOS" })).toBeVisible();
+      await expect(page.locator(".eg-gallery-item")).toHaveCount(1);
+      // Scope to the thumbnail caption; the lightbox caption holds the same text.
+      await expect(
+        page.locator(".eg-gallery-caption", { hasText: "Opening night" })
+      ).toBeVisible();
+    });
 
-  test("photo appears on the public event page", async ({ page }) => {
-    await page.goto(publicUrl);
-    await expect(page.getByRole("heading", { name: "PHOTOS" })).toBeVisible();
-    await expect(page.locator(".eg-gallery-item")).toHaveCount(1);
-    // Scope to the thumbnail caption; the lightbox caption holds the same text.
-    await expect(
-      page.locator(".eg-gallery-caption", { hasText: "Opening night" })
-    ).toBeVisible();
-  });
+    await test.step("reordering photos persists", async () => {
+      await page.goto(editUrl);
+      // Add a second photo and caption it distinctly.
+      await page.locator("#event-gallery-add-input").setInputFiles(IMAGE_FIXTURE);
+      await expect(cards).toHaveCount(2);
+      await captionInputs.nth(1).fill("After party");
 
-  test("reordering photos persists", async ({ page }) => {
-    await page.goto(editUrl);
-    // Add a second photo and caption it distinctly.
-    await page.locator("#event-gallery-add-input").setInputFiles(IMAGE_FIXTURE);
-    await expect(page.locator(".fb-images-card")).toHaveCount(2);
-    await page
-      .getByPlaceholder("Caption (optional)")
-      .nth(1)
-      .fill("After party");
+      // Drag the second card in front of the first.
+      await dragCard(page, 1, 0);
+      await saveEvent(page);
+      // Let the redirected dashboard page settle before navigating away, or the
+      // in-flight requests abort the next goto (net::ERR_ABORTED).
+      await page.waitForLoadState("networkidle");
 
-    // Drag the second card in front of the first.
-    await dragCard(page, 1, 0);
+      // "After party" is now sort_order 0, so it renders first on the public page.
+      await page.goto(publicUrl);
+      const captions = page.locator(".eg-gallery-caption");
+      await expect(captions).toHaveCount(2);
+      await expect(captions.first()).toHaveText("After party");
+    });
 
-    await page.getByRole("button", { name: "UPDATE EVENT" }).click();
-    await page.waitForURL(/\/dashboard\/events\/\d+\//);
-    // Let the redirected dashboard page settle before navigating away, or the
-    // in-flight requests abort the next goto (net::ERR_ABORTED).
-    await page.waitForLoadState("networkidle");
+    await test.step("deleting a photo removes it", async () => {
+      await page.goto(editUrl);
+      await expect(cards).toHaveCount(2);
+      await page.locator(".fb-images-remove").first().click();
+      await expect(cards).toHaveCount(1);
+      await saveEvent(page);
+      await page.waitForLoadState("networkidle");
 
-    // "After party" is now sort_order 0, so it renders first on the public page.
-    await page.goto(publicUrl);
-    const captions = page.locator(".eg-gallery-caption");
-    await expect(captions).toHaveCount(2);
-    await expect(captions.first()).toHaveText("After party");
-  });
+      await page.goto(publicUrl);
+      await expect(page.locator(".eg-gallery-item")).toHaveCount(1);
+    });
 
-  test("deleting a photo removes it", async ({ page }) => {
-    await page.goto(editUrl);
-    await expect(page.locator(".fb-images-card")).toHaveCount(2);
-    // Remove the first card.
-    await page.locator(".fb-images-remove").first().click();
-    await expect(page.locator(".fb-images-card")).toHaveCount(1);
-
-    await page.getByRole("button", { name: "UPDATE EVENT" }).click();
-    await page.waitForURL(/\/dashboard\/events\/\d+\//);
-    await page.waitForLoadState("networkidle");
-
-    await page.goto(publicUrl);
-    await expect(page.locator(".eg-gallery-item")).toHaveCount(1);
-  });
-
-  test("cleanup: delete the event", async ({ page }) => {
-    await page.goto("/dashboard/events");
-    const row = page.locator("#events-table-body tr", { hasText: title });
-    page.once("dialog", (d) => d.accept());
-    await row.locator("select").selectOption("delete");
-    await page.waitForURL(/\/dashboard\/events/);
+    await test.step("cleanup: delete the event", async () => {
+      await deleteEvent(page, title);
+    });
   });
 });
