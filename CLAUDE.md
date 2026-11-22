@@ -136,11 +136,15 @@ hxGet_ [i|/api/shows/#{showId}/episodes|]
 
 ### Haddock Comments
 
+Put each parameter comment on its own `-- |` line above the parameter. Ormolu changes a `-- ^` comment after a parameter into this form.
+
 ```haskell
 -- | Main description of function.
 functionName ::
-  User.Id ->    -- ^ Parameter description
-  Text ->       -- ^ Another parameter
+  -- | Parameter description
+  User.Id ->
+  -- | Another parameter
+  Text ->
   AppM Result
 ```
 
