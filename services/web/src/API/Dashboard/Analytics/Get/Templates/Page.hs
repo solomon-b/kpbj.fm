@@ -290,6 +290,12 @@ function analyticsDashboard() {
       this.error = '';
       try {
         const res = await fetch('/#{dataUrl}?range=' + this.range);
+        // The role gate answers fetch with a plain 401 or 403. A reload goes
+        // through the gate as a page load, which redirects with a flash.
+        if (res.status === 401 || res.status === 403) {
+          window.location.reload();
+          return;
+        }
         if (!res.ok) throw new Error('Failed to load data');
         const data = await res.json();
 
