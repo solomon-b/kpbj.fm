@@ -17,6 +17,7 @@ import App.Monad (AppM)
 import Component.Button ((&))
 import Component.Button qualified as Button
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Int (Int64)
@@ -74,9 +75,10 @@ action userMetadata maybePage hxRequest = do
 handler ::
   Maybe Int64 ->
   Satisfies 'UserMetadata.Staff RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler maybePage (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler maybePage (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Station blog list" apiLinks.rootGet $ do
     vd <- action auth.raMetadata maybePage hxRequest
     if vd.sbvdIsAppendRequest
@@ -86,6 +88,7 @@ handler maybePage (Satisfies _ auth) (foldHxReq -> hxRequest) =
         lift $
           renderDashboardTemplate
             hxRequest
+            mFlash
             vd.sbvdUserMetadata
             NoShow
             NavStationBlog

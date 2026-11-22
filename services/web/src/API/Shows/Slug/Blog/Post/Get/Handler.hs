@@ -12,7 +12,7 @@ import API.Types (Routes (..))
 import App.Common (getUserInfo, renderTemplate)
 import App.Handler.Error (HandlerError (..), errorContent, errorRedirectParams, logHandlerError, notFoundContent, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
-import Component.Flash (throwHxRedirect)
+import Component.Flash (FlashMessage, throwHxRedirect)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT)
 import Data.Either (fromRight)
@@ -54,6 +54,7 @@ handlerWithSlug ::
   ShowBlogPosts.Id ->
   Slug ->
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
 handlerWithSlug showId postId slug = handler showId postId (Just slug)
@@ -63,6 +64,7 @@ handlerWithoutSlug ::
   Shows.Id ->
   ShowBlogPosts.Id ->
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
 handlerWithoutSlug showId postId = handler showId postId Nothing
@@ -73,9 +75,10 @@ handler ::
   ShowBlogPosts.Id ->
   Maybe Slug ->
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler showId postId mUrlSlug cookie (foldHxReq -> hxRequest) =
+handler showId postId mUrlSlug cookie mFlash (foldHxReq -> hxRequest) =
   runExceptT innerAction >>= \case
     Right result -> pure result
     Left err -> do
@@ -99,12 +102,12 @@ handler showId postId mUrlSlug cookie (foldHxReq -> hxRequest) =
       case outcome of
         RenderPost vd -> do
           renderedContent <- lift $ renderContentM (ShowBlogPosts.content vd.sbpvdPost)
-          lift $ renderTemplate hxRequest mUserInfo $ template vd.sbpvdShowModel vd.sbpvdPost vd.sbpvdAuthor vd.sbpvdTags renderedContent
+          lift $ renderTemplate hxRequest mFlash mUserInfo $ template vd.sbpvdShowModel vd.sbpvdPost vd.sbpvdAuthor vd.sbpvdTags renderedContent
         RedirectTo url ->
           lift $ throwHxRedirect url Nothing
     renderInline content = do
       mUserInfo <- getUserInfo cookie <&> fmap snd
-      renderTemplate hxRequest mUserInfo content
+      renderTemplate hxRequest mFlash mUserInfo content
 
 --------------------------------------------------------------------------------
 

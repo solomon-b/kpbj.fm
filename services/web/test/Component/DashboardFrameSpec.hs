@@ -10,8 +10,10 @@ module Component.DashboardFrameSpec (spec) where
 import API.Links (dashboardEphemeralUploadsLinks, dashboardLinks, rootLink)
 import API.Types (DashboardEphemeralUploadsRoutes (..), DashboardRoutes (..))
 import App.Dashboard.ShowContext (ShowContext (..), ShowSection (..))
+import Component.Banner (BannerType (..))
 import Component.DashboardFrame (DashboardNav (..), sectionUrl)
 import Component.DashboardFrame qualified as DashboardFrame
+import Component.Flash (FlashMessage (..))
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -158,10 +160,26 @@ spec = describe "Component.DashboardFrame" $ do
       renderFrame (ForShow showA) [showA, showB] NavEpisodes
         `shouldNotSatisfy` Text.isInfixOf "hx-sync"
 
-  describe "banner" $
+  describe "banner" $ do
     it "loads the script that clears the banner on a page change" $ do
       let (headHtml, _body) = Text.breakOn "</head>" (renderFrame NoShow [] NavEvents)
       headHtml `shouldSatisfy` Text.isInfixOf "htmx:beforeRequest"
+
+    it "renders the flash message in the banner container" $
+      bannerContainerContent (renderFrameWithFlash (Just created) NoShow [] NavEvents)
+        `shouldSatisfy` (\content -> Text.isInfixOf "Created" content && Text.isInfixOf "Item created successfully." content)
+
+    it "renders an empty banner container with no flash message" $
+      bannerContainerContent (renderFrame NoShow [] NavEvents) `shouldBe` ""
+
+    it "has a banner template for each banner type" $ do
+      let html = renderFrame NoShow [] NavEvents
+          hasTemplate name = Text.isInfixOf [i|id="banner-template-#{name}"|] html
+      filter (not . hasTemplate) ["success", "error", "warning", "info" :: Text]
+        `shouldBe` []
+
+    it "does not read the flash cookie in the browser" $
+      renderFrame NoShow [] NavEvents `shouldNotSatisfy` Text.isInfixOf "_flash"
 
   describe "browser history" $ do
     it "keeps the pages out of the HTMX history cache" $
@@ -234,19 +252,37 @@ renderHtmxResponse showContext selectorShows activeNav =
 
 -- | Render the frame with the given context, selector options, and active item.
 renderFrame :: ShowContext -> [Shows.Model] -> DashboardNav -> Text
-renderFrame showContext selectorShows activeNav =
+renderFrame = renderFrameWithFlash Nothing
+
+-- | 'renderFrame' for a request with a flash message.
+renderFrameWithFlash :: Maybe FlashMessage -> ShowContext -> [Shows.Model] -> DashboardNav -> Text
+renderFrameWithFlash mFlash showContext selectorShows activeNav =
   LText.toStrict $ Lucid.renderText frame
   where
     frame =
       DashboardFrame.template
         Nothing
         sampleUserMetadata
+        mFlash
         showContext
         selectorShows
         activeNav
         Nothing
         Nothing
         mempty
+
+-- | A flash message.
+created :: FlashMessage
+created = FlashMessage Success "Created" "Item created successfully."
+
+-- | The HTML inside the banner container of a frame. In the frame, the
+-- container and its wrapper close right before the main element.
+bannerContainerContent :: Text -> Text
+bannerContainerContent html =
+  fst (Text.breakOn "</div></div><main" afterOpeningTag)
+  where
+    afterId = snd (Text.breakOn "id=\"banner-container\"" html)
+    afterOpeningTag = Text.drop 1 (Text.dropWhile (/= '>') afterId)
 
 -- | The @href@ attribute of the current show route for a section.
 currentShowHref :: ShowSection -> Text

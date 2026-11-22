@@ -15,7 +15,7 @@ import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..), sectionUrl)
-import Component.Flash (throwHxRedirect)
+import Component.Flash (FlashMessage, throwHxRedirect)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.String.Interpolate (i)
@@ -39,15 +39,16 @@ action cookie userMetadata = lift $ resolveCurrentShow cookie userMetadata
 handler ::
   Satisfies 'UserMetadata.Host RoleAuth ->
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler (Satisfies _ auth) cookie (foldHxReq -> hxRequest) =
+handler (Satisfies _ auth) cookie mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Episodes redirect" apiLinks.rootGet $ do
     mCurrentShow <- action cookie auth.raMetadata
     case mCurrentShow of
       Nothing ->
         -- No shows available, so render the dashboard with an empty state.
-        lift $ renderDashboardTemplate hxRequest auth.raMetadata NoShow NavEpisodes Nothing Nothing noShowsEmptyState
+        lift $ renderDashboardTemplate hxRequest mFlash auth.raMetadata NoShow NavEpisodes Nothing Nothing noShowsEmptyState
       Just currentShow -> do
         Log.logInfo "Redirecting to the episodes page of the current show" currentShow.slug
         let episodesUrl = sectionUrl SectionEpisodes currentShow

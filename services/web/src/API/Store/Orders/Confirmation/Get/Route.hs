@@ -2,6 +2,7 @@ module API.Store.Orders.Confirmation.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
@@ -20,5 +21,6 @@ type Route =
     :> "confirmation"
     :> Servant.QueryParam "session_id" Text
     :> Servant.Header "Cookie" Cookie
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

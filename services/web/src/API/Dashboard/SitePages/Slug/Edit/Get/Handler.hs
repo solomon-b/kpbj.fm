@@ -14,6 +14,7 @@ import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Text (Text)
@@ -29,20 +30,22 @@ import Utils (fromMaybeM, fromRightM)
 handler ::
   Text ->
   Satisfies 'UserMetadata.Staff RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler pageSlug (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler pageSlug (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Edit site page" apiLinks.rootGet $ do
     vd <- action auth.raMetadata pageSlug
     lift $
       renderDashboardTemplate
         hxRequest
+        mFlash
         vd.pevUserMetadata
         NoShow
         NavSitePages
         Nothing
         Nothing
-        (template vd.pevPage Nothing)
+        (template vd.pevPage)
 
 --------------------------------------------------------------------------------
 

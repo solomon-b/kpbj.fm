@@ -13,25 +13,37 @@ module Component.Flash
     jsRedirectBody,
 
     -- * Flash cookie
+    flashCookieName,
     flashCookie,
     clearFlashCookie,
+    lookupFlashCookie,
+    lookupFlash,
+    decodeFlash,
+
+    -- * Rendering
+    renderFlash,
   )
 where
 
 --------------------------------------------------------------------------------
 
-import Component.Banner (BannerType (..))
+import Component.Banner (BannerType, bannerItem, bannerTypeFromName, bannerTypeName)
 import Control.Monad.Catch (MonadThrow, throwM)
+import Data.Aeson ((.:))
 import Data.Aeson qualified as Aeson
+import Data.Aeson.Types qualified as Aeson
+import Data.ByteString (ByteString)
 import Data.ByteString.Lazy qualified as LBS
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text.Encoding
 import Lucid qualified
-import Network.HTTP.Types.URI (urlEncode)
+import Network.HTTP.Types.Header (RequestHeaders, hCookie)
+import Network.HTTP.Types.URI (urlDecode, urlEncode)
 import Servant qualified
 import Text.HTML (HTML)
+import Web.Cookie (parseCookies)
 
 --------------------------------------------------------------------------------
 
@@ -48,6 +60,7 @@ data FlashMessage = FlashMessage
     fmTitle :: Text,
     fmMessage :: Text
   }
+  deriving stock (Show, Eq)
 
 --------------------------------------------------------------------------------
 
@@ -55,8 +68,12 @@ data FlashMessage = FlashMessage
 --
 -- Returns a 200 response with:
 -- - @HX-Redirect@ header: HTMX reads this and does @window.location.href@
--- - @Set-Cookie@: flash cookie with optional banner message
+-- - @Set-Cookie@: the flash cookie, only when there is a banner message
 -- - HTML body: @\<script\>window.location.href='...'\<\/script\>@ fallback for non-HTMX
+--
+-- A redirect with no message leaves the flash cookie as it is. A redirect
+-- can be one hop of a chain, and the first page that renders shows the
+-- message.
 --
 -- Uses @throwM@ so it works from any handler regardless of return type.
 throwHxRedirect :: (MonadThrow m) => Text -> Maybe FlashMessage -> m a
@@ -74,9 +91,9 @@ hxRedirectError url mFlash =
       errBody = Lucid.renderBS $ jsRedirectBody url,
       errHeaders =
         [ ("Content-Type", "text/html; charset=utf-8"),
-          ("HX-Redirect", Text.Encoding.encodeUtf8 url),
-          ("Set-Cookie", Text.Encoding.encodeUtf8 $ flashCookie mFlash)
+          ("HX-Redirect", Text.Encoding.encodeUtf8 url)
         ]
+          <> [("Set-Cookie", Text.Encoding.encodeUtf8 $ flashCookie (Just flash)) | Just flash <- [mFlash]]
     }
 
 -- | Send an HTMX client to a page by swap. The response has no body.
@@ -141,19 +158,50 @@ jsRedirectBody url =
 
 --------------------------------------------------------------------------------
 
+-- | The name of the flash cookie.
+flashCookieName :: ByteString
+flashCookieName = "_flash"
+
 -- | Build the Set-Cookie value for a flash message.
 --
--- When Nothing, clears any stale flash cookie.
+-- When Nothing, clears any stale flash cookie. Only the server reads the
+-- cookie, so it is @HttpOnly@.
 flashCookie :: Maybe FlashMessage -> Text
 flashCookie Nothing = clearFlashCookie
 flashCookie (Just flash) =
-  let json = Text.Encoding.decodeUtf8 $ LBS.toStrict $ Aeson.encode $ flashToJSON flash
-      encoded = Text.Encoding.decodeUtf8 $ urlEncode True $ Text.Encoding.encodeUtf8 json
-   in [i|_flash=#{encoded}; Path=/; SameSite=Strict|]
+  let json = LBS.toStrict $ Aeson.encode $ flashToJSON flash
+      encoded = Text.Encoding.decodeUtf8 $ urlEncode True json
+   in [i|_flash=#{encoded}; Path=/; HttpOnly; SameSite=Strict|]
 
 -- | Set-Cookie value that clears the flash cookie.
 clearFlashCookie :: Text
-clearFlashCookie = "_flash=; Max-Age=0; Path=/; SameSite=Strict"
+clearFlashCookie = "_flash=; Max-Age=0; Path=/; HttpOnly; SameSite=Strict"
+
+-- | The raw value of the flash cookie in the headers of a request.
+--
+-- A request can split its cookies over more than one @Cookie@ header.
+lookupFlashCookie :: RequestHeaders -> Maybe ByteString
+lookupFlashCookie headers =
+  lookup flashCookieName $
+    [cookie | (name, value) <- headers, name == hCookie, cookie <- parseCookies value]
+
+-- | Read the flash message from the headers of a request.
+--
+-- A missing or malformed cookie gives 'Nothing'.
+lookupFlash :: RequestHeaders -> Maybe FlashMessage
+lookupFlash headers = lookupFlashCookie headers >>= decodeFlash
+
+-- | Decode the raw value of a flash cookie. The inverse of the value that
+-- 'flashCookie' sets.
+decodeFlash :: ByteString -> Maybe FlashMessage
+decodeFlash raw =
+  Aeson.decodeStrict (urlDecode True raw) >>= Aeson.parseMaybe flashFromJSON
+
+--------------------------------------------------------------------------------
+
+-- | The banner of a flash message, for the banner container of a frame.
+renderFlash :: FlashMessage -> Lucid.Html ()
+renderFlash FlashMessage {..} = bannerItem fmType fmTitle fmMessage
 
 --------------------------------------------------------------------------------
 
@@ -161,14 +209,16 @@ clearFlashCookie = "_flash=; Max-Age=0; Path=/; SameSite=Strict"
 flashToJSON :: FlashMessage -> Aeson.Value
 flashToJSON FlashMessage {..} =
   Aeson.object
-    [ "type" Aeson..= bannerTypeText fmType,
+    [ "type" Aeson..= bannerTypeName fmType,
       "title" Aeson..= fmTitle,
       "msg" Aeson..= fmMessage
     ]
 
-bannerTypeText :: BannerType -> Text
-bannerTypeText = \case
-  Success -> "success"
-  Error -> "error"
-  Warning -> "warning"
-  Info -> "info"
+-- | Decode the JSON object of 'flashToJSON'.
+flashFromJSON :: Aeson.Value -> Aeson.Parser FlashMessage
+flashFromJSON = Aeson.withObject "FlashMessage" $ \o -> do
+  typeName <- o .: "type"
+  fmType <- maybe (fail "unknown banner type") pure (bannerTypeFromName typeName)
+  fmTitle <- o .: "title"
+  fmMessage <- o .: "msg"
+  pure FlashMessage {..}

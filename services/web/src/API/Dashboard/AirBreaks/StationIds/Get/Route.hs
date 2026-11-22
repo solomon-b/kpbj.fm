@@ -2,6 +2,7 @@ module API.Dashboard.AirBreaks.StationIds.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Domain.Types.HxRequest (HxRequest)
 import Domain.Types.PageNumber (PageNumber)
 import Effects.Database.Tables.UserMetadata (UserRole (..))
@@ -20,5 +21,6 @@ type Route =
     :> "station-ids"
     :> Servant.QueryParam "page" PageNumber
     :> RequireRole "cookie-auth" 'Host
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

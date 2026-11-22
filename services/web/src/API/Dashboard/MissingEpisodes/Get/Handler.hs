@@ -13,6 +13,7 @@ import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
@@ -27,13 +28,14 @@ import Utils (fromRightM)
 -- | Servant handler: thin glue composing action + render with dashboard chrome.
 handler ::
   Satisfies 'UserMetadata.Staff RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Missing episodes" apiLinks.rootGet $ do
     vd <- action auth.raMetadata
     let pageTemplate = template vd.mevMissingEpisodes
-    lift $ renderDashboardTemplate hxRequest vd.mevUserMetadata NoShow NavMissingEpisodes Nothing Nothing pageTemplate
+    lift $ renderDashboardTemplate hxRequest mFlash vd.mevUserMetadata NoShow NavMissingEpisodes Nothing Nothing pageTemplate
 
 --------------------------------------------------------------------------------
 

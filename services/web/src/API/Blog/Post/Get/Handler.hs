@@ -11,7 +11,7 @@ import API.Types (Routes (..))
 import App.Common (getUserInfo, renderTemplate)
 import App.Handler.Error (HandlerError (..), errorContent, errorRedirectParams, logHandlerError, notFoundContent, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
-import Component.Flash (throwHxRedirect)
+import Component.Flash (FlashMessage, throwHxRedirect)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT)
@@ -46,6 +46,7 @@ handlerWithSlug ::
   BlogPosts.Id ->
   Slug ->
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
 handlerWithSlug postId slug = handler postId (Just slug)
@@ -54,6 +55,7 @@ handlerWithSlug postId slug = handler postId (Just slug)
 handlerWithoutSlug ::
   BlogPosts.Id ->
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
 handlerWithoutSlug postId = handler postId Nothing
@@ -63,9 +65,10 @@ handler ::
   BlogPosts.Id ->
   Maybe Slug ->
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler postId mUrlSlug cookie (foldHxReq -> hxRequest) =
+handler postId mUrlSlug cookie mFlash (foldHxReq -> hxRequest) =
   runExceptT innerAction >>= \case
     Right result -> pure result
     Left err -> do
@@ -91,10 +94,10 @@ handler postId mUrlSlug cookie (foldHxReq -> hxRequest) =
           lift $ throwHxRedirect canonicalUrl Nothing
         BlogPostContent backend blogPost author tags -> do
           renderedContent <- lift $ renderContentM (BlogPosts.bpmContent blogPost)
-          lift $ renderTemplate hxRequest mUserInfo (template backend blogPost author tags renderedContent)
+          lift $ renderTemplate hxRequest mFlash mUserInfo (template backend blogPost author tags renderedContent)
     renderInline content = do
       mUserInfo <- getUserInfo cookie <&> fmap snd
-      renderTemplate hxRequest mUserInfo content
+      renderTemplate hxRequest mFlash mUserInfo content
 
 --------------------------------------------------------------------------------
 

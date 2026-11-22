@@ -2,6 +2,7 @@ module API.Store.Cart.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
 import Lucid qualified
@@ -16,5 +17,6 @@ type Route =
   "store"
     :> "cart"
     :> Servant.Header "Cookie" Cookie
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

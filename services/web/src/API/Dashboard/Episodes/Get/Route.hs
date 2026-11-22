@@ -2,6 +2,7 @@ module API.Dashboard.Episodes.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Data.Int (Int64)
 import Domain.Types.HxRequest (HxRequest)
 import Domain.Types.Slug (Slug)
@@ -21,5 +22,6 @@ type Route =
     :> Servant.Capture "slug" Slug
     :> Servant.QueryParam "page" Int64
     :> RequireRole "cookie-auth" 'Host
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

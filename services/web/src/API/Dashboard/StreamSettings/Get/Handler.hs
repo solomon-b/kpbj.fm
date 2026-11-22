@@ -16,6 +16,7 @@ import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Exception (try)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
@@ -40,14 +41,16 @@ import Network.HTTP.Simple qualified as HTTP
 
 handler ::
   Satisfies 'UserMetadata.Admin RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Stream settings" apiLinks.rootGet $ do
     vd <- action auth.raMetadata
     lift $
       renderDashboardTemplate
         hxRequest
+        mFlash
         vd.ssvUserMetadata
         NoShow
         NavStreamSettings

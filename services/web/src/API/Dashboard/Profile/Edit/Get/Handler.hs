@@ -14,6 +14,7 @@ import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwUserSuspended)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad (when)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
@@ -33,13 +34,14 @@ import Lucid qualified
 -- lets them through, and the handler refuses them.
 handler ::
   Satisfies 'UserMetadata.User RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Profile edit" apiLinks.rootGet $ do
     when (UserMetadata.isSuspended auth.raMetadata) throwUserSuspended
     vd <- action auth.raUser auth.raMetadata
-    lift $ renderDashboardTemplate hxRequest vd.pefUserMetadata NoShow NavSettings Nothing Nothing (template vd.pefStorageBackend vd.pefUser vd.pefUserMetadata)
+    lift $ renderDashboardTemplate hxRequest mFlash vd.pefUserMetadata NoShow NavSettings Nothing Nothing (template vd.pefStorageBackend vd.pefUser vd.pefUserMetadata)
 
 --------------------------------------------------------------------------------
 

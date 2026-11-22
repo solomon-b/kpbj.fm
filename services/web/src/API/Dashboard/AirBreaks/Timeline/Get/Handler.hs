@@ -17,6 +17,7 @@ import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Maybe (fromMaybe)
@@ -37,9 +38,10 @@ import Utils (fromRightM)
 handler ::
   Maybe Text ->
   Satisfies 'Staff RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler mDay (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler mDay (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Day timeline" apiLinks.rootGet $ do
     now <- lift currentSystemTime
     let day = fromMaybe (pacificDay now) (mDay >>= parseDateYMD)
@@ -47,6 +49,7 @@ handler mDay (Satisfies _ auth) (foldHxReq -> hxRequest) =
     lift $
       renderDashboardTemplate
         hxRequest
+        mFlash
         auth.raMetadata
         NoShow
         NavTimeline

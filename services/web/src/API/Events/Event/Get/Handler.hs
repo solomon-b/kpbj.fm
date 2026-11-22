@@ -11,7 +11,7 @@ import API.Types (Routes (..))
 import App.Common (getUserInfo, renderTemplate)
 import App.Handler.Error (HandlerError (..), errorContent, errorRedirectParams, logHandlerError, notFoundContent, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
-import Component.Flash (throwHxRedirect)
+import Component.Flash (FlashMessage, throwHxRedirect)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT)
@@ -44,6 +44,7 @@ handlerWithSlug ::
   Events.Id ->
   Slug ->
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
 handlerWithSlug eventId slug = handler eventId (Just slug)
@@ -52,6 +53,7 @@ handlerWithSlug eventId slug = handler eventId (Just slug)
 handlerWithoutSlug ::
   Events.Id ->
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
 handlerWithoutSlug eventId = handler eventId Nothing
@@ -61,9 +63,10 @@ handler ::
   Events.Id ->
   Maybe Slug ->
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler eventId mUrlSlug cookie (foldHxReq -> hxRequest) =
+handler eventId mUrlSlug cookie mFlash (foldHxReq -> hxRequest) =
   runExceptT innerAction >>= \case
     Right result -> pure result
     Left err -> do
@@ -89,10 +92,10 @@ handler eventId mUrlSlug cookie (foldHxReq -> hxRequest) =
           lift $ throwHxRedirect canonicalUrl Nothing
         EventContent backend event images -> do
           renderedDescription <- lift $ renderContentM (Events.emDescription event)
-          lift $ renderTemplate hxRequest mUserInfo (template backend event images renderedDescription)
+          lift $ renderTemplate hxRequest mFlash mUserInfo (template backend event images renderedDescription)
     renderInline content = do
       mUserInfo <- getUserInfo cookie <&> fmap snd
-      renderTemplate hxRequest mUserInfo content
+      renderTemplate hxRequest mFlash mUserInfo content
 
 --------------------------------------------------------------------------------
 

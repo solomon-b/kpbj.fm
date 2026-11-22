@@ -4,9 +4,12 @@ module API.User.Register.Post.HandlerSpec where
 
 import API.User.Register.Post.Handler (RegisterResult (..), action)
 import API.User.Register.Post.Route (Register (..))
+import Component.Banner (BannerType (..))
+import Component.Flash (FlashMessage (..))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Password.Argon2 (mkPassword)
+import Data.Text qualified as Text
 import Domain.Types.DisplayName (mkDisplayNameUnsafe)
 import Domain.Types.FullName (mkFullNameUnsafe)
 import Effects.Database.Class (MonadDB (..))
@@ -18,7 +21,7 @@ import Test.Database.Monad (TestDBConfig, withTestDB)
 import Test.Gen.EmailAddress (mkEmailAddressUnsafe)
 import Test.Handler.Fixtures (expectSetupRight, mkUserInsert)
 import Test.Handler.Monad (bracketAppM)
-import Test.Hspec (Spec, describe, expectationFailure, it)
+import Test.Hspec (Spec, describe, expectationFailure, it, shouldBe, shouldSatisfy)
 
 --------------------------------------------------------------------------------
 
@@ -39,7 +42,7 @@ testSockAddr = SockAddrUnix "test"
 -- | Display a RegisterResult for test failure messages.
 showRegisterResult :: RegisterResult -> String
 showRegisterResult (RegisterSuccess _) = "RegisterSuccess"
-showRegisterResult (RegisterFailure _) = "RegisterFailure"
+showRegisterResult (RegisterFailure _ _) = "RegisterFailure"
 
 -- | Build a valid Register form.
 validRegisterForm :: Register
@@ -61,7 +64,9 @@ test_registrationValidationFailure cfg = do
   bracketAppM cfg $ do
     result <- runExceptT $ action testSockAddr Nothing form
     liftIO $ case result of
-      Right (RegisterFailure _) -> pure ()
+      Right (RegisterFailure _ flash) -> do
+        fmType flash `shouldBe` Error
+        fmMessage flash `shouldSatisfy` Text.isPrefixOf "Password is invalid: "
       Right other -> expectationFailure $ "Expected RegisterFailure but got: " <> showRegisterResult other
       Left err -> expectationFailure $ "Expected Right RegisterFailure but got Left: " <> show err
 
@@ -80,7 +85,8 @@ test_registrationDuplicateEmail cfg = do
     let form = validRegisterForm {urEmail = mkEmailAddressUnsafe "register-dup@test.example.com"}
     result <- runExceptT $ action testSockAddr Nothing form
     liftIO $ case result of
-      Right (RegisterFailure _) -> pure ()
+      Right (RegisterFailure _ flash) ->
+        flash `shouldBe` FlashMessage Error "Registration Failed" "Your account could not be created. Check your details and try again."
       Right other -> expectationFailure $ "Expected RegisterFailure but got: " <> showRegisterResult other
       Left err -> expectationFailure $ "Expected Right RegisterFailure but got Left: " <> show err
 

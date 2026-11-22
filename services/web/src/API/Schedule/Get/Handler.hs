@@ -10,6 +10,7 @@ import API.Types (Routes (..))
 import App.Common (getUserInfo, renderTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors)
 import App.Monad (AppM)
+import Component.Flash (FlashMessage)
 import Control.Monad (forM_)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
@@ -53,15 +54,17 @@ data ScheduleViewData = ScheduleViewData
 handler ::
   Maybe WeekOffset ->
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler mWeekOffset (coerce -> cookie) (fromMaybe IsNotHxRequest -> htmxRequest) =
+handler mWeekOffset (coerce -> cookie) mFlash (fromMaybe IsNotHxRequest -> htmxRequest) =
   handleHtmlErrors "Schedule" apiLinks.rootGet $ do
     mUserInfo <- lift $ getUserInfo cookie <&> fmap snd
     vd <- action mWeekOffset
     lift $
       renderTemplate
         htmxRequest
+        mFlash
         mUserInfo
         ( template
             vd.svdStorageBackend

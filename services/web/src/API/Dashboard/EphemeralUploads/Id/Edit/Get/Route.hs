@@ -2,6 +2,7 @@ module API.Dashboard.EphemeralUploads.Id.Edit.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Data.Text (Text)
 import Domain.Types.HxRequest (HxRequest)
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
@@ -21,5 +22,6 @@ type Route =
     :> Servant.Capture "ephemeral_upload_id" EphemeralUploads.Id
     :> "edit"
     :> RequireRole "cookie-auth" 'Staff
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))

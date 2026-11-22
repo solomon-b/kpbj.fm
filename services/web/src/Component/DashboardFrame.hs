@@ -46,9 +46,10 @@ import API.Links
   )
 import API.Types
 import App.Dashboard.ShowContext (ShowContext (..), ShowSection (..), currentShowCookieName)
-import Component.Banner (bannerContainerId)
+import Component.Banner (bannerContainer, bannerTemplates)
 import Component.Button qualified as Button
-import Component.Frame (bannerFromUrlScript, clearBannerOnNavScript, darkModeScript, googleAnalyticsScript, htmxErrorBannerScript, htmxIndicatorStyles, showBannerScript)
+import Component.Flash (FlashMessage, renderFlash)
+import Component.Frame (clearBannerOnNavScript, darkModeScript, googleAnalyticsScript, htmxErrorBannerScript, htmxIndicatorStyles, showBannerScript)
 import Control.Monad (unless, when)
 import Control.Monad.Catch (MonadThrow)
 import Data.Aeson qualified as Aeson
@@ -241,6 +242,8 @@ data Placement
 template ::
   Maybe GoogleAnalyticsId ->
   UserMetadata.Model ->
+  -- | The flash message of the request
+  Maybe FlashMessage ->
   ShowContext ->
   -- | Options of the show selector. Not used with 'NoShow'.
   [Shows.Model] ->
@@ -249,7 +252,7 @@ template ::
   Maybe (Lucid.Html ()) ->
   Lucid.Html () ->
   Lucid.Html ()
-template mGoogleAnalyticsId userMeta showContext selectorShows activeNav statsContent actionButton main =
+template mGoogleAnalyticsId userMeta mFlash showContext selectorShows activeNav statsContent actionButton main =
   Lucid.doctypehtml_ $ do
     Lucid.head_ $ do
       googleAnalyticsScript mGoogleAnalyticsId
@@ -292,13 +295,13 @@ template mGoogleAnalyticsId userMeta showContext selectorShows activeNav statsCo
         Lucid.div_ [class_ $ base ["flex-1", "flex", "flex-col"]] $ do
           -- Top bar with page title, show selector, stats, and action button
           topBar InFrame activeNav selectorShows showContext statsContent actionButton
-          -- Banner container
-          Lucid.div_ [class_ $ base ["px-6", Tokens.mt4]] $
-            Lucid.div_ [Lucid.id_ bannerContainerId, Lucid.class_ Tokens.fullWidth] mempty
+          -- Banner container. The wrapper sets only the side padding, so it
+          -- takes no space when the container is empty.
+          Lucid.div_ [class_ $ base ["px-6"]] $
+            bannerContainer (foldMap renderFlash mFlash)
           -- Main content (use same ID as main site for HTMX compatibility)
           Lucid.main_ [class_ $ base ["flex-1", "px-6", "py-4"], Lucid.id_ "main-content"] main
-      -- Script to display banner from URL params (runs after DOM is ready)
-      Lucid.script_ [] bannerFromUrlScript
+      bannerTemplates
 
 -- | The classes that the Tailwind CDN always writes, as a JSON array.
 --
@@ -690,6 +693,8 @@ loadDashboardFrame ::
   (Log.MonadLog m, MonadThrow m) =>
   Maybe GoogleAnalyticsId ->
   UserMetadata.Model ->
+  -- | The flash message of the request
+  Maybe FlashMessage ->
   ShowContext ->
   -- | Options of the show selector. Not used with 'NoShow'.
   [Shows.Model] ->
@@ -698,8 +703,8 @@ loadDashboardFrame ::
   Maybe (Lucid.Html ()) ->
   Lucid.Html () ->
   m (Lucid.Html ())
-loadDashboardFrame mGoogleAnalyticsId user showContext selectorShows nav statsContent actionButton content =
-  pure $ template mGoogleAnalyticsId user showContext selectorShows nav statsContent actionButton content
+loadDashboardFrame mGoogleAnalyticsId user mFlash showContext selectorShows nav statsContent actionButton content =
+  pure $ template mGoogleAnalyticsId user mFlash showContext selectorShows nav statsContent actionButton content
 
 -- | The response to an HTMX request for a dashboard page.
 --

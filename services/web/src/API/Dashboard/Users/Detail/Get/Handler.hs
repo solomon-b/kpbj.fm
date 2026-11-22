@@ -14,6 +14,7 @@ import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -69,12 +70,13 @@ action userMetadata targetUserId = do
 handler ::
   User.Id ->
   Satisfies 'UserMetadata.Staff RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler targetUserId (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler targetUserId (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "User detail" dashboardLinks.home $ do
     vd <- action auth.raMetadata targetUserId
-    lift $ renderDashboardTemplate hxRequest vd.udvUserMetadata NoShow NavUsers Nothing Nothing (template vd.udvBackend vd.udvTargetUser vd.udvTargetMetadata vd.udvHostedShows vd.udvRecentEpisodes)
+    lift $ renderDashboardTemplate hxRequest mFlash vd.udvUserMetadata NoShow NavUsers Nothing Nothing (template vd.udvBackend vd.udvTargetUser vd.udvTargetMetadata vd.udvHostedShows vd.udvRecentEpisodes)
 
 -- | Fetch target user and their metadata, or throw NotFound
 fetchTargetUserOrNotFound ::

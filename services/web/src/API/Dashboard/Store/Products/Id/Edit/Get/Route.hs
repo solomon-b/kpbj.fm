@@ -2,6 +2,7 @@ module API.Dashboard.Store.Products.Id.Edit.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Domain.Types.HxRequest (HxRequest)
 import Effects.Database.Tables.Products qualified as Products
 import Effects.Database.Tables.UserMetadata (UserRole (..))
@@ -21,5 +22,6 @@ type Route =
     :> Servant.Capture "productId" Products.Id
     :> "edit"
     :> RequireRole "cookie-auth" 'Staff
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

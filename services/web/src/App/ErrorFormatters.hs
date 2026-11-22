@@ -15,6 +15,7 @@ import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.ByteString qualified as BS
 import Data.Text qualified as Text
+import Domain.Types.HxRequest (HxRequest (..), hxRequestFromHeaders)
 import Network.HTTP.Types.Header qualified as Header
 import Network.Wai qualified as Wai
 import Servant qualified
@@ -51,7 +52,7 @@ bodyParserErrorFormatter typeRep request message
   | otherwise = Servant.bodyParserErrorFormatter Servant.defaultErrorFormatters typeRep request message
 
 isHxRequest :: Wai.Request -> Bool
-isHxRequest request = lookup "HX-Request" (Wai.requestHeaders request) == Just "true"
+isHxRequest request = hxRequestFromHeaders (Wai.requestHeaders request) == IsHxRequest
 
 isJsonRequest :: Wai.Request -> Bool
 isJsonRequest request =

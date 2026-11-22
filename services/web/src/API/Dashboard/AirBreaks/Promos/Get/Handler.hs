@@ -20,6 +20,7 @@ import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad (forM)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
@@ -52,8 +53,8 @@ data PromoListViewData = PromoListViewData
   }
 
 -- | Servant handler: run the action, and render.
-handler :: Maybe PageNumber -> Satisfies 'UserMetadata.Staff RoleAuth -> Maybe HxRequest -> AppM (Lucid.Html ())
-handler maybePage (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler :: Maybe PageNumber -> Satisfies 'UserMetadata.Staff RoleAuth -> Maybe FlashMessage -> Maybe HxRequest -> AppM (Lucid.Html ())
+handler maybePage (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Show promo review list" apiLinks.rootGet $ do
     vd <- action maybePage
     backend <- asks (Has.getter @StorageBackend)
@@ -64,6 +65,7 @@ handler maybePage (Satisfies _ auth) (foldHxReq -> hxRequest) =
         lift $
           renderDashboardTemplate
             hxRequest
+            mFlash
             auth.raMetadata
             NoShow
             NavPromos

@@ -2,6 +2,7 @@ module API.Dashboard.Blogs.Slug.Edit.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Domain.Types.HxRequest (HxRequest)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
@@ -22,5 +23,6 @@ type Route =
     :> Servant.Capture "post_id" ShowBlogPosts.Id
     :> "edit"
     :> RequireRole "cookie-auth" 'Host
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

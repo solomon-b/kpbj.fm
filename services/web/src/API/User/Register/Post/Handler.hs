@@ -7,16 +7,21 @@ import API.Types (UserRoutes (..))
 import API.User.Register.Post.Route (Register (..), RegisterParsed (..))
 import App.Handler.Error (HandlerError, logHandlerError, throwHandlerFailure)
 import App.Monad (AppM)
+import Component.Banner (BannerType (Error))
+import Component.Flash (FlashMessage (..), flashCookie)
 import Control.Monad (forM_, when)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
+import Data.Foldable (fold)
+import Data.List (intersperse)
 import Data.Maybe (isJust)
 import Data.Password.Argon2 (Argon2, Password, PasswordHash, hashPassword)
 import Data.Password.Validate qualified as PW.Validate
 import Data.Text (Text)
+import Data.Text qualified as Text
 import Data.Text.Display (Display, display)
 import Data.Text.Display.Core (Display (..))
 import Data.Validation
@@ -44,7 +49,7 @@ data ValidationError
 
 instance Display ValidationError where
   displayBuilder = \case
-    InvalidPassword reasons -> "Password is invalid: " <> foldl' (\acc x -> acc <> ", " <> displayBuilder x) "" reasons
+    InvalidPassword reasons -> "Password is invalid: " <> fold (intersperse " " (map displayBuilder reasons))
     EmptyDisplayName -> "Display name is missing."
     EmptyFullName -> "Full name is missing."
 
@@ -54,8 +59,9 @@ instance Display ValidationError where
 data RegisterResult
   = -- | Registration succeeded — redirect URL.
     RegisterSuccess Text
-  | -- | Validation or uniqueness check failed — redirect URL.
-    RegisterFailure Text
+  | -- | Validation or uniqueness check failed. Has the redirect URL and the
+    -- banner that tells the user why.
+    RegisterFailure Text FlashMessage
 
 --------------------------------------------------------------------------------
 
@@ -75,11 +81,13 @@ handler sockAddr mUserAgent req = do
   case result of
     Left err -> do
       logHandlerError "Register" err
-      pure $ Servant.noHeader $ Servant.addHeader ("/" <> Http.toUrlPiece (userLinks.registerGet Nothing Nothing Nothing)) Servant.NoContent
+      pure $
+        Servant.addHeader (flashCookie (Just $ registrationFailed "Something went wrong. Try again.")) $
+          Servant.addHeader (registerPageUrl req) Servant.NoContent
     Right (RegisterSuccess redirectUrl) ->
       pure $ Servant.noHeader $ Servant.addHeader redirectUrl Servant.NoContent
-    Right (RegisterFailure redirectUrl) ->
-      pure $ Servant.noHeader $ Servant.addHeader redirectUrl Servant.NoContent
+    Right (RegisterFailure redirectUrl flash) ->
+      pure $ Servant.addHeader (flashCookie (Just flash)) $ Servant.addHeader redirectUrl Servant.NoContent
 
 --------------------------------------------------------------------------------
 
@@ -93,20 +101,29 @@ action ::
   Register ->
   ExceptT HandlerError AppM RegisterResult
 action sockAddr mUserAgent req@Register {..} = do
-  let registerRedirectUrl = "/" <> Http.toUrlPiece (userLinks.registerGet (Just urEmail) (Just urDisplayName) (Just urFullName))
+  let registerRedirectUrl = registerPageUrl req
   validationResult <- lift $ validateRequest req
   case validationResult of
     Failure errors -> do
       Log.logInfo "POST /user/register Request validation failure" (Aeson.object ["email" .= urEmail, "displayName" .= urDisplayName, "validationErrors" .= display errors])
-      pure $ RegisterFailure registerRedirectUrl
+      pure $ RegisterFailure registerRedirectUrl $ registrationFailed $ Text.unwords $ map display errors
     Success parsedRequest -> do
       mExisting <- execQueryThrow (User.getUserByEmail urEmail)
       case mExisting of
         Just _ -> do
           Log.logInfo "Email address is already registered." (Aeson.object ["email" .= urEmail])
-          pure $ RegisterFailure registerRedirectUrl
+          pure $ RegisterFailure registerRedirectUrl $ registrationFailed "Your account could not be created. Check your details and try again."
         Nothing ->
           registerNewUser sockAddr mUserAgent parsedRequest urNewsletter
+
+-- | The register page, filled in with the fields of the attempt.
+registerPageUrl :: Register -> Text
+registerPageUrl Register {..} =
+  "/" <> Http.toUrlPiece (userLinks.registerGet (Just urEmail) (Just urDisplayName) (Just urFullName))
+
+-- | The banner that the register page shows after a failed registration.
+registrationFailed :: Text -> FlashMessage
+registrationFailed = FlashMessage Error "Registration Failed"
 
 -- | Create the user account and send the verification email.
 registerNewUser ::

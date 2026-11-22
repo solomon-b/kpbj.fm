@@ -36,6 +36,7 @@ library
     , containers
     , hasql
     , hasql-interpolate
+    , http-types
     , random
     , rel8
     , scientific

@@ -10,6 +10,7 @@ import API.Types (Routes (..))
 import App.Common (getUserInfo, renderTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
+import Component.Flash (FlashMessage)
 import Control.Monad (unless)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
@@ -54,15 +55,16 @@ data ProductDetailData = ProductDetailData
 handler ::
   Slug ->
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler slug cookie hxRequest =
+handler slug cookie mFlash hxRequest =
   handleHtmlErrors "Product detail" apiLinks.rootGet $ do
     mUserInfo <- lift $ getUserInfo cookie <&> fmap snd
     vd <- action slug
     let hxReq = HxRequest.foldHxReq hxRequest
     lift $
-      renderTemplate hxReq mUserInfo $
+      renderTemplate hxReq mFlash mUserInfo $
         template
           vd.pddStorageBackend
           vd.pddProduct

@@ -15,7 +15,7 @@ import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
-import Component.Flash (throwHxRedirect)
+import Component.Flash (FlashMessage, throwHxRedirect)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -88,9 +88,10 @@ handler ::
   BlogPosts.Id ->
   Slug ->
   Satisfies 'UserMetadata.Staff RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler blogPostId urlSlug (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler blogPostId urlSlug (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleRedirectErrors "Station blog edit form" (dashboardStationBlogLinks.list Nothing) $ do
     vd <- action auth.raMetadata blogPostId
     if matchSlug vd.sbevBlogPost.bpmSlug (Just urlSlug)
@@ -100,6 +101,7 @@ handler blogPostId urlSlug (Satisfies _ auth) (foldHxReq -> hxRequest) =
         lift $
           renderDashboardTemplate
             hxRequest
+            mFlash
             vd.sbevUserMetadata
             NoShow
             NavStationBlog

@@ -2,6 +2,7 @@ module API.User.VerifyEmailSent.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Data.Text (Text)
 import Domain.Types.EmailAddress (EmailAddress)
 import Lucid qualified
@@ -20,6 +21,7 @@ type Route =
   "user"
     :> "verify-email"
     :> "sent"
+    :> ReadFlash
     :> Servant.Header "HX-Request" Text
     :> Servant.QueryParam "email" EmailAddress
     :> Servant.Get '[HTML] (Lucid.Html ())

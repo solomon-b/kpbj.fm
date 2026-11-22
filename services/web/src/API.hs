@@ -231,6 +231,7 @@ import Data.Function ((&))
 import Data.Has (getter)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
+import Middleware.Flash (flashMiddleware)
 import Middleware.NotFound (notFoundMiddleware)
 import Middleware.RateLimit (rateLimitMiddleware)
 import Middleware.SecurityHeaders (securityHeadersMiddleware)
@@ -269,8 +270,11 @@ runApi = do
 
       let appCtx = baseAppCtx {appCustom = customCtx}
 
-          -- Pre-render the 404 page at startup (no user context)
-          notFoundHtml = Lucid.renderBS $ notFoundPage (getter customCtx) (getter customCtx)
+          -- Render the 404 page (no user context). The page with no flash
+          -- renders once, at startup.
+          renderNotFound = Lucid.renderBS . notFoundPage (getter customCtx) (getter customCtx)
+          notFoundPlain = renderNotFound Nothing
+          notFoundHtml = maybe notFoundPlain (renderNotFound . Just)
 
           -- Replace the request logger of web-server-core. It writes secrets.
           warpSettings =
@@ -287,6 +291,7 @@ runApi = do
           app =
             validateEncodingMiddleware
               . securityHeadersMiddleware
+              . flashMiddleware
               . rateLimiter
               . notFoundMiddleware notFoundHtml
               $ App.mkAppWithContext @API @ServantContext servantCtx (const server) appCtx

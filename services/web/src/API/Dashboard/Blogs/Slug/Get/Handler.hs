@@ -17,6 +17,7 @@ import App.Monad (AppM)
 import Component.Button ((&))
 import Component.Button qualified as Button
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Either (fromRight)
@@ -40,13 +41,14 @@ handler ::
   Slug ->
   ShowBlogPosts.Id ->
   Satisfies 'UserMetadata.Host RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler showSlug postId (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler showSlug postId (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Show blog post detail" apiLinks.rootGet $ do
     vd <- action auth.raUser auth.raMetadata showSlug postId
     let content = template vd.bdvUserMetadata vd.bdvShowModel vd.bdvBlogPost vd.bdvTags
-    lift $ renderDashboardTemplate hxRequest vd.bdvUserMetadata (ForShow vd.bdvShowModel) NavBlog Nothing (actionButton vd.bdvShowModel) content
+    lift $ renderDashboardTemplate hxRequest mFlash vd.bdvUserMetadata (ForShow vd.bdvShowModel) NavBlog Nothing (actionButton vd.bdvShowModel) content
   where
     actionButton :: Shows.Model -> Maybe (Lucid.Html ())
     actionButton showModel =

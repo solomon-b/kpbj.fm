@@ -15,7 +15,7 @@ import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..), pageSwap, sectionUrl)
-import Component.Flash (throwHxLocation, throwHxRedirect)
+import Component.Flash (FlashMessage, throwHxLocation, throwHxRedirect)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.String.Interpolate (i)
@@ -48,14 +48,15 @@ handler ::
   ShowSection ->
   Satisfies 'UserMetadata.Host RoleAuth ->
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler section (Satisfies _ auth) cookie (foldHxReq -> hxRequest) =
+handler section (Satisfies _ auth) cookie mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Current show redirect" apiLinks.rootGet $ do
     mUrl <- action cookie auth.raMetadata section
     case mUrl of
       Nothing ->
-        lift $ renderDashboardTemplate hxRequest auth.raMetadata NoShow (navFor section) Nothing Nothing noShowsEmptyState
+        lift $ renderDashboardTemplate hxRequest mFlash auth.raMetadata NoShow (navFor section) Nothing Nothing noShowsEmptyState
       Just url -> do
         Log.logInfo "Redirecting to the current show" (show url)
         lift $ case hxRequest of

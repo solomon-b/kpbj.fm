@@ -14,6 +14,7 @@ import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotAuthorized)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad (guard, unless)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -36,12 +37,13 @@ import Utils (fromRightM)
 handler ::
   Slug ->
   Satisfies 'UserMetadata.Host RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler showSlug (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler showSlug (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "New blog post form" apiLinks.rootGet $ do
     vd <- action auth.raUser auth.raMetadata showSlug
-    lift $ renderDashboardTemplate hxRequest vd.bnvUserMetadata (ForShow vd.bnvShowModel) NavBlog Nothing Nothing $ newBlogPostForm vd.bnvShowModel
+    lift $ renderDashboardTemplate hxRequest mFlash vd.bnvUserMetadata (ForShow vd.bnvShowModel) NavBlog Nothing Nothing $ newBlogPostForm vd.bnvShowModel
 
 --------------------------------------------------------------------------------
 

@@ -36,10 +36,9 @@ dashboardSitePagesHistoryUrl slug = Links.linkURI $ dashboardSitePagesLinks.hist
 --------------------------------------------------------------------------------
 
 -- | Site page edit template using FormBuilder
-template :: SitePages.Model -> Maybe Text -> Lucid.Html ()
-template page mError = do
+template :: SitePages.Model -> Lucid.Html ()
+template page = do
   renderFormHeader page
-  maybe mempty errorAlert mError
   renderForm config form
   where
     pageSlug = SitePages.spmSlug page
@@ -85,13 +84,6 @@ template page mError = do
 
       cancelButton [i|/#{dashboardSitePagesGetUrl}|] "CANCEL"
       submitButton "SAVE CHANGES"
-
--- | Error alert component
-errorAlert :: Text -> Lucid.Html ()
-errorAlert message =
-  Lucid.div_
-    [class_ $ base [Tokens.p4, Tokens.mb4, Tokens.textSm, Tokens.errorText, "rounded-lg", Tokens.errorBg], Lucid.role_ "alert"]
-    $ Lucid.toHtml message
 
 --------------------------------------------------------------------------------
 -- Form Header

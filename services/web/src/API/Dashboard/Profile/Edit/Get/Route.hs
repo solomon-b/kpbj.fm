@@ -2,6 +2,7 @@ module API.Dashboard.Profile.Edit.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Domain.Types.HxRequest (HxRequest)
 import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Lucid qualified
@@ -18,5 +19,6 @@ type Route =
     :> "profile"
     :> "edit"
     :> RequireRole "cookie-auth" 'User
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

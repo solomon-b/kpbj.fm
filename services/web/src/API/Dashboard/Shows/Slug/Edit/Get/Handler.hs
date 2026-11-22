@@ -15,6 +15,7 @@ import App.Handler.Combinators (authorizeShow)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Component.ScheduleEditor (schedulesToEditorJson)
 import Control.Monad (void)
 import Control.Monad.Reader (asks)
@@ -113,14 +114,15 @@ action userMetadata slug = do
 handler ::
   Slug ->
   Satisfies 'UserMetadata.Host RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler slug host@(Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler slug host@(Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Show edit" apiLinks.rootGet $ do
     void $ authorizeShow host slug
     vd <- action auth.raMetadata slug
     let editTemplate = template vd.sevBackend vd.sevShowModel vd.sevUserMetadata vd.sevIsStaff vd.sevSchedulesJson vd.sevEligibleHosts vd.sevCurrentHostIds vd.sevExistingTags vd.sevScheduleStartDate vd.sevScheduleMinDate vd.sevCurrentScheduleTemplates vd.sevPendingScheduleTemplates
-    lift $ renderDashboardTemplate hxRequest vd.sevUserMetadata (ForShow vd.sevShowModel) NavSettings Nothing Nothing editTemplate
+    lift $ renderDashboardTemplate hxRequest mFlash vd.sevUserMetadata (ForShow vd.sevShowModel) NavSettings Nothing Nothing editTemplate
 
 -- | Fetch show by slug, throwing NotFound if not found
 fetchShowOrNotFound ::

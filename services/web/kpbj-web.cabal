@@ -624,6 +624,7 @@ library
     App.Dashboard.ShowContext
     App.Dashboard.Template
     App.ErrorFormatters
+    App.Flash
     App.FormField
     App.Handler.Combinators
     App.Monad
@@ -683,6 +684,7 @@ library
     Effects.StagedUploads
     Effects.Webhook
     Helpers.RelativeTime
+    Middleware.Flash
     Middleware.NotFound
     Middleware.RateLimit
     Middleware.SecurityHeaders
@@ -909,6 +911,7 @@ test-suite kpbj-web-test
        Effects.MarkdownSpec
        Effects.MimeTypeValidationSpec
        Effects.StagedUploadsSpec
+       Middleware.FlashSpec
        Middleware.ValidateEncodingSpec
        Test.Handler.BreakItemFixtures
        Test.Handler.Fixtures

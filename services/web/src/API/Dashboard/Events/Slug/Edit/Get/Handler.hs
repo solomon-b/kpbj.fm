@@ -14,6 +14,7 @@ import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -72,15 +73,17 @@ handler ::
   Events.Id ->
   Slug ->
   Satisfies 'UserMetadata.Staff RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler eventId _urlSlug (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler eventId _urlSlug (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Event edit form" apiLinks.rootGet $ do
     vd <- action auth.raMetadata eventId
     let editTemplate = template vd.eevStorageBackend vd.eevEvent vd.eevGalleryImages vd.eevUserMetadata
     lift $
       renderDashboardTemplate
         hxRequest
+        mFlash
         vd.eevUserMetadata
         NoShow
         NavEvents

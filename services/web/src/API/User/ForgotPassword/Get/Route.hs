@@ -2,6 +2,7 @@ module API.User.ForgotPassword.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Domain.Types.HxRequest (HxRequest)
 import Lucid qualified
 import Servant ((:>))
@@ -14,5 +15,6 @@ import Text.HTML (HTML)
 type Route =
   "user"
     :> "forgot-password"
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

@@ -11,6 +11,7 @@ where
 import API.Store.Checkout.Get.Templates (template)
 import App.Common (getUserInfo, renderTemplate)
 import App.Monad (AppM)
+import Component.Flash (FlashMessage)
 import Control.Monad.Reader (asks)
 import Data.Has (getter)
 import Domain.Types.Cookie (Cookie)
@@ -27,9 +28,10 @@ import Stripe.Types (StripePublishableKey)
 -- checkout widget.
 handler ::
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler cookie (foldHxReq -> hxRequest) = do
+handler cookie mFlash (foldHxReq -> hxRequest) = do
   mUserInfo <- fmap snd <$> getUserInfo cookie
   mStripeKey <- asks (getter @(Maybe StripePublishableKey))
-  renderTemplate hxRequest mUserInfo (template mStripeKey)
+  renderTemplate hxRequest mFlash mUserInfo (template mStripeKey)

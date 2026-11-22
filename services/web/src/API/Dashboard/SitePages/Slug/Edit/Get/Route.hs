@@ -2,6 +2,7 @@ module API.Dashboard.SitePages.Slug.Edit.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Data.Text (Text)
 import Domain.Types.HxRequest (HxRequest)
 import Effects.Database.Tables.UserMetadata (UserRole (..))
@@ -20,5 +21,6 @@ type Route =
     :> Servant.Capture "slug" Text
     :> "edit"
     :> RequireRole "cookie-auth" 'Staff
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

@@ -7,10 +7,10 @@
 -- Usage pattern:
 --
 -- @
--- handler cookie hxRequest =
+-- handler cookie mFlash hxRequest =
 --   handleHtmlErrors "Shows list" apiLinks.rootGet $ do
 --     viewData <- action ...
---     lift $ renderTemplate hxRequest mUserInfo (template viewData)
+--     lift $ renderTemplate hxRequest mFlash mUserInfo (template viewData)
 --
 -- action :: ... -> ExceptT HandlerError AppM ViewData
 -- action = do
@@ -140,10 +140,10 @@ throwHandlerFailure = throwE . HandlerFailure
 -- with a flash cookie.
 --
 -- @
--- handler cookie hxRequest =
+-- handler cookie mFlash hxRequest =
 --   handleHtmlErrors "Shows list" apiLinks.rootGet $ do
 --     viewData <- action ...
---     lift $ renderTemplate hxRequest mUserInfo (template viewData)
+--     lift $ renderTemplate hxRequest mFlash mUserInfo (template viewData)
 -- @
 handleHtmlErrors ::
   -- | Action name for logging
@@ -175,15 +175,15 @@ handleHtmlErrors actionName defaultUrl action =
 -- page layout (via renderTemplate).
 --
 -- @
--- handler slug cookie (foldHxReq -> hxRequest) =
+-- handler slug cookie mFlash (foldHxReq -> hxRequest) =
 --   handlePublicErrors "Show detail" hxRequest renderError $ do
 --     mUserInfo <- lift $ getUserInfo cookie <&> fmap snd
 --     vd <- action slug
---     lift $ renderTemplate hxRequest mUserInfo (template vd)
+--     lift $ renderTemplate hxRequest mFlash mUserInfo (template vd)
 --  where
 --   renderError content = do
 --     mUserInfo <- getUserInfo cookie <&> fmap snd
---     renderTemplate hxReq mUser content
+--     renderTemplate hxRequest mFlash mUserInfo content
 -- @
 handlePublicErrors ::
   -- | Action name for logging

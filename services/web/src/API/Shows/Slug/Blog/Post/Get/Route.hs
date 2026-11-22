@@ -2,6 +2,7 @@ module API.Shows.Slug.Blog.Post.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
 import Domain.Types.Slug (Slug)
@@ -22,6 +23,7 @@ type RouteWithSlug =
     :> Servant.Capture "post_id" ShowBlogPosts.Id
     :> Servant.Capture "slug" Slug
     :> Servant.Header "Cookie" Cookie
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())
 
@@ -32,5 +34,6 @@ type RouteWithoutSlug =
     :> "blog"
     :> Servant.Capture "post_id" ShowBlogPosts.Id
     :> Servant.Header "Cookie" Cookie
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

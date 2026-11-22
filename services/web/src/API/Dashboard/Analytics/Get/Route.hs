@@ -3,6 +3,7 @@ module API.Dashboard.Analytics.Get.Route where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Analytics.Get.Types (AnalyticsRange)
+import App.Flash (ReadFlash)
 import Domain.Types.HxRequest (HxRequest)
 import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Lucid qualified
@@ -19,5 +20,6 @@ type Route =
     :> "analytics"
     :> RequireRole "cookie-auth" 'Admin
     :> Servant.QueryParam "range" AnalyticsRange
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

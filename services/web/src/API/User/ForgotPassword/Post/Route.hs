@@ -2,6 +2,7 @@ module API.User.ForgotPassword.Post.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import App.FormField (emailField)
 import Data.Text (Text)
 import Domain.Types.EmailAddress (EmailAddress)
@@ -35,6 +36,7 @@ type Route =
     :> "forgot-password"
     :> Servant.RemoteHost
     :> Servant.Header "User-Agent" Text
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.ReqBody '[Servant.FormUrlEncoded] ForgotPasswordForm
     :> Servant.Post '[HTML] (Lucid.Html ())

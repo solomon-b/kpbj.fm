@@ -11,6 +11,7 @@ import App.Dashboard.ShowContext (ShowContext (..))
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav)
 import Component.DashboardFrame qualified as DashboardFrame
+import Component.Flash (FlashMessage)
 import Control.Monad.Reader (asks)
 import Data.Has (getter)
 import Domain.Types.HxRequest (HxRequest (..))
@@ -29,6 +30,9 @@ import Lucid qualified
 -- show, so only that case runs the query. It runs for both request types.
 renderDashboardTemplate ::
   HxRequest ->
+  -- | The flash message of the request, from 'App.Flash.ReadFlash'. Only a
+  -- full page shows it.
+  Maybe FlashMessage ->
   UserMetadata.Model ->
   ShowContext ->
   DashboardNav ->
@@ -38,7 +42,7 @@ renderDashboardTemplate ::
   Maybe (Lucid.Html ()) ->
   Lucid.Html () ->
   AppM (Lucid.Html ())
-renderDashboardTemplate hxRequest userMetadata showContext activeNav statsContent actionButton templateContent = do
+renderDashboardTemplate hxRequest mFlash userMetadata showContext activeNav statsContent actionButton templateContent = do
   selectorShows <- case showContext of
     NoShow -> pure []
     ForShow _ -> fetchDashboardShows userMetadata
@@ -58,6 +62,7 @@ renderDashboardTemplate hxRequest userMetadata showContext activeNav statsConten
       DashboardFrame.loadDashboardFrame
         mGoogleAnalyticsId
         userMetadata
+        mFlash
         showContext
         selectorShows
         activeNav

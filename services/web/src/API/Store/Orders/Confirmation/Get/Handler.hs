@@ -8,6 +8,7 @@ module API.Store.Orders.Confirmation.Get.Handler where
 import API.Store.Orders.Confirmation.Get.Templates (notFoundTemplate, template)
 import App.Common (getUserInfo, renderTemplate)
 import App.Monad (AppM)
+import Component.Flash (FlashMessage)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
@@ -28,18 +29,19 @@ handler ::
   Text ->
   Maybe Text ->
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler orderNumber mSessionId cookie (foldHxReq -> hxRequest) = do
+handler orderNumber mSessionId cookie mFlash (foldHxReq -> hxRequest) = do
   mUserInfo <- fmap snd <$> getUserInfo cookie
   mOrder <- execQueryThrow (Orders.getByOrderNumber orderNumber)
   case mOrder of
     Nothing ->
-      renderTemplate hxRequest mUserInfo notFoundTemplate
+      renderTemplate hxRequest mFlash mUserInfo notFoundTemplate
     Just order ->
       if validSessionId mSessionId order
-        then renderTemplate hxRequest mUserInfo (template order)
-        else renderTemplate hxRequest mUserInfo notFoundTemplate
+        then renderTemplate hxRequest mFlash mUserInfo (template order)
+        else renderTemplate hxRequest mFlash mUserInfo notFoundTemplate
 
 -- | Verify that the provided session_id matches the order's stored
 -- Stripe checkout session ID. Both must be present and equal.

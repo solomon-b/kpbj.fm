@@ -18,6 +18,7 @@ import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Containers.ListUtils (nubOrd)
@@ -44,9 +45,10 @@ import Utils (fromRightM)
 handler ::
   Maybe Text ->
   Satisfies 'Staff RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler mMonth (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler mMonth (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Underwriting delivery" apiLinks.rootGet $ do
     today <- pacificDay <$> lift currentSystemTime
     let (y, m, _) = toGregorian today
@@ -55,6 +57,7 @@ handler mMonth (Satisfies _ auth) (foldHxReq -> hxRequest) =
     lift $
       renderDashboardTemplate
         hxRequest
+        mFlash
         auth.raMetadata
         NoShow
         NavUnderwritingDelivery

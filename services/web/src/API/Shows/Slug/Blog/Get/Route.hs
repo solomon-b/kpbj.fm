@@ -2,6 +2,7 @@ module API.Shows.Slug.Blog.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Data.Int (Int64)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
@@ -22,5 +23,6 @@ type Route =
     :> Servant.QueryParam "page" Int64
     :> Servant.QueryParam "tag" Text
     :> Servant.Header "Cookie" Cookie
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

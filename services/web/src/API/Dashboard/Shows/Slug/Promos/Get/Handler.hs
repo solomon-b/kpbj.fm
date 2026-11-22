@@ -21,6 +21,7 @@ import App.Handler.Combinators (authorizeShow)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
@@ -43,8 +44,8 @@ import Utils (fromRightM)
 -- | Servant handler: check access to the show, run the action, and render.
 --
 -- A host sees the promos of the shows they host. Staff see every show.
-handler :: Slug -> Satisfies 'UserMetadata.Host RoleAuth -> Maybe HxRequest -> AppM (Lucid.Html ())
-handler showSlug host@(Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler :: Slug -> Satisfies 'UserMetadata.Host RoleAuth -> Maybe FlashMessage -> Maybe HxRequest -> AppM (Lucid.Html ())
+handler showSlug host@(Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Show promos" apiLinks.rootGet $ do
     showModel <- authorizeShow host showSlug
     promos <- action showModel
@@ -56,6 +57,7 @@ handler showSlug host@(Satisfies _ auth) (foldHxReq -> hxRequest) =
     lift $
       renderDashboardTemplate
         hxRequest
+        mFlash
         auth.raMetadata
         (ForShow showModel)
         NavShowPromos

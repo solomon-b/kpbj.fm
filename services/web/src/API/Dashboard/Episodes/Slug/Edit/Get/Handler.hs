@@ -16,6 +16,7 @@ import App.Domains (audioUploadUrl)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotAuthorized, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad (unless)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
@@ -53,9 +54,10 @@ handler ::
   Slug ->
   Episodes.EpisodeNumber ->
   Satisfies 'UserMetadata.Host RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler showSlug episodeNumber (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler showSlug episodeNumber (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleRedirectErrors "Episode edit" (dashboardEpisodesLinks.list showSlug Nothing) $ do
     vd <- action auth.raUser auth.raMetadata showSlug episodeNumber
     let statsContent = Lucid.span_ [] $ Lucid.toHtml $ "Episode #" <> display vd.eevEditContext.eecEpisode.episodeNumber
@@ -63,6 +65,7 @@ handler showSlug episodeNumber (Satisfies _ auth) (foldHxReq -> hxRequest) =
       lift $
         renderDashboardTemplate
           hxRequest
+          mFlash
           vd.eevUserMetadata
           (ForShow vd.eevShowModel)
           NavEpisodes

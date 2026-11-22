@@ -18,6 +18,7 @@ import App.Monad (AppM)
 import Component.Button ((&))
 import Component.Button qualified as Button
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -112,9 +113,10 @@ handler ::
   Slug ->
   Maybe Int64 ->
   Satisfies 'UserMetadata.Host RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler showSlug maybePage (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler showSlug maybePage (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Episodes list" apiLinks.rootGet $ do
     vd <- action auth.raMetadata showSlug maybePage
     let isAppendRequest = hxRequest == IsHxRequest && vd.elvPage > 1
@@ -128,6 +130,7 @@ handler showSlug maybePage (Satisfies _ auth) (foldHxReq -> hxRequest) =
         lift $
           renderDashboardTemplate
             hxRequest
+            mFlash
             vd.elvUserMetadata
             (maybe NoShow ForShow vd.elvSelectedShow)
             NavEpisodes
