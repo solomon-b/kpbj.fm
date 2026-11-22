@@ -4,7 +4,7 @@ module API.Invite.Token.Post.HandlerSpec where
 
 import API.Invite.Token.Post.Handler (OnboardResult (..), action)
 import API.Invite.Token.Post.Route (InviteOnboardingForm (..))
-import App.Handler.Error (HandlerError)
+import App.Handler.Error (HandlerError (..))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Aeson ((.=))
@@ -13,6 +13,7 @@ import Data.Text (Text)
 import Data.Time (Day, DayOfWeek (..), TimeOfDay (..), addDays, getCurrentTime)
 import Domain.Types.Timezone (pacificDay)
 import Effects.Database.Class (MonadDB (..))
+import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.HostInvitation qualified as HostInvitation
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
@@ -49,6 +50,22 @@ spec =
         result <- runClaim cfg token "past-start" "Late Saturday Show"
         effectiveFrom <- expectEffectiveFrom cfg result
         effectiveFrom `shouldBe` [today]
+
+      it "rejects a submission whose email differs from the invitation recipient" $ \cfg -> do
+        today <- todayPacific
+        token <- insertInvitation cfg "bound-email" (slotJson "sunday" "20:00" 120) (addDays 14 today)
+        result <- runClaimWithEmail cfg token "someone-else@example.com" "bound-email" "Wrong Email Show"
+        case result of
+          Left (ValidationError msg) ->
+            msg
+              `shouldBe` "This invitation is bound to a different email address. Contact staff if the recipient needs to be changed."
+          Left err -> expectationFailure $ "Expected a validation error, got " <> show err
+          Right _ -> expectationFailure "Expected a validation error, got success"
+        -- The invitation stays pending, so the real recipient can still claim it.
+        mInvitation <- bracketAppM cfg $ execQuery (HostInvitation.getByToken token)
+        case mInvitation of
+          Right (Just invitation) -> HostInvitation.hiStatus invitation `shouldBe` HostInvitation.Pending
+          other -> expectationFailure $ "Expected the pending invitation, got " <> show other
 
 --------------------------------------------------------------------------------
 -- Helpers
@@ -93,14 +110,19 @@ insertInvitation cfg name json startsOn = do
 
 -- | Submit the onboarding form for this invitation.
 runClaim :: TestDBConfig -> HostInvitation.Token -> Text -> Text -> IO (Either HandlerError OnboardResult)
-runClaim cfg token name showTitle =
+runClaim cfg token name =
+  runClaimWithEmail cfg token (name <> "@example.com") name
+
+-- | Submit the onboarding form for this invitation with this email.
+runClaimWithEmail :: TestDBConfig -> HostInvitation.Token -> Text -> Text -> Text -> IO (Either HandlerError OnboardResult)
+runClaimWithEmail cfg token email name showTitle =
   bracketAppM cfg $
     runExceptT $
       action
         token
         InviteOnboardingForm
           { iofFullName = "Test Host",
-            iofEmail = mkEmailAddressUnsafe (name <> "@example.com"),
+            iofEmail = mkEmailAddressUnsafe email,
             iofDisplayName = name,
             iofPassword = "a-long-password",
             iofNewsletter = Nothing,

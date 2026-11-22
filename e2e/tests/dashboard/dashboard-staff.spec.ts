@@ -9,118 +9,48 @@ import { STAFF_AUTH } from "../../playwright.config";
 //
 // Staff users are NOT in the show_hosts table, so they have no shows.
 // We navigate to /dashboard/users (a non-show-scoped page) to test the
-// sidebar layout. EPISODES and SHOW SETTINGS render as disabled <span>
-// elements (not <a> links) when no show is selected.
+// sidebar layout.
 // ---------------------------------------------------------------------------
 
 test.use({ storageState: STAFF_AUTH });
 
 test.describe("Staff dashboard", () => {
-  test.beforeEach(async ({ page }) => {
+  test("sidebar shows the HOST and ADMIN sections without STREAM", async ({ page }) => {
     await page.goto("/dashboard/users");
-  });
+    const sidebar = page.locator("aside");
 
-  // -------------------------------------------------------------------------
-  // HOST section
-  // -------------------------------------------------------------------------
+    await expect(sidebar.getByText("HOST", { exact: true })).toBeVisible();
 
-  test("sidebar has HOST label", async ({ page }) => {
+    // The users page is not about a show, so EPISODES and SHOW SETTINGS go
+    // to the current show route.
     await expect(
-      page.locator("aside").getByText("HOST", { exact: true })
-    ).toBeVisible();
-  });
-
-  test("HOST section has EPISODES link to the current show", async ({ page }) => {
-    // The users page is not about a show, so EPISODES goes to the current show route.
-    await expect(
-      page.locator("aside").getByRole("link", { name: "EPISODES", exact: true })
+      sidebar.getByRole("link", { name: "EPISODES", exact: true })
     ).toHaveAttribute("href", "/dashboard/current-show/episodes");
-  });
-
-  test("HOST section has SHOW SETTINGS link to the current show", async ({ page }) => {
-    // The users page is not about a show, so SHOW SETTINGS goes to the current show route.
     await expect(
-      page.locator("aside").getByRole("link", { name: "SHOW SETTINGS" })
+      sidebar.getByRole("link", { name: "SHOW SETTINGS" })
     ).toHaveAttribute("href", "/dashboard/current-show/settings");
-  });
 
-  test("HOST section has STATION IDS link", async ({ page }) => {
+    await expect(sidebar.getByText("ADMIN", { exact: true })).toBeVisible();
+    // The exact regex distinguishes SHOWS from "SHOW SETTINGS".
+    for (const name of [
+      "STATION IDS",
+      "EPHEMERAL",
+      "USERS",
+      /^SHOWS$/,
+      "STATION BLOG",
+      "EVENTS",
+      "MISSING EPISODES",
+      "SITE PAGES",
+    ]) {
+      await expect(sidebar.getByRole("link", { name }), String(name)).toBeVisible();
+    }
+
+    // STREAM is admin-only. It is guarded by `when (isAdmin ...)`.
+    await expect(sidebar.getByRole("link", { name: "STREAM" })).not.toBeAttached();
+
+    await expect(sidebar.getByText("Staff Member", { exact: true })).toBeVisible();
     await expect(
-      page.locator("aside").getByRole("link", { name: "STATION IDS" })
+      sidebar.locator(".mt-auto").locator("span.text-xs", { hasText: /^Staff$/ })
     ).toBeVisible();
-  });
-
-  test("HOST section has EPHEMERAL link", async ({ page }) => {
-    await expect(
-      page.locator("aside").getByRole("link", { name: "EPHEMERAL" })
-    ).toBeVisible();
-  });
-
-  // -------------------------------------------------------------------------
-  // ADMIN section
-  // -------------------------------------------------------------------------
-
-  test("sidebar has ADMIN label", async ({ page }) => {
-    await expect(
-      page.locator("aside").getByText("ADMIN", { exact: true })
-    ).toBeVisible();
-  });
-
-  test("ADMIN section has USERS link", async ({ page }) => {
-    await expect(
-      page.locator("aside").getByRole("link", { name: "USERS" })
-    ).toBeVisible();
-  });
-
-  test("ADMIN section has SHOWS link", async ({ page }) => {
-    await expect(
-      page.locator("aside").getByRole("link", { name: /^SHOWS$/ })
-    ).toBeVisible();
-  });
-
-  test("ADMIN section has STATION BLOG link", async ({ page }) => {
-    await expect(
-      page.locator("aside").getByRole("link", { name: "STATION BLOG" })
-    ).toBeVisible();
-  });
-
-  test("ADMIN section has EVENTS link", async ({ page }) => {
-    await expect(
-      page.locator("aside").getByRole("link", { name: "EVENTS" })
-    ).toBeVisible();
-  });
-
-  test("ADMIN section has MISSING EPISODES link", async ({ page }) => {
-    await expect(
-      page.locator("aside").getByRole("link", { name: "MISSING EPISODES" })
-    ).toBeVisible();
-  });
-
-  test("ADMIN section has SITE PAGES link", async ({ page }) => {
-    await expect(
-      page.locator("aside").getByRole("link", { name: "SITE PAGES" })
-    ).toBeVisible();
-  });
-
-  test("STREAM is not visible for Staff role", async ({ page }) => {
-    // STREAM is admin-only — guarded by `when (isAdmin ...)`.
-    await expect(
-      page.locator("aside").getByRole("link", { name: "STREAM" })
-    ).not.toBeAttached();
-  });
-
-  // -------------------------------------------------------------------------
-  // User info
-  // -------------------------------------------------------------------------
-
-  test("sidebar shows Staff Member display name", async ({ page }) => {
-    await expect(
-      page.locator("aside").getByText("Staff Member", { exact: true })
-    ).toBeVisible();
-  });
-
-  test("sidebar shows Staff role", async ({ page }) => {
-    const userInfo = page.locator("aside .mt-auto");
-    await expect(userInfo.locator("span.text-xs", { hasText: /^Staff$/ })).toBeVisible();
   });
 });

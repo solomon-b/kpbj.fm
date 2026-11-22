@@ -9,6 +9,9 @@ import { HOST_AUTH, STAFF_AUTH, USER_AUTH } from "../../playwright.config";
 // and the full create-account-and-show claim. Plus the pages that logged-in
 // users and staff see.
 //
+// API/Invite/Token/Post/HandlerSpec.hs covers the server check that the
+// submitted email is the invitation recipient.
+//
 // Tests start unauthenticated by default. The "create an invitation as
 // staff first" prerequisite is satisfied by spinning up a separate browser
 // context with STAFF_AUTH inside each test that needs it.
@@ -142,185 +145,120 @@ test.describe("Host onboarding", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Form rendering + locked email
+  // Form rendering, locked email, and the step-1 validation gate
   // -------------------------------------------------------------------------
 
-  test("valid token renders two-step form with schedule preview", async ({
+  test("valid token renders the two-step form and gates step 1", async ({
     browser,
     page,
   }) => {
-    const recipient = `e2e-onb-render-${Date.now()}@example.com`;
+    const recipient = `e2e-onb-form-${Date.now()}@example.com`;
     const { inviteUrl } = await createInvitationViaStaff(browser, recipient);
-
     await page.goto(inviteUrl);
 
-    // Step 1 visible, step 2 hidden.
-    await expect(page.getByText(/Welcome to KPBJ/i)).toBeVisible();
-    await expect(page.getByText(/Tell us about your show/i)).toBeHidden();
+    const next = page.getByRole("button", { name: /Next.*Set Up/i });
+    const step2 = page.getByText(/Tell us about your show/i);
 
-    // Schedule preview is present (rendered from the invitation's schedule).
-    // It's rendered in both step1 and step2; scope to the visible one.
-    await expect(
-      page.locator("#step1-fields").getByText(/Your Assigned Timeslot/i),
-    ).toBeVisible();
+    await test.step("step 1 shows the schedule preview", async () => {
+      await expect(page.getByText(/Welcome to KPBJ/i)).toBeVisible();
+      await expect(step2).toBeHidden();
 
-    // The preview shows the start date, e.g. "Starts Nov 04, 2026".
-    const startsText = new Date(`${START_DATE}T12:00:00`).toLocaleDateString(
-      "en-US",
-      { month: "short", day: "2-digit", year: "numeric" },
-    );
-    await expect(
-      page.locator("#step1-fields").getByText(`Starts ${startsText}`),
-    ).toBeVisible();
-  });
+      // The preview is rendered in both step1 and step2. Scope to the
+      // visible one. It shows the start date, e.g. "Starts Nov 04, 2026".
+      const startsText = new Date(`${START_DATE}T12:00:00`).toLocaleDateString(
+        "en-US",
+        { month: "short", day: "2-digit", year: "numeric" },
+      );
+      const step1 = page.locator("#step1-fields");
+      await expect(step1.getByText(/Your Assigned Timeslot/i)).toBeVisible();
+      await expect(step1.getByText(`Starts ${startsText}`)).toBeVisible();
+    });
 
-  test("email field is pre-filled and read-only", async ({ browser, page }) => {
-    const recipient = `e2e-onb-locked-${Date.now()}@example.com`;
-    const { inviteUrl } = await createInvitationViaStaff(browser, recipient);
+    await test.step("email field is pre-filled and read-only", async () => {
+      const emailInput = page.locator('input[name="email"]');
+      await expect(emailInput).toHaveValue(recipient);
+      await expect(emailInput).toHaveAttribute("readonly", "");
+    });
 
-    await page.goto(inviteUrl);
-
-    const emailInput = page.locator('input[name="email"]');
-    await expect(emailInput).toHaveValue(recipient);
-    await expect(emailInput).toHaveAttribute("readonly", "");
-  });
-
-  // -------------------------------------------------------------------------
-  // Step-1 validation gate
-  // -------------------------------------------------------------------------
-
-  test("Next button does not advance when step 1 is invalid", async ({
-    browser,
-    page,
-  }) => {
-    const recipient = `e2e-onb-gate-${Date.now()}@example.com`;
-    const { inviteUrl } = await createInvitationViaStaff(browser, recipient);
-
-    await page.goto(inviteUrl);
-
-    // Leave required fields blank, click Next.
-    await page.getByRole("button", { name: /Next.*Set Up/i }).click();
-
-    // Step 2 must still be hidden (the reportValidity gate blocked the move).
-    await expect(page.getByText(/Tell us about your show/i)).toBeHidden();
-  });
-
-  test("Next button does not advance when password is too short", async ({
-    browser,
-    page,
-  }) => {
-    const recipient = `e2e-onb-short-${Date.now()}@example.com`;
-    const { inviteUrl } = await createInvitationViaStaff(browser, recipient);
-
-    await page.goto(inviteUrl);
+    await test.step("Next does not advance when step 1 is blank", async () => {
+      // The reportValidity gate blocks the move.
+      await next.click();
+      await expect(step2).toBeHidden();
+    });
 
     await page.locator('input[name="full_name"]').fill("E2E Host");
     await page.locator('input[name="display_name"]').fill("e2e-host");
-    await page.locator('input[name="password"]').fill("short"); // < 8 chars
-    await page.locator('input[name="confirm_password"]').fill("short");
     await page.locator('input[name="terms"]').check();
 
-    await page.getByRole("button", { name: /Next.*Set Up/i }).click();
-    await expect(page.getByText(/Tell us about your show/i)).toBeHidden();
-  });
+    await test.step("Next does not advance when the password is too short", async () => {
+      await page.locator('input[name="password"]').fill("short"); // < 8 chars
+      await page.locator('input[name="confirm_password"]').fill("short");
+      await next.click();
+      await expect(step2).toBeHidden();
+    });
 
-  test("valid step 1 advances to step 2", async ({ browser, page }) => {
-    const recipient = `e2e-onb-advance-${Date.now()}@example.com`;
-    const { inviteUrl } = await createInvitationViaStaff(browser, recipient);
-
-    await page.goto(inviteUrl);
-
-    await page.locator('input[name="full_name"]').fill("E2E Host");
-    await page.locator('input[name="display_name"]').fill("e2e-host");
-    await page.locator('input[name="password"]').fill("longenough1");
-    await page.locator('input[name="confirm_password"]').fill("longenough1");
-    await page.locator('input[name="terms"]').check();
-
-    await page.getByRole("button", { name: /Next.*Set Up/i }).click();
-    await expect(page.getByText(/Tell us about your show/i)).toBeVisible();
-  });
-
-  // -------------------------------------------------------------------------
-  // Mismatched email — server-side enforcement
-  // -------------------------------------------------------------------------
-
-  test("server rejects submission when email is changed away from the invitation recipient", async ({
-    browser,
-    page,
-  }) => {
-    const recipient = `e2e-onb-mismatch-${Date.now()}@example.com`;
-    const { token } = await createInvitationViaStaff(browser, recipient);
-
-    // Skip the form and POST directly with a different email.
-    await page.goto("/"); // need a page context for fetch
-    const result = await page.evaluate(
-      async (args) => {
-        const fd = new FormData();
-        fd.append("email", args.tamperedEmail);
-        fd.append("full_name", "E2E Tamper");
-        fd.append("display_name", "e2e-tamper");
-        fd.append("password", "longenough1");
-        fd.append("confirm_password", "longenough1");
-        fd.append("terms", "on");
-        fd.append("show_title", "E2E Tamper Show " + Date.now());
-        fd.append("show_description", "test");
-        fd.append("show_tags", "test");
-        const resp = await fetch(args.postUrl, {
-          method: "POST",
-          body: fd,
-        });
-        return {
-          hxRedirect: resp.headers.get("HX-Redirect"),
-          body: await resp.text(),
-        };
-      },
-      {
-        tamperedEmail: `tamper-${Date.now()}@example.com`,
-        postUrl: `/invite/${token}`,
-      },
-    );
-
-    // No redirect; banner explains the mismatch.
-    expect(result.hxRedirect).toBeNull();
-    expect(result.body).toMatch(/bound to a different email/i);
+    await test.step("valid step 1 advances to step 2", async () => {
+      await page.locator('input[name="password"]').fill("longenough1");
+      await page.locator('input[name="confirm_password"]').fill("longenough1");
+      await next.click();
+      await expect(step2).toBeVisible();
+    });
   });
 
   // -------------------------------------------------------------------------
   // Already-logged-in visitors
   // -------------------------------------------------------------------------
 
-  for (const [role, storageState] of [
-    ["user", USER_AUTH],
-    ["host", HOST_AUTH],
-  ] as const) {
-    test(`logged-in ${role} sees that the invitation is not claimed`, async ({
-      browser,
-    }) => {
-      const recipient = `e2e-onb-loggedin-${role}-${Date.now()}@example.com`;
-      const { inviteUrl } = await createInvitationViaStaff(browser, recipient);
+  test("logged-in visitors see the invitation and do not claim it", async ({
+    browser,
+  }) => {
+    const recipient = `e2e-onb-loggedin-${Date.now()}@example.com`;
+    const { inviteUrl } = await createInvitationViaStaff(browser, recipient);
 
-      const context = await browser.newContext({ storageState });
-      const loggedInPage = await context.newPage();
+    for (const [role, storageState] of [
+      ["user", USER_AUTH],
+      ["host", HOST_AUTH],
+    ] as const) {
+      await test.step(`logged-in ${role} sees that the invitation is not claimed`, async () => {
+        const context = await browser.newContext({ storageState });
+        const loggedInPage = await context.newPage();
+        try {
+          await loggedInPage.goto(inviteUrl);
+          await expect(
+            loggedInPage.getByRole("heading", {
+              name: /This invitation is not claimed/i,
+            }),
+          ).toBeVisible();
+          await expect(loggedInPage.getByText(recipient)).toBeVisible();
+          await expect(
+            loggedInPage.getByRole("link", { name: /log out/i }),
+          ).toBeVisible();
+          // The onboarding form is not shown.
+          await expect(loggedInPage.locator('input[name="password"]')).toHaveCount(0);
+        } finally {
+          await context.close();
+        }
+      });
+    }
+
+    await test.step("staff see the invitation details", async () => {
+      const context = await browser.newContext({ storageState: STAFF_AUTH });
+      const staffPage = await context.newPage();
       try {
-        await loggedInPage.goto(inviteUrl);
+        await staffPage.goto(inviteUrl);
         await expect(
-          loggedInPage.getByRole("heading", {
-            name: /This invitation is not claimed/i,
-          }),
+          staffPage.getByRole("heading", { name: /Host invitation/i }),
         ).toBeVisible();
-        await expect(loggedInPage.getByText(recipient)).toBeVisible();
+        await expect(staffPage.getByText(recipient)).toBeVisible();
+        await expect(staffPage.getByText("Pending", { exact: true })).toBeVisible();
         await expect(
-          loggedInPage.getByRole("link", { name: /log out/i }),
+          staffPage.getByRole("link", { name: /All invitations/i }),
         ).toBeVisible();
-        // The onboarding form is not shown.
-        await expect(loggedInPage.locator('input[name="password"]')).toHaveCount(
-          0,
-        );
       } finally {
         await context.close();
       }
     });
-  }
+  });
 
   test("logged-in user with an invalid token sees the error page", async ({
     browser,
@@ -331,27 +269,6 @@ test.describe("Host onboarding", () => {
       await loggedInPage.goto("/invite/not-a-real-token");
       await expect(
         loggedInPage.getByText(/no longer valid/i),
-      ).toBeVisible();
-    } finally {
-      await context.close();
-    }
-  });
-
-  test("staff see the invitation details", async ({ browser }) => {
-    const recipient = `e2e-onb-staff-${Date.now()}@example.com`;
-    const { inviteUrl } = await createInvitationViaStaff(browser, recipient);
-
-    const context = await browser.newContext({ storageState: STAFF_AUTH });
-    const staffPage = await context.newPage();
-    try {
-      await staffPage.goto(inviteUrl);
-      await expect(
-        staffPage.getByRole("heading", { name: /Host invitation/i }),
-      ).toBeVisible();
-      await expect(staffPage.getByText(recipient)).toBeVisible();
-      await expect(staffPage.getByText("Pending", { exact: true })).toBeVisible();
-      await expect(
-        staffPage.getByRole("link", { name: /All invitations/i }),
       ).toBeVisible();
     } finally {
       await context.close();

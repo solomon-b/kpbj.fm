@@ -1,11 +1,21 @@
 import { defineConfig, devices } from "@playwright/test";
 import path from "path";
 
-// Auth storage state file paths — imported by test files.
+// Auth storage state file paths. Test files import these.
 export const ADMIN_AUTH = path.join(__dirname, ".auth", "admin.json");
 export const STAFF_AUTH = path.join(__dirname, ".auth", "staff.json");
 export const HOST_AUTH = path.join(__dirname, ".auth", "host.json");
 export const USER_AUTH = path.join(__dirname, ".auth", "user.json");
+
+// The tag of the public tests that also run in Firefox. Give it to a test
+// that depends on browser behavior: Alpine or HTMX code, localStorage,
+// history, scrolling, or keyboard events. Server-rendered content gives the
+// same result in each engine, so Chromium alone checks it.
+export const CROSS_BROWSER = "@cross-browser";
+
+// The public specs that run at desktop width. mobile.spec.ts holds the
+// tests for the mobile layout.
+const desktopOnly = [/dashboard\//, /mobile\.spec\.ts/];
 
 export default defineConfig({
   testDir: "./tests",
@@ -14,11 +24,11 @@ export default defineConfig({
   // Fail the build on CI if you accidentally left test.only in the source code.
   forbidOnly: !!process.env.CI,
 
-  // Retry once — handles transient navigation timeouts caused by many
-  // parallel workers contending for a single dev server.
+  // Retry once. This handles transient navigation timeouts when the
+  // parallel workers contend for a single dev server.
   retries: 1,
 
-  // GitHub Actions runners have 2 vCPUs — use both.
+  // GitHub Actions runners for private repos have 2 vCPUs. Use both.
   workers: process.env.CI ? 2 : undefined,
 
   reporter: process.env.CI
@@ -28,9 +38,8 @@ export default defineConfig({
   use: {
     baseURL: "http://localhost:4000",
 
-    // Action timeout kept tight — clicks and fills should be fast.
-    // Navigation timeout is generous because 11 parallel workers
-    // contend for a single dev server.
+    // Clicks and fills must be fast, so the action timeout is tight. The
+    // navigation timeout is generous because the workers share one server.
     actionTimeout: 5_000,
     navigationTimeout: 20_000,
 
@@ -46,16 +55,18 @@ export default defineConfig({
       testMatch: "auth.setup.ts",
     },
 
-    // --- Public site tests (skip dashboard specs) ---
+    // --- Public site tests ---
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
-      testIgnore: /dashboard\//,
+      testIgnore: desktopOnly,
     },
     {
+      // Only the tests tagged CROSS_BROWSER.
       name: "firefox",
       use: { ...devices["Desktop Firefox"] },
-      testIgnore: /dashboard\//,
+      testIgnore: desktopOnly,
+      grep: new RegExp(CROSS_BROWSER),
     },
     {
       // iPhone 13 viewport + touch. Uses Chromium instead of WebKit
@@ -65,12 +76,7 @@ export default defineConfig({
         ...devices["iPhone 13"],
         defaultBrowserType: "chromium",
       },
-      testIgnore: /dashboard\//,
-    },
-    {
-      name: "mobile-android",
-      use: { ...devices["Pixel 5"] },
-      testIgnore: /dashboard\//,
+      testMatch: /mobile\.spec\.ts/,
     },
 
     // --- Dashboard tests (require auth setup) ---
@@ -83,7 +89,7 @@ export default defineConfig({
   ],
 
   // Start the web server before running tests.
-  // Disabled by default — enable with USE_WEB_SERVER=1, or
+  // Disabled by default. Enable with USE_WEB_SERVER=1, or
   // start the server yourself with `just run` before running tests.
   // CI starts the server explicitly in the workflow.
   ...(process.env.USE_WEB_SERVER

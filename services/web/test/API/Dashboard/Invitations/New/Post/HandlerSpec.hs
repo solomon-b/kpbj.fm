@@ -5,6 +5,7 @@ module API.Dashboard.Invitations.New.Post.HandlerSpec where
 import API.Dashboard.Invitations.New.Post.Handler (action)
 import API.Dashboard.Invitations.New.Post.Route (NewInvitationForm (..))
 import App.Handler.Error (HandlerError (..))
+import Control.Monad (void)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Text (Text)
@@ -17,18 +18,46 @@ import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.HostInvitation qualified as HostInvitation
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction.Sessions qualified as TRX
+import Servant.Multipart (FileData, FromMultipart (..), Input (..), Mem, MultipartData (..))
 import Test.Database.Monad (TestDBConfig, withTestDB)
 import Test.Gen.EmailAddress (mkEmailAddressUnsafe)
 import Test.Handler.Fixtures (expectSetupRight, mkUserInsert, setupUserModels)
 import Test.Handler.Monad (bracketAppM)
-import Test.Hspec (Spec, describe, expectationFailure, it, shouldBe)
+import Test.Hspec (Spec, describe, expectationFailure, it, shouldBe, shouldSatisfy)
 
 --------------------------------------------------------------------------------
 
 spec :: Spec
-spec =
+spec = do
+  -- The form parser refuses a malformed email before the action runs.
+  describe "API.Dashboard.Invitations.New.Post.Route.fromMultipart" $
+    it "rejects a malformed recipient email" $
+      case parseForm "not-an-email" of
+        Left message -> message `shouldBe` "Please enter a valid email address."
+        Right parsed -> expectationFailure $ "Expected a parse error, got " <> show parsed
+
   withTestDB $
     describe "API.Dashboard.Invitations.New.Post.Handler.action" $ do
+      it "rejects the email of an existing user" $ \cfg -> do
+        start <- addDays 14 <$> todayPacific
+        insertExistingUser cfg "existing-host"
+        result <- runAction cfg "existing-staff" (form "existing-host@test.example.com" mondaySlot (dateText start))
+        expectValidationError
+          result
+          "That email belongs to an existing KPBJ account. Use the user's host-management screen instead."
+
+      it "stores a token in the INV-XXXX-XXXX format" $ \cfg -> do
+        start <- addDays 14 <$> todayPacific
+        result <- runAction cfg "token-format" (form "token@example.com" mondaySlot (dateText start))
+        case result of
+          Left err -> expectationFailure $ "Expected success, got " <> show err
+          Right (token, _) -> do
+            HostInvitation.unToken token `shouldSatisfy` isInviteCode
+            mInvitation <- bracketAppM cfg $ execQuery (HostInvitation.getByToken token)
+            case mInvitation of
+              Right (Just invitation) -> HostInvitation.hiToken invitation `shouldBe` token
+              other -> expectationFailure $ "Expected the stored invitation, got " <> show other
+
       it "rejects an empty start date" $ \cfg -> do
         result <- runAction cfg "empty-date" (form "empty@example.com" mondaySlot "")
         expectValidationError result "Schedule start date is required."
@@ -75,6 +104,37 @@ form recipient schedules startDate =
       nifSchedulesJson = schedules,
       nifScheduleStartDate = startDate
     }
+
+-- | Parse the multipart form with this recipient email and a valid schedule.
+parseForm :: Text -> Either String NewInvitationForm
+parseForm recipient =
+  fromMultipart
+    MultipartData
+      { inputs =
+          [ Input "recipient_email" recipient,
+            Input "schedules_json" mondaySlot,
+            Input "schedule_start_date" "2030-01-07"
+          ],
+        files = [] :: [FileData Mem]
+      }
+
+-- | True for a code of the form @INV-XXXX-XXXX@. Each @X@ is a character of
+-- the invite code alphabet. The alphabet has no @0@, @O@, @1@, @I@, @L@, or @U@.
+isInviteCode :: Text -> Bool
+isInviteCode code = case Text.splitOn "-" code of
+  ["INV", firstGroup, secondGroup] -> isGroup firstGroup && isGroup secondGroup
+  _ -> False
+  where
+    isGroup group = Text.length group == 4 && Text.all (`elem` alphabet) group
+    alphabet = "23456789ABCDEFGHJKMNPQRSTVWXYZ" :: String
+
+-- | Insert a host user with the email @<name>@test.example.com@.
+insertExistingUser :: TestDBConfig -> Text -> IO ()
+insertExistingUser cfg name = do
+  userInsert <- mkUserInsert name UserMetadata.Host
+  bracketAppM cfg $ do
+    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ void (setupUserModels userInsert)
+    liftIO $ expectSetupRight dbResult
 
 -- | A date in the form's @YYYY-MM-DD@ format.
 dateText :: Day -> Text

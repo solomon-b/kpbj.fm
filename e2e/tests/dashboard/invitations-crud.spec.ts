@@ -6,6 +6,8 @@ import { STAFF_AUTH } from "../../playwright.config";
 //
 // Covers list, create, edit, resend, revoke, and regenerate for
 // host invitations. Uses STAFF_AUTH (only staff+ can manage invitations).
+// Each test revokes what it creates, so the cleanup also checks revoke.
+// host-onboarding.spec.ts reads invite links with the Copy Link button.
 //
 // The create form embeds an Alpine.js ScheduleEditor that's awkward to
 // drive from Playwright — we follow the schedule-reedit.spec.ts pattern
@@ -103,22 +105,6 @@ function rowForRecipient(page: Page, recipientEmail: string) {
   return page.locator("tr", { hasText: recipientEmail });
 }
 
-// Click the row's Copy Link button and read the URL from the clipboard.
-// The Alpine @click directive doesn't survive as a readable attribute
-// after init, so we exercise the actual copy mechanism instead.
-async function inviteUrlForRow(
-  page: Page,
-  recipientEmail: string,
-): Promise<string> {
-  await page
-    .context()
-    .grantPermissions(["clipboard-read", "clipboard-write"]);
-  await rowForRecipient(page, recipientEmail)
-    .getByRole("button", { name: /Copy Link|Copied!/ })
-    .click();
-  return await page.evaluate(() => navigator.clipboard.readText());
-}
-
 test.describe("Invitations CRUD", () => {
   // The tests share one schedule slot, so they run one at a time.
   test.describe.configure({ mode: "serial" });
@@ -127,19 +113,12 @@ test.describe("Invitations CRUD", () => {
   // Navigation / list
   // -------------------------------------------------------------------------
 
-  test("sidebar has Invitations link", async ({ page }) => {
+  test("sidebar link opens the list, and the new form loads", async ({ page }) => {
     await page.goto("/dashboard");
-    await expect(
-      page.getByRole("link", { name: /Invitations/i }),
-    ).toBeVisible();
-  });
-
-  test("list page loads", async ({ page }) => {
-    await page.goto(LIST_URL);
+    await page.getByRole("link", { name: /Invitations/i }).click();
+    await page.waitForURL(LIST_URL);
     await expect(page.getByText(/INVITATIONS/i).first()).toBeVisible();
-  });
 
-  test("new invitation form page loads", async ({ page }) => {
     await page.goto(NEW_URL);
     await expect(
       page.getByText(/GENERATE HOST INVITATION/i),
@@ -153,25 +132,11 @@ test.describe("Invitations CRUD", () => {
   // Create
   // -------------------------------------------------------------------------
 
-  test("create invitation, list shows pending row", async ({ page }) => {
+  // The validation of the create form (start date, schedule conflict,
+  // malformed or existing email) and the token format are covered by
+  // API/Dashboard/Invitations/New/Post/HandlerSpec.hs.
+  test("create invitation, list shows a pending row with the start date", async ({ page }) => {
     const email = `e2e-create-${Date.now()}@example.com`;
-    await page.goto(NEW_URL);
-    const result = await createInvitation(page, email);
-    expect(result.hxRedirect).toBe(LIST_URL);
-
-    await page.goto(LIST_URL);
-    const row = rowForRecipient(page, email);
-    await expect(row).toBeVisible();
-    await expect(row).toContainText("Pending");
-
-    // Cleanup: revoke so we don't pile up Pending rows across runs.
-    page.on("dialog", (d) => d.accept());
-    await row.getByRole("button", { name: /Revoke/i }).click();
-    await expect(row).toBeHidden();
-  });
-
-  test("list shows the start date", async ({ page }) => {
-    const email = `e2e-start-${Date.now()}@example.com`;
     const start = isoDate(21);
     await page.goto(NEW_URL);
     const result = await createInvitation(page, email, start);
@@ -179,83 +144,14 @@ test.describe("Invitations CRUD", () => {
 
     await page.goto(LIST_URL);
     const row = rowForRecipient(page, email);
+    await expect(row).toContainText("Pending");
     await expect(row).toContainText(listDate(start));
 
-    // Cleanup
+    // Cleanup: revoke so we don't pile up Pending rows across runs. Revoke
+    // removes the row from the page.
     page.on("dialog", (d) => d.accept());
     await row.getByRole("button", { name: /Revoke/i }).click();
     await expect(row).toBeHidden();
-  });
-
-  test("create requires a start date", async ({ page }) => {
-    await page.goto(NEW_URL);
-    const result = await postInvitation(
-      page,
-      `e2e-no-start-${Date.now()}@example.com`,
-      CRUD_SCHEDULE,
-      "",
-    );
-    expect(result.hxRedirect).toBeNull();
-    expect(result.body).toMatch(/Schedule start date is required/);
-  });
-
-  test("create rejects a slot that a pending invitation holds", async ({ page }) => {
-    const firstEmail = `e2e-conflict-a-${Date.now()}@example.com`;
-    await page.goto(NEW_URL);
-    const first = await createInvitation(page, firstEmail);
-    expect(first.hxRedirect).toBe(LIST_URL);
-
-    const second = await postInvitation(
-      page,
-      `e2e-conflict-b-${Date.now()}@example.com`,
-      CRUD_SCHEDULE,
-      DEFAULT_START,
-    );
-    expect(second.hxRedirect).toBeNull();
-    expect(second.body).toMatch(/Schedule conflict:.*pending invitation/);
-
-    // Cleanup
-    await page.goto(LIST_URL);
-    page.on("dialog", (d) => d.accept());
-    await rowForRecipient(page, firstEmail)
-      .getByRole("button", { name: /Revoke/i })
-      .click();
-    await expect(rowForRecipient(page, firstEmail)).toBeHidden();
-  });
-
-  test("create blocks existing-user email", async ({ page }) => {
-    // listener@example.com is a known mock user.
-    await page.goto(NEW_URL);
-    const result = await createInvitation(page, "listener@example.com");
-    // Validation error renders an OOB banner, no HX-Redirect.
-    expect(result.hxRedirect).toBeNull();
-    expect(result.body).toMatch(/existing KPBJ account/i);
-  });
-
-  test("create rejects malformed email", async ({ page }) => {
-    await page.goto(NEW_URL);
-    const result = await createInvitation(page, "not-an-email");
-    expect(result.hxRedirect).toBeNull();
-    expect(result.body).toMatch(/valid email address/i);
-  });
-
-  test("invite URL uses INV-XXXX-XXXX token format", async ({ page }) => {
-    const email = `e2e-token-${Date.now()}@example.com`;
-    await page.goto(NEW_URL);
-    await createInvitation(page, email);
-    await page.goto(LIST_URL);
-
-    const url = await inviteUrlForRow(page, email);
-    expect(url).toMatch(
-      /\/invite\/INV-[23456789ABCDEFGHJKMNPQRSTVWXYZ]{4}-[23456789ABCDEFGHJKMNPQRSTVWXYZ]{4}$/,
-    );
-
-    // Cleanup
-    page.on("dialog", (d) => d.accept());
-    await rowForRecipient(page, email)
-      .getByRole("button", { name: /Revoke/i })
-      .click();
-    await expect(rowForRecipient(page, email)).toBeHidden();
   });
 
   // -------------------------------------------------------------------------
@@ -406,21 +302,8 @@ test.describe("Invitations CRUD", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Revoke + regenerate
+  // Regenerate
   // -------------------------------------------------------------------------
-
-  test("revoke removes row from list", async ({ page }) => {
-    const email = `e2e-revoke-${Date.now()}@example.com`;
-    await page.goto(NEW_URL);
-    await createInvitation(page, email);
-    await page.goto(LIST_URL);
-
-    const row = rowForRecipient(page, email);
-    await expect(row).toBeVisible();
-    page.on("dialog", (d) => d.accept());
-    await row.getByRole("button", { name: /Revoke/i }).click();
-    await expect(row).toBeHidden();
-  });
 
   test("regenerate after revoke creates a fresh row", async ({ page }) => {
     const email = `e2e-regen-${Date.now()}@example.com`;
