@@ -45,11 +45,6 @@
               web-server-core.overlays.web-server-core
             ];
           };
-          amazonkaSrc = pkgs.fetchgit {
-            url = "https://github.com/brendanhay/amazonka.git";
-            rev = "a7d699be1076e2aad05a1930ca3937ffea954ad8";
-            sha256 = "sha256-cCRhHH/IgM7tPy8rXHTSRec1zxohO8NWxSVZEG1OjQw=";
-          };
           servantAuthRolesSrc = pkgs.fetchgit {
             url = "https://github.com/solomon-b/servant-auth-roles.git";
             rev = "74db973fbb75f7725c97aee42b4f2e9f93778492";
@@ -59,21 +54,6 @@
             overrides = hfinal: hprev: {
               servant-auth-roles = pkgs.haskell.lib.dontCheck
                 (hfinal.callCabal2nix "servant-auth-roles" servantAuthRolesSrc { });
-
-              amazonka = pkgs.haskell.lib.dontCheck
-                (hfinal.callCabal2nix "amazonka" (amazonkaSrc + "/lib/amazonka") { });
-
-              amazonka-core = pkgs.haskell.lib.dontCheck
-                (hfinal.callCabal2nix "amazonka-core" (amazonkaSrc + "/lib/amazonka-core") { });
-
-              amazonka-s3 = pkgs.haskell.lib.dontCheck
-                (hfinal.callCabal2nix "amazonka-s3" (amazonkaSrc + "/lib/services/amazonka-s3") { });
-
-              amazonka-sso = pkgs.haskell.lib.dontCheck
-                (hfinal.callCabal2nix "amazonka-sso" (amazonkaSrc + "/lib/services/amazonka-sso") { });
-
-              amazonka-sts = pkgs.haskell.lib.dontCheck
-                (hfinal.callCabal2nix "amazonka-sts" (amazonkaSrc + "/lib/services/amazonka-sts") { });
 
               kpbj-types = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-types" ./lib/kpbj-types { });
 
