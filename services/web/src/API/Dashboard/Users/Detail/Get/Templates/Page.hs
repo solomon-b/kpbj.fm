@@ -1,14 +1,9 @@
-{-# LANGUAGE QuasiQuotes #-}
-
 module API.Dashboard.Users.Detail.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
-import API.Links (dashboardUsersLinks)
-import API.Types
 import Control.Monad (unless)
 import Data.Maybe (fromMaybe, isJust)
-import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
@@ -20,8 +15,6 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import Lucid.HTMX
-import Servant.Links qualified as Links
 
 template ::
   StorageBackend ->
@@ -46,7 +39,7 @@ template backend user metadata userShows userEpisodes = do
     -- User metadata grid
     Lucid.div_ [class_ $ base ["grid", "grid-cols-1", "md:grid-cols-2", Tokens.gap6, "mt-6", "pt-6", "border-t-2", Tokens.borderMuted]] $ do
       renderField "Full Name" (Text.unpack $ display metadata.mFullName)
-      renderRoleField user.mId metadata.mUserRole
+      renderField "Role" (Text.unpack $ display metadata.mUserRole)
 
   -- Shows section
   unless (null userShows) $ do
@@ -83,38 +76,6 @@ renderHeaderAvatar backend mAvatarPath =
           Lucid.alt_ "User avatar",
           class_ $ base ["w-20", "h-20", "rounded-full", "object-cover", Tokens.border2, Tokens.borderDefault]
         ]
-
-renderRoleField :: User.Id -> UserMetadata.UserRole -> Lucid.Html ()
-renderRoleField userId currentRole = do
-  Lucid.div_ $ do
-    Lucid.dt_ [class_ $ base [Tokens.fontBold, Tokens.fgPrimary, "mb-1"]] "Role"
-    Lucid.dd_ [Lucid.id_ "role-dropdown-container", class_ $ base ["flex", "items-center", "gap-3"]] $
-      renderRoleDropdown userId currentRole
-
-renderRoleDropdown :: User.Id -> UserMetadata.UserRole -> Lucid.Html ()
-renderRoleDropdown userId currentRole =
-  Lucid.select_
-    [ Lucid.name_ "role",
-      class_ $ base [Tokens.p2, Tokens.border2, Tokens.borderDefault, Tokens.bgMain, Tokens.fgPrimary, Tokens.fontBold],
-      hxPatch_ [i|/#{rolePatchUrl}|],
-      hxTarget_ "#role-dropdown-container",
-      hxSwap_ "innerHTML"
-    ]
-    $ do
-      roleOption UserMetadata.User currentRole
-      roleOption UserMetadata.Host currentRole
-      roleOption UserMetadata.Staff currentRole
-      roleOption UserMetadata.Admin currentRole
-  where
-    rolePatchUrl = Links.linkURI $ dashboardUsersLinks.rolePatch userId
-
-    roleOption :: UserMetadata.UserRole -> UserMetadata.UserRole -> Lucid.Html ()
-    roleOption role selected =
-      Lucid.option_
-        ( [Lucid.value_ (display role)]
-            <> [Lucid.selected_ "selected" | role == selected]
-        )
-        $ Lucid.toHtml (display role)
 
 renderShowCard :: Shows.Model -> Lucid.Html ()
 renderShowCard showModel = do

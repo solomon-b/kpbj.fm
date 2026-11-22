@@ -83,7 +83,6 @@ import API.Dashboard.Users.Detail.Get.HandlerSpec qualified as DashboardUsersDet
 import API.Dashboard.Users.Edit.Get.HandlerSpec qualified as DashboardUsersEditGetHandler
 import API.Dashboard.Users.Edit.Post.HandlerSpec qualified as DashboardUsersEditPostHandler
 import API.Dashboard.Users.Get.HandlerSpec qualified as DashboardUsersGetHandler
-import API.Dashboard.Users.Role.Patch.HandlerSpec qualified as DashboardUsersRolePatchHandler
 import API.Dashboard.Users.Suspend.Post.HandlerSpec qualified as DashboardUsersSuspendHandler
 import API.Dashboard.Users.Unsuspend.Post.HandlerSpec qualified as DashboardUsersUnsuspendHandler
 import API.Events.Event.Get.HandlerSpec qualified as EventHandler
@@ -282,7 +281,6 @@ main = do
     DashboardUsersEditGetHandler.spec
     DashboardUsersEditPostHandler.spec
     DashboardUsersDeleteHandler.spec
-    DashboardUsersRolePatchHandler.spec
     DashboardUsersSuspendHandler.spec
     DashboardUsersUnsuspendHandler.spec
     DashboardProfileEditGetHandler.spec
