@@ -17,6 +17,7 @@ spec = describe "API.Dashboard.Analytics.Get.Templates.Page" $ do
   it "links each range to the page with hx-get into #main-content" $ do
     html `shouldSatisfy` Lazy.isInfixOf "href=\"/dashboard/analytics?range=24h\""
     html `shouldSatisfy` Lazy.isInfixOf "hx-get=\"/dashboard/analytics?range=90d\""
+    html `shouldSatisfy` Lazy.isInfixOf "href=\"/dashboard/analytics?range=all\""
     html `shouldSatisfy` Lazy.isInfixOf "hx-target=\"#main-content\""
     html `shouldSatisfy` Lazy.isInfixOf "hx-push-url=\"true\""
 

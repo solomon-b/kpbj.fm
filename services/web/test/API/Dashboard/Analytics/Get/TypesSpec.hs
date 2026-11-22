@@ -20,7 +20,7 @@ spec = describe "API.Dashboard.Analytics.Get.Types" $ do
         parseQueryParam (toQueryParam r) `shouldBe` Right r
 
     it "uses the short range names" $
-      map toQueryParam [Range24h, Range7d, Range30d, Range90d] `shouldBe` ["24h", "7d", "30d", "90d"]
+      map toQueryParam [Range24h, Range7d, Range30d, Range90d, RangeAll] `shouldBe` ["24h", "7d", "30d", "90d", "all"]
 
     it "rejects an unknown range" $
       (parseQueryParam "1y" :: Either Text AnalyticsRange) `shouldSatisfy` isLeft
