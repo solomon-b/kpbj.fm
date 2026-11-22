@@ -5,7 +5,8 @@ module API.Dashboard.Blogs.New.Post.Handler where
 import API.Dashboard.Blogs.New.Post.Route (NewShowBlogPostForm (..))
 import API.Links (dashboardBlogsLinks, rootLink)
 import API.Types (DashboardBlogsRoutes (..))
-import App.Handler.Combinators (requireAuth, requireHostNotSuspended, requireRight)
+import App.Auth.Roles (RoleAuth, Satisfies (..))
+import App.Handler.Combinators (requireRight)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwNotAuthorized)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -18,7 +19,6 @@ import Data.Foldable (traverse_)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.PostStatus (BlogPostStatus (..), decodeBlogPost)
 import Domain.Types.Slug (Slug)
 import Domain.Types.Slug qualified as Slug
@@ -40,14 +40,12 @@ import Utils (fromRightM)
 -- | Servant handler: thin glue composing action + redirect response.
 handler ::
   Slug ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   NewShowBlogPostForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler showSlug cookie form =
+handler showSlug (Satisfies _ auth) form =
   handleRedirectErrors "Show blog post creation" (dashboardBlogsLinks.newGet showSlug) $ do
-    (user, userMetadata) <- requireAuth cookie
-    requireHostNotSuspended "You do not have permission to create blog posts." userMetadata
-    (postId, showModel) <- action user userMetadata showSlug form
+    (postId, showModel) <- action auth.raUser auth.raMetadata showSlug form
     let detailUrl = rootLink $ dashboardBlogsLinks.detail (Shows.slug showModel) postId
         flash = FlashMessage Success "Blog Post Created" "Your blog post has been created successfully."
     pure $ Servant.addHeader detailUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
@@ -123,7 +121,7 @@ fetchShowBySlug user userMetadata showSlug = do
           showModel <- MaybeT $ HT.statement () (Shows.getShowBySlug showSlug)
           -- Admins can create blog posts for any show, hosts need explicit assignment
           unless (UserMetadata.isAdmin userMetadata.mUserRole) $ do
-            isHost <- lift $ HT.statement () (ShowHost.isUserHostOfShow (User.mId user) showModel.id)
+            isHost <- lift $ HT.statement () (ShowHost.isUserHostOfShow (User.mId user) (Shows.id showModel))
             guard isHost
           pure showModel
 

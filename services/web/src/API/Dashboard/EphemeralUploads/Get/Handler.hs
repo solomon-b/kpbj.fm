@@ -9,9 +9,9 @@ import API.Dashboard.EphemeralUploads.Get.Templates.ItemsFragment (renderItemsFr
 import API.Dashboard.EphemeralUploads.Get.Templates.Page (template)
 import API.Links (apiLinks, dashboardEphemeralUploadsLinks, rootLink)
 import API.Types
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -20,7 +20,6 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Has (getter)
 import Data.Maybe (fromMaybe)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
@@ -80,14 +79,12 @@ action userMetadata maybePage = do
 -- | Servant handler: thin glue composing action + render with dashboard chrome.
 handler ::
   Maybe PageNumber ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler maybePage cookie (foldHxReq -> hxRequest) =
+handler maybePage (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Ephemeral uploads list" apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireHostNotSuspended "You do not have permission to access this page." userMetadata
-    vd <- action userMetadata maybePage
+    vd <- action auth.raMetadata maybePage
     let PageNumber pageNum = vd.ulvPage
         isAppendRequest = hxRequest == IsHxRequest && pageNum > 1
     if isAppendRequest

@@ -9,9 +9,9 @@ module API.Dashboard.Blogs.Slug.Get.Handler where
 import API.Dashboard.Blogs.Slug.Get.Templates.Page (template)
 import API.Links (apiLinks, dashboardBlogsLinks)
 import API.Types
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -21,7 +21,6 @@ import Data.Either (fromRight)
 import Data.String.Interpolate (i)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Execute (execQuery)
@@ -41,14 +40,12 @@ import Utils (fromMaybeM, fromRightM)
 handler ::
   Slug ->
   ShowBlogPosts.Id ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler showSlug postId cookie (foldHxReq -> hxRequest) =
+handler showSlug postId (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Show blog post detail" apiLinks.rootGet $ do
-    (user, userMetadata) <- requireAuth cookie
-    requireHostNotSuspended "You do not have permission to access this page." userMetadata
-    vd <- action user userMetadata showSlug postId
+    vd <- action auth.raUser auth.raMetadata showSlug postId
     let content = template vd.bdvUserMetadata vd.bdvShowModel vd.bdvBlogPost vd.bdvTags
     lift $ renderDashboardTemplate hxRequest vd.bdvUserMetadata (ForShow vd.bdvShowModel) NavBlog Nothing (actionButton vd.bdvShowModel) content
   where

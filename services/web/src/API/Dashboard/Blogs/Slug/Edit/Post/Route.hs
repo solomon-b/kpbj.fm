@@ -5,11 +5,12 @@ module API.Dashboard.Blogs.Slug.Edit.Post.Route where
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Text.HTML (HTML)
 import Web.FormUrlEncoded (FromForm (..))
 import Web.FormUrlEncoded qualified as Form
@@ -23,7 +24,7 @@ type Route =
     :> Servant.Capture "show_slug" Slug
     :> Servant.Capture "post_id" ShowBlogPosts.Id
     :> "edit"
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Host
     :> Servant.ReqBody '[Servant.FormUrlEncoded] ShowBlogEditForm
     :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 

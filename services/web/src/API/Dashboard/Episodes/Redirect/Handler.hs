@@ -8,10 +8,10 @@ module API.Dashboard.Episodes.Redirect.Handler (handler, action) where
 import API.Dashboard.CurrentShow.Get.Templates (noShowsEmptyState)
 import API.Links (apiLinks)
 import API.Types
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Dashboard.CurrentShow (resolveCurrentShow)
 import App.Dashboard.ShowContext (ShowContext (..), ShowSection (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..), sectionUrl)
@@ -37,18 +37,17 @@ action cookie userMetadata = lift $ resolveCurrentShow cookie userMetadata
 
 -- | Handler that redirects to the episodes page of the current show.
 handler ::
+  Satisfies 'UserMetadata.Host RoleAuth ->
   Maybe Cookie ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler cookie (foldHxReq -> hxRequest) =
+handler (Satisfies _ auth) cookie (foldHxReq -> hxRequest) =
   handleHtmlErrors "Episodes redirect" apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireHostNotSuspended "You do not have permission to access this page." userMetadata
-    mCurrentShow <- action cookie userMetadata
+    mCurrentShow <- action cookie auth.raMetadata
     case mCurrentShow of
       Nothing ->
         -- No shows available, so render the dashboard with an empty state.
-        lift $ renderDashboardTemplate hxRequest userMetadata NoShow NavEpisodes Nothing Nothing noShowsEmptyState
+        lift $ renderDashboardTemplate hxRequest auth.raMetadata NoShow NavEpisodes Nothing Nothing noShowsEmptyState
       Just currentShow -> do
         Log.logInfo "Redirecting to the episodes page of the current show" currentShow.slug
         let episodesUrl = sectionUrl SectionEpisodes currentShow

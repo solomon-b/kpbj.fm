@@ -3,9 +3,10 @@ module API.Dashboard.EphemeralUploads.New.Post.Route where
 --------------------------------------------------------------------------------
 
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie)
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Servant.Multipart (FromMultipart, Mem, MultipartForm, fromMultipart, lookupInput)
 import Text.HTML (HTML)
 
@@ -16,7 +17,7 @@ type Route =
   "dashboard"
     :> "ephemeral-uploads"
     :> "new"
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Host
     :> MultipartForm Mem FormData
     :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 

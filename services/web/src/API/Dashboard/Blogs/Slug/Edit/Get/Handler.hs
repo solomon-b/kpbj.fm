@@ -8,16 +8,15 @@ module API.Dashboard.Blogs.Slug.Edit.Get.Handler where
 import API.Dashboard.Blogs.Slug.Edit.Get.Templates.Page (editBlogPostForm)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Execute (execTransaction)
@@ -38,14 +37,12 @@ import Utils (fromRightM)
 handler ::
   Slug ->
   ShowBlogPosts.Id ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler showSlug postId cookie (foldHxReq -> hxRequest) =
+handler showSlug postId (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Blog post edit form" apiLinks.rootGet $ do
-    (user, userMetadata) <- requireAuth cookie
-    requireHostNotSuspended "You do not have permission to edit blog posts." userMetadata
-    vd <- action user userMetadata showSlug postId
+    vd <- action auth.raUser auth.raMetadata showSlug postId
     lift $ renderDashboardTemplate hxRequest vd.bevUserMetadata (ForShow vd.bevShowModel) NavBlog Nothing Nothing $ editBlogPostForm vd.bevShowModel vd.bevBlogPost vd.bevTags
 
 --------------------------------------------------------------------------------

@@ -2,11 +2,12 @@ module API.Dashboard.AirBreaks.StationIds.Id.Delete.Route where
 
 --------------------------------------------------------------------------------
 
-import Domain.Types.Cookie (Cookie)
 import Effects.Database.Tables.StationIds qualified as StationIds
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Lucid qualified
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
@@ -17,5 +18,5 @@ type Route =
     :> "air-breaks"
     :> "station-ids"
     :> Servant.Capture "station_id" StationIds.Id
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Host
     :> Servant.Delete '[HTML] (Lucid.Html ())

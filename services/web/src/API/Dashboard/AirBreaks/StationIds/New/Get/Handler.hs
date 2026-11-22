@@ -8,11 +8,11 @@ module API.Dashboard.AirBreaks.StationIds.New.Get.Handler (handler, action, Stat
 import API.Dashboard.AirBreaks.StationIds.New.Get.Templates.Form (stationIdUploadForm)
 import API.Links (apiLinks)
 import API.Types
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Config (Environment)
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
 import App.Domains (audioUploadUrl)
-import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
 import App.Handler.Error (HandlerError, handleHtmlErrors)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -21,7 +21,6 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Has qualified as Has
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
@@ -30,14 +29,12 @@ import Lucid qualified
 
 -- | Servant handler: thin glue composing action + render with dashboard chrome.
 handler ::
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler cookie (foldHxReq -> hxRequest) =
+handler (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Station ID upload form" apiLinks.rootGet $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireHostNotSuspended "You do not have permission to upload station IDs." userMetadata
-    vd <- action userMetadata
+    vd <- action auth.raMetadata
     let content = stationIdUploadForm vd.sifUploadUrl
     lift $ renderDashboardTemplate hxRequest vd.sifUserMetadata NoShow NavStationIds Nothing Nothing content
 

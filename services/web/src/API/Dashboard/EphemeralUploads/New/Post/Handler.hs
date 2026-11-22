@@ -5,7 +5,7 @@ module API.Dashboard.EphemeralUploads.New.Post.Handler (handler, action) where
 import API.Dashboard.EphemeralUploads.New.Post.Route (FormData (..))
 import API.Links (dashboardEphemeralUploadsLinks, rootLink)
 import API.Types
-import App.Handler.Combinators (requireAuth, requireHostNotSuspended)
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -17,7 +17,6 @@ import Control.Monad.Trans.Except (ExceptT)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (getCurrentTime)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileStorage (BucketType (..), ResourceType (..))
 import Domain.Types.Slug (Slug (..), mkSlug)
 import Effects.ContentSanitization qualified as Sanitize
@@ -25,6 +24,7 @@ import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
 import Effects.Database.Tables.StagedUploads qualified as StagedUploads
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.StagedUploads (claimAndRelocateUpload)
 import Log qualified
 import Servant qualified
@@ -34,14 +34,12 @@ import Utils (fromMaybeM, fromRightM)
 
 -- | Servant handler: thin glue running action.
 handler ::
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   FormData ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler cookie form =
+handler (Satisfies _ auth) form =
   handleRedirectErrors "Ephemeral upload" dashboardEphemeralUploadsLinks.newGet $ do
-    (user, userMetadata) <- requireAuth cookie
-    requireHostNotSuspended "You do not have permission to upload ephemeral clips." userMetadata
-    action user form
+    action auth.raUser form
     let listUrl = rootLink $ dashboardEphemeralUploadsLinks.list Nothing
         flash = FlashMessage Success "Ephemeral Uploaded" "Your ephemeral clip has been uploaded successfully."
     pure $ Servant.addHeader listUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
