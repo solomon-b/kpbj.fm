@@ -168,7 +168,6 @@ import API.Dashboard.Users.Edit.Get.Handler qualified as Dashboard.Users.Edit.Ge
 import API.Dashboard.Users.Edit.Post.Handler qualified as Dashboard.Users.Edit.Post
 import API.Dashboard.Users.Get.Handler qualified as Dashboard.Users.Get
 import API.Dashboard.Users.ResetPassword.Post.Handler qualified as Dashboard.Users.ResetPassword.Post
-import API.Dashboard.Users.Role.Patch.Handler qualified as Dashboard.Users.Role.Patch
 import API.Dashboard.Users.Suspend.Post.Handler qualified as Dashboard.Users.Suspend.Post
 import API.Dashboard.Users.Unsuspend.Post.Handler qualified as Dashboard.Users.Unsuspend.Post
 import API.Debug.Version.Get.Handler qualified as Debug.Version.Get
@@ -641,7 +640,6 @@ server =
           detail = Dashboard.Users.Detail.Get.handler,
           editGet = Dashboard.Users.Edit.Get.handler,
           editPost = Dashboard.Users.Edit.Post.handler,
-          rolePatch = Dashboard.Users.Role.Patch.handler,
           suspendPost = Dashboard.Users.Suspend.Post.handler,
           unsuspendPost = Dashboard.Users.Unsuspend.Post.handler,
           resetPasswordPost = Dashboard.Users.ResetPassword.Post.handler,

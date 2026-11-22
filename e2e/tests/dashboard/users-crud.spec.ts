@@ -4,17 +4,12 @@ import { ADMIN_AUTH } from "../../playwright.config";
 // ---------------------------------------------------------------------------
 // Users CRUD tests
 //
-// Covers list, detail, inline role change, edit, and suspend/unsuspend for
-// the users dashboard. Uses ADMIN_AUTH (only admins can manage users).
+// Covers list, detail, edit, role change, and suspend/unsuspend for the users
+// dashboard. Uses ADMIN_AUTH (only admins can change roles).
 //
 // Suspend/unsuspend tests use musicfan@example.com (expendable mock user).
 // Role change tests use listener@example.com and restore the original role.
 // User delete is skipped — too destructive for shared mock data.
-//
-// NOTE: The inline role change uses HTMX innerHTML swap which creates a
-// nested duplicate ID (#role-dropdown-container). After the first swap,
-// the inner <div> has the same ID as the outer <dd>. We use
-// page.getByText("Saved") to avoid strict-mode violations on the ID.
 // ---------------------------------------------------------------------------
 
 test.use({ storageState: ADMIN_AUTH });
@@ -57,11 +52,10 @@ test.describe("Users CRUD", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Inline role change (on detail page)
+  // Role change (on the edit form, Admin only)
   // -------------------------------------------------------------------------
 
-  test("inline role change updates and restores", async ({ page }) => {
-    // Navigate to listener@example.com detail page.
+  test("detail page shows the role as text", async ({ page }) => {
     await page.goto("/dashboard/users");
     const row = page.locator("#users-table-body tr", {
       hasText: "listener@example.com",
@@ -69,26 +63,30 @@ test.describe("Users CRUD", () => {
     await row.locator("td").first().click();
     await page.waitForURL(/\/dashboard\/users\/\d+/);
 
-    // Use dd# to target the original container specifically.
-    const roleSelect = page.locator(
-      'dd#role-dropdown-container select[name="role"]'
-    );
-    await expect(roleSelect).toBeVisible();
+    await expect(page.locator('#main-content select[name="role"]')).toHaveCount(0);
+  });
 
-    // Change User → Host.
-    await roleSelect.selectOption("Host");
-    // HTMX patches and re-renders. The "Saved" text appears in the response.
-    // After innerHTML swap, there's a nested duplicate ID, so use getByText.
-    await expect(page.getByText("Saved").first()).toBeVisible();
+  test("admin changes the role on the edit form and restores it", async ({ page }) => {
+    // Change the role of listener@example.com to the given role.
+    const setRole = async (role: string) => {
+      await page.goto("/dashboard/users");
+      const row = page.locator("#users-table-body tr", {
+        hasText: "listener@example.com",
+      });
+      await row.locator("select").selectOption("edit");
+      await page.waitForURL(/\/edit/);
 
-    // Restore Host → User.
-    // After the swap, there are two select[name="role"] on the page (one in
-    // the header, one in the detail section). Scope to #main-content.
-    const restoredSelect = page.locator(
-      '#main-content select[name="role"]'
-    );
-    await restoredSelect.selectOption("User");
-    await expect(page.getByText("Saved").first()).toBeVisible();
+      await page.locator('select[name="role"]').selectOption(role);
+      await page.getByRole("button", { name: "SAVE CHANGES" }).click();
+      await page.waitForURL(/\/dashboard\/users\/\d+$/);
+      const roleValue = page
+        .locator("dt", { hasText: /^Role$/ })
+        .locator("xpath=following-sibling::dd[1]");
+      await expect(roleValue).toHaveText(role);
+    };
+
+    await setRole("Host");
+    await setRole("User");
   });
 
   // -------------------------------------------------------------------------
