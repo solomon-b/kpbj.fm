@@ -38,6 +38,7 @@ module App.Auth.Roles
     RequireRole,
     Satisfies (..),
     SomeRole (..),
+    satisfies,
 
     -- * Auth value
     RoleAuth,

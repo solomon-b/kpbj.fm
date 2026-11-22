@@ -5,6 +5,7 @@ module API.Dashboard.Users.Edit.Post.Handler where
 
 --------------------------------------------------------------------------------
 
+import API.Dashboard.Users.Edit.Shared (CanChangeRole, checkCanChangeRole)
 import API.Links (dashboardUsersLinks)
 import API.Types
 import App.Auth.Roles (RoleAuth, Satisfies)
@@ -12,6 +13,7 @@ import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Flash (FlashMessage (..), flashCookie)
+import Control.Monad (forM_)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -50,9 +52,9 @@ handler ::
   Satisfies 'UserMetadata.Staff RoleAuth ->
   MultipartData Mem ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler targetUserId _ multipartData =
+handler targetUserId auth multipartData =
   handleRedirectErrors "User edit" (dashboardUsersLinks.detail targetUserId) $ do
-    action targetUserId multipartData
+    action (checkCanChangeRole auth) targetUserId multipartData
     let detailUrl = userDetailUrl targetUserId
         flash = FlashMessage Success "User Updated" "The user's information has been updated."
     pure $ Servant.addHeader detailUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
@@ -60,17 +62,26 @@ handler targetUserId _ multipartData =
 --------------------------------------------------------------------------------
 
 -- | Business logic: validate form, update user.
+--
+-- The form has a role field only for an Admin. A role in the form with no
+-- 'CanChangeRole' is a validation error, and nothing is saved.
 action ::
+  -- | The permission to change the role, for an Admin
+  Maybe CanChangeRole ->
   User.Id ->
   MultipartData Mem ->
   ExceptT HandlerError AppM ()
-action targetUserId multipartData = do
+action mCanChangeRole targetUserId multipartData = do
   -- Parse form fields
   let formInputs = inputs multipartData
 
-  (newDisplayName, newFullName, newRole) <- case extractFormFields formInputs of
+  (newDisplayName, newFullName, mNewRole) <- case extractFormFields formInputs of
     Left errorMsg -> throwValidationError errorMsg
     Right result -> pure result
+
+  case (mNewRole, mCanChangeRole) of
+    (Just _, Nothing) -> throwValidationError "Only an Admin can change the role of a user"
+    _ -> pure ()
 
   -- Check if admin wants to clear the avatar
   let avatarClear = case lookupInput "avatar_clear" multipartData of
@@ -113,7 +124,8 @@ action targetUserId multipartData = do
                   UserMetadata.uTheme = Nothing
                 }
         _ <- HT.statement () (UserMetadata.updateUserMetadata currentMetadata.mId metadataUpdate)
-        _ <- HT.statement () (UserMetadata.updateUserRole targetUserId newRole)
+        forM_ mNewRole $ \newRole ->
+          HT.statement () (UserMetadata.updateUserRole targetUserId newRole)
         pure $ Just ()
 
   case updateResult of
@@ -121,7 +133,9 @@ action targetUserId multipartData = do
     Right Nothing -> throwNotFound "User metadata"
     Right (Just ()) -> Log.logInfo "User updated successfully" ()
 
-extractFormFields :: [Input] -> Either Text (DisplayName, FullName, UserMetadata.UserRole)
+-- | Parse the form. The role is optional, because only an Admin sees the
+-- role field.
+extractFormFields :: [Input] -> Either Text (DisplayName, FullName, Maybe UserMetadata.UserRole)
 extractFormFields formInputs = do
   -- Convert Input to (Text, Text) for lookup
   let inputPairs = [(iName input, iValue input) | input <- formInputs]
@@ -129,7 +143,6 @@ extractFormFields formInputs = do
   -- Extract text fields
   displayNameText <- maybe (Left "Missing display_name") Right $ lookup "display_name" inputPairs
   fullNameText <- maybe (Left "Missing full_name") Right $ lookup "full_name" inputPairs
-  roleText <- maybe (Left "Missing role") Right $ lookup "role" inputPairs
 
   -- Parse display name
   displayName <- case DisplayName.mkDisplayName displayNameText of
@@ -142,11 +155,14 @@ extractFormFields formInputs = do
     Just fn -> Right fn
 
   -- Parse role
-  role <- case roleText of
-    "User" -> Right UserMetadata.User
-    "Host" -> Right UserMetadata.Host
-    "Staff" -> Right UserMetadata.Staff
-    "Admin" -> Right UserMetadata.Admin
-    _ -> Left "Invalid role"
+  role <- traverse parseRole $ lookup "role" inputPairs
 
   pure (displayName, fullName, role)
+  where
+    parseRole :: Text -> Either Text UserMetadata.UserRole
+    parseRole = \case
+      "User" -> Right UserMetadata.User
+      "Host" -> Right UserMetadata.Host
+      "Staff" -> Right UserMetadata.Staff
+      "Admin" -> Right UserMetadata.Admin
+      _ -> Left "Invalid role"

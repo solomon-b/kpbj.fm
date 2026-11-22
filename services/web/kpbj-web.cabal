@@ -432,11 +432,10 @@ library
     API.Dashboard.Users.Edit.Get.Templates.Page
     API.Dashboard.Users.Edit.Post.Handler
     API.Dashboard.Users.Edit.Post.Route
+    API.Dashboard.Users.Edit.Shared
     API.Dashboard.Users.ResetPassword.Post.Handler
     API.Dashboard.Users.ResetPassword.Post.Route
     API.Dashboard.Users.ResetPassword.Post.Templates
-    API.Dashboard.Users.Role.Patch.Handler
-    API.Dashboard.Users.Role.Patch.Route
     API.Dashboard.Users.Suspend.Post.Handler
     API.Dashboard.Users.Suspend.Post.Route
     API.Dashboard.Users.Unsuspend.Post.Handler
@@ -803,7 +802,6 @@ test-suite kpbj-web-test
        API.Dashboard.Users.Edit.Get.HandlerSpec
        API.Dashboard.Users.Edit.Post.HandlerSpec
        API.Dashboard.Users.Get.HandlerSpec
-       API.Dashboard.Users.Role.Patch.HandlerSpec
        API.Dashboard.Users.Suspend.Post.HandlerSpec
        API.Dashboard.Users.Unsuspend.Post.HandlerSpec
        API.Dashboard.Events.Get.HandlerSpec

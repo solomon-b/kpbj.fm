@@ -6,6 +6,7 @@ module API.Dashboard.Users.Edit.Get.Handler where
 --------------------------------------------------------------------------------
 
 import API.Dashboard.Users.Edit.Get.Templates.Page (template)
+import API.Dashboard.Users.Edit.Shared (checkCanChangeRole)
 import API.Links (apiLinks)
 import API.Types
 import App.Auth.Roles (RoleAuth, Satisfies (..))
@@ -61,10 +62,11 @@ handler ::
   Satisfies 'UserMetadata.Staff RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler targetUserId (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler targetUserId staff@(Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "User edit" apiLinks.rootGet $ do
     vd <- action auth.raMetadata targetUserId
-    lift $ renderDashboardTemplate hxRequest vd.uevUserMetadata NoShow NavUsers Nothing Nothing (template vd.uevBackend vd.uevTargetUser vd.uevTargetMetadata)
+    let page = template (checkCanChangeRole staff) vd.uevBackend vd.uevTargetUser vd.uevTargetMetadata
+    lift $ renderDashboardTemplate hxRequest vd.uevUserMetadata NoShow NavUsers Nothing Nothing page
 
 -- | Fetch target user and their metadata, or throw NotFound
 fetchTargetUserOrNotFound ::
