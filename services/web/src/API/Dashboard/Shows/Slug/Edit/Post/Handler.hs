@@ -24,7 +24,8 @@ where
 import API.Dashboard.Shows.Slug.Edit.Post.Route (ScheduleSlotInfo (..), ShowEditForm (..))
 import API.Links (dashboardShowsLinks)
 import API.Types
-import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
+import App.Auth.Roles (RoleAuth, Satisfies (..))
+import App.Handler.Combinators (authorizeShow)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -44,7 +45,6 @@ import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Time (Day, DayOfWeek, TimeOfDay, showGregorian)
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Recurrence (Recurrence, editorCanShow, parseWeeks, recurrenceDay, recurrenceFromRow, recurring, weekNumbers, weeksLabel)
 import Domain.Types.Slug (Slug)
@@ -122,14 +122,13 @@ processShowArtworkUploads showSlug mLogoFile = do
 
 handler ::
   Slug ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   ShowEditForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler slug cookie editForm =
+handler slug host@(Satisfies _ auth) editForm =
   handleRedirectErrors "Show edit" (dashboardShowsLinks.editGet slug) $ do
-    (user, userMetadata) <- requireAuth cookie
-    requireShowHostOrStaff user.mId slug userMetadata
-    (showId, newSlug, unscheduledEpisodes) <- action userMetadata slug editForm
+    void $ authorizeShow host slug
+    (showId, newSlug, unscheduledEpisodes) <- action auth.raMetadata slug editForm
     let showUrl = [i|/#{dashboardShowDetailUrl showId newSlug}|] :: Text
         flash = scheduleUpdateFlash unscheduledEpisodes
     pure $ Servant.addHeader showUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent

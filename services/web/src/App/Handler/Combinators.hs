@@ -13,7 +13,6 @@ module App.Handler.Combinators
     requireHostNotSuspended,
     requireStaffNotSuspended,
     requireAdminNotSuspended,
-    requireShowHostOrStaff,
     authorizeShow,
 
     -- * Validation Helpers
@@ -29,7 +28,7 @@ import App.Common (getUserInfo)
 import App.CustomContext (PlayoutSecret (..), secretsMatch)
 import App.Handler.Error (HandlerError, throwDatabaseError, throwNotAuthenticated, throwNotAuthorized, throwNotFound, throwValidationError)
 import App.Monad (AppM)
-import Control.Monad (unless, when)
+import Control.Monad (unless)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -161,46 +160,6 @@ requireAdminNotSuspended ::
 requireAdminNotSuspended msg userMetadata =
   unless (UserMetadata.isAdmin userMetadata.mUserRole && not (UserMetadata.isSuspended userMetadata)) $
     throwNotAuthorized msg (Just userMetadata.mUserRole)
-
---------------------------------------------------------------------------------
-
--- | Require user to be either a host of the show OR staff+, and not suspended.
---
--- This is the common pattern for show-related actions where hosts can manage
--- their own shows, but staff/admins can manage any show.
---
--- Usage:
---
--- @
--- handler showSlug cookie = handleErrors $ do
---   (user, userMeta) <- requireAuth cookie
---   requireShowHostOrStaff user.mId showSlug userMeta
---   -- ... rest of handler
--- @
-requireShowHostOrStaff ::
-  -- | User ID to check
-  User.Id ->
-  -- | Show slug to check host membership
-  Slug ->
-  -- | User metadata to check role and suspension
-  UserMetadata.Model ->
-  ExceptT HandlerError AppM ()
-requireShowHostOrStaff userId showSlug userMetadata = do
-  -- Suspended users can never proceed
-  when (UserMetadata.isSuspended userMetadata) $
-    throwNotAuthorized msg (Just userMetadata.mUserRole)
-
-  -- Staff+ can always proceed (they're not suspended at this point)
-  let isStaffOrHigher = UserMetadata.isStaffOrHigher userMetadata.mUserRole
-  unless isStaffOrHigher $ do
-    -- Not staff, check if they're a host of this show
-    isHost <-
-      fromRightM throwDatabaseError $
-        execQuery (ShowHost.isUserHostOfShowSlug userId showSlug)
-    unless isHost $
-      throwNotAuthorized msg (Just userMetadata.mUserRole)
-  where
-    msg = "You don't have permission to access this show."
 
 --------------------------------------------------------------------------------
 

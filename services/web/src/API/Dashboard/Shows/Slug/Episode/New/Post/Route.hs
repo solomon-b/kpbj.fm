@@ -5,11 +5,12 @@ module API.Dashboard.Shows.Slug.Episode.New.Post.Route where
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import GHC.Generics (Generic)
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Servant.Multipart (FileData, FromMultipart, Mem, MultipartForm, fdFileName, fromMultipart, lookupFile, lookupInput)
 import Text.HTML (HTML)
 
@@ -22,7 +23,7 @@ type Route =
     :> Servant.Capture "show_slug" Slug
     :> "episodes"
     :> "new"
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Host
     :> MultipartForm Mem EpisodeUploadForm
     :> Servant.Post '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
 

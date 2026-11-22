@@ -13,23 +13,19 @@ import App.Handler.Combinators
     requireHostNotSuspended,
     requireJust,
     requireRight,
-    requireShowHostOrStaff,
     requireStaffNotSuspended,
   )
 import App.Handler.Error (HandlerError (..))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Text (Text)
-import Domain.Types.Slug (Slug (..))
 import Effects.Database.Class (MonadDB (..))
-import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as TRX
 import Hasql.Transaction.Sessions qualified as TRX
-import Test.Database.Helpers (addTestShowHost, insertTestShowWithSchedule)
 import Test.Database.Monad (TestDBConfig, withTestDB)
-import Test.Handler.Fixtures (defaultScheduleInsert, expectSetupRight, mkUserInsert, setupUserModels)
+import Test.Handler.Fixtures (expectSetupRight, mkUserInsert, setupUserModels)
 import Test.Handler.Monad (bracketAppM)
 import Test.Hspec (Spec, describe, expectationFailure, it)
 
@@ -56,12 +52,6 @@ spec =
         it "succeeds for an admin who is not suspended" test_adminNotSuspended_succeedsForAdmin
         it "fails for a staff-role account (insufficient role)" test_adminNotSuspended_failsForStaff
         it "fails for a suspended admin" test_adminNotSuspended_failsForSuspendedAdmin
-
-      describe "requireShowHostOrStaff" $ do
-        it "succeeds when the user is a host of the show and not suspended" test_showHostOrStaff_succeedsForShowHost
-        it "succeeds for a staff user who is not a host (staff bypass)" test_showHostOrStaff_succeedsForStaff
-        it "fails when the user is a host of a different show" test_showHostOrStaff_failsForUnrelatedHost
-        it "fails when the user is a host of the show but suspended" test_showHostOrStaff_failsForSuspendedHost
 
       describe "requireJust" $ do
         it "returns the inner value when given Just" test_requireJust_succeedsForJust
@@ -288,108 +278,6 @@ test_adminNotSuspended_failsForSuspendedAdmin cfg = do
     userMetaModel <- expectSetupRight dbResult
 
     result <- runExceptT $ requireAdminNotSuspended "msg" userMetaModel
-
-    liftIO $ case result of
-      Left (NotAuthorized _ _) -> pure ()
-      Left err -> expectationFailure $ "Expected NotAuthorized but got: " <> show err
-      Right () -> expectationFailure "Expected Left NotAuthorized but got Right"
-
---------------------------------------------------------------------------------
--- requireShowHostOrStaff
-
--- | A show host who is not suspended can access their own show.
-test_showHostOrStaff_succeedsForShowHost :: TestDBConfig -> IO ()
-test_showHostOrStaff_succeedsForShowHost cfg = do
-  userInsert <- mkUserInsert "comb-shohost-ok" UserMetadata.Host
-  bracketAppM cfg $ do
-    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-      (userModel, userMetaModel) <- setupUserModels userInsert
-      let showInsert = Shows.Insert "Comb Show Host OK" (Slug "comb-showhost-ok") Nothing Nothing Shows.Active
-      (showId, _) <- insertTestShowWithSchedule showInsert defaultScheduleInsert
-      addTestShowHost showId userModel.mId
-      showModel <-
-        TRX.statement () (Shows.getShowById showId)
-          >>= maybe (error "show not found") pure
-      pure (userModel, userMetaModel, showModel)
-    (userModel, userMetaModel, showModel) <- expectSetupRight dbResult
-
-    result <- runExceptT $ requireShowHostOrStaff userModel.mId showModel.slug userMetaModel
-
-    liftIO $ case result of
-      Right () -> pure ()
-      Left err -> expectationFailure $ "Expected Right () but got Left: " <> show err
-
--- | A staff user can access any show regardless of host membership.
-test_showHostOrStaff_succeedsForStaff :: TestDBConfig -> IO ()
-test_showHostOrStaff_succeedsForStaff cfg = do
-  userInsert <- mkUserInsert "comb-shostaff-ok" UserMetadata.Staff
-  bracketAppM cfg $ do
-    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-      (userModel, userMetaModel) <- setupUserModels userInsert
-      -- The staff user is NOT added as a host of this show
-      let showInsert = Shows.Insert "Comb Show Staff OK" (Slug "comb-showstaff-ok") Nothing Nothing Shows.Active
-      (showId, _) <- insertTestShowWithSchedule showInsert defaultScheduleInsert
-      showModel <-
-        TRX.statement () (Shows.getShowById showId)
-          >>= maybe (error "show not found") pure
-      pure (userModel, userMetaModel, showModel)
-    (userModel, userMetaModel, showModel) <- expectSetupRight dbResult
-
-    result <- runExceptT $ requireShowHostOrStaff userModel.mId showModel.slug userMetaModel
-
-    liftIO $ case result of
-      Right () -> pure ()
-      Left err -> expectationFailure $ "Expected Right () but got Left: " <> show err
-
--- | A host of one show cannot access a different show they are not hosting.
-test_showHostOrStaff_failsForUnrelatedHost :: TestDBConfig -> IO ()
-test_showHostOrStaff_failsForUnrelatedHost cfg = do
-  userInsert <- mkUserInsert "comb-shohost-other-fail" UserMetadata.Host
-  bracketAppM cfg $ do
-    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-      (userModel, userMetaModel) <- setupUserModels userInsert
-      -- Create the user's show and add them as host
-      let ownShowInsert = Shows.Insert "Comb Host Own Show" (Slug "comb-host-own-show") Nothing Nothing Shows.Active
-      (ownShowId, _) <- insertTestShowWithSchedule ownShowInsert defaultScheduleInsert
-      addTestShowHost ownShowId userModel.mId
-      -- Create a different show they are NOT a host of
-      let otherShowInsert = Shows.Insert "Comb Host Other Show" (Slug "comb-host-other-show") Nothing Nothing Shows.Active
-      (otherId, _) <- insertTestShowWithSchedule otherShowInsert defaultScheduleInsert
-      otherShowModel <-
-        TRX.statement () (Shows.getShowById otherId)
-          >>= maybe (error "other show not found") pure
-      pure (userModel, userMetaModel, otherShowModel)
-    (userModel, userMetaModel, otherShowModel) <- expectSetupRight dbResult
-
-    result <- runExceptT $ requireShowHostOrStaff userModel.mId otherShowModel.slug userMetaModel
-
-    liftIO $ case result of
-      Left (NotAuthorized _ _) -> pure ()
-      Left err -> expectationFailure $ "Expected NotAuthorized but got: " <> show err
-      Right () -> expectationFailure "Expected Left NotAuthorized but got Right"
-
--- | A suspended host cannot access their own show.
-test_showHostOrStaff_failsForSuspendedHost :: TestDBConfig -> IO ()
-test_showHostOrStaff_failsForSuspendedHost cfg = do
-  userInsert <- mkUserInsert "comb-shohost-suspended-fail" UserMetadata.Host
-  bracketAppM cfg $ do
-    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-      (userModel, _) <- setupUserModels userInsert
-      let showInsert = Shows.Insert "Comb Suspended Host Show" (Slug "comb-suspended-host-show") Nothing Nothing Shows.Active
-      (showId, _) <- insertTestShowWithSchedule showInsert defaultScheduleInsert
-      addTestShowHost showId userModel.mId
-      -- Suspend the host after assigning them
-      _ <- TRX.statement () (UserMetadata.suspendUser userModel.mId "test suspension")
-      refreshedMeta <-
-        TRX.statement () (UserMetadata.getUserMetadata userModel.mId)
-          >>= maybe (error "metadata not found after suspension") pure
-      showModel <-
-        TRX.statement () (Shows.getShowById showId)
-          >>= maybe (error "show not found") pure
-      pure (userModel, refreshedMeta, showModel)
-    (userModel, userMetaModel, showModel) <- expectSetupRight dbResult
-
-    result <- runExceptT $ requireShowHostOrStaff userModel.mId showModel.slug userMetaModel
 
     liftIO $ case result of
       Left (NotAuthorized _ _) -> pure ()
