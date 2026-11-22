@@ -9,7 +9,8 @@ where
 
 import API.Links (apiLinks, dashboardSitePagesLinks)
 import API.Types
-import Component.ActionsDropdown qualified as ActionsDropdown
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -77,12 +78,11 @@ renderPageRow page =
             Lucid.div_ [class_ $ base [Tokens.textSm]] $
               Lucid.toHtml (formatDateTime updatedAt)
 
-          Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
-            ActionsDropdown.render
-              [ ActionsDropdown.navigateAction "edit" "Edit" editUrl,
-                ActionsDropdown.navigateAction "history" "History" historyUrl,
-                ActionsDropdown.navigateAction "view" "View Page" viewUrl
-              ]
+          Lucid.td_ [class_ $ base [Tokens.p4, Tokens.textSm, "text-center"]] $
+            Button.group $ do
+              Button.render (Button.defaults & Button.dashboardLink editUrl) "Edit"
+              Button.render (Button.defaults & Button.dashboardLink historyUrl) "History"
+              Button.render (Button.defaults & Button.pageLink viewUrl) "View Page"
 
 -- | Get the public URL for a site page by slug.
 publicPageUrl :: Text -> Links.URI

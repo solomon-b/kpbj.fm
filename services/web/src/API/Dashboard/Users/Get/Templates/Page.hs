@@ -11,7 +11,8 @@ where
 
 import API.Links (dashboardUsersLinks)
 import API.Types
-import Component.ActionsDropdown qualified as ActionsDropdown
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -21,6 +22,7 @@ import Component.Table
     renderIndexTable,
     rowAttrs,
   )
+import Control.Monad (when)
 import Data.Int (Int64)
 import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
@@ -34,6 +36,7 @@ import Domain.Types.UserSortBy (UserSortBy (..))
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
+import Lucid.HTMX
 import Servant.Links qualified as Links
 
 -- | Users list template (filters are now in the top bar)
@@ -145,28 +148,31 @@ renderUserRow viewerId viewerRole now user =
           <> "\" and sign them out of all sessions? You'll see the new password once."
       isSuspended = isJust suspendedAt
       rowTarget = "#" <> rowId
-      suspendAction =
+      suspendButton =
         if isSuspended
           then
-            [ ActionsDropdown.htmxPostAction
-                "unsuspend"
-                "Unsuspend"
-                [i|/#{userUnsuspendUrl}|]
-                rowTarget
-                ActionsDropdown.SwapOuterHTML
-                (Just unsuspendConfirmMessage)
-                []
-            ]
+            Button.render
+              ( Button.defaults
+                  & Button.with
+                    [ hxPost_ [i|/#{userUnsuspendUrl}|],
+                      hxTarget_ rowTarget,
+                      hxSwap_ "outerHTML",
+                      hxConfirm_ unsuspendConfirmMessage
+                    ]
+              )
+              "Unsuspend"
           else
-            [ ActionsDropdown.htmxPostAction
-                "suspend"
-                "Suspend"
-                [i|/#{userSuspendUrl}|]
-                rowTarget
-                ActionsDropdown.SwapOuterHTML
-                (Just suspendConfirmMessage)
-                [("reason", "Suspended by admin")]
-            ]
+            Button.render
+              ( Button.defaults
+                  & Button.with
+                    [ hxPost_ [i|/#{userSuspendUrl}|],
+                      hxTarget_ rowTarget,
+                      hxSwap_ "outerHTML",
+                      hxConfirm_ suspendConfirmMessage,
+                      hxVals_ "{\"reason\": \"Suspended by admin\"}"
+                    ]
+              )
+              "Suspend"
    in do
         Lucid.tr_ (rowAttrs rowId) $ do
           Lucid.td_ (clickableCellAttrs userDetailUrl) $
@@ -186,33 +192,33 @@ renderUserRow viewerId viewerRole now user =
             Lucid.div_ [class_ $ base [Tokens.textSm]] $ Lucid.toHtml (formatMonthYear createdAt)
             Lucid.div_ [class_ $ base ["text-xs", Tokens.fgMuted]] $ Lucid.toHtml (formatRelativeTime now createdAt)
 
-          Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
-            ActionsDropdown.render $
-              [ ActionsDropdown.navigateAction
-                  "edit"
-                  "Edit"
-                  [i|/#{userEditUrl}|]
-              ]
-                <> suspendAction
-                <> [ ActionsDropdown.htmxPostAction
-                       "resetpassword"
-                       "Reset Password"
-                       [i|/#{userResetPasswordUrl}|]
-                       "#reset-password-modal"
-                       ActionsDropdown.SwapInnerHTML
-                       (Just resetPasswordConfirmMessage)
-                       []
-                   | viewerRole == UserMetadata.Admin
-                   ]
-                <> [ ActionsDropdown.htmxDeleteAction
-                       "delete"
-                       "Delete"
-                       [i|/#{userDeleteUrl}|]
-                       rowTarget
-                       ActionsDropdown.SwapOuterHTML
-                       deleteConfirmMessage
-                   | viewerRole == UserMetadata.Admin && viewerId /= userId
-                   ]
+          Lucid.td_ [class_ $ base [Tokens.p4, Tokens.textSm, "text-center"]] $
+            Button.group $ do
+              Button.render (Button.defaults & Button.dashboardLink [i|/#{userEditUrl}|]) "Edit"
+              suspendButton
+              when (viewerRole == UserMetadata.Admin) $
+                Button.render
+                  ( Button.defaults
+                      & Button.with
+                        [ hxPost_ [i|/#{userResetPasswordUrl}|],
+                          hxTarget_ "#reset-password-modal",
+                          hxSwap_ "innerHTML",
+                          hxConfirm_ resetPasswordConfirmMessage
+                        ]
+                  )
+                  "Reset Password"
+              when (viewerRole == UserMetadata.Admin && viewerId /= userId) $
+                Button.render
+                  ( Button.defaults
+                      & Button.danger
+                      & Button.with
+                        [ hxDelete_ [i|/#{userDeleteUrl}|],
+                          hxTarget_ rowTarget,
+                          hxSwap_ "outerHTML",
+                          hxConfirm_ deleteConfirmMessage
+                        ]
+                  )
+                  "Delete"
 
 renderRoleBadge :: UserMetadata.UserRole -> Lucid.Html ()
 renderRoleBadge role = do

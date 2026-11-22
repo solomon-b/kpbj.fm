@@ -11,6 +11,8 @@ where
 
 import API.Links (showEpisodesLinks)
 import API.Types
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
@@ -142,11 +144,14 @@ renderLatestEpisode backend showModel episode tracks = do
           $ do
             Lucid.audio_ [xRef_ "audio", Lucid.preload_ "none"] mempty
             Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4, Tokens.mb2]] $ do
-              Lucid.button_
-                [ class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, Tokens.py2, Tokens.fontBold, "hover:opacity-80"],
-                  xOnClick_ "toggle()",
-                  xText_ "isPlaying ? '⏸ PAUSE' : '▶ PLAY'"
-                ]
+              Button.render
+                ( Button.defaults
+                    & Button.primary
+                    & Button.with
+                      [ xOnClick_ "toggle()",
+                        xText_ "isPlaying ? '⏸ PAUSE' : '▶ PLAY'"
+                      ]
+                )
                 "▶ PLAY"
               Lucid.div_ [class_ $ base ["flex-grow", Tokens.bgAlt, "h-2", "rounded", "relative"]] $ do
                 Lucid.div_
@@ -292,11 +297,14 @@ renderEpisodeCard backend showModel episode = do
             $ do
               Lucid.audio_ [xRef_ "audio", Lucid.preload_ "none"] mempty
               Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4, Tokens.mb2]] $ do
-                Lucid.button_
-                  [ class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, Tokens.py2, Tokens.fontBold, Tokens.hoverBg],
-                    xOnClick_ "toggle()",
-                    xText_ "isPlaying ? '⏸ PAUSE' : '▶ PLAY'"
-                  ]
+                Button.render
+                  ( Button.defaults
+                      & Button.primary
+                      & Button.with
+                        [ xOnClick_ "toggle()",
+                          xText_ "isPlaying ? '⏸ PAUSE' : '▶ PLAY'"
+                        ]
+                  )
                   "▶ PLAY"
                 Lucid.div_ [class_ $ base ["flex-grow", Tokens.bgAlt, "h-2", "rounded", "relative"]] $ do
                   Lucid.div_

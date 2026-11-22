@@ -110,7 +110,7 @@ test.describe("Episodes Archive", () => {
 
     // Accept the confirmation dialog before triggering archive.
     page.once("dialog", (d) => d.accept());
-    await row.locator("select").selectOption("archive");
+    await row.getByRole("button", { name: "Archive", exact: true }).click();
 
     // Archive is an in-place OOB swap — no redirect.
     await expect(page.locator("#banner-container")).toContainText(/archived/i);

@@ -29,7 +29,7 @@ test.describe("Station Blog CRUD", () => {
 
   test("edit form loads pre-filled and saves", async ({ page }) => {
     await page.goto("/dashboard/station-blog");
-    await postRow(page, AWARD_POST).locator("select").selectOption("edit");
+    await postRow(page, AWARD_POST).getByRole("link", { name: "Edit", exact: true }).click();
     await page.waitForURL(/\/edit/);
     await expect(page.locator('input[name="title"]')).toHaveValue(AWARD_POST);
 
@@ -64,7 +64,7 @@ test.describe("Station Blog CRUD", () => {
       await expect(postRow(page, postTitle)).toBeVisible();
 
       page.once("dialog", (d) => d.accept());
-      await postRow(page, postTitle).locator("select").selectOption("delete");
+      await postRow(page, postTitle).getByRole("button", { name: "Delete", exact: true }).click();
 
       await page.waitForURL(/\/dashboard\/station-blog/);
       await expect(page.locator("#banner-container")).toContainText(/deleted/i);

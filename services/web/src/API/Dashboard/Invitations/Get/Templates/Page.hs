@@ -15,11 +15,14 @@ where
 
 import API.Links (dashboardInvitationsLinks, inviteLinks, rootLink)
 import API.Types (DashboardInvitationsRoutes (..), InviteRoutes (..))
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
     IndexTableConfig (..),
     renderIndexTable,
+    rowAttrs,
   )
 import Data.Aeson (Value (..))
 import Data.Aeson.KeyMap qualified as KeyMap
@@ -74,43 +77,39 @@ template appBaseUrl invitations =
 
 renderInvitationRow :: Text -> HostInvitation.ModelWithCreator -> Lucid.Html ()
 renderInvitationRow appBaseUrl invitation =
-  Lucid.tr_
-    [ Lucid.id_ rowId,
-      class_ $ base ["border-b-2", Tokens.borderMuted]
-    ]
-    $ do
-      -- Schedule column
-      Lucid.td_ [class_ $ base [Tokens.p4]] $
-        Lucid.span_ [Lucid.class_ Tokens.textSm] $
-          Lucid.toHtml (renderScheduleSummary invitation.mwcScheduleData)
+  Lucid.tr_ (rowAttrs rowId) $ do
+    -- Schedule column
+    Lucid.td_ [class_ $ base [Tokens.p4]] $
+      Lucid.span_ [Lucid.class_ Tokens.textSm] $
+        Lucid.toHtml (renderScheduleSummary invitation.mwcScheduleData)
 
-      -- Starts column
-      Lucid.td_ [class_ $ base [Tokens.p4]] $
-        Lucid.span_ [Lucid.class_ Tokens.textSm] $
-          Lucid.toHtml (formatStartDate invitation.mwcStartsOn)
+    -- Starts column
+    Lucid.td_ [class_ $ base [Tokens.p4]] $
+      Lucid.span_ [Lucid.class_ Tokens.textSm] $
+        Lucid.toHtml (formatStartDate invitation.mwcStartsOn)
 
-      -- Recipient column
-      Lucid.td_ [class_ $ base [Tokens.p4]] $
-        Lucid.span_ [Lucid.class_ Tokens.textSm] $
-          Lucid.toHtml (display invitation.mwcRecipientEmail)
+    -- Recipient column
+    Lucid.td_ [class_ $ base [Tokens.p4]] $
+      Lucid.span_ [Lucid.class_ Tokens.textSm] $
+        Lucid.toHtml (display invitation.mwcRecipientEmail)
 
-      -- Status column
-      Lucid.td_ [class_ $ base [Tokens.p4]] $
-        renderStatusBadge invitation.mwcStatus
+    -- Status column
+    Lucid.td_ [class_ $ base [Tokens.p4]] $
+      renderStatusBadge invitation.mwcStatus
 
-      -- Created By column
-      Lucid.td_ [class_ $ base [Tokens.p4]] $
-        Lucid.span_ [Lucid.class_ Tokens.textSm] $
-          Lucid.toHtml invitation.mwcCreatedByName
+    -- Created By column
+    Lucid.td_ [class_ $ base [Tokens.p4]] $
+      Lucid.span_ [Lucid.class_ Tokens.textSm] $
+        Lucid.toHtml invitation.mwcCreatedByName
 
-      -- Expires column
-      Lucid.td_ [class_ $ base [Tokens.p4]] $
-        Lucid.span_ [Lucid.class_ Tokens.textSm] $
-          Lucid.toHtml (formatDateTime invitation.mwcExpiresAt)
+    -- Expires column
+    Lucid.td_ [class_ $ base [Tokens.p4]] $
+      Lucid.span_ [Lucid.class_ Tokens.textSm] $
+        Lucid.toHtml (formatDateTime invitation.mwcExpiresAt)
 
-      -- Actions column
-      Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
-        renderActions appBaseUrl invitation
+    -- Actions column
+    Lucid.td_ [class_ $ base [Tokens.p4, Tokens.textSm, "text-center"]] $
+      renderActions appBaseUrl invitation
   where
     invitationIdText = display invitation.mwcId
 
@@ -132,58 +131,44 @@ renderStatusBadge status =
 renderActions :: Text -> HostInvitation.ModelWithCreator -> Lucid.Html ()
 renderActions appBaseUrl invitation =
   case invitation.mwcStatus of
-    HostInvitation.Pending -> do
-      Lucid.div_ [class_ $ base ["flex", "gap-2", "justify-center", "flex-wrap"]] $ do
-        -- Copy Link button
-        Lucid.button_
-          [ xData_ "{ copied: false }",
-            xOnClick_ [i|navigator.clipboard.writeText('#{inviteUrl}').then(() => { copied = true; setTimeout(() => copied = false, 2000) })|],
-            class_ $ base [Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, Tokens.bgAlt, Tokens.fgPrimary, "border", Tokens.borderMuted, "hover:opacity-80"]
-          ]
+    HostInvitation.Pending ->
+      Button.group $ do
+        Button.render
+          ( Button.defaults
+              & Button.with
+                [ xData_ "{ copied: false }",
+                  xOnClick_ [i|navigator.clipboard.writeText('#{inviteUrl}').then(() => { copied = true; setTimeout(() => copied = false, 2000) })|]
+                ]
+          )
           $ do
             Lucid.span_ [xShow_ "!copied"] "Copy Link"
             Lucid.span_ [xShow_ "copied"] "Copied!"
-        -- Edit link
-        Lucid.a_
-          [ Lucid.href_ editGetUrl,
-            hxGet_ editGetUrl,
-            hxTarget_ "#main-content",
-            hxPushUrl_ "true",
-            class_ $ base [Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, Tokens.bgAlt, Tokens.fgPrimary, "border", Tokens.borderMuted, "hover:opacity-80"]
-          ]
-          "Edit"
-        -- Resend button
-        Lucid.button_
-          [ hxPost_ resendUrl,
-            hxSwap_ "none",
-            class_ $ base [Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, Tokens.bgAlt, Tokens.fgPrimary, "border", Tokens.borderMuted, "hover:opacity-80"]
-          ]
+        Button.render (Button.defaults & Button.dashboardLink editGetUrl) "Edit"
+        Button.render
+          (Button.defaults & Button.with [hxPost_ resendUrl, hxSwap_ "none"])
           "Resend"
-        -- Revoke button
-        Lucid.button_
-          [ hxDelete_ deleteUrl,
-            hxTarget_ rowSelector,
-            hxSwap_ "delete",
-            hxConfirm_ "Are you sure you want to revoke this invitation?",
-            class_ $ base [Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, Tokens.errorBg, Tokens.errorText, "border", Tokens.borderMuted, "hover:opacity-80"]
-          ]
+        Button.render
+          ( Button.defaults
+              & Button.danger
+              & Button.with
+                [ hxDelete_ deleteUrl,
+                  hxTarget_ rowSelector,
+                  hxSwap_ "delete",
+                  hxConfirm_ "Are you sure you want to revoke this invitation?"
+                ]
+          )
           "Revoke"
     HostInvitation.Claimed ->
       Lucid.span_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, "italic"]] $
         Lucid.toHtml claimedText
-    HostInvitation.Expired ->
-      Lucid.button_
-        [ hxPost_ regenerateUrl,
-          class_ $ base [Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, Tokens.bgAlt, Tokens.fgPrimary, "border", Tokens.borderMuted, "hover:opacity-80"]
-        ]
-        "Regenerate"
-    HostInvitation.Revoked ->
-      Lucid.button_
-        [ hxPost_ regenerateUrl,
-          class_ $ base [Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, Tokens.bgAlt, Tokens.fgPrimary, "border", Tokens.borderMuted, "hover:opacity-80"]
-        ]
-        "Regenerate"
+    HostInvitation.Expired -> regenerateButton
+    HostInvitation.Revoked -> regenerateButton
   where
+    regenerateButton :: Lucid.Html ()
+    regenerateButton =
+      Button.group $
+        Button.render (Button.defaults & Button.with [hxPost_ regenerateUrl]) "Regenerate"
+
     inviteUrl :: Text
     inviteUrl =
       let onboardLink = rootLink $ inviteLinks.onboardGet invitation.mwcToken

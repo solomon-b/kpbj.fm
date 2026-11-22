@@ -14,6 +14,8 @@ import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
@@ -29,7 +31,6 @@ import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.StationIds qualified as StationIds
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import Lucid.HTMX
 import Utils (fromRightM)
 
 --------------------------------------------------------------------------------
@@ -99,11 +100,4 @@ fetchStationIds limit offset =
 actionButton :: Lucid.Html ()
 actionButton =
   let newStationIdUrl = rootLink dashboardStationIdsLinks.newGet
-   in Lucid.a_
-        [ Lucid.href_ newStationIdUrl,
-          hxGet_ newStationIdUrl,
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          Lucid.class_ "bg-[var(--theme-bg-inverse)] text-[var(--theme-fg-inverse)] px-4 py-2 text-sm font-bold hover:opacity-80"
-        ]
-        "Upload Station ID"
+   in Button.render (Button.defaults & Button.primary & Button.dashboardLink newStationIdUrl) "Upload Station ID"

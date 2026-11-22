@@ -15,6 +15,8 @@ import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans (lift)
@@ -158,11 +160,7 @@ filtersUI queryFilter roleFilter sortBy = do
           Lucid.option_ ([Lucid.value_ "shows"] <> selectedWhen (sortBy == ShowCount)) "Show Count"
           Lucid.option_ ([Lucid.value_ "status"] <> selectedWhen (sortBy == StatusSuspended)) "Status"
       -- Submit button
-      Lucid.button_
-        [ Lucid.type_ "submit",
-          class_ $ base [Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.bgInverse, Tokens.fgInverse, Tokens.fontBold, "hover:opacity-80"]
-        ]
-        "Filter"
+      Button.render (Button.defaults & Button.small & Button.submit) "Filter"
   where
     selectedWhen cond = [Lucid.selected_ "selected" | cond]
 

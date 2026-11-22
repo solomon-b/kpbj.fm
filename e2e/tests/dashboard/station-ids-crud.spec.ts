@@ -94,7 +94,7 @@ test.describe("Station IDs CRUD", () => {
 
       // Accept the confirmation dialog before triggering delete.
       page.once("dialog", (d) => d.accept());
-      await row.locator("select").selectOption("delete");
+      await row.getByRole("button", { name: "Delete", exact: true }).click();
 
       // Delete is an in-place OOB swap (Pattern C) — no redirect.
       await expect(page.locator("#banner-container")).toContainText(/deleted/i);

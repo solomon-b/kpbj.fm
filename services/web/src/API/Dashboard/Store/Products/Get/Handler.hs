@@ -13,11 +13,11 @@ import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
-import Design (base, class_)
-import Design.Tokens qualified as Tokens
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Products qualified as Products
@@ -71,9 +71,9 @@ handler (Satisfies _ auth) (foldHxReq -> hxRequest) =
 -- via @\@show-create.window@ to toggle the inline create row.
 actionButton :: Lucid.Html ()
 actionButton =
-  Lucid.button_
-    [ Lucid.type_ "button",
-      Lucid.onclick_ "window.dispatchEvent(new CustomEvent('show-create'))",
-      class_ $ base [Tokens.bgAlt, Tokens.fgPrimary, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, Tokens.hoverBg]
-    ]
+  Button.render
+    ( Button.defaults
+        & Button.primary
+        & Button.with [Lucid.onclick_ "window.dispatchEvent(new CustomEvent('show-create'))"]
+    )
     "+ NEW"

@@ -16,6 +16,8 @@ where
 
 import API.Links (dashboardStoreOrdersLinks, rootLink)
 import API.Types (DashboardStoreOrdersRoutes (..))
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -284,22 +286,7 @@ renderNotesSection order =
                     ]
               ]
               $ Lucid.toHtml order.oNotes
-            Lucid.button_
-              [ Lucid.type_ "submit",
-                class_ $
-                  base
-                    [ Tokens.bgAlt,
-                      Tokens.fgPrimary,
-                      "border",
-                      Tokens.borderDefault,
-                      Tokens.px4,
-                      Tokens.py2,
-                      Tokens.textSm,
-                      Tokens.fontBold,
-                      Tokens.hoverBg
-                    ]
-              ]
-              "Save Notes"
+            Button.render (Button.defaults & Button.submit) "Save Notes"
 
 renderActionButtons :: Orders.Model -> Lucid.Html ()
 renderActionButtons order =
@@ -342,22 +329,7 @@ statusActionForm url statusValue buttonLabel =
     ]
     $ do
       Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "status", Lucid.value_ statusValue]
-      Lucid.button_
-        [ Lucid.type_ "submit",
-          class_ $
-            base
-              [ Tokens.bgAlt,
-                Tokens.fgPrimary,
-                "border",
-                Tokens.borderDefault,
-                Tokens.px4,
-                Tokens.py2,
-                Tokens.textSm,
-                Tokens.fontBold,
-                Tokens.hoverBg
-              ]
-        ]
-        $ Lucid.toHtml buttonLabel
+      Button.render (Button.defaults & Button.primary & Button.submit) (Lucid.toHtml buttonLabel)
 
 -- | Cancel order form.
 cancelForm :: Text -> Lucid.Html ()
@@ -369,21 +341,7 @@ cancelForm url =
     ]
     $ do
       Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "status", Lucid.value_ "cancelled"]
-      Lucid.button_
-        [ Lucid.type_ "submit",
-          class_ $
-            base
-              [ Tokens.errorBg,
-                Tokens.errorText,
-                "border",
-                Tokens.errorBorder,
-                Tokens.px4,
-                Tokens.py2,
-                Tokens.textSm,
-                Tokens.fontBold
-              ]
-        ]
-        "Cancel Order"
+      Button.render (Button.defaults & Button.danger & Button.submit) "Cancel Order"
 
 -- | Buy shipping label form — posts to label endpoint.
 buyLabelForm :: Text -> Lucid.Html ()
@@ -395,22 +353,7 @@ buyLabelForm url =
     $ do
       Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "rate_id", Lucid.value_ ""]
       Lucid.input_ [Lucid.type_ "hidden", Lucid.name_ "shipment_id", Lucid.value_ ""]
-      Lucid.button_
-        [ Lucid.type_ "submit",
-          class_ $
-            base
-              [ Tokens.bgAlt,
-                Tokens.fgPrimary,
-                "border",
-                Tokens.borderDefault,
-                Tokens.px4,
-                Tokens.py2,
-                Tokens.textSm,
-                Tokens.fontBold,
-                Tokens.hoverBg
-              ]
-        ]
-        "Buy Shipping Label"
+      Button.render (Button.defaults & Button.submit) "Buy Shipping Label"
 
 --------------------------------------------------------------------------------
 -- Helpers

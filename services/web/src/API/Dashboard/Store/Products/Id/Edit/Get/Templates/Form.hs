@@ -10,6 +10,8 @@ where
 
 import API.Links (dashboardStoreProductsLinks, rootLink)
 import API.Types (DashboardStoreProductsRoutes (..))
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.Form.Hints (markdownHint)
 import Data.Int (Int64)
 import Data.Scientific (FPFormat (..), formatScientific)
@@ -355,23 +357,15 @@ renderOptionRow =
           xOn_ "keydown.enter.prevent" "addValue(optIdx, newValueInputs[optIdx] || '')",
           class_ $ base [Tokens.bgMain, Tokens.fgPrimary, Tokens.border2, Tokens.p2, Tokens.textSm, "flex-1"]
         ]
-      Lucid.button_
-        [ Lucid.type_ "button",
-          xOnClick_ "addValue(optIdx, newValueInputs[optIdx] || '')",
-          class_ $ base [Tokens.bgAlt, Tokens.fgPrimary, Tokens.px3, Tokens.py2, Tokens.textSm, Tokens.fontBold, Tokens.hoverBg]
-        ]
+      Button.render
+        (Button.defaults & Button.with [xOnClick_ "addValue(optIdx, newValueInputs[optIdx] || '')"])
         "ADD VALUE"
 
 -- | Render the add option button.
 renderAddOptionButton :: Lucid.Html ()
 renderAddOptionButton =
   Lucid.div_ [class_ $ base [Tokens.mb4]] $
-    Lucid.button_
-      [ Lucid.type_ "button",
-        xOnClick_ "addOption()",
-        class_ $ base [Tokens.bgAlt, Tokens.fgPrimary, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, Tokens.hoverBg, "w-full"]
-      ]
-      "+ ADD OPTION TYPE"
+    Button.render (Button.defaults & Button.fullWidth & Button.with [xOnClick_ "addOption()"]) "+ ADD OPTION TYPE"
 
 -- | Render the auto-generated variants table.
 renderVariantsTable :: Lucid.Html ()

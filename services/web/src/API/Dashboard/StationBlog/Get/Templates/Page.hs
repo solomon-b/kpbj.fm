@@ -11,7 +11,8 @@ where
 
 import API.Links (blogLinks, dashboardStationBlogLinks)
 import API.Types
-import Component.ActionsDropdown qualified as ActionsDropdown
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -31,6 +32,7 @@ import Design.Tokens qualified as Tokens
 import Domain.Types.PostStatus (BlogPostStatus (..))
 import Effects.Database.Tables.BlogPosts qualified as BlogPosts
 import Lucid qualified
+import Lucid.HTMX
 import Servant.Links qualified as Links
 
 -- | Station blog posts list template
@@ -107,18 +109,21 @@ renderPostRow post =
               Just pubAt -> Lucid.div_ [class_ $ base [Tokens.textSm]] $ Lucid.toHtml (formatDateTime pubAt)
               Nothing -> Lucid.span_ [class_ $ base [Tokens.fgMuted, Tokens.textSm]] "—"
 
-          Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
-            ActionsDropdown.render
-              [ ActionsDropdown.navigateAction "edit" "Edit" [i|/#{editUrl}|],
-                ActionsDropdown.navigateAction "view" "View" [i|/#{viewUrl}|],
-                ActionsDropdown.htmxDeleteAction
-                  "delete"
-                  "Delete"
-                  [i|/#{deleteUrl}|]
-                  "#main-content"
-                  ActionsDropdown.SwapInnerHTML
-                  deleteConfirmMessage
-              ]
+          Lucid.td_ [class_ $ base [Tokens.p4, Tokens.textSm, "text-center"]] $
+            Button.group $ do
+              Button.render (Button.defaults & Button.dashboardLink [i|/#{editUrl}|]) "Edit"
+              Button.render (Button.defaults & Button.pageLink [i|/#{viewUrl}|]) "View"
+              Button.render
+                ( Button.defaults
+                    & Button.danger
+                    & Button.with
+                      [ hxDelete_ [i|/#{deleteUrl}|],
+                        hxTarget_ "#main-content",
+                        hxSwap_ "innerHTML",
+                        hxConfirm_ deleteConfirmMessage
+                      ]
+                )
+                "Delete"
 
 renderStatusBadge :: BlogPostStatus -> Lucid.Html ()
 renderStatusBadge status = case status of

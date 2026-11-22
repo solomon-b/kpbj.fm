@@ -34,6 +34,8 @@ import API.Types
     DashboardStationIdsRoutes (..),
     DashboardUnderwritingRoutes (..),
   )
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.SourceTypeBadge (sourceTypeBadge)
 import Control.Monad (forM_, when)
 import Data.Int (Int64)
@@ -110,34 +112,25 @@ dayNav view =
               LucidBase.makeAttributes "aria-label" "Day",
               class_ $ base ["px-2", "py-1", Tokens.textSm, Tokens.bgMain, Tokens.fgPrimary, "border", Tokens.borderMuted]
             ]
-          Lucid.button_ [Lucid.type_ "submit", class_ $ base buttonClasses] "SHOW"
+          Button.render (Button.defaults & Button.small & Button.submit) "SHOW"
           when (view.tvKind == Today) $
             -- The link scrolls by script and adds no entry to the browser
             -- history. A back step from a @#now@ entry loads the page again.
-            Lucid.a_
-              [ Lucid.href_ "#now",
-                Lucid.onclick_ "document.getElementById('now').scrollIntoView(); return false;",
-                class_ $ base buttonClasses
-              ]
+            Button.render
+              ( Button.defaults
+                  & Button.small
+                  & Button.pageLink "#now"
+                  & Button.with [Lucid.onclick_ "document.getElementById('now').scrollIntoView(); return false;"]
+              )
               "NOW"
   where
     day = view.tvDay
 
 dayLink :: Day -> Text -> Lucid.Html ()
 dayLink day label =
-  Lucid.a_
-    [ Lucid.href_ [i|/#{uri}|],
-      hxGet_ [i|/#{uri}|],
-      hxTarget_ "#main-content",
-      hxPushUrl_ "true",
-      class_ $ base buttonClasses
-    ]
-    (Lucid.toHtml label)
+  Button.render (Button.defaults & Button.small & Button.dashboardLink [i|/#{uri}|]) (Lucid.toHtml label)
   where
     uri = timelineUri (Just (dayParam day))
-
-buttonClasses :: [Text]
-buttonClasses = [Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, Tokens.bgAlt, Tokens.fgPrimary, "border-2", Tokens.borderDefault, "hover:opacity-80", "whitespace-nowrap"]
 
 timelineUri :: Maybe Text -> Links.URI
 timelineUri = Links.linkURI . dashboardTimelineLink

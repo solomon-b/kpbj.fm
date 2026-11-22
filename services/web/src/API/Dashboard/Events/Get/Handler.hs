@@ -14,13 +14,13 @@ import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
-import Design (base, class_)
-import Design.Tokens qualified as Tokens
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
@@ -28,7 +28,6 @@ import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.Events qualified as Events
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
-import Lucid.HTMX
 import Utils (fromRightM)
 
 --------------------------------------------------------------------------------
@@ -100,11 +99,4 @@ fetchEvents limit offset =
 actionButton :: Lucid.Html ()
 actionButton =
   let newEventUrl = rootLink dashboardEventsLinks.newGet
-   in Lucid.a_
-        [ Lucid.href_ newEventUrl,
-          hxGet_ newEventUrl,
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          class_ $ base [Tokens.bgAlt, Tokens.fgPrimary, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, Tokens.hoverBg]
-        ]
-        "New Event"
+   in Button.render (Button.defaults & Button.primary & Button.dashboardLink newEventUrl) "New Event"

@@ -14,6 +14,8 @@ import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -111,15 +113,7 @@ handler maybePage queryFilterParam statusFilterParam deletedView (Satisfies _ au
     newShowButton :: Maybe (Lucid.Html ())
     newShowButton =
       let newShowUrl = rootLink dashboardShowsLinks.newGet
-       in Just $
-            Lucid.a_
-              [ Lucid.href_ newShowUrl,
-                hxGet_ newShowUrl,
-                hxTarget_ "#main-content",
-                hxPushUrl_ "true",
-                class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "hover:opacity-80"]
-              ]
-              "New Show"
+       in Just $ Button.render (Button.defaults & Button.primary & Button.dashboardLink newShowUrl) "New Show"
 
 -- | Filter UI for top bar
 filtersUI :: Maybe Text -> Maybe Shows.Status -> Bool -> Lucid.Html ()
@@ -162,11 +156,7 @@ filtersUI queryFilter statusFilter deletedView = do
             )
           "Deleted only"
       -- Submit button
-      Lucid.button_
-        [ Lucid.type_ "submit",
-          class_ $ base [Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.bgInverse, Tokens.fgInverse, Tokens.fontBold, "hover:opacity-80"]
-        ]
-        "Filter"
+      Button.render (Button.defaults & Button.small & Button.submit) "Filter"
   where
     selectedWhen cond = [Lucid.selected_ "selected" | cond]
     checkedWhen cond = [Lucid.checked_ | cond]

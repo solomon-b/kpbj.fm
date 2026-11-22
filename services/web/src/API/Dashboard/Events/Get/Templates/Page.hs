@@ -12,7 +12,8 @@ where
 
 import API.Links (dashboardEventsLinks, eventsLinks)
 import API.Types
-import Component.ActionsDropdown qualified as ActionsDropdown
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -33,6 +34,7 @@ import Design.Tokens qualified as Tokens
 import Domain.Types.Timezone (utcToPacific)
 import Effects.Database.Tables.Events qualified as Events
 import Lucid qualified
+import Lucid.HTMX
 import Servant.Links qualified as Links
 
 -- | Events list template
@@ -111,26 +113,30 @@ renderEventRow event =
           Lucid.td_ (clickableCellAttrs detailUrl) $ do
             Lucid.div_ [Lucid.class_ Tokens.textSm] $ Lucid.toHtml locationName
 
-          Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
-            ActionsDropdown.render
-              [ ActionsDropdown.navigateAction "edit" "Edit" [i|/#{editUrl}|],
-                ActionsDropdown.navigateAction "view" "View" [i|/#{viewUrl}|],
-                ActionsDropdown.htmxPostAction
-                  "feature"
-                  featureLabel
-                  [i|/#{featureUrl}|]
-                  rowSelector
-                  ActionsDropdown.SwapOuterHTML
-                  Nothing
-                  [],
-                ActionsDropdown.htmxDeleteAction
-                  "delete"
-                  "Delete"
-                  [i|/#{deleteUrl}|]
-                  "#main-content"
-                  ActionsDropdown.SwapInnerHTML
-                  deleteConfirmMessage
-              ]
+          Lucid.td_ [class_ $ base [Tokens.p4, Tokens.textSm, "text-center"]] $
+            Button.group $ do
+              Button.render (Button.defaults & Button.dashboardLink [i|/#{editUrl}|]) "Edit"
+              Button.render (Button.defaults & Button.pageLink [i|/#{viewUrl}|]) "View"
+              Button.render
+                ( Button.defaults
+                    & Button.with
+                      [ hxPost_ [i|/#{featureUrl}|],
+                        hxTarget_ rowSelector,
+                        hxSwap_ "outerHTML"
+                      ]
+                )
+                (Lucid.toHtml featureLabel)
+              Button.render
+                ( Button.defaults
+                    & Button.danger
+                    & Button.with
+                      [ hxDelete_ [i|/#{deleteUrl}|],
+                        hxTarget_ "#main-content",
+                        hxSwap_ "innerHTML",
+                        hxConfirm_ deleteConfirmMessage
+                      ]
+                )
+                "Delete"
 
 renderStatusBadge :: Events.Status -> Lucid.Html ()
 renderStatusBadge status = do

@@ -271,6 +271,8 @@ template mGoogleAnalyticsId userMeta showContext selectorShows activeNav statsCo
       Lucid.script_ [Lucid.src_ (rootLink $ staticAssetLink "alpine.min.js"), Lucid.defer_ "true"] (mempty @Text)
       Lucid.script_ [] ("tailwind.config = { darkMode: 'class', theme: { fontFamily: { sans: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'], mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'] } } }" :: Text)
       Lucid.script_ [] (darkModeScript (Just userMeta.mColorScheme))
+      -- Hide Alpine content that has x-cloak until Alpine starts.
+      Lucid.style_ [] ("[x-cloak] { display: none !important; }" :: Text)
       Lucid.script_ [] showBannerScript
       Lucid.script_ [] htmxErrorBannerScript
       Lucid.script_ [] clearBannerOnNavScript
@@ -279,7 +281,8 @@ template mGoogleAnalyticsId userMeta showContext selectorShows activeNav statsCo
       currentShowCookieTag showContext
     -- An HTMX history snapshot holds the DOM after Alpine changed it. Alpine
     -- fails when it starts on that DOM again, so HTMX saves no snapshot.
-    Lucid.body_ [class_ $ base ["font-mono", Tokens.fgPrimary, Tokens.bgAlt], LucidBase.makeAttributes "hx-history" "false"] $ do
+    -- The @dashboard@ class scopes the dashboard button styles in forms.css.
+    Lucid.body_ [class_ $ base ["dashboard", "font-mono", Tokens.fgPrimary, Tokens.bgAlt], LucidBase.makeAttributes "hx-history" "false"] $ do
       -- Full height flex container
       Lucid.div_ [class_ $ base ["min-h-screen", "flex"]] $ do
         -- Left sidebar

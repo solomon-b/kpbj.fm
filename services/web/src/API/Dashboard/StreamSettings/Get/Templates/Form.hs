@@ -11,6 +11,8 @@ where
 
 import API.Links (dashboardStreamSettingsLinks)
 import API.Types (DashboardStreamSettingsRoutes (..))
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.SourceTypeBadge (sourceTypeBadge)
 import Data.Foldable (for_)
 import Data.Maybe (fromMaybe)
@@ -90,44 +92,56 @@ streamControlSection icecastReachable =
 
     Lucid.div_ [class_ $ base ["flex", "flex-wrap", "gap-4"]] $ do
       -- Restart Icecast button
-      Lucid.button_
-        [ class_ $ base [Tokens.px6, Tokens.py2, Tokens.fontBold, Tokens.border2, Tokens.warningBorder, Tokens.warningText, Tokens.warningBg, "hover:opacity-80"],
-          hxPost_ [i|/#{restartIcecastUrl}|],
-          hxSwap_ "none",
-          hxConfirm_ "Are you sure you want to restart Icecast? This will disconnect all listeners for a few seconds.",
-          hxDisabledElt_ "this"
-        ]
+      Button.render
+        ( Button.defaults
+            & Button.tinted Button.Warning
+            & Button.with
+              [ hxPost_ [i|/#{restartIcecastUrl}|],
+                hxSwap_ "none",
+                hxConfirm_ "Are you sure you want to restart Icecast? This will disconnect all listeners for a few seconds.",
+                hxDisabledElt_ "this"
+              ]
+        )
         "RESTART ICECAST"
 
       -- Restart Liquidsoap button
-      Lucid.button_
-        [ class_ $ base [Tokens.px6, Tokens.py2, Tokens.fontBold, Tokens.border2, Tokens.warningBorder, Tokens.warningText, Tokens.warningBg, "hover:opacity-80"],
-          hxPost_ [i|/#{restartLiquidsoapUrl}|],
-          hxSwap_ "none",
-          hxConfirm_ "Are you sure you want to restart Liquidsoap? This will interrupt audio playback for a few seconds.",
-          hxDisabledElt_ "this"
-        ]
+      Button.render
+        ( Button.defaults
+            & Button.tinted Button.Warning
+            & Button.with
+              [ hxPost_ [i|/#{restartLiquidsoapUrl}|],
+                hxSwap_ "none",
+                hxConfirm_ "Are you sure you want to restart Liquidsoap? This will interrupt audio playback for a few seconds.",
+                hxDisabledElt_ "this"
+              ]
+        )
         "RESTART LIQUIDSOAP"
 
       -- Stop/Start Stream toggle button (based on whether Icecast is reachable)
       if icecastReachable
         then
-          Lucid.button_
-            [ class_ $ base [Tokens.px6, Tokens.py2, Tokens.fontBold, Tokens.border2, Tokens.errorBorder, Tokens.errorText, Tokens.errorBg, "hover:opacity-80"],
-              hxPost_ [i|/#{stopStreamUrl}|],
-              hxSwap_ "none",
-              hxConfirm_ "Are you sure you want to STOP the stream? This will shut down both Liquidsoap and Icecast, disconnecting all listeners.",
-              hxDisabledElt_ "this"
-            ]
+          Button.render
+            ( Button.defaults
+                & Button.tinted Button.Error
+                & Button.with
+                  [ hxPost_ [i|/#{stopStreamUrl}|],
+                    hxSwap_ "none",
+                    hxConfirm_ "Are you sure you want to STOP the stream? This will shut down both Liquidsoap and Icecast, disconnecting all listeners.",
+                    hxDisabledElt_ "this"
+                  ]
+            )
             "STOP STREAM"
         else
-          Lucid.button_
-            [ class_ $ base [Tokens.px6, Tokens.py2, Tokens.fontBold, Tokens.border2, Tokens.successBorder, Tokens.successText, Tokens.successBg, "hover:opacity-80"],
-              hxPost_ [i|/#{startStreamUrl}|],
-              hxSwap_ "none",
-              hxConfirm_ "Start the stream? This will start Icecast and Liquidsoap.",
-              hxDisabledElt_ "this"
-            ]
+          Button.render
+            ( Button.defaults
+                & Button.tinted Button.Success
+                & Button.with
+                  [ hxPost_ [i|/#{startStreamUrl}|],
+                    hxSwap_ "none",
+                    hxConfirm_ "Start the stream? This will start Icecast and Liquidsoap.",
+                    hxDisabledElt_ "this"
+                  ]
+            )
             "START STREAM"
 
 --------------------------------------------------------------------------------

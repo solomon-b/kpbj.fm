@@ -11,7 +11,8 @@ where
 
 import API.Links (dashboardEphemeralUploadsLinks)
 import API.Types
-import Component.ActionsDropdown qualified as ActionsDropdown
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.InlineAudioPlayer (renderInlineAudioPlayer)
 import Component.Table
   ( ColumnAlign (..),
@@ -21,6 +22,7 @@ import Component.Table
     renderIndexTable,
     rowAttrs,
   )
+import Control.Monad (forM_, when)
 import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -35,6 +37,8 @@ import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
+import Lucid.Alpine
+import Lucid.HTMX
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -110,57 +114,45 @@ renderEphemeralUploadRow backend isStaffOrAdmin ephemeralUpload =
           <> display title
           <> "\"? This action cannot be undone."
       audioUrl = buildMediaUrl backend audioPath
-      -- Flag/unflag actions for staff/admin
-      flagActions
-        | not isStaffOrAdmin = []
+      editButton =
+        when isStaffOrAdmin $
+          Button.render (Button.defaults & Button.dashboardLink [i|/#{editUrl}|]) "Edit"
+      deleteButton =
+        Button.render
+          ( Button.defaults
+              & Button.danger
+              & Button.with
+                [ hxDelete_ [i|/#{deleteUrl}|],
+                  hxTarget_ rowTarget,
+                  hxSwap_ "outerHTML",
+                  hxConfirm_ deleteConfirmMessage
+                ]
+          )
+          "Delete"
+      -- Staff and admins can flag an upload, or unflag a flagged one.
+      actions
+        | not isStaffOrAdmin =
+            Button.group $ do
+              editButton
+              deleteButton
         | isFlagged =
-            [ ActionsDropdown.htmxPostAction
-                "unflag"
+            Button.group $ do
+              editButton
+              deleteButton
+              Button.render
+                ( Button.defaults
+                    & Button.with
+                      [ hxPost_ [i|/#{unflagUrl}|],
+                        hxTarget_ rowTarget,
+                        hxSwap_ "outerHTML",
+                        hxConfirm_ [i|Unflag "#{title}"?|]
+                      ]
+                )
                 "Unflag"
-                [i|/#{unflagUrl}|]
-                rowTarget
-                ActionsDropdown.SwapOuterHTML
-                (Just [i|Unflag "#{title}"?|])
-                []
-            ]
         | otherwise =
-            [ ActionsDropdown.htmxPostAction
-                "inappropriate"
-                "Flag: Inappropriate"
-                [i|/#{flagUrl}|]
-                rowTarget
-                ActionsDropdown.SwapOuterHTML
-                (Just [i|Flag "#{title}" as inappropriate content?|])
-                [("reason", "Inappropriate content")],
-              ActionsDropdown.htmxPostAction
-                "audioquality"
-                "Flag: Audio quality"
-                [i|/#{flagUrl}|]
-                rowTarget
-                ActionsDropdown.SwapOuterHTML
-                (Just [i|Flag "#{title}" for poor audio quality?|])
-                [("reason", "Poor audio quality")],
-              ActionsDropdown.htmxPostAction
-                "copyright"
-                "Flag: Copyright"
-                [i|/#{flagUrl}|]
-                rowTarget
-                ActionsDropdown.SwapOuterHTML
-                (Just [i|Flag "#{title}" for copyright concern?|])
-                [("reason", "Copyright concern")]
-            ]
-      -- Build actions list based on permissions
-      actions =
-        [ActionsDropdown.navigateAction "edit" "Edit" [i|/#{editUrl}|] | isStaffOrAdmin]
-          <> [ ActionsDropdown.htmxDeleteAction
-                 "delete"
-                 "Delete"
-                 [i|/#{deleteUrl}|]
-                 rowTarget
-                 ActionsDropdown.SwapOuterHTML
-                 deleteConfirmMessage
-             ]
-          <> flagActions
+            renderFlagActions ephemeralUploadIdText [i|/#{flagUrl}|] rowTarget $ do
+              editButton
+              deleteButton
       -- Dim flagged rows
       rowOpacity = if isFlagged then "opacity-60" else ""
    in do
@@ -192,22 +184,61 @@ renderEphemeralUploadRow backend isStaffOrAdmin ephemeralUpload =
             renderPlayAndDownload audioUrl
 
           -- Actions cell
-          Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
-            ActionsDropdown.render actions
+          Lucid.td_ [class_ $ base [Tokens.p4, Tokens.textSm, "text-center"]] actions
+
+-- | The actions of an unflagged row, with a Flag button.
+--
+-- The Flag button opens a reason picker below the buttons, the same as the
+-- Reject button of the promo review page.
+renderFlagActions ::
+  -- | Upload id, for unique form field ids
+  Text ->
+  -- | Flag URL
+  Text ->
+  -- | Row selector
+  Text ->
+  -- | The other buttons of the row
+  Lucid.Html () ->
+  Lucid.Html ()
+renderFlagActions uploadIdText flagUrl rowTarget otherButtons =
+  Lucid.div_ [xData_ "{ flagging: false }"] $ do
+    Button.group $ do
+      otherButtons
+      Button.render
+        (Button.defaults & Button.with [xOnClick_ "flagging = !flagging"])
+        "Flag"
+
+    Lucid.form_
+      [ xShow_ "flagging",
+        xCloak_,
+        hxPost_ flagUrl,
+        hxTarget_ rowTarget,
+        hxSwap_ "outerHTML",
+        class_ $ base ["mt-2", "flex", "flex-col", "text-left", Tokens.gap2]
+      ]
+      $ do
+        Lucid.fieldset_ [class_ $ base ["flex", "flex-col", Tokens.gap2]] $ do
+          Lucid.legend_ [Lucid.class_ Tokens.fontBold] "Reason"
+          forM_ [minBound .. maxBound :: EphemeralUploads.FlagReason] $ \reason -> do
+            let reasonText = EphemeralUploads.flagReasonToText reason
+                fieldId = [i|flag-reason-#{uploadIdText}-#{fromEnum reason}|] :: Text
+            Lucid.label_ [Lucid.for_ fieldId, class_ $ base ["flex", "items-center", Tokens.gap2]] $ do
+              Lucid.input_
+                [ Lucid.type_ "radio",
+                  Lucid.id_ fieldId,
+                  Lucid.name_ "reason",
+                  Lucid.value_ reasonText,
+                  Lucid.required_ "required"
+                ]
+              Lucid.toHtml reasonText
+        Button.render (Button.defaults & Button.primary & Button.submit) "Send Flag"
 
 -- | Render the inline audio player with a download link beside it.
 renderPlayAndDownload :: Text -> Lucid.Html ()
 renderPlayAndDownload audioUrl =
   Lucid.div_ [class_ $ base ["inline-flex", "items-center", Tokens.gap2]] $ do
     renderInlineAudioPlayer audioUrl
-    -- Download button
-    Lucid.a_
-      [ Lucid.href_ audioUrl,
-        Lucid.download_ "",
-        class_ $ base ["p-2", "rounded", Tokens.hoverBg, "transition-colors"],
-        Lucid.title_ "Download"
-      ]
-      $ Lucid.i_ [Lucid.class_ [i|fa-solid fa-download #{Tokens.fgMuted}|]] mempty
+    Button.downloadLink audioUrl
 
 -- | Render empty state when no ephemeral uploads exist
 renderEmptyState :: Lucid.Html ()

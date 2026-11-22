@@ -10,6 +10,8 @@ where
 
 import API.Links (dashboardBlogsLinks)
 import API.Types
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Control.Monad (unless)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
@@ -70,28 +72,22 @@ template _userMeta showModel blogPost tags = do
             renderStatusBadge blogPost.status
 
         -- Edit and Delete buttons
-        Lucid.div_ [class_ $ base ["flex", Tokens.gap2]] $ do
+        Button.group $ do
           let editUrl = blogEditGetUrl showModel.slug blogPost.id
-          Lucid.a_
-            [ Lucid.href_ [i|/#{editUrl}|],
-              hxGet_ [i|/#{editUrl}|],
-              hxTarget_ "#main-content",
-              hxPushUrl_ "true",
-              class_ $ base [Tokens.bgMain, Tokens.fgPrimary, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, Tokens.hoverBg]
-            ]
-            "Edit Post"
-          -- Delete button
+          Button.render (Button.defaults & Button.dashboardLink [i|/#{editUrl}|]) "Edit Post"
           let deleteUrl = blogDeleteUrl showModel.slug blogPost.id
               backUrl = dashboardBlogsGetUrl showModel
-          Lucid.button_
-            [ Lucid.type_ "button",
-              hxDelete_ [i|/#{deleteUrl}|],
-              hxTarget_ "#main-content",
-              hxSwap_ "innerHTML",
-              hxConfirm_ "Are you sure you want to delete this blog post?",
-              hxOnAfterRequest_ [i|if(event.detail.successful) window.location.href='/#{backUrl}'|],
-              class_ $ base [Tokens.errorBg, Tokens.errorText, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, "hover:bg-[var(--theme-error)]/20"]
-            ]
+          Button.render
+            ( Button.defaults
+                & Button.danger
+                & Button.with
+                  [ hxDelete_ [i|/#{deleteUrl}|],
+                    hxTarget_ "#main-content",
+                    hxSwap_ "innerHTML",
+                    hxConfirm_ "Are you sure you want to delete this blog post?",
+                    hxOnAfterRequest_ [i|if(event.detail.successful) window.location.href='/#{backUrl}'|]
+                  ]
+            )
             "Delete"
 
       -- Blog post metadata grid
