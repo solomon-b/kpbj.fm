@@ -12,6 +12,12 @@ module API.Dashboard.Analytics.Get.Types
     ChartSeries (..),
     TopEpisode (..),
     TopDimensionEntry (..),
+    TopShowEntry (..),
+    NewsletterData (..),
+
+    -- * Heatmap
+    Heatmap (..),
+    heatmapLevel,
   )
 where
 
@@ -61,7 +67,10 @@ data AnalyticsData = AnalyticsData
     topEpisodes :: [TopEpisode],
     topReferrers :: [TopDimensionEntry],
     topCountries :: [TopDimensionEntry],
-    topCities :: [TopDimensionEntry]
+    topCities :: [TopDimensionEntry],
+    listenerHeatmap :: Heatmap,
+    topShows :: [TopShowEntry],
+    newsletter :: NewsletterData
   }
 
 data ListenerData = ListenerData
@@ -103,3 +112,39 @@ data TopDimensionEntry = TopDimensionEntry
     sessions :: Int
   }
   deriving stock (Eq, Show)
+
+-- | One row in the top shows table.
+data TopShowEntry = TopShowEntry
+  { rank :: Int,
+    title :: Text,
+    plays :: Int,
+    url :: Text
+  }
+  deriving stock (Eq, Show)
+
+-- | The newsletter growth chart. The series holds the total subscribers at
+-- the end of each day of the range.
+data NewsletterData = NewsletterData
+  { series :: ChartSeries,
+    total :: Int,
+    new :: Int
+  }
+
+--------------------------------------------------------------------------------
+-- Heatmap
+
+-- | Average live listeners for each weekday and hour in station time. There
+-- are 7 rows, from Monday to Sunday, of 24 cells, from 00:00 to 23:00. A
+-- cell with no snapshots is 'Nothing'.
+newtype Heatmap = Heatmap {cells :: [[Maybe Double]]}
+
+-- | The shade of a heatmap cell, from 0 (lightest) to 4 (darkest).
+heatmapLevel ::
+  -- | The value of the cell
+  Double ->
+  -- | The largest value in the heatmap
+  Double ->
+  Int
+heatmapLevel value maxValue
+  | maxValue <= 0 || value <= 0 = 0
+  | otherwise = max 1 (min 4 (ceiling (4 * value / maxValue)))

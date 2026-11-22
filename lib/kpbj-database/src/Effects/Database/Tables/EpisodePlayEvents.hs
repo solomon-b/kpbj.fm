@@ -1,4 +1,5 @@
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 -- | Database table definition and queries for @episode_play_events@.
@@ -8,11 +9,13 @@
 module Effects.Database.Tables.EpisodePlayEvents
   ( -- * Types
     TopEpisodeRow (..),
+    TopShowRow (..),
 
     -- * Queries
     insertPlayEvent,
     getDailyPlayCounts,
     getTopEpisodes,
+    getTopShows,
     getTotalPlays,
   )
 where
@@ -21,10 +24,10 @@ where
 
 import Data.Int (Int32, Int64)
 import Data.Text (Text)
+import Data.Text.Display (Display, RecordInstance (..))
 import Data.Time (UTCTime)
 import Effects.Database.Tables.Episodes qualified as Episodes
 import GHC.Generics (Generic)
-import Data.Text.Display (Display, RecordInstance (..))
 import Hasql.Interpolate (DecodeRow, OneColumn (..), interp, sql)
 import Hasql.Statement qualified as Hasql
 import Rel8
@@ -43,6 +46,16 @@ data TopEpisodeRow = TopEpisodeRow
   deriving stock (Generic, Show)
   deriving anyclass (DecodeRow)
   deriving (Display) via (RecordInstance TopEpisodeRow)
+
+-- | Result row from 'getTopShows'.
+data TopShowRow = TopShowRow
+  { showTitle :: Text,
+    showSlug :: Text,
+    playCount :: Int64
+  }
+  deriving stock (Generic, Show)
+  deriving anyclass (DecodeRow)
+  deriving (Display) via (RecordInstance TopShowRow)
 
 --------------------------------------------------------------------------------
 -- Table Definition
@@ -73,22 +86,26 @@ episodePlayEventsSchema =
 
 -- | Get daily play counts within a time range.
 --
--- Returns (count, date_label) where date_label is formatted as @YYYY-MM-DD@.
+-- Returns (count, date_label) where date_label is the day in station time
+-- (@America/Los_Angeles@), formatted as @YYYY-MM-DD@.
 getDailyPlayCounts :: UTCTime -> UTCTime -> Hasql.Statement () [(Int64, Text)]
-getDailyPlayCounts start end = interp False
-  [sql|
-    SELECT COUNT(*)::bigint, to_char(date_trunc('day', played_at), 'YYYY-MM-DD') AS day_label
+getDailyPlayCounts start end =
+  interp
+    False
+    [sql|
+    SELECT COUNT(*)::bigint, to_char(played_at AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD') AS day_label
     FROM episode_play_events
     WHERE played_at >= #{start} AND played_at < #{end}
     GROUP BY day_label
     ORDER BY day_label
   |]
 
-
 -- | Get top N episodes by play count within a time range.
 getTopEpisodes :: UTCTime -> UTCTime -> Int32 -> Hasql.Statement () [TopEpisodeRow]
-getTopEpisodes start end n = interp False
-  [sql|
+getTopEpisodes start end n =
+  interp
+    False
+    [sql|
     SELECT e.id, s.title, s.slug, e.episode_number::bigint, COUNT(*)::bigint
     FROM episode_play_events epe
     JOIN episodes e ON e.id = epe.episode_id
@@ -99,6 +116,21 @@ getTopEpisodes start end n = interp False
     LIMIT #{n}
   |]
 
+-- | Get top N shows by the play count of their episodes within a time range.
+getTopShows :: UTCTime -> UTCTime -> Int32 -> Hasql.Statement () [TopShowRow]
+getTopShows start end n =
+  interp
+    False
+    [sql|
+    SELECT s.title, s.slug, COUNT(*)::bigint
+    FROM episode_play_events epe
+    JOIN episodes e ON e.id = epe.episode_id
+    JOIN shows s ON s.id = e.show_id
+    WHERE epe.played_at >= #{start} AND epe.played_at < #{end}
+    GROUP BY s.id, s.title, s.slug
+    ORDER BY COUNT(*) DESC, s.title
+    LIMIT #{n}
+  |]
 
 -- | Get total play count within a time range.
 --
@@ -113,7 +145,6 @@ getTotalPlays start end =
         FROM episode_play_events
         WHERE played_at >= #{start} AND played_at < #{end}
       |]
-
 
 -- | Insert a new episode play event.
 insertPlayEvent :: Episodes.Id -> Hasql.Statement () ()

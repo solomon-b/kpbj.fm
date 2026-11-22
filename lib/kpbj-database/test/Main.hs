@@ -18,11 +18,13 @@ import Effects.Database.Tables.BreakWindowSpec qualified as BreakWindow
 import Effects.Database.Tables.CurrentlyAiringSpec qualified as CurrentlyAiring
 import Effects.Database.Tables.EmailVerificationTokensSpec qualified as EmailVerificationTokens
 import Effects.Database.Tables.EphemeralUploadsSpec qualified as EphemeralUploads
+import Effects.Database.Tables.EpisodePlayEventsSpec qualified as EpisodePlayEvents
 import Effects.Database.Tables.EpisodeTrackSpec qualified as EpisodeTrack
 import Effects.Database.Tables.EpisodesSpec qualified as Episodes
 import Effects.Database.Tables.EventImagesSpec qualified as EventImages
 import Effects.Database.Tables.EventsSpec qualified as Events
 import Effects.Database.Tables.HostInvitationSpec qualified as HostInvitation
+import Effects.Database.Tables.ListenerSnapshotsSpec qualified as ListenerSnapshots
 import Effects.Database.Tables.NewsletterSubscribersSpec qualified as NewsletterSubscribers
 import Effects.Database.Tables.OrderItemsSpec qualified as OrderItems
 import Effects.Database.Tables.OrdersSpec qualified as Orders
@@ -126,6 +128,8 @@ main = do
     EphemeralUploads.spec
     SitePages.spec
     SitePageRevisions.spec
+    EpisodePlayEvents.spec
+    ListenerSnapshots.spec
     NewsletterSubscribers.spec
     HostInvitation.spec
 

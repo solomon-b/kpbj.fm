@@ -25,6 +25,9 @@ module Effects.Database.Tables.NewsletterSubscribers
     countByEmail,
     getPaginated,
     countAll,
+    countCreatedBefore,
+    getDailySignups,
+    getFirstCreatedAt,
     getByEmail,
     deleteById,
     updateEmail,
@@ -162,6 +165,49 @@ getPaginated mSearch limit offset =
         ORDER BY created_at DESC
         LIMIT #{limit} OFFSET #{offset}
       |]
+
+-- | Count the subscribers that signed up before a time.
+--
+-- An unsubscribe deletes the row, so this counts only current subscribers.
+countCreatedBefore :: UTCTime -> Hasql.Statement () Int64
+countCreatedBefore before =
+  maybe 0 getOneColumn
+    <$> interp
+      False
+      [sql|
+        SELECT COUNT(*)::INT8
+        FROM newsletter_subscribers
+        WHERE created_at < #{before}
+      |]
+
+-- | Get the signup time of the first current subscriber.
+--
+-- Returns 'Nothing' when there are no subscribers.
+getFirstCreatedAt :: Hasql.Statement () (Maybe UTCTime)
+getFirstCreatedAt =
+  (getOneColumn =<<)
+    <$> interp
+      False
+      [sql|
+        SELECT MIN(created_at)
+        FROM newsletter_subscribers
+      |]
+
+-- | Count the signups for each day within a range, ordered by day.
+--
+-- Each row is the count and the day in station time (@America/Los_Angeles@)
+-- as @YYYY-MM-DD@.
+getDailySignups :: UTCTime -> UTCTime -> Hasql.Statement () [(Int64, Text)]
+getDailySignups start end =
+  interp
+    False
+    [sql|
+      SELECT COUNT(*)::INT8, to_char(created_at AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD') AS day_label
+      FROM newsletter_subscribers
+      WHERE created_at >= #{start} AND created_at < #{end}
+      GROUP BY day_label
+      ORDER BY day_label
+    |]
 
 -- | Count all subscribers, optionally filtered by an email substring.
 --

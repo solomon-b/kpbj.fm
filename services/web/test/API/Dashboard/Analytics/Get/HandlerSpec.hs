@@ -2,8 +2,8 @@ module API.Dashboard.Analytics.Get.HandlerSpec (spec) where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Analytics.Get.Handler (mkTopDimension, mkTopEpisode, rangeToParams, roundTo1)
-import API.Dashboard.Analytics.Get.Types (AnalyticsRange (..), TopDimensionEntry (..), TopEpisode (..))
+import API.Dashboard.Analytics.Get.Handler (mkHeatmap, mkNewsletter, mkTopDimension, mkTopEpisode, mkTopShow, rangeToParams, roundTo1)
+import API.Dashboard.Analytics.Get.Types (AnalyticsRange (..), ChartSeries (..), Heatmap (..), NewsletterData (..), TopDimensionEntry (..), TopEpisode (..), TopShowEntry (..), heatmapLevel)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime (..), diffUTCTime, fromGregorian)
@@ -11,6 +11,7 @@ import Data.Time.Clock.POSIX (POSIXTime, posixSecondsToUTCTime)
 import Effects.Database.Tables.EpisodePlayEvents qualified as EpisodePlayEvents
 import Effects.Database.Tables.GaSnapshots qualified as GaSnapshots
 import Effects.Database.Tables.ListenerSnapshots (BucketSize (..))
+import Effects.Database.Tables.ListenerSnapshots qualified as ListenerSnapshots
 import Hedgehog
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
@@ -26,6 +27,10 @@ refTime = 1700000000
 now :: UTCTime
 now = posixSecondsToUTCTime refTime
 
+-- | A time on the hour in UTC.
+utcAt :: Integer -> Int -> Int -> Int -> UTCTime
+utcAt y m d h = UTCTime (fromGregorian y m d) (fromIntegral (h * 3600))
+
 spec :: Spec
 spec = describe "API.Dashboard.Analytics.Get.Handler" $ do
   describe "rangeToParams" $ do
@@ -34,19 +39,20 @@ spec = describe "API.Dashboard.Analytics.Get.Handler" $ do
       realToFrac (diffUTCTime now start) `shouldBe` (24 * 3600 :: Double)
       bucket `shouldBe` FiveMinute
 
-    it "7d returns 7 days ago with Hourly buckets" $ do
+    -- now is 14:13 PST on 2023-11-14. DST ended on 2023-11-05.
+    it "7d starts at midnight PST 6 days before today with Hourly buckets" $ do
       let (start, bucket) = rangeToParams Range7d now
-      realToFrac (diffUTCTime now start) `shouldBe` (7 * 86400 :: Double)
+      start `shouldBe` utcAt 2023 11 8 8
       bucket `shouldBe` Hourly
 
-    it "30d returns 30 days ago with Hourly buckets" $ do
+    it "30d starts at midnight PDT 29 days before today with Hourly buckets" $ do
       let (start, bucket) = rangeToParams Range30d now
-      realToFrac (diffUTCTime now start) `shouldBe` (30 * 86400 :: Double)
+      start `shouldBe` utcAt 2023 10 16 7
       bucket `shouldBe` Hourly
 
-    it "90d returns 90 days ago with Daily buckets" $ do
+    it "90d starts at midnight PDT 89 days before today with Daily buckets" $ do
       let (start, bucket) = rangeToParams Range90d now
-      realToFrac (diffUTCTime now start) `shouldBe` (90 * 86400 :: Double)
+      start `shouldBe` utcAt 2023 8 17 7
       bucket `shouldBe` Daily
 
     it "all starts before the first analytics data with Daily buckets" $ do
@@ -134,6 +140,56 @@ spec = describe "API.Dashboard.Analytics.Get.Handler" $ do
       n <- forAll $ Gen.int (Range.linear 1 50)
       row <- forAll genTopDimensionRow
       (mkTopDimension n row).label === row.value
+
+  describe "mkHeatmap" $ do
+    it "has 7 rows of 24 empty cells with no data" $
+      (mkHeatmap []).cells `shouldBe` replicate 7 (replicate 24 Nothing)
+
+    it "puts Monday 19:00 in row 0, column 19" $ do
+      let cells = (mkHeatmap [ListenerSnapshots.HeatmapRow 1 19 5]).cells
+      (cells !! 0 !! 19) `shouldBe` Just 5
+      length (filter (/= Nothing) (concat cells)) `shouldBe` 1
+
+    it "puts Sunday 00:00 in row 6, column 0" $
+      ((mkHeatmap [ListenerSnapshots.HeatmapRow 7 0 2]).cells !! 6 !! 0) `shouldBe` Just 2
+
+  describe "heatmapLevel" $ do
+    it "is 0 when the maximum is 0" $
+      heatmapLevel 0 0 `shouldBe` 0
+
+    it "is 4 at the maximum" $
+      heatmapLevel 5 5 `shouldBe` 4
+
+    it "is 0 for a value of 0" $
+      heatmapLevel 0 5 `shouldBe` 0
+
+    it "is between 0 and 4 for a value between 0 and the maximum (property)" $ hedgehog $ do
+      m <- forAll $ Gen.double (Range.linearFrac 0.1 500)
+      v <- forAll $ Gen.double (Range.linearFrac 0 m)
+      assert $ heatmapLevel v m >= 0 && heatmapLevel v m <= 4
+
+  describe "mkNewsletter" $ do
+    it "has one point for each day, with the running total" $ do
+      let nl = mkNewsletter (fromGregorian 2026 6 10) (fromGregorian 2026 6 12) 10 [(2, "2026-06-10"), (1, "2026-06-12")]
+      nl.series.labels `shouldBe` ["2026-06-10", "2026-06-11", "2026-06-12"]
+      nl.series.values `shouldBe` [12, 12, 13]
+      nl.total `shouldBe` 13
+      nl.new `shouldBe` 3
+
+    it "draws a flat line at the total before the range when the range has no signups" $ do
+      let nl = mkNewsletter (fromGregorian 2026 6 10) (fromGregorian 2026 6 11) 10 []
+      nl.series.labels `shouldBe` ["2026-06-10", "2026-06-11"]
+      nl.series.values `shouldBe` [10, 10]
+      nl.total `shouldBe` 10
+      nl.new `shouldBe` 0
+
+  describe "mkTopShow" $
+    it "builds a TopShowEntry with the rank and the show URL" $ do
+      let entry = mkTopShow 2 EpisodePlayEvents.TopShowRow {showTitle = "Jazz Hour", showSlug = "jazz-hour", playCount = 40}
+      entry.rank `shouldBe` 2
+      entry.title `shouldBe` "Jazz Hour"
+      entry.plays `shouldBe` 40
+      entry.url `shouldBe` "/shows/jazz-hour"
 
 --------------------------------------------------------------------------------
 -- Generators

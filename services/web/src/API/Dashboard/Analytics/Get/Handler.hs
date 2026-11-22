@@ -11,6 +11,9 @@ module API.Dashboard.Analytics.Get.Handler
     roundTo1,
     mkTopEpisode,
     mkTopDimension,
+    mkTopShow,
+    mkHeatmap,
+    mkNewsletter,
   )
 where
 
@@ -18,8 +21,8 @@ where
 
 import API.Dashboard.Analytics.Get.Templates.Page qualified as Templates
 import API.Dashboard.Analytics.Get.Types
-import API.Links (apiLinks, showEpisodesLinks)
-import API.Types (Routes (..), ShowEpisodesRoutes (..))
+import API.Links (apiLinks, showEpisodesLinks, showsLinks)
+import API.Types (Routes (..), ShowEpisodesRoutes (..), ShowsRoutes (..))
 import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.CustomContext (StreamConfig (..))
 import App.Dashboard.ShowContext (ShowContext (..))
@@ -34,19 +37,22 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Has (getter)
 import Data.Int (Int32, Int64)
+import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (UTCTime (..), addUTCTime, defaultTimeLocale, formatTime, fromGregorian, getCurrentTime)
+import Data.Time (Day, UTCTime (..), addDays, addUTCTime, defaultTimeLocale, formatTime, fromGregorian, getCurrentTime, showGregorian)
 import Domain.Icecast.Status (parseListenerCount)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug (..))
+import Domain.Types.Timezone (pacificDay, startOfPacificDay, utcToPacific)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.EpisodePlayEvents qualified as EpisodePlayEvents
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.GaSnapshots qualified as GaSnapshots
 import Effects.Database.Tables.ListenerSnapshots qualified as ListenerSnapshots
+import Effects.Database.Tables.NewsletterSubscribers qualified as NewsletterSubscribers
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
@@ -162,13 +168,38 @@ loadAnalyticsData range = do
     queryOr [] "getTopCities" $
       execQuery (GaSnapshots.getTopCities start now topDimensionLimit)
 
+  -- Listening by weekday and hour, top shows, and newsletter growth
+  heatmapRows <-
+    queryOr [] "getHourlyHeatmap" $
+      execQuery (ListenerSnapshots.getHourlyHeatmap start now)
+
+  showRows <-
+    queryOr [] "getTopShows" $
+      execQuery (EpisodePlayEvents.getTopShows start now topShowsLimit)
+
+  subscribersBefore <-
+    queryOr 0 "countCreatedBefore" $
+      execQuery (NewsletterSubscribers.countCreatedBefore start)
+
+  signups <-
+    queryOr [] "getDailySignups" $
+      execQuery (NewsletterSubscribers.getDailySignups start now)
+
+  -- The newsletter line has one point for each day, so the all-time line
+  -- starts on the day of the first signup.
+  newsletterStart <- case range of
+    RangeAll ->
+      fromMaybe now
+        <$> queryOr Nothing "getFirstCreatedAt" (execQuery NewsletterSubscribers.getFirstCreatedAt)
+    _ -> pure start
+
   pure
     AnalyticsData
       { listeners =
           ListenerData
             { series =
                 ChartSeries
-                  { labels = map (formatUTC . snd) snapshots,
+                  { labels = map (formatPacific . snd) snapshots,
                     values = map fst snapshots
                   },
               peak = fromIntegral (fromMaybe 0 peak :: Int64),
@@ -186,13 +217,16 @@ loadAnalyticsData range = do
         topEpisodes = zipWith mkTopEpisode [1 ..] topEps,
         topReferrers = zipWith mkTopDimension [1 ..] refs,
         topCountries = zipWith mkTopDimension [1 ..] countries,
-        topCities = zipWith mkTopDimension [1 ..] cities
+        topCities = zipWith mkTopDimension [1 ..] cities,
+        listenerHeatmap = mkHeatmap heatmapRows,
+        topShows = zipWith mkTopShow [1 ..] showRows,
+        newsletter = mkNewsletter (pacificDay newsletterStart) (pacificDay now) subscribersBefore signups
       }
 
 -- | Execute a query action, logging failures and returning a default value.
 --
--- Analytics queries degrade gracefully — a single DB failure shouldn't
--- break the entire dashboard, but it must be logged for debugging.
+-- A failed query does not stop the page. The page shows the default value
+-- for that query, and the log records the error.
 queryOr :: (Show e) => a -> Text -> AppM (Either e a) -> AppM a
 queryOr def label m = do
   result <- m
@@ -210,23 +244,33 @@ topEpisodesLimit = 10
 topDimensionLimit :: Int32
 topDimensionLimit = 10
 
+-- | Number of top shows to return.
+topShowsLimit :: Int32
+topShowsLimit = 10
+
 -- | Map a range to (start time, bucket size).
+--
+-- The 24h range starts 24 hours before now. A range of days starts at
+-- midnight Pacific, and today is its last day, so the first day is a full
+-- day.
 rangeToParams :: AnalyticsRange -> UTCTime -> (UTCTime, ListenerSnapshots.BucketSize)
 rangeToParams range now = case range of
   Range24h -> (addUTCTime (-(24 * 3_600)) now, ListenerSnapshots.FiveMinute)
-  Range7d -> (addUTCTime (-(7 * 86_400)) now, ListenerSnapshots.Hourly)
-  Range30d -> (addUTCTime (-(30 * 86_400)) now, ListenerSnapshots.Hourly)
-  Range90d -> (addUTCTime (-(90 * 86_400)) now, ListenerSnapshots.Daily)
+  Range7d -> (daysBack 7, ListenerSnapshots.Hourly)
+  Range30d -> (daysBack 30, ListenerSnapshots.Hourly)
+  Range90d -> (daysBack 90, ListenerSnapshots.Daily)
   RangeAll -> (allTimeStart, ListenerSnapshots.Daily)
+  where
+    daysBack n = startOfPacificDay (addDays (1 - n) (pacificDay now))
 
--- | The start of the all-time range. It is before the first analytics data,
--- which starts in March 2026.
+-- | The lower bound of the all-time range. It is before every row, so the
+-- queries get all the data.
 allTimeStart :: UTCTime
-allTimeStart = UTCTime (fromGregorian 2026 1 1) 0
+allTimeStart = UTCTime (fromGregorian 1970 1 1) 0
 
--- | Format a UTCTime as ISO 8601 for chart labels.
-formatUTC :: UTCTime -> Text
-formatUTC = Text.pack . formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ"
+-- | Format a UTCTime in station time for chart labels.
+formatPacific :: UTCTime -> Text
+formatPacific = Text.pack . formatTime defaultTimeLocale "%Y-%m-%d %H:%M" . utcToPacific
 
 -- | Round a Double to one decimal place.
 roundTo1 :: Double -> Double
@@ -240,6 +284,52 @@ mkTopDimension n row =
       label = row.value,
       sessions = fromIntegral row.sessions
     }
+
+-- | Build a TopShowEntry from a ranked query row.
+mkTopShow :: Int -> EpisodePlayEvents.TopShowRow -> TopShowEntry
+mkTopShow n row =
+  let showUrl = Links.linkURI $ showsLinks.detail (Slug row.showSlug) Nothing
+   in TopShowEntry
+        { rank = n,
+          title = row.showTitle,
+          plays = fromIntegral row.playCount,
+          url = [i|/#{showUrl}|]
+        }
+
+-- | Arrange the heatmap rows in a grid of 7 weekdays by 24 hours. A row
+-- with a weekday or an hour out of range is left out.
+mkHeatmap :: [ListenerSnapshots.HeatmapRow] -> Heatmap
+mkHeatmap rows =
+  Heatmap [[Map.lookup (weekday, hour) byCell | hour <- [0 .. 23]] | weekday <- [1 .. 7]]
+  where
+    byCell = Map.fromList [((row.weekday, row.hour), row.avgListeners) | row <- rows]
+
+-- | Build the newsletter growth chart with one point for each day of the
+-- range. Each point is the total at the end of that day.
+mkNewsletter ::
+  -- | The first day of the range
+  Day ->
+  -- | The last day of the range
+  Day ->
+  -- | The subscribers from before the range
+  Int64 ->
+  -- | The signups for each day with signups, as (count, @YYYY-MM-DD@)
+  [(Int64, Text)] ->
+  NewsletterData
+mkNewsletter firstDay lastDay before signups =
+  NewsletterData
+    { series =
+        ChartSeries
+          { labels = dayLabels,
+            values = map fromIntegral (drop 1 (scanl (+) before dailyCounts))
+          },
+      total = fromIntegral (before + sum dailyCounts),
+      new = fromIntegral (sum dailyCounts)
+    }
+  where
+    dayLabels = map (Text.pack . showGregorian) [firstDay .. lastDay]
+    byDay = Map.fromList [(day, count) | (count, day) <- signups]
+    dailyCounts = map (\day -> Map.findWithDefault 0 day byDay) dayLabels
 
 -- | Build a TopEpisode from a ranked query row.
 mkTopEpisode :: Int -> EpisodePlayEvents.TopEpisodeRow -> TopEpisode

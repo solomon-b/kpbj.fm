@@ -5,6 +5,8 @@ module Component.DashboardFrame
     loadDashboardFrame,
     htmxResponse,
     pageSwap,
+    mainContentSwap,
+    mainContentLoad,
     DashboardNav (..),
     sectionUrl,
   )
@@ -503,11 +505,16 @@ navLink label isActive url =
 -- | The HTMX attributes of a link that swaps the main content and pushes the
 -- URL to the browser history. The new page starts at the top of the window.
 mainContentSwap :: Links.URI -> [Lucid.Attributes]
-mainContentSwap url =
+mainContentSwap url = mainContentLoad url <> [hxPushUrl_ "true"]
+
+-- | The HTMX attributes of a link that swaps the main content and does not
+-- change the browser history. Use it for a link to the page on screen, for
+-- example a refresh link. The new page starts at the top of the window.
+mainContentLoad :: Links.URI -> [Lucid.Attributes]
+mainContentLoad url =
   [ hxGet_ [i|/#{url}|],
     hxTarget_ "#main-content",
-    hxSwap_ pageSwap,
-    hxPushUrl_ "true"
+    hxSwap_ pageSwap
   ]
 
 -- | JavaScript that removes the HTMX history cache from the browser.
