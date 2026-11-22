@@ -106,14 +106,21 @@
               # it cannot measure. The wrapper puts ffprobe on the binary's PATH,
               # so the server finds it wherever it runs: the NixOS service, CI,
               # or a local `nix build`.
-              kpbj-web = pkgs.haskell.lib.overrideCabal
-                (localPackage hfinal "kpbj-web" ./services/web)
-                (old: {
-                  buildTools = (old.buildTools or [ ]) ++ [ pkgs.makeWrapper ];
-                  postInstall = (old.postInstall or "") + ''
-                    wrapProgram $out/bin/kpbj-web --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.ffmpeg ]}
-                  '';
-                });
+              #
+              # justStaticExecutables removes the library and its docs from the
+              # output. With them, the closure held GHC and every Haskell
+              # library (1.3 GiB), and CI downloaded it for the E2E job. No
+              # package depends on the kpbj-web library, and the test suite
+              # still runs in this build.
+              kpbj-web = pkgs.haskell.lib.justStaticExecutables
+                (pkgs.haskell.lib.overrideCabal
+                  (localPackage hfinal "kpbj-web" ./services/web)
+                  (old: {
+                    buildTools = (old.buildTools or [ ]) ++ [ pkgs.makeWrapper ];
+                    postInstall = (old.postInstall or "") + ''
+                      wrapProgram $out/bin/kpbj-web --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.ffmpeg ]}
+                    '';
+                  }));
 
               sync-host-emails = localPackage hfinal "sync-host-emails" ./jobs/sync-host-emails;
 
