@@ -36,7 +36,7 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/solomon-b/servant-auth-roles
-  tag: 74db973fbb75f7725c97aee42b4f2e9f93778492
+  tag: 9300751f126ff375f36b57ebf33fa4fb1fcbb820
 
 -- Use tmp-postgres from master to avoid prettyprinter compatibility issues
 source-repository-package
