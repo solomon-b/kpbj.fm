@@ -69,7 +69,6 @@ import API.Dashboard.AirBreaks.Underwriters.Get.Handler qualified as Dashboard.A
 import API.Dashboard.AirBreaks.Underwriters.Id.Edit.Post.Handler qualified as Dashboard.AirBreaks.Underwriters.Id.Edit.Post
 import API.Dashboard.AirBreaks.Underwriters.New.Post.Handler qualified as Dashboard.AirBreaks.Underwriters.New.Post
 import API.Dashboard.AirBreaks.Underwriting.Delivery.Get.Handler qualified as Dashboard.AirBreaks.Underwriting.Delivery.Get
-import API.Dashboard.Analytics.Data.Get.Handler qualified as Dashboard.Analytics.Data.Get
 import API.Dashboard.Analytics.Get.Handler qualified as Dashboard.Analytics.Get
 import API.Dashboard.Blogs.Get.Handler qualified as Dashboard.Blogs.Get
 import API.Dashboard.Blogs.New.Get.Handler qualified as Dashboard.Blogs.New.Get
@@ -550,8 +549,7 @@ server =
 
     dashboardAnalyticsRoutes =
       DashboardAnalyticsRoutes
-        { get = Dashboard.Analytics.Get.handler,
-          dataGet = Dashboard.Analytics.Data.Get.handler
+        { get = Dashboard.Analytics.Get.handler
         }
 
     dashboardStreamSettingsRoutes =

@@ -5,25 +5,34 @@ module API.Dashboard.Analytics.Get.Templates.Page (template) where
 
 --------------------------------------------------------------------------------
 
+import API.Dashboard.Analytics.Get.Types
 import API.Links (dashboardAnalyticsLinks, rootLink, staticAssetLink)
 import API.Types (DashboardAnalyticsRoutes (..))
+import Control.Monad (forM_)
+import Data.Aeson.Text qualified as Aeson
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Data.Text.Lazy qualified as Lazy
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
 import Lucid qualified
 import Lucid.Alpine
-import Servant.Links qualified as Links
+import Lucid.HTMX
+import Servant (toUrlPiece)
 
 --------------------------------------------------------------------------------
 
-analyticsDataUrl :: Links.URI
-analyticsDataUrl = Links.linkURI $ dashboardAnalyticsLinks.dataGet Nothing
-
 -- | Analytics dashboard page template.
-template :: Maybe Int64 -> Lucid.Html ()
-template mCurrentListeners = do
+template ::
+  -- | The current range
+  AnalyticsRange ->
+  -- | The live listener count from Icecast
+  Maybe Int64 ->
+  -- | The analytics data for the current range
+  AnalyticsData ->
+  Lucid.Html ()
+template range mCurrentListeners analytics = do
   -- Alpine component wrapper
   -- Chart.js is loaded dynamically in init() to work with HTMX navigation
   Lucid.div_
@@ -50,15 +59,12 @@ template mCurrentListeners = do
 
         -- Time range buttons + refresh
         Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap2]] $ do
-          Lucid.div_ [class_ $ base ["flex", Tokens.textXs]] $ do
-            rangeButton "24h"
-            rangeButton "7d"
-            rangeButton "30d"
-            rangeButton "90d"
-          Lucid.button_
-            [ class_ $ base ["px-2", "py-1", Tokens.textXs, "border", Tokens.borderMuted, Tokens.fgMuted],
-              xOn_ "click" "refresh()"
-            ]
+          Lucid.div_ [class_ $ base ["flex", Tokens.textXs]] $
+            forM_ [minBound .. maxBound] (rangeButton range)
+          Lucid.a_
+            ( rangeLinkAttrs range
+                <> [class_ $ base ["px-2", "py-1", Tokens.textXs, "border", Tokens.borderMuted, Tokens.fgMuted]]
+            )
             "\x21bb"
 
       -- Charts grid (side by side)
@@ -70,12 +76,12 @@ template mCurrentListeners = do
             Lucid.div_ [class_ $ base ["flex", "items-center", Tokens.gap4, Tokens.textXs]] $ do
               Lucid.span_ [] $ do
                 Lucid.span_ [class_ $ base [Tokens.fgMuted]] "peak: "
-                Lucid.span_ [class_ $ base [Tokens.fontBold], xText_ "listeners.peak || '\x2014'"] mempty
+                Lucid.span_ [class_ $ base [Tokens.fontBold]] (Lucid.toHtml (show analytics.listeners.peak))
               Lucid.span_ [] $ do
                 Lucid.span_ [class_ $ base [Tokens.fgMuted]] "avg: "
-                Lucid.span_ [class_ $ base [Tokens.fontBold], xText_ "listeners.avg || '\x2014'"] mempty
+                Lucid.span_ [class_ $ base [Tokens.fontBold]] (Lucid.toHtml (show analytics.listeners.avg))
           Lucid.div_ [Lucid.class_ "h-36"] $
-            Lucid.canvas_ [Lucid.id_ "listeners-chart"] mempty
+            chartCanvas "listeners-chart" analytics.listeners.series
 
         -- Archive plays chart panel
         Lucid.div_ [class_ $ base [Tokens.bgMain, Tokens.p3]] $ do
@@ -83,80 +89,109 @@ template mCurrentListeners = do
             Lucid.div_ [class_ $ base [Tokens.textXs, Tokens.fontBold, Tokens.fgMuted]] "ARCHIVE PLAYS"
             Lucid.div_ [class_ $ base [Tokens.textXs]] $ do
               Lucid.span_ [class_ $ base [Tokens.fgMuted]] "total: "
-              Lucid.span_ [class_ $ base [Tokens.fontBold], xText_ "archivePlays.total || '\x2014'"] mempty
+              Lucid.span_ [class_ $ base [Tokens.fontBold]] (Lucid.toHtml (show analytics.archivePlays.total))
           Lucid.div_ [Lucid.class_ "h-36"] $
-            Lucid.canvas_ [Lucid.id_ "plays-chart"] mempty
+            chartCanvas "plays-chart" analytics.archivePlays.series
 
       -- Top episodes list
       Lucid.div_ [class_ $ base [Tokens.bgMain, Tokens.p3]] $ do
         Lucid.div_ [class_ $ base [Tokens.textXs, Tokens.fontBold, Tokens.fgMuted, Tokens.mb2]] "TOP EPISODES"
-        Lucid.template_ [xFor_ "ep in topEpisodes", xKey_ "ep.rank"]
-          $ Lucid.div_
+        forM_ analytics.topEpisodes $ \ep ->
+          Lucid.div_
             [ class_ $ base ["flex", "justify-between", Tokens.textSm],
               Lucid.style_ "margin-bottom: 4px;"
             ]
-          $ do
-            Lucid.span_ [] $ do
-              Lucid.span_ [class_ $ base [Tokens.fgMuted], xText_ "ep.rank + '.'"] mempty
-              Lucid.a_ [xBindHref_ "ep.url", class_ $ base [Tokens.linkText], xText_ "' ' + ep.title"] mempty
-            Lucid.span_
-              [ class_ $ base [Tokens.fontBold],
-                Lucid.style_ "color: var(--theme-info);",
-                xText_ "ep.plays"
-              ]
-              mempty
-        Lucid.template_ [xIf_ "topEpisodes.length === 0 && !loading"] $
-          Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted]] "No episode plays in this period."
+            $ do
+              Lucid.span_ [] $ do
+                Lucid.span_ [class_ $ base [Tokens.fgMuted]] (Lucid.toHtml (show ep.rank <> "."))
+                Lucid.a_ [Lucid.href_ ep.url, class_ $ base [Tokens.linkText]] (Lucid.toHtml (" " <> ep.title))
+              Lucid.span_
+                [ class_ $ base [Tokens.fontBold],
+                  Lucid.style_ "color: var(--theme-info);"
+                ]
+                (Lucid.toHtml (show ep.plays))
+        case analytics.topEpisodes of
+          [] -> Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted]] "No episode plays in this period."
+          _ -> mempty
 
       -- Google Analytics rollups: referrers, countries, cities
       Lucid.div_ [class_ $ base ["grid", "grid-cols-1", "md:grid-cols-3", Tokens.gap4, Tokens.mt4]] $ do
-        topDimensionPanel "TOP REFERRERS" "topReferrers"
-        topDimensionPanel "TOP COUNTRIES" "topCountries"
-        topDimensionPanel "TOP CITIES" "topCities"
+        topDimensionPanel "TOP REFERRERS" analytics.topReferrers
+        topDimensionPanel "TOP COUNTRIES" analytics.topCountries
+        topDimensionPanel "TOP CITIES" analytics.topCities
 
   -- Alpine component + Chart.js initialization script
   let chartJsUrl = rootLink $ staticAssetLink "chart.min.js"
-  Lucid.script_ [] (analyticsScript analyticsDataUrl chartJsUrl)
+  Lucid.script_ [] (analyticsScript chartJsUrl)
+
+-- | Render a chart canvas with its series as JSON in @data-chart@.
+chartCanvas ::
+  -- | The id and the Alpine ref of the canvas
+  Text ->
+  ChartSeries ->
+  Lucid.Html ()
+chartCanvas canvasId chartSeries =
+  Lucid.canvas_
+    [ Lucid.id_ canvasId,
+      xRef_ canvasId,
+      Lucid.data_ "chart" (Lazy.toStrict (Aeson.encodeToLazyText chartSeries))
+    ]
+    mempty
 
 -- | Render a top-N table panel for one Google Analytics dimension.
---
--- The panel binds to an Alpine state property whose value is an array of
--- objects with @rank@, @label@, and @sessions@ fields.
-topDimensionPanel :: Text -> Text -> Lucid.Html ()
-topDimensionPanel heading collection =
+topDimensionPanel :: Text -> [TopDimensionEntry] -> Lucid.Html ()
+topDimensionPanel heading rows =
   Lucid.div_ [class_ $ base [Tokens.bgMain, Tokens.p3]] $ do
     Lucid.div_ [class_ $ base [Tokens.textXs, Tokens.fontBold, Tokens.fgMuted, Tokens.mb2]] (Lucid.toHtml heading)
-    Lucid.template_ [xFor_ [i|row in #{collection}|], xKey_ "row.rank"]
-      $ Lucid.div_
+    forM_ rows $ \row ->
+      Lucid.div_
         [ class_ $ base ["flex", "justify-between", Tokens.textSm],
           Lucid.style_ "margin-bottom: 4px;"
         ]
-      $ do
-        Lucid.span_ [class_ $ base ["truncate", "pr-2"]] $ do
-          Lucid.span_ [class_ $ base [Tokens.fgMuted], xText_ "row.rank + '.'"] mempty
-          Lucid.span_ [xText_ "' ' + row.label"] mempty
-        Lucid.span_
-          [ class_ $ base [Tokens.fontBold],
-            Lucid.style_ "color: var(--theme-info);",
-            xText_ "row.sessions"
-          ]
-          mempty
-    Lucid.template_ [xIf_ [i|#{collection}.length === 0 && !loading|]] $
-      Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted]] "No data in this period."
+        $ do
+          Lucid.span_ [class_ $ base ["truncate", "pr-2"]] $ do
+            Lucid.span_ [class_ $ base [Tokens.fgMuted]] (Lucid.toHtml (show row.rank <> "."))
+            Lucid.span_ [] (Lucid.toHtml (" " <> row.label))
+          Lucid.span_
+            [ class_ $ base [Tokens.fontBold],
+              Lucid.style_ "color: var(--theme-info);"
+            ]
+            (Lucid.toHtml (show row.sessions))
+    case rows of
+      [] -> Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted]] "No data in this period."
+      _ -> mempty
 
--- | Render a time range button with active highlighting.
-rangeButton :: Text -> Lucid.Html ()
-rangeButton value =
-  Lucid.button_
-    [ class_ $ base ["px-2", "py-1", "border"],
-      xBindClass_ [i|range === '#{value}' ? 'bg-[var(--theme-accent)] text-[var(--theme-accent-fg)] border-[var(--theme-border)] font-bold' : 'border-[var(--theme-border-muted)] text-[var(--theme-fg-muted)]'|],
-      xOn_ "click" [i|setRange('#{value}')|]
-    ]
-    (Lucid.toHtml value)
+-- | Render a time range button. The button for the current range is active.
+rangeButton ::
+  -- | The current range
+  AnalyticsRange ->
+  -- | The range of this button
+  AnalyticsRange ->
+  Lucid.Html ()
+rangeButton current value =
+  Lucid.a_
+    (rangeLinkAttrs value <> [class_ $ base ["px-2", "py-1", "border", stateClasses]])
+    (Lucid.toHtml (toUrlPiece value))
+  where
+    stateClasses
+      | value == current = "bg-[var(--theme-accent)] text-[var(--theme-accent-fg)] border-[var(--theme-border)] font-bold"
+      | otherwise = "border-[var(--theme-border-muted)] text-[var(--theme-fg-muted)]"
+
+-- | The link to the page for a range. HTMX swaps the main content and
+-- pushes the URL, so the range is in the browser history.
+rangeLinkAttrs :: AnalyticsRange -> [Lucid.Attributes]
+rangeLinkAttrs value =
+  [ Lucid.href_ url,
+    hxGet_ url,
+    hxTarget_ "#main-content",
+    hxPushUrl_ "true"
+  ]
+  where
+    url = rootLink $ dashboardAnalyticsLinks.get (Just value)
 
 -- | The Alpine.js + Chart.js initialization script.
-analyticsScript :: Links.URI -> Text -> Text
-analyticsScript dataUrl chartJsUrl =
+analyticsScript :: Text -> Text
+analyticsScript chartJsUrl =
   [i|
 function analyticsDashboard() {
   // Store Chart.js instances outside Alpine's reactive scope to avoid
@@ -165,22 +200,15 @@ function analyticsDashboard() {
   let playsChart = null;
 
   return {
-    range: '7d',
-    listeners: { peak: null, avg: null },
-    archivePlays: { total: null },
-    topEpisodes: [],
-    topReferrers: [],
-    topCountries: [],
-    topCities: [],
-    loading: false,
     error: '',
 
     async init() {
       try {
         await this.ensureChartJs();
         await this.$nextTick();
+        // An HTMX swap can remove this component while Chart.js loads.
+        if (!this.$el.isConnected) return;
         this.createCharts();
-        this.fetchData();
       } catch (e) {
         this.error = 'Failed to initialize charts';
         console.error('Analytics init error:', e);
@@ -194,23 +222,32 @@ function analyticsDashboard() {
       playsChart = null;
     },
 
+    // Each swap defines this function again, so the load promise is on
+    // window. A component that starts while the script loads waits for the
+    // same load.
     ensureChartJs() {
       if (typeof Chart !== 'undefined') return Promise.resolve();
-      return new Promise((resolve, reject) => {
+      window.kpbjChartJs ??= new Promise((resolve, reject) => {
         const s = document.createElement('script');
         s.src = '#{chartJsUrl}';
         s.onload = resolve;
-        s.onerror = reject;
+        s.onerror = (e) => {
+          window.kpbjChartJs = null;
+          reject(e);
+        };
         document.head.appendChild(s);
       });
+      return window.kpbjChartJs;
     },
 
     createCharts() {
-      const lCanvas = document.getElementById('listeners-chart');
-      const pCanvas = document.getElementById('plays-chart');
+      const lCanvas = this.$refs['listeners-chart'];
+      const pCanvas = this.$refs['plays-chart'];
       if (!lCanvas || !pCanvas) {
         throw new Error('Chart canvas elements not found in DOM');
       }
+      const listeners = JSON.parse(lCanvas.dataset.chart);
+      const plays = JSON.parse(pCanvas.dataset.chart);
 
       const style = getComputedStyle(document.documentElement);
       const info = style.getPropertyValue('--theme-info').trim();
@@ -257,9 +294,9 @@ function analyticsDashboard() {
       listenersChart = new Chart(lCanvas, {
         type: 'line',
         data: {
-          labels: [],
+          labels: listeners.labels,
           datasets: [{
-            data: [],
+            data: listeners.values,
             borderColor: info,
             backgroundColor: info + '1a',
             fill: true,
@@ -274,63 +311,14 @@ function analyticsDashboard() {
       playsChart = new Chart(pCanvas, {
         type: 'bar',
         data: {
-          labels: [],
+          labels: plays.labels,
           datasets: [{
-            data: [],
+            data: plays.values,
             backgroundColor: info + 'b3'
           }]
         },
         options: commonOptions,
       });
-    },
-
-    async fetchData() {
-      if (this.loading) return;
-      this.loading = true;
-      this.error = '';
-      try {
-        const res = await fetch('/#{dataUrl}?range=' + this.range);
-        // The role gate answers fetch with a plain 401 or 403. A reload goes
-        // through the gate as a page load, which redirects with a flash.
-        if (res.status === 401 || res.status === 403) {
-          window.location.reload();
-          return;
-        }
-        if (!res.ok) throw new Error('Failed to load data');
-        const data = await res.json();
-
-        this.listeners = { peak: data.listeners.peak, avg: data.listeners.avg };
-        this.archivePlays = { total: data.archivePlays.total };
-        this.topEpisodes = data.topEpisodes;
-        this.topReferrers = data.topReferrers || [];
-        this.topCountries = data.topCountries || [];
-        this.topCities = data.topCities || [];
-
-        if (listenersChart) {
-          listenersChart.data.labels = data.listeners.labels;
-          listenersChart.data.datasets[0].data = data.listeners.data;
-          listenersChart.update();
-        }
-
-        if (playsChart) {
-          playsChart.data.labels = data.archivePlays.labels;
-          playsChart.data.datasets[0].data = data.archivePlays.data;
-          playsChart.update();
-        }
-      } catch (e) {
-        this.error = e.message || 'Failed to load data';
-      } finally {
-        this.loading = false;
-      }
-    },
-
-    setRange(r) {
-      this.range = r;
-      this.fetchData();
-    },
-
-    refresh() {
-      this.fetchData();
     }
   };
 }
