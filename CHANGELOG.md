@@ -23,6 +23,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
   - Grafana Alloy replaces Promtail, which 26.05 removes. Alloy sends the same journal entries to Loki with the same `job` and `unit` labels, so the log alerts and dashboards do not change. Alloy keeps its journal position in `/var/lib/alloy`. On its first start it reads up to 12 hours of the journal again, and Loki drops the entries that it already has. `scripts/memory-survey.sh` now measures `alloy.service`.
   - Grafana has no default `secret_key` in 26.05. The configuration now sets the old default value, so the secrets in the Grafana database stay readable.
   - The networking files of production and staging no longer set `defaultGateway6` with an empty address. 26.05 refuses the empty address. 25.11 ignored it, and the system configuration of 25.11 is the same with or without it.
+- **`cabal.project` has no `source-repository-package` pins.** In the nix dev shell, cabal took each pinned package from the nix package database, so the pins had no effect. `flake.nix` now holds the only copy of each version.
 - **The nix files have no em-dashes.** The comments in `nixos/*.nix` now use a colon, a comma, or a new sentence. Four strings change with them: the systemd descriptions of the `episode-check` and `watchdog` units, the description of the root disk alert, and the pgBackRest warning for a failed S3 backup.
 
 ### Fixed
