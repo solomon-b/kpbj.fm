@@ -53,6 +53,7 @@ module Design.Theme
     -- * Background Tokens
     bgMain,
     bgAlt,
+    bgButton,
     bgInverse,
 
     -- * Foreground Tokens
@@ -97,7 +98,7 @@ type ColorValue = Text
 
 -- | A complete color palette for one mode (light or dark).
 --
--- Contains 16 semantic color roles, similar to terminal color schemes.
+-- Contains 17 semantic color roles, similar to terminal color schemes.
 -- Each field maps to a CSS custom property.
 data Palette = Palette
   { -- Base colors (8)
@@ -139,7 +140,12 @@ data Palette = Palette
     -- | Hover background color
     pHover :: ColorValue,
     -- | Accent hover state
-    pAccentHover :: ColorValue
+    pAccentHover :: ColorValue,
+    -- Control colors (1)
+
+    -- | Button background. It differs from 'pHover', so a button stays
+    -- visible in a table row under the pointer.
+    pButton :: ColorValue
   }
   deriving (Show, Eq)
 
@@ -185,7 +191,8 @@ solarizedTheme =
             pBgInverse = "#002b36", -- base03 (darkest)
             pFgInverse = "#fdf6e3", -- base3
             pHover = "#eee8d5", -- base2
-            pAccentHover = "#2aa198" -- cyan
+            pAccentHover = "#2aa198", -- cyan
+            pButton = "#e3dcc5" -- between base2 and base1
           },
       themeDark =
         Palette
@@ -204,7 +211,8 @@ solarizedTheme =
             pBgInverse = "#fdf6e3", -- base3 (lightest)
             pFgInverse = "#002b36", -- base03
             pHover = "#073642", -- base02
-            pAccentHover = "#2aa198" -- cyan
+            pAccentHover = "#2aa198", -- cyan
+            pButton = "#174652" -- between base02 and base01
           }
     }
 
@@ -236,7 +244,8 @@ gruvboxTheme =
             pBgInverse = "#282828", -- dark0
             pFgInverse = "#fbf1c7", -- light0
             pHover = "#ebdbb2", -- light1
-            pAccentHover = "#458588" -- blue (neutral)
+            pAccentHover = "#458588", -- blue (neutral)
+            pButton = "#d5c4a1" -- light2
           },
       themeDark =
         Palette
@@ -255,7 +264,8 @@ gruvboxTheme =
             pBgInverse = "#fbf1c7", -- light0
             pFgInverse = "#282828", -- dark0
             pHover = "#3c3836", -- dark1
-            pAccentHover = "#8ec07c" -- aqua
+            pAccentHover = "#8ec07c", -- aqua
+            pButton = "#504945" -- dark2
           }
     }
 
@@ -286,7 +296,8 @@ draculaTheme =
             pBgInverse = "#282a36", -- background
             pFgInverse = "#f8f8f2", -- foreground
             pHover = "#e6e6e6", -- slightly darker
-            pAccentHover = "#ff79c6" -- pink
+            pAccentHover = "#ff79c6", -- pink
+            pButton = "#d6d6d6" -- muted border
           },
       themeDark =
         Palette
@@ -305,7 +316,8 @@ draculaTheme =
             pBgInverse = "#f8f8f2", -- foreground
             pFgInverse = "#282a36", -- background
             pHover = "#44475a", -- current line
-            pAccentHover = "#ff79c6" -- pink
+            pAccentHover = "#ff79c6", -- pink
+            pButton = "#565a70" -- lighter than current line
           }
     }
 
@@ -337,7 +349,8 @@ nordTheme =
             pBgInverse = "#2e3440", -- polar night 0
             pFgInverse = "#eceff4", -- snow storm 2
             pHover = "#e5e9f0", -- snow storm 1
-            pAccentHover = "#81a1c1" -- frost 2
+            pAccentHover = "#81a1c1", -- frost 2
+            pButton = "#d8dee9" -- snow storm 0
           },
       themeDark =
         Palette
@@ -356,7 +369,8 @@ nordTheme =
             pBgInverse = "#eceff4", -- snow storm 2
             pFgInverse = "#2e3440", -- polar night 0
             pHover = "#3b4252", -- polar night 1
-            pAccentHover = "#8fbcbb" -- frost 0
+            pAccentHover = "#8fbcbb", -- frost 0
+            pButton = "#434c5e" -- polar night 2
           }
     }
 
@@ -385,7 +399,8 @@ defaultTheme =
             pBgInverse = "#1f2937", -- gray-800
             pFgInverse = "#ffffff",
             pHover = "#f3f4f6", -- gray-100
-            pAccentHover = "#374151" -- gray-700
+            pAccentHover = "#374151", -- gray-700
+            pButton = "#e5e7eb" -- gray-200
           },
       themeDark =
         Palette
@@ -404,7 +419,8 @@ defaultTheme =
             pBgInverse = "#e5e5e5", -- neutral-200
             pFgInverse = "#1a1a1a", -- soft black
             pHover = "#262626", -- neutral-800
-            pAccentHover = "#e5e5e5" -- neutral-200
+            pAccentHover = "#e5e5e5", -- neutral-200
+            pButton = "#404040" -- neutral-700
           }
     }
 
@@ -435,6 +451,7 @@ themeCSS Theme {..} =
   --theme-fg-inverse: #{pFgInverse themeLight};
   --theme-hover: #{pHover themeLight};
   --theme-accent-hover: #{pAccentHover themeLight};
+  --theme-button: #{pButton themeLight};
 }
 
 .dark {
@@ -454,6 +471,7 @@ themeCSS Theme {..} =
   --theme-fg-inverse: #{pFgInverse themeDark};
   --theme-hover: #{pHover themeDark};
   --theme-accent-hover: #{pAccentHover themeDark};
+  --theme-button: #{pButton themeDark};
 }
 |]
 
@@ -470,6 +488,10 @@ bgMain = "bg-[var(--theme-bg)]"
 -- | Secondary/alternate background color (cards, muted sections)
 bgAlt :: Text
 bgAlt = "bg-[var(--theme-bg-alt)]"
+
+-- | Button background
+bgButton :: Text
+bgButton = "bg-[var(--theme-button)]"
 
 -- | Inverse background (e.g., dark header on light page)
 bgInverse :: Text

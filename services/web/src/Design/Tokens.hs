@@ -73,6 +73,7 @@ module Design.Tokens
     -- * Background Colors
     bgMain,
     bgAlt,
+    bgButton,
     bgInverse,
 
     -- * Text Colors
@@ -312,6 +313,10 @@ bgMain = Theme.bgMain
 -- | Alternate background for cards and muted sections.
 bgAlt :: Text
 bgAlt = Theme.bgAlt
+
+-- | Background for buttons. It differs from the row hover color.
+bgButton :: Text
+bgButton = Theme.bgButton
 
 -- | Inverse background (dark on light, light on dark).
 bgInverse :: Text
