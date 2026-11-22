@@ -47,8 +47,10 @@ spec = describe "Component.DashboardFrame" $ do
       html `shouldNotSatisfy` Text.isInfixOf "dashboard_show"
 
     it "has no disabled navigation item" $ do
-      let html = renderFrame NoShow [] NavEpisodes
-      html `shouldNotSatisfy` Text.isInfixOf "cursor-not-allowed"
+      -- The Tailwind safelist in the head names the class too, so look only
+      -- at the body.
+      let body = snd . Text.breakOn "<body" $ renderFrame NoShow [] NavEpisodes
+      body `shouldNotSatisfy` Text.isInfixOf "cursor-not-allowed"
 
   describe "ForShow" $ do
     it "shows the selector with the current show selected on a show page" $ do

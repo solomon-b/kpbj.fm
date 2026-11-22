@@ -55,6 +55,9 @@ module Component.Button
     render,
     group,
     downloadLink,
+
+    -- * Tailwind
+    safelist,
   )
 where
 
@@ -91,14 +94,14 @@ data Tone
   | Warning
   | Error
   | Info
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Enum, Bounded)
 
 -- | The padding of a button.
 data Size
   = -- | For a button next to small inputs, such as a top-bar filter form.
     Small
   | Medium
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Enum, Bounded)
 
 -- | The width of a button.
 data Width
@@ -106,7 +109,7 @@ data Width
     Auto
   | -- | As wide as its container.
     Full
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Enum, Bounded)
 
 -- | The element a button renders as, and what it does.
 data Kind
@@ -301,6 +304,23 @@ render spec label = case spec ^. kind of
 group :: Lucid.Html () -> Lucid.Html ()
 group =
   Lucid.div_ [class_ $ base ["flex", "items-center", "justify-center", Tokens.gap2]]
+
+--------------------------------------------------------------------------------
+-- Tailwind
+
+-- | Every class that 'render' can give a button.
+--
+-- The dashboard frame puts these classes in the safelist of the Tailwind CDN
+-- config. In Firefox, the CDN does not write the rule for a class that first
+-- appears in an HTMX swap, and some button classes appear on one page only.
+safelist :: [Text]
+safelist =
+  baseClasses
+    <> foldMap sizeClasses [minBound .. maxBound]
+    <> foldMap widthClasses [minBound .. maxBound]
+    <> foldMap colorClasses styles
+  where
+    styles = [Primary, Secondary, Danger] <> map Tinted [minBound .. maxBound]
 
 -- | An icon link that downloads a file.
 --

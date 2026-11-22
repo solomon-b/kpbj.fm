@@ -47,6 +47,7 @@ import API.Links
 import API.Types
 import App.Dashboard.ShowContext (ShowContext (..), ShowSection (..), currentShowCookieName)
 import Component.Banner (bannerContainerId)
+import Component.Button qualified as Button
 import Component.Frame (bannerFromUrlScript, clearBannerOnNavScript, darkModeScript, googleAnalyticsScript, htmxErrorBannerScript, htmxIndicatorStyles, showBannerScript)
 import Control.Monad (unless, when)
 import Control.Monad.Catch (MonadThrow)
@@ -269,10 +270,10 @@ template mGoogleAnalyticsId userMeta showContext selectorShows activeNav statsCo
       Lucid.script_ [Lucid.src_ (rootLink $ staticAssetLink "cropper.min.js")] (mempty @Text)
       Lucid.script_ [Lucid.src_ (rootLink $ staticAssetLink "htmx.min.js")] (mempty @Text)
       Lucid.script_ [Lucid.src_ (rootLink $ staticAssetLink "alpine.min.js"), Lucid.defer_ "true"] (mempty @Text)
-      Lucid.script_ [] ("tailwind.config = { darkMode: 'class', theme: { fontFamily: { sans: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'], mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'] } } }" :: Text)
-      Lucid.script_ [] (darkModeScript (Just userMeta.mColorScheme))
+      Lucid.script_ [] ([i|tailwind.config = { darkMode: 'class', safelist: #{tailwindSafelist}, theme: { fontFamily: { sans: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'], mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'] } } }|] :: Text)
       -- Hide Alpine content that has x-cloak until Alpine starts.
       Lucid.style_ [] ("[x-cloak] { display: none !important; }" :: Text)
+      Lucid.script_ [] (darkModeScript (Just userMeta.mColorScheme))
       Lucid.script_ [] showBannerScript
       Lucid.script_ [] htmxErrorBannerScript
       Lucid.script_ [] clearBannerOnNavScript
@@ -298,6 +299,15 @@ template mGoogleAnalyticsId userMeta showContext selectorShows activeNav statsCo
           Lucid.main_ [class_ $ base ["flex-1", "px-6", "py-4"], Lucid.id_ "main-content"] main
       -- Script to display banner from URL params (runs after DOM is ready)
       Lucid.script_ [] bannerFromUrlScript
+
+-- | The classes that the Tailwind CDN always writes, as a JSON array.
+--
+-- In Firefox, the CDN does not write the rule for a class that first appears
+-- in an HTMX swap. The list holds every button class, and the classes of other
+-- elements that showed the problem.
+tailwindSafelist :: Text
+tailwindSafelist =
+  LText.toStrict $ Aeson.encodeToLazyText (Button.safelist <> ["max-h-64"])
 
 -- | A @script@ element that remembers the show of the page as the current
 -- show. A page that is not about a show gets nothing.
