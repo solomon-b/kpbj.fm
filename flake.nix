@@ -254,14 +254,36 @@
               sync-schedule-calendar;
           };
 
-          apps = {
-            kpbj-web = {
-              type = "app";
-              program = "${self.packages.${system}.kpbj-web}/bin/kpbj-web";
-            };
+          apps =
+            let
+              # Scan the runtime closure of a NixOS configuration with vulnix.
+              # The server has no derivations, so the scan runs locally. The
+              # script refers to the system output, so `nix run` builds the
+              # system first. `--closure` makes vulnix scan the runtime closure
+              # of that output and not the build-time closure of its deriver.
+              vulnixApp = config:
+                let
+                  toplevel = self.nixosConfigurations.${config}.config.system.build.toplevel;
+                in
+                {
+                  type = "app";
+                  program = "${pkgs.writeShellScript "vulnix-${config}" ''
+                    echo ${toplevel}
+                    exec ${pkgs.vulnix}/bin/vulnix --closure "$@" ${toplevel}
+                  ''}";
+                };
+            in
+            {
+              kpbj-web = {
+                type = "app";
+                program = "${self.packages.${system}.kpbj-web}/bin/kpbj-web";
+              };
 
-            default = self.apps.${system}.kpbj-web;
-          };
+              vulnix-staging = vulnixApp "kpbj-staging";
+              vulnix-prod = vulnixApp "kpbj-prod";
+
+              default = self.apps.${system}.kpbj-web;
+            };
         }))
     //
     {

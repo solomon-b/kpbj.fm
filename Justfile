@@ -429,6 +429,10 @@ staging-logs-friendly-ghost since="" until="": (_remote-logs STAGING_VPS_TARGET 
 staging-status:
   ssh {{STAGING_VPS_TARGET}} systemctl status kpbj-web kpbj-postgres-setup postgresql
 
+# Scan the staging NixOS system for known CVEs with vulnix (extra args go to vulnix)
+staging-vulnix *args:
+  nix run .#vulnix-staging -- {{args}}
+
 # Open staging in browser
 staging-open:
   xdg-open https://staging.kpbj.fm 2>/dev/null || open https://staging.kpbj.fm
@@ -545,6 +549,10 @@ prod-logs-friendly-ghost since="" until="": (_remote-logs PROD_VPS_TARGET "frien
 # View production service status
 prod-status:
   ssh {{PROD_VPS_TARGET}} systemctl status kpbj-web kpbj-postgres-setup postgresql
+
+# Scan the production NixOS system for known CVEs with vulnix (extra args go to vulnix)
+prod-vulnix *args:
+  nix run .#vulnix-prod -- {{args}}
 
 # Open production in browser
 prod-open:
