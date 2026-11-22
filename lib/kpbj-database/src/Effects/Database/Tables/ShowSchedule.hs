@@ -791,7 +791,8 @@ instance Display ScheduledShowWithDetails where
 -- template that sets replay_start_time returns a second row for the replay.
 -- Used for rendering actual weekly schedules (not just templates).
 -- Uses raw SQL because of complex date arithmetic and CASE expressions.
--- Excludes soft-deleted shows.
+-- Excludes soft-deleted shows. A show with no active host is included, with
+-- 'TBD' for its host names, because playout still airs its slots.
 getScheduledShowsForDate :: Day -> Hasql.Statement () [ScheduledShowWithDetails]
 getScheduledShowsForDate targetDate =
   interp
@@ -818,7 +819,6 @@ getScheduledShowsForDate targetDate =
     LEFT JOIN user_metadata um ON um.user_id = u.id
     WHERE s.status = 'active'
       AND s.deleted_at IS NULL
-      AND EXISTS (SELECT 1 FROM show_hosts sh2 WHERE sh2.show_id = s.id AND sh2.left_at IS NULL)
       AND stv.effective_from <= #{targetDate}::date
       AND (stv.effective_until IS NULL OR stv.effective_until > #{targetDate}::date)
       AND recurrence_airs_on(day_of_week_num(st.day_of_week), st.weeks_of_month, #{targetDate}::date)
@@ -852,7 +852,6 @@ getScheduledShowsForDate targetDate =
     LEFT JOIN user_metadata um ON um.user_id = u.id
     WHERE s.status = 'active'
       AND s.deleted_at IS NULL
-      AND EXISTS (SELECT 1 FROM show_hosts sh2 WHERE sh2.show_id = s.id AND sh2.left_at IS NULL)
       AND st.replay_start_time IS NOT NULL
       AND stv.effective_from <= #{targetDate}::date
       AND (stv.effective_until IS NULL OR stv.effective_until > #{targetDate}::date)
