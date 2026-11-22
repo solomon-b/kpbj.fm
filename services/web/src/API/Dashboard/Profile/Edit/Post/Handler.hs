@@ -7,7 +7,7 @@ module API.Dashboard.Profile.Edit.Post.Handler where
 
 import API.Links (dashboardLinks, rootLink)
 import API.Types (DashboardRoutes (..))
-import App.Handler.Combinators (requireAuth)
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound, throwUserSuspended, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -20,7 +20,6 @@ import Data.Has (getter)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.DisplayName qualified as DisplayName
 import Domain.Types.FileUpload qualified
@@ -39,16 +38,18 @@ import Servant.Multipart (Input (..), Mem, MultipartData (..), lookupFile, looku
 --------------------------------------------------------------------------------
 
 -- | Servant handler: thin glue composing action + redirect.
+--
+-- A suspended user has the effective role 'UserMetadata.User', so the gate
+-- lets them through, and the handler refuses them.
 handler ::
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.User RoleAuth ->
   Maybe HxRequest ->
   MultipartData Mem ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler cookie (foldHxReq -> _hxRequest) multipartData =
+handler (Satisfies _ auth) (foldHxReq -> _hxRequest) multipartData =
   handleRedirectErrors "Profile update" dashboardLinks.profileEditGet $ do
-    (user, userMetadata) <- requireAuth cookie
-    when (UserMetadata.isSuspended userMetadata) throwUserSuspended
-    action user multipartData
+    when (UserMetadata.isSuspended auth.raMetadata) throwUserSuspended
+    action auth.raUser multipartData
     let detailUrl = rootLink dashboardLinks.profileEditGet
         flash = FlashMessage Success "Profile Updated" "Your profile has been updated successfully."
     pure $ Servant.addHeader detailUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent

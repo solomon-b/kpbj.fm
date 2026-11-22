@@ -19,12 +19,11 @@ import API.Uploads.Audio.Post.Route (CorsHeaders, UploadApiResponse (..))
 import API.Uploads.Shared (ExtensionMapper, ProcessConfig (..), displayStagedUploadError, processStagedUpload)
 import API.Uploads.Types (AudioUploadForm (..), UploadResponse (..))
 import Amazonka qualified as AWS
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Config (Environment)
 import App.Domains qualified as Domains
-import App.Handler.Combinators (requireAuth)
 import App.Monad (AppM)
 import Control.Monad.Reader (asks)
-import Control.Monad.Trans.Except (runExceptT)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Functor (void)
@@ -34,13 +33,13 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Domain.BreakPlanner (announcementMaxSeconds, psaMaxSeconds, showPromoMaxSeconds, stationIdMaxSeconds, underwritingMaxSeconds)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.Origin (Origin (..))
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.AudioDuration (probeDurationSeconds)
 import Effects.Database.Tables.BreakItems qualified as BreakItems
 import Effects.Database.Tables.StagedUploads qualified as StagedUploads
 import Effects.Database.Tables.User qualified as User
+import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.MimeTypeValidation qualified as MimeValidation
 import Log qualified
 import Servant qualified
@@ -90,24 +89,21 @@ noCorsHeaders ::
 noCorsHeaders response =
   Servant.noHeader $ Servant.noHeader response
 
+-- | The @'Host@ gate refuses a request with no session before the handler
+-- runs. Every page that uploads audio is a Host or Staff page.
 handler ::
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   Maybe Origin ->
   Maybe BreakItems.Category ->
   AudioUploadForm ->
   AppM (Servant.Headers CorsHeaders UploadApiResponse)
-handler cookie mOrigin mCategory form = do
+handler (Satisfies _ auth) mOrigin mCategory form = do
   -- Validate CSRF (Origin header required for XHR-only endpoints)
   validateOriginStrict mOrigin >>= \case
     Left err -> pure $ noCorsHeaders $ UploadError err
     Right validatedOrigin -> do
-      -- Require authentication (any logged-in user can upload)
-      authResult <- runExceptT $ requireAuth cookie
-      case authResult of
-        Left _ -> pure $ addCorsHeaders validatedOrigin $ UploadError "Authentication required"
-        Right (user, _userMetadata) -> do
-          result <- processAudioUpload user mCategory form
-          pure $ addCorsHeaders validatedOrigin result
+      result <- processAudioUpload auth.raUser mCategory form
+      pure $ addCorsHeaders validatedOrigin result
 
 --------------------------------------------------------------------------------
 -- CORS Preflight Handler

@@ -74,6 +74,7 @@ spec =
       it "lets a Staff user through a Staff gate" test_staffGateStaff
       it "lets an Admin through a Staff gate" test_staffGateAdmin
       it "sends a Host on a Staff gate to the dashboard" test_staffGateHost
+      it "lets a User through a User gate" test_userGateUser
       it "sends a page load with no cookie to the login page" test_browserNoCookie
       it "sends a page load by a Host to the dashboard" test_browserHost
       it "answers a fetch with no cookie with a 401" test_fetchNoCookie
@@ -188,6 +189,14 @@ test_staffGateHost cfg = withPool cfg $ \pool -> do
   response <- staffProbe pool [cookie]
   shouldBeRedirect response (rootLink dashboardLinks.home) (deniedFlash "You need Staff permissions to do this.")
 
+-- | Profile edit has a @'User@ gate, so a plain User may edit their profile.
+test_userGateUser :: TestDBConfig -> IO ()
+test_userGateUser cfg = withPool cfg $ \pool -> do
+  cookie <- userWithSession pool "gate-user-gate-user" UserMetadata.User NotSuspended 3600
+  response <- userProbe pool [cookie]
+  statusCode (simpleStatus response) `shouldBe` 200
+  simpleBody response `shouldBe` "User"
+
 test_browserNoCookie :: TestDBConfig -> IO ()
 test_browserNoCookie cfg = withPool cfg $ \pool -> do
   response <- browserProbe pool []
@@ -265,15 +274,17 @@ test_authorizeShowUnknownSlug cfg = withPool cfg $ \pool -> do
 --------------------------------------------------------------------------------
 -- The probe API
 
--- | One route behind an @'Admin@ gate and one behind a @'Staff@ gate. Each
--- answers with the stored role of the user.
+-- | One route behind an @'Admin@ gate, one behind a @'Staff@ gate, and one
+-- behind a @'User@ gate. Each answers with the stored role of the user.
 type ProbeAPI =
   RequireRole "cookie-auth" 'UserMetadata.Admin :> "probe" :> Servant.Get '[Servant.PlainText] Text
     :<|> RequireRole "cookie-auth" 'UserMetadata.Staff :> "staff-probe" :> Servant.Get '[Servant.PlainText] Text
+    :<|> RequireRole "cookie-auth" 'UserMetadata.User :> "user-probe" :> Servant.Get '[Servant.PlainText] Text
 
 probeServer :: Servant.Server ProbeAPI
 probeServer =
   (\(Satisfies _ auth) -> storedRole auth)
+    :<|> (\(Satisfies _ auth) -> storedRole auth)
     :<|> (\(Satisfies _ auth) -> storedRole auth)
 
 storedRole :: RoleAuth r -> Servant.Handler Text
@@ -288,6 +299,11 @@ probe pool headers = probePath pool "/probe" (htmxHeader : headers)
 -- the real @'Staff@ gate.
 staffProbe :: HSQL.Pool -> [Header] -> IO SResponse
 staffProbe pool headers = probePath pool "/staff-probe" (htmxHeader : headers)
+
+-- | Send @GET /user-probe@ as an HTMX request with the given headers, through
+-- the real @'User@ gate.
+userProbe :: HSQL.Pool -> [Header] -> IO SResponse
+userProbe pool headers = probePath pool "/user-probe" (htmxHeader : headers)
 
 -- | Send @GET /probe@ as a @fetch@ call with the default headers of the
 -- browser, through the real @'Admin@ gate.

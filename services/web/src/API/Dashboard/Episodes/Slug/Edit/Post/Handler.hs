@@ -8,7 +8,7 @@ module API.Dashboard.Episodes.Slug.Edit.Post.Handler where
 import API.Dashboard.Episodes.Slug.Edit.Post.Route (EpisodeEditForm (..), TrackInfo (..))
 import API.Links (dashboardEpisodesLinks, rootLink)
 import API.Types
-import App.Handler.Combinators (requireAuth)
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwNotAuthorized, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
@@ -30,7 +30,6 @@ import Data.Text.Encoding qualified as Text
 import Data.Time (Day)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Domain.EpisodeLength (checkEpisodeFitsSlot)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileStorage (BucketType (..), ResourceType (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
@@ -61,13 +60,12 @@ import Utils (fromRightM)
 handler ::
   Slug ->
   Episodes.EpisodeNumber ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   EpisodeEditForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler showSlug episodeNumber cookie editForm =
+handler showSlug episodeNumber (Satisfies _ auth) editForm =
   handleRedirectErrors "Episode update" (dashboardEpisodesLinks.editGet showSlug episodeNumber) $ do
-    (user, userMetadata) <- requireAuth cookie
-    warnings <- action user userMetadata showSlug episodeNumber editForm
+    warnings <- action auth.raUser auth.raMetadata showSlug episodeNumber editForm
     let listUrl = rootLink $ dashboardEpisodesLinks.list showSlug Nothing
         flash = makeSuccessFlash warnings
     pure $ Servant.addHeader listUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
