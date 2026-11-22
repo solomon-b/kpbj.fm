@@ -268,7 +268,7 @@
                 {
                   type = "app";
                   program = "${pkgs.writeShellScript "vulnix-${config}" ''
-                    echo ${toplevel}
+                    echo ${toplevel} >&2
                     exec ${pkgs.vulnix}/bin/vulnix --closure "$@" ${toplevel}
                   ''}";
                 };

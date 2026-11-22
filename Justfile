@@ -433,6 +433,11 @@ staging-status:
 staging-vulnix *args:
   nix run .#vulnix-staging -- {{args}}
 
+# Collect the evidence for each staging vulnix finding, then classify each CVE with Claude
+# Pass --bundle-only to stop after the evidence bundle. NVD_API_KEY makes the first run faster.
+staging-vulnix-triage *args:
+  ./scripts/vulnix-triage.sh staging {{args}}
+
 # Open staging in browser
 staging-open:
   xdg-open https://staging.kpbj.fm 2>/dev/null || open https://staging.kpbj.fm
@@ -553,6 +558,11 @@ prod-status:
 # Scan the production NixOS system for known CVEs with vulnix (extra args go to vulnix)
 prod-vulnix *args:
   nix run .#vulnix-prod -- {{args}}
+
+# Collect the evidence for each production vulnix finding, then classify each CVE with Claude
+# Pass --bundle-only to stop after the evidence bundle. NVD_API_KEY makes the first run faster.
+prod-vulnix-triage *args:
+  ./scripts/vulnix-triage.sh prod {{args}}
 
 # Open production in browser
 prod-open:
