@@ -139,7 +139,9 @@
                 }
                 { });
 
-              # Use tmp-postgres from master to match cabal.project pin
+              # The last Hackage release of tmp-postgres (1.34.1.0) needs the
+              # deprecated ansi-wl-pprint, and nixpkgs marks it broken. This
+              # master commit moves it to prettyprinter.
               tmp-postgres = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "tmp-postgres"
                 (pkgs.fetchgit {
                   url = "https://github.com/jfischoff/tmp-postgres.git";

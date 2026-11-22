@@ -80,7 +80,7 @@ jobs:
         uses: DeterminateSystems/magic-nix-cache-action@84c0677f58dcedf3b91f8223ce36a9ea5b3c84b7 # v15
 
       # Cachix holds nix store paths and not cabal artifacts, so the first run
-      # compiles every dependency from source. Restore and save are separate
+      # compiles every local package from source. Restore and save are separate
       # steps because the combined action saves nothing when the job fails, and
       # a cold build that hits the timeout would then start cold again forever.
       # The save runs on failure as well, so each run keeps what it built.
