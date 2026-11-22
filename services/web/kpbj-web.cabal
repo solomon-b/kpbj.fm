@@ -228,12 +228,10 @@ library
     API.Dashboard.MissingEpisodes.Get.Handler
     API.Dashboard.MissingEpisodes.Get.Route
     API.Dashboard.MissingEpisodes.Get.Templates.Page
-    API.Dashboard.Analytics.Data.Get.Handler
-    API.Dashboard.Analytics.Data.Get.Route
-    API.Dashboard.Analytics.Data.Get.Types
     API.Dashboard.Analytics.Get.Handler
     API.Dashboard.Analytics.Get.Route
     API.Dashboard.Analytics.Get.Templates.Page
+    API.Dashboard.Analytics.Get.Types
     API.Dashboard.Events.New.Get.Handler
     API.Dashboard.Events.New.Get.Route
     API.Dashboard.Events.New.Get.Templates.Form
@@ -775,7 +773,9 @@ test-suite kpbj-web-test
        App.Handler.ErrorSpec
        API.Archive.Get.HandlerSpec
        API.Blog.Get.HandlerSpec
-       API.Dashboard.Analytics.Data.Get.HandlerSpec
+       API.Dashboard.Analytics.Get.HandlerSpec
+       API.Dashboard.Analytics.Get.Templates.PageSpec
+       API.Dashboard.Analytics.Get.TypesSpec
        Domain.Icecast.StatusSpec
        API.Blog.Post.Get.HandlerSpec
        API.Dashboard.Blogs.Get.HandlerSpec

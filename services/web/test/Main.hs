@@ -16,7 +16,9 @@ import API.Dashboard.AirBreaks.StationIds.New.Post.HandlerSpec qualified as Dash
 import API.Dashboard.AirBreaks.Timeline.Get.HandlerSpec qualified as DashboardAirBreaksTimelineHandler
 import API.Dashboard.AirBreaks.Underwriters.New.Post.HandlerSpec qualified as DashboardUnderwritersNewPostHandler
 import API.Dashboard.AirBreaks.Underwriting.Delivery.Get.HandlerSpec qualified as DashboardUnderwritingDeliveryHandler
-import API.Dashboard.Analytics.Data.Get.HandlerSpec qualified as AnalyticsDataHandler
+import API.Dashboard.Analytics.Get.HandlerSpec qualified as AnalyticsHandler
+import API.Dashboard.Analytics.Get.Templates.PageSpec qualified as AnalyticsPage
+import API.Dashboard.Analytics.Get.TypesSpec qualified as AnalyticsTypes
 import API.Dashboard.Blogs.Get.HandlerSpec qualified as DashboardBlogsGetHandler
 import API.Dashboard.Blogs.New.Get.HandlerSpec qualified as DashboardBlogsNewGetHandler
 import API.Dashboard.Blogs.New.Post.HandlerSpec qualified as DashboardBlogsNewPostHandler
@@ -167,7 +169,9 @@ main = do
 
   -- Pure tests that don't need database
   hspecWith cfg $ parallel $ do
-    AnalyticsDataHandler.spec
+    AnalyticsHandler.spec
+    AnalyticsPage.spec
+    AnalyticsTypes.spec
     IcecastStatus.spec
     BaseUrl.spec
     CustomContext.spec

@@ -88,7 +88,6 @@ import API.Dashboard.AirBreaks.Underwriting.Id.Edit.Get.Route qualified as Dashb
 import API.Dashboard.AirBreaks.Underwriting.Id.Edit.Post.Route qualified as Dashboard.AirBreaks.Underwriting.Id.Edit.Post
 import API.Dashboard.AirBreaks.Underwriting.New.Get.Route qualified as Dashboard.AirBreaks.Underwriting.New.Get
 import API.Dashboard.AirBreaks.Underwriting.New.Post.Route qualified as Dashboard.AirBreaks.Underwriting.New.Post
-import API.Dashboard.Analytics.Data.Get.Route qualified as Dashboard.Analytics.Data.Get
 import API.Dashboard.Analytics.Get.Route qualified as Dashboard.Analytics.Get
 import API.Dashboard.Blogs.Get.Route qualified as Dashboard.Blogs.Get
 import API.Dashboard.Blogs.New.Get.Route qualified as Dashboard.Blogs.New.Get
@@ -803,11 +802,9 @@ data DashboardStreamSettingsRoutes mode = DashboardStreamSettingsRoutes
   deriving stock (Generic)
 
 -- | Analytics dashboard routes under @/dashboard/analytics@.
-data DashboardAnalyticsRoutes mode = DashboardAnalyticsRoutes
+newtype DashboardAnalyticsRoutes mode = DashboardAnalyticsRoutes
   { -- | @GET /dashboard/analytics@ — Analytics overview page
-    get :: mode :- Dashboard.Analytics.Get.Route,
-    -- | @GET /dashboard/analytics/data@ — JSON data for charts
-    dataGet :: mode :- Dashboard.Analytics.Data.Get.Route
+    get :: mode :- Dashboard.Analytics.Get.Route
   }
   deriving stock (Generic)
 

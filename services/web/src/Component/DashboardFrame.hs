@@ -120,7 +120,7 @@ dashboardMissingEpisodesGetUrl :: Links.URI
 dashboardMissingEpisodesGetUrl = Links.linkURI dashboardMissingEpisodesLink
 
 dashboardAnalyticsGetUrl :: Links.URI
-dashboardAnalyticsGetUrl = Links.linkURI dashboardAnalyticsLinks.get
+dashboardAnalyticsGetUrl = Links.linkURI $ dashboardAnalyticsLinks.get Nothing
 
 dashboardInvitationsGetUrl :: Links.URI
 dashboardInvitationsGetUrl = Links.linkURI dashboardInvitationsLinks.list

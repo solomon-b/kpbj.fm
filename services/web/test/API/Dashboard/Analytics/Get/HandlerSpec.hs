@@ -1,9 +1,9 @@
-module API.Dashboard.Analytics.Data.Get.HandlerSpec (spec) where
+module API.Dashboard.Analytics.Get.HandlerSpec (spec) where
 
 --------------------------------------------------------------------------------
 
-import API.Dashboard.Analytics.Data.Get.Handler (mkTopDimension, mkTopEpisode, rangeToParams, roundTo1)
-import API.Dashboard.Analytics.Data.Get.Types (TopDimensionEntry (..), TopEpisode (..))
+import API.Dashboard.Analytics.Get.Handler (mkTopDimension, mkTopEpisode, rangeToParams, roundTo1)
+import API.Dashboard.Analytics.Get.Types (AnalyticsRange (..), TopDimensionEntry (..), TopEpisode (..))
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime, diffUTCTime)
@@ -27,37 +27,27 @@ now :: UTCTime
 now = posixSecondsToUTCTime refTime
 
 spec :: Spec
-spec = describe "API.Dashboard.Analytics.Data.Get.Handler" $ do
+spec = describe "API.Dashboard.Analytics.Get.Handler" $ do
   describe "rangeToParams" $ do
     it "24h returns 24 hours ago with FiveMinute buckets" $ do
-      let (start, bucket) = rangeToParams "24h" now
+      let (start, bucket) = rangeToParams Range24h now
       realToFrac (diffUTCTime now start) `shouldBe` (24 * 3600 :: Double)
       bucket `shouldBe` FiveMinute
 
     it "7d returns 7 days ago with Hourly buckets" $ do
-      let (start, bucket) = rangeToParams "7d" now
+      let (start, bucket) = rangeToParams Range7d now
       realToFrac (diffUTCTime now start) `shouldBe` (7 * 86400 :: Double)
       bucket `shouldBe` Hourly
 
     it "30d returns 30 days ago with Hourly buckets" $ do
-      let (start, bucket) = rangeToParams "30d" now
+      let (start, bucket) = rangeToParams Range30d now
       realToFrac (diffUTCTime now start) `shouldBe` (30 * 86400 :: Double)
       bucket `shouldBe` Hourly
 
     it "90d returns 90 days ago with Daily buckets" $ do
-      let (start, bucket) = rangeToParams "90d" now
+      let (start, bucket) = rangeToParams Range90d now
       realToFrac (diffUTCTime now start) `shouldBe` (90 * 86400 :: Double)
       bucket `shouldBe` Daily
-
-    it "unknown range defaults to 7d with Hourly buckets" $ do
-      let (start, bucket) = rangeToParams "unknown" now
-      realToFrac (diffUTCTime now start) `shouldBe` (7 * 86400 :: Double)
-      bucket `shouldBe` Hourly
-
-    it "empty string defaults to 7d" $ do
-      let (start, bucket) = rangeToParams "" now
-      realToFrac (diffUTCTime now start) `shouldBe` (7 * 86400 :: Double)
-      bucket `shouldBe` Hourly
 
   describe "roundTo1" $ do
     it "rounds 3.14 to 3.1" $ do
