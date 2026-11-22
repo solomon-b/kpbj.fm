@@ -243,6 +243,8 @@ test-suite kpbj-database-test
     Effects.Database.Tables.EpisodesSpec
     Effects.Database.Tables.EventsSpec
     Effects.Database.Tables.HostInvitationSpec
+    Effects.Database.Tables.EpisodePlayEventsSpec
+    Effects.Database.Tables.ListenerSnapshotsSpec
     Effects.Database.Tables.NewsletterSubscribersSpec
     Effects.Database.Tables.OrderItemsSpec
     Effects.Database.Tables.OrdersSpec
