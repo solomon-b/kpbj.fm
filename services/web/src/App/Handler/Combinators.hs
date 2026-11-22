@@ -6,13 +6,9 @@
 -- Add new combinators here only when they are used in 2+ handlers.
 module App.Handler.Combinators
   ( -- * Authentication
-    requireAuth,
     requirePlayoutSecret,
 
     -- * Authorization
-    requireHostNotSuspended,
-    requireStaffNotSuspended,
-    requireAdminNotSuspended,
     authorizeShow,
 
     -- * Validation Helpers
@@ -24,17 +20,14 @@ where
 --------------------------------------------------------------------------------
 
 import App.Auth.Roles (RoleAuth, Satisfies (..))
-import App.Common (getUserInfo)
 import App.CustomContext (PlayoutSecret (..), secretsMatch)
 import App.Handler.Error (HandlerError, throwDatabaseError, throwNotAuthenticated, throwNotAuthorized, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Control.Monad (unless)
 import Control.Monad.Reader (asks)
-import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Has qualified as Has
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
@@ -45,21 +38,6 @@ import Log qualified
 import Utils (fromMaybeM, fromRightM)
 
 --------------------------------------------------------------------------------
-
--- | Require an authenticated user, throwing NotAuthenticated if not logged in.
---
--- Usage:
---
--- @
--- handler cookie = handleErrors $ do
---   (user, userMeta) <- requireAuth cookie
---   -- ... rest of handler with guaranteed authenticated user
--- @
-requireAuth :: Maybe Cookie -> ExceptT HandlerError AppM (User.Model, UserMetadata.Model)
-requireAuth cookie =
-  lift (getUserInfo cookie) >>= \case
-    Nothing -> throwNotAuthenticated
-    Just userInfo -> pure userInfo
 
 -- | Require a valid @X-Playout-Secret@ header, for the endpoints Liquidsoap calls.
 --
@@ -94,72 +72,6 @@ requirePlayoutSecret mSecret = do
         unless (secretsMatch given expected) $ do
           Log.logAttention "Invalid X-Playout-Secret header" ()
           throwNotAuthenticated
-
---------------------------------------------------------------------------------
-
--- | Require host role and non-suspended status, throwing NotAuthorized if not met.
---
--- Usage:
---
--- @
--- handler cookie = handleErrors $ do
---   (user, userMeta) <- requireAuth cookie
---   requireHostNotSuspended "You need host permissions to do this." userMeta
---   -- ... rest of handler with guaranteed host user
--- @
-requireHostNotSuspended ::
-  -- | Error message if not authorized
-  Text ->
-  -- | User metadata to check
-  UserMetadata.Model ->
-  ExceptT HandlerError AppM ()
-requireHostNotSuspended msg userMetadata =
-  unless (UserMetadata.isHostOrHigher userMetadata.mUserRole && not (UserMetadata.isSuspended userMetadata)) $
-    throwNotAuthorized msg (Just userMetadata.mUserRole)
-
---------------------------------------------------------------------------------
-
--- | Require staff role and non-suspended status, throwing NotAuthorized if not met.
---
--- Usage:
---
--- @
--- handler cookie = handleErrors $ do
---   (user, userMeta) <- requireAuth cookie
---   requireStaffNotSuspended "You need staff permissions to do this." userMeta
---   -- ... rest of handler with guaranteed staff user
--- @
-requireStaffNotSuspended ::
-  -- | Error message if not authorized
-  Text ->
-  -- | User metadata to check
-  UserMetadata.Model ->
-  ExceptT HandlerError AppM ()
-requireStaffNotSuspended msg userMetadata =
-  unless (UserMetadata.isStaffOrHigher userMetadata.mUserRole && not (UserMetadata.isSuspended userMetadata)) $
-    throwNotAuthorized msg (Just userMetadata.mUserRole)
-
---------------------------------------------------------------------------------
-
--- | Require admin role and non-suspended status, throwing NotAuthorized if not met.
---
--- Usage:
---
--- @
--- handler cookie = handleErrors $ do
---   (user, userMeta) <- requireAuth cookie
---   requireAdminNotSuspended "You need admin permissions to do this." userMeta
---   -- ... rest of handler with guaranteed admin user
--- @
-requireAdminNotSuspended ::
-  -- | Error message if not authorized
-  Text ->
-  -- | User metadata to check
-  UserMetadata.Model ->
-  ExceptT HandlerError AppM ()
-requireAdminNotSuspended msg userMetadata =
-  unless (UserMetadata.isAdmin userMetadata.mUserRole && not (UserMetadata.isSuspended userMetadata)) $
-    throwNotAuthorized msg (Just userMetadata.mUserRole)
 
 --------------------------------------------------------------------------------
 

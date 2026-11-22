@@ -49,11 +49,9 @@ type Route =
 
 Handler uses `handleRedirectErrors` and emits the redirect URL + a flash cookie carrying a `FlashMessage`:
 ```haskell
-handler cookie form =
+handler (Satisfies _ auth) form =
   handleRedirectErrors "Action name" defaultLink $ do
-    (_user, userMetadata) <- requireAuth cookie
-    requireStaffNotSuspended "..." userMetadata
-    -- ... business logic ...
+    -- ... business logic, with auth.raUser and auth.raMetadata ...
     let targetUrl = [i|/#{Links.linkURI $ someLinks.somePage}|] :: Text
         flash = FlashMessage Success "Created" "Item created successfully."
     pure $
@@ -61,7 +59,7 @@ handler cookie form =
         Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
 ```
 
-`handleRedirectErrors`'s second argument is a `Servant.Link` (not `Text`) used as the fallback redirect target on auth/access failures. Validation errors fall through to an inline OOB error banner instead of redirecting. Imports: `Component.Flash (FlashMessage (..), flashCookie)`, `Component.Banner (BannerType (..))`, `App.Handler.Error (handleRedirectErrors)`.
+`handleRedirectErrors`'s second argument is a `Servant.Link` (not `Text`) used as the redirect target for a suspended user (`UserSuspended`). `NotAuthorized` redirects to the dashboard or the home page, by role. Validation errors fall through to an inline OOB error banner instead of redirecting. Imports: `Component.Flash (FlashMessage (..), flashCookie)`, `Component.Banner (BannerType (..))`, `App.Handler.Error (handleRedirectErrors)`.
 
 **Pattern B — Row update with OOB banner** (update item in list, stay on page):
 ```haskell
@@ -172,6 +170,8 @@ handler cookie (foldHxReq -> hxRequest) = do
   renderTemplate hxRequest mUserInfo pageTemplate
 ```
 
+A public page reads the optional user with `getUserInfo`, as above. A route that needs a role puts a gate in place of the `Cookie` header (see Role System).
+
 ## Database
 
 ### Tables
@@ -209,7 +209,23 @@ Execute: `result <- execQuery (Table.getById id)`
 - **Staff**: Station-wide blog posts, moderate content, manage multiple shows, manage store products and orders
 - **Admin**: User management, system configuration, store settings
 
-Enforcement: `user_metadata.role` enum, handler combinators in `App.Handler.Combinators` (`requireAuth`, `requireHostNotSuspended`, `requireStaffNotSuspended`, `requireAdminNotSuspended`, `requireShowHostOrStaff`), role in session cookie.
+Enforcement: the role of a route is in its type, with `servant-auth-roles`. The route has the gate `RequireRole "cookie-auth" 'Host` (or `'User`, `'Staff`, `'Admin`) in place of a `Cookie` header:
+
+```haskell
+type Route =
+  "dashboard" :> "stream-settings"
+    :> RequireRole "cookie-auth" 'Admin
+    :> Servant.Header "HX-Request" HxRequest
+    :> Servant.Get '[HTML] (Lucid.Html ())
+
+handler :: Satisfies 'UserMetadata.Admin RoleAuth -> Maybe HxRequest -> AppM (Lucid.Html ())
+handler (Satisfies _ auth) (foldHxReq -> hxRequest) = ...  -- auth.raUser, auth.raMetadata
+```
+
+- A gate admits its role and every role above it. A suspended user has the effective role `User`.
+- The gate answers a failure before the handler runs: the login redirect for no session, and the "Access Denied" redirect for a role that is too low. A client that does not render HTML gets a plain 401 or 403.
+- `App.Auth.Roles` holds the gate machinery. `RoleAuth` is abstract, so only the auth handler makes one.
+- A show route also calls `authorizeShow` (in `App.Handler.Combinators`) with the slug in the path. It loads the show and checks that the user may manage it: Staff and Admin may manage every show, and a Host needs a `show_hosts` row. A handler that does not call it still compiles.
 
 ## File Storage
 
