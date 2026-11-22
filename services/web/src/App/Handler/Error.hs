@@ -226,10 +226,9 @@ handlePublicErrors actionName hxRequest renderInline action =
 -- user stays on the form and sees the message in-place.
 --
 -- @
--- handler cookie editForm =
+-- handler (Satisfies _ auth) editForm =
 --   handleRedirectErrors "Episode edit" (dashboardEpisodesLinks.list showSlug Nothing) $ do
---     (user, userMetadata) <- requireAuth cookie
---     action user userMetadata editForm
+--     action auth.raUser auth.raMetadata editForm
 --     let flash = FlashMessage Success "Updated" "..."
 --     pure $ Servant.addHeader detailUrl $ Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
 -- @
@@ -288,10 +287,8 @@ handleBannerErrors actionName action =
 -- the appropriate HTTP status code.
 --
 -- @
--- handler cookie mRange =
+-- handler _admin mRange =
 --   handleJsonErrors "Analytics data" $ do
---     (_user, meta) <- requireAuth cookie
---     requireAdminNotSuspended "Only admins can access analytics." meta
 --     lift $ fetchData ...
 -- @
 handleJsonErrors ::
