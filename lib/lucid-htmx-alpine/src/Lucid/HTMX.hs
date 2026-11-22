@@ -30,6 +30,7 @@ module Lucid.HTMX
     -- * Request Configuration
     hxInclude_,
     hxParams_,
+    hxVals_,
     hxPushUrl_,
     hxTrigger_,
 
@@ -124,6 +125,12 @@ hxInclude_ = Lucid.makeAttributes "hx-include"
 -- > hxParams_ "not name, email"
 hxParams_ :: Text -> Lucid.Attributes
 hxParams_ = Lucid.makeAttributes "hx-params"
+
+-- | HTMX hx-vals attribute. The value is a JSON object.
+--
+-- > hxVals_ "{\"reason\": \"spam\"}"
+hxVals_ :: Text -> Lucid.Attributes
+hxVals_ = Lucid.makeAttributes "hx-vals"
 
 -- | HTMX hx-push-url attribute.
 --
