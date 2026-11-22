@@ -25,7 +25,7 @@ import Servant (FromHttpApiData (..), ToHttpApiData (..))
 -- Range
 
 -- | The time range of the analytics page, from the @range@ query parameter.
-data AnalyticsRange = Range24h | Range7d | Range30d | Range90d
+data AnalyticsRange = Range24h | Range7d | Range30d | Range90d | RangeAll
   deriving stock (Eq, Show, Enum, Bounded)
 
 instance ToHttpApiData AnalyticsRange where
@@ -35,6 +35,7 @@ instance ToHttpApiData AnalyticsRange where
     Range7d -> "7d"
     Range30d -> "30d"
     Range90d -> "90d"
+    RangeAll -> "all"
 
 instance FromHttpApiData AnalyticsRange where
   parseUrlPiece :: Text -> Either Text AnalyticsRange
@@ -43,6 +44,7 @@ instance FromHttpApiData AnalyticsRange where
     "7d" -> Right Range7d
     "30d" -> Right Range30d
     "90d" -> Right Range90d
+    "all" -> Right RangeAll
     other -> Left $ "Unknown analytics range: " <> other
 
 -- | The range of a request with no @range@ query parameter.

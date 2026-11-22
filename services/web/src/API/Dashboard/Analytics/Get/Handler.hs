@@ -38,7 +38,7 @@ import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (UTCTime, addUTCTime, defaultTimeLocale, formatTime, getCurrentTime)
+import Data.Time (UTCTime (..), addUTCTime, defaultTimeLocale, formatTime, fromGregorian, getCurrentTime)
 import Domain.Icecast.Status (parseListenerCount)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug (..))
@@ -217,6 +217,12 @@ rangeToParams range now = case range of
   Range7d -> (addUTCTime (-(7 * 86_400)) now, ListenerSnapshots.Hourly)
   Range30d -> (addUTCTime (-(30 * 86_400)) now, ListenerSnapshots.Hourly)
   Range90d -> (addUTCTime (-(90 * 86_400)) now, ListenerSnapshots.Daily)
+  RangeAll -> (allTimeStart, ListenerSnapshots.Daily)
+
+-- | The start of the all-time range. It is before the first analytics data,
+-- which starts in March 2026.
+allTimeStart :: UTCTime
+allTimeStart = UTCTime (fromGregorian 2026 1 1) 0
 
 -- | Format a UTCTime as ISO 8601 for chart labels.
 formatUTC :: UTCTime -> Text

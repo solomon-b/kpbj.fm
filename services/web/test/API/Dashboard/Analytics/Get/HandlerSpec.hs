@@ -6,7 +6,7 @@ import API.Dashboard.Analytics.Get.Handler (mkTopDimension, mkTopEpisode, rangeT
 import API.Dashboard.Analytics.Get.Types (AnalyticsRange (..), TopDimensionEntry (..), TopEpisode (..))
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (UTCTime, diffUTCTime)
+import Data.Time (UTCTime (..), diffUTCTime, fromGregorian)
 import Data.Time.Clock.POSIX (POSIXTime, posixSecondsToUTCTime)
 import Effects.Database.Tables.EpisodePlayEvents qualified as EpisodePlayEvents
 import Effects.Database.Tables.GaSnapshots qualified as GaSnapshots
@@ -47,6 +47,11 @@ spec = describe "API.Dashboard.Analytics.Get.Handler" $ do
     it "90d returns 90 days ago with Daily buckets" $ do
       let (start, bucket) = rangeToParams Range90d now
       realToFrac (diffUTCTime now start) `shouldBe` (90 * 86400 :: Double)
+      bucket `shouldBe` Daily
+
+    it "all starts before the first analytics data with Daily buckets" $ do
+      let (start, bucket) = rangeToParams RangeAll now
+      start `shouldSatisfy` (< UTCTime (fromGregorian 2026 3 15) 0)
       bucket `shouldBe` Daily
 
   describe "roundTo1" $ do
