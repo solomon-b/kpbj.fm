@@ -25,6 +25,7 @@ All notable changes to KPBJ 95.9FM are documented in this file.
   - The networking files of production and staging no longer set `defaultGateway6` with an empty address. 26.05 refuses the empty address. 25.11 ignored it, and the system configuration of 25.11 is the same with or without it.
   - amazonka comes from nixpkgs, so a cold build gets it from the binary cache. The flake built amazonka from source at commit `a7d699b`. nixpkgs builds commit `7645bd3`, which is 12 commits older. The 12 commits add a Mexico region, add hook functions, and fix the error type of a background credential refresh. The station uses static Spaces keys, so that refresh never runs.
 - **`cabal.project` has no `source-repository-package` pins.** In the nix dev shell, cabal took each pinned package from the nix package database, so the pins had no effect. `flake.nix` now holds the only copy of each version.
+- **The weeder job in CI reads the `kpbj-fm` Cachix cache.** Before, only the build and test jobs read it, so the weeder job built the dev shell dependencies again in each run with a cold nix store.
 - **The nix files have no em-dashes.** The comments in `nixos/*.nix` now use a colon, a comma, or a new sentence. Four strings change with them: the systemd descriptions of the `episode-check` and `watchdog` units, the description of the root disk alert, and the pgBackRest warning for a failed S3 backup.
 
 ### Fixed
