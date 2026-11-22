@@ -17,6 +17,7 @@ import App.Monad (AppM)
 import Component.Button ((&))
 import Component.Button qualified as Button
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Int (Int64)
@@ -98,9 +99,10 @@ handler ::
   Maybe (Filter Shows.Status) ->
   Bool ->
   Satisfies 'UserMetadata.Staff RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler maybePage queryFilterParam statusFilterParam deletedView (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler maybePage queryFilterParam statusFilterParam deletedView (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Shows list" apiLinks.rootGet $ do
     vd <- action auth.raMetadata maybePage queryFilterParam statusFilterParam deletedView hxRequest
     if vd.slvIsAppendRequest
@@ -108,7 +110,7 @@ handler maybePage queryFilterParam statusFilterParam deletedView (Satisfies _ au
       else do
         let showsTemplate = template vd.slvIsAdmin vd.slvDeletedView vd.slvShows vd.slvPage vd.slvHasMore vd.slvQueryFilter vd.slvStatusFilter
             filtersContent = Just $ filtersUI vd.slvQueryFilter vd.slvStatusFilter vd.slvDeletedView
-        lift $ renderDashboardTemplate hxRequest vd.slvUserMetadata NoShow NavShows filtersContent newShowButton showsTemplate
+        lift $ renderDashboardTemplate hxRequest mFlash vd.slvUserMetadata NoShow NavShows filtersContent newShowButton showsTemplate
   where
     newShowButton :: Maybe (Lucid.Html ())
     newShowButton =

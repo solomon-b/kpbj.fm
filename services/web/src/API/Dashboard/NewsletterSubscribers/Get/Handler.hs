@@ -18,6 +18,7 @@ import App.Monad (AppM)
 import Component.Button ((&))
 import Component.Button qualified as Button
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.Trans (lift)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
@@ -44,11 +45,12 @@ pageSize = 50
 -- | Handler for GET /dashboard/newsletter-subscribers.
 handler ::
   Satisfies 'Staff RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   Maybe Text ->
   Maybe Int64 ->
   AppM (Lucid.Html ())
-handler (Satisfies _ auth) (foldHxReq -> hxRequest) mSearchRaw mPage =
+handler (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) mSearchRaw mPage =
   handleHtmlErrors "Newsletter subscribers list" apiLinks.rootGet $ do
     let mSearch = normalizeSearch mSearchRaw
         page = max 1 (fromMaybe 1 mPage)
@@ -66,6 +68,7 @@ handler (Satisfies _ auth) (foldHxReq -> hxRequest) mSearchRaw mPage =
         lift $
           renderDashboardTemplate
             hxRequest
+            mFlash
             auth.raMetadata
             NoShow
             NavNewsletterSubscribers

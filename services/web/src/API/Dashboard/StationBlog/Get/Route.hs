@@ -2,6 +2,7 @@ module API.Dashboard.StationBlog.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Data.Int (Int64)
 import Domain.Types.HxRequest (HxRequest)
 import Effects.Database.Tables.UserMetadata (UserRole (..))
@@ -19,5 +20,6 @@ type Route =
     :> "station-blog"
     :> Servant.QueryParam "page" Int64
     :> RequireRole "cookie-auth" 'Staff
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

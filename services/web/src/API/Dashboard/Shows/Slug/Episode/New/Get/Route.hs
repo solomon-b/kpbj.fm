@@ -2,6 +2,7 @@ module API.Dashboard.Shows.Slug.Episode.New.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Domain.Types.HxRequest (HxRequest)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.UserMetadata (UserRole (..))
@@ -21,5 +22,6 @@ type Route =
     :> "episodes"
     :> "new"
     :> RequireRole "cookie-auth" 'Host
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

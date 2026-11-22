@@ -2,6 +2,7 @@ module API.Dashboard.Invitations.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Domain.Types.HxRequest (HxRequest)
 import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Lucid qualified
@@ -17,5 +18,6 @@ type Route =
   "dashboard"
     :> "invitations"
     :> RequireRole "cookie-auth" 'Staff
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

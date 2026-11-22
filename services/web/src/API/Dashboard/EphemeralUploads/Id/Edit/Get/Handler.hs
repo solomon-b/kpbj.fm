@@ -16,6 +16,7 @@ import App.Domains (audioUploadUrl)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -62,13 +63,14 @@ action userMetadata ephemeralUploadId = do
 handler ::
   EphemeralUploads.Id ->
   Satisfies 'UserMetadata.Staff RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler ephemeralUploadId (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler ephemeralUploadId (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleRedirectErrors "Ephemeral upload edit" (dashboardEphemeralUploadsLinks.list Nothing) $ do
     vd <- action auth.raMetadata ephemeralUploadId
     let content = ephemeralUploadEditForm vd.uevUploadUrl vd.uevEphemeralUpload
-    html <- lift $ renderDashboardTemplate hxRequest vd.uevUserMetadata NoShow NavEphemeralUploads Nothing Nothing content
+    html <- lift $ renderDashboardTemplate hxRequest mFlash vd.uevUserMetadata NoShow NavEphemeralUploads Nothing Nothing content
     pure $ Servant.noHeader html
 
 --------------------------------------------------------------------------------

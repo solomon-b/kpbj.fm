@@ -16,6 +16,7 @@ import App.BaseUrl (baseUrl)
 import App.Common (renderUnauthTemplate)
 import App.Handler.Error (HandlerError)
 import App.Monad (AppM)
+import Component.Flash (FlashMessage)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT)
 import Data.String.Interpolate (i)
@@ -71,13 +72,14 @@ action sockAddr mUserAgent ForgotPasswordForm {..} = do
 handler ::
   SockAddr ->
   Maybe Text ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   ForgotPasswordForm ->
   AppM (Lucid.Html ())
-handler sockAddr mUserAgent (foldHxReq -> hxRequest) form = do
+handler sockAddr mUserAgent mFlash (foldHxReq -> hxRequest) form = do
   -- Always show success regardless of outcome (prevents email enumeration)
   _ <- runExceptT $ action sockAddr mUserAgent form
-  renderSuccess hxRequest
+  renderSuccess hxRequest mFlash
 
 --------------------------------------------------------------------------------
 
@@ -86,10 +88,11 @@ handler sockAddr mUserAgent (foldHxReq -> hxRequest) form = do
 -- Always shows the same message regardless of outcome.
 renderSuccess ::
   HxRequest ->
+  Maybe FlashMessage ->
   AppM (Lucid.Html ())
-renderSuccess hxRequest = do
+renderSuccess hxRequest mFlash = do
   let content = Templates.successTemplate
-  renderUnauthTemplate hxRequest content
+  renderUnauthTemplate hxRequest mFlash content
 
 --------------------------------------------------------------------------------
 

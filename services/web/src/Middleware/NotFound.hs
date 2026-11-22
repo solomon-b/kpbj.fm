@@ -3,8 +3,8 @@
 --
 -- Servant's router returns 404 responses when no route matches (either
 -- empty body with no content type, or @text/plain@). This middleware
--- intercepts those and replaces them with a pre-rendered HTML page that
--- includes the full site frame (header, nav, footer, music player).
+-- intercepts those and replaces them with an HTML page that includes the
+-- full site frame (header, nav, footer, music player).
 --
 -- Only intercepts 404 responses that are NOT @text/html@, so handler-level
 -- 404s that already return styled HTML are passed through unchanged.
@@ -15,6 +15,7 @@ where
 
 --------------------------------------------------------------------------------
 
+import Component.Flash (FlashMessage, lookupFlash)
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as LBS
 import Network.HTTP.Types.Header qualified as Header
@@ -25,14 +26,16 @@ import Network.Wai qualified as Wai
 
 -- | Middleware that replaces non-HTML 404 responses with a styled HTML page.
 --
--- Takes a pre-rendered HTML page as a lazy 'LBS.ByteString' (rendered once at
--- startup) and substitutes it for any 404 response that does not already have
--- a @text/html@ content type (to avoid replacing handler-level 404s).
-notFoundMiddleware :: LBS.ByteString -> Wai.Middleware
-notFoundMiddleware htmlBody app req respond =
+-- Takes a function that renders the HTML page for the flash message of the
+-- request, and substitutes the page for any 404 response that does not
+-- already have a @text/html@ content type (to avoid replacing handler-level
+-- 404s). The page shows the flash, because 'Middleware.Flash' deletes the
+-- cookie after an HTML page.
+notFoundMiddleware :: (Maybe FlashMessage -> LBS.ByteString) -> Wai.Middleware
+notFoundMiddleware renderPage app req respond =
   app req $ \response ->
     if isNonHtml404 response
-      then respond $ Wai.responseLBS Status.status404 htmlHeaders htmlBody
+      then respond $ Wai.responseLBS Status.status404 htmlHeaders (renderPage (lookupFlash (Wai.requestHeaders req)))
       else respond response
 
 -- | Check if a response is a non-HTML 404 (Servant routing miss).

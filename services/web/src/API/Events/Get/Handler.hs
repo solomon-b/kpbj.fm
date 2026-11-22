@@ -10,6 +10,7 @@ import API.Types (Routes (..))
 import App.Common (getUserInfo, renderTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
+import Component.Flash (FlashMessage)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -35,15 +36,17 @@ data EventsViewData = EventsViewData
 
 handler ::
   Maybe Cookie ->
+  -- | Flash message of the request
+  Maybe FlashMessage ->
   -- | @hx-request@ header
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler cookie hxRequest =
+handler cookie mFlash hxRequest =
   handleHtmlErrors "Events list" apiLinks.rootGet $ do
     mUserInfo <- lift $ getUserInfo cookie <&> fmap snd
     vd <- action
     let hxReq = HxRequest.foldHxReq hxRequest
-    lift $ renderTemplate hxReq mUserInfo (template vd.evdStorageBackend vd.evdEvents)
+    lift $ renderTemplate hxReq mFlash mUserInfo (template vd.evdStorageBackend vd.evdEvents)
 
 --------------------------------------------------------------------------------
 

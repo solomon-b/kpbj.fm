@@ -14,6 +14,7 @@ import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Maybe
@@ -32,14 +33,16 @@ import Utils (fromMaybeM, fromRightM)
 handler ::
   Text ->
   Satisfies 'UserMetadata.Staff RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler pageSlug (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler pageSlug (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Site page history" apiLinks.rootGet $ do
     vd <- action auth.raMetadata pageSlug
     lift $
       renderDashboardTemplate
         hxRequest
+        mFlash
         vd.phvUserMetadata
         NoShow
         NavSitePages

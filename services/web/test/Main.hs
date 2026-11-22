@@ -140,6 +140,7 @@ import Effects.MarkdownSpec qualified as Markdown
 import Effects.MimeTypeValidationSpec qualified as MimeTypeValidation
 import Effects.StagedUploadsSpec qualified as StagedUploadsEffects
 import Effects.TimelineSpec qualified as TimelineEffects
+import Middleware.FlashSpec qualified as FlashMiddleware
 import Middleware.ValidateEncodingSpec qualified as ValidateEncoding
 import Store.Checkout.EmailsSpec qualified as StoreCheckoutEmails
 import Store.Checkout.LogicSpec qualified as StoreCheckoutLogic
@@ -205,6 +206,7 @@ main = do
     StoreCheckoutLogic.spec
     StoreCheckoutShippingErrors.spec
     StoreTypes.spec
+    FlashMiddleware.spec
     ValidateEncoding.spec
 
   -- Handler Integration Tests (database-dependent)

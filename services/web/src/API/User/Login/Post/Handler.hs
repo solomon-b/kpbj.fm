@@ -1,5 +1,3 @@
-{-# LANGUAGE QuasiQuotes #-}
-
 module API.User.Login.Post.Handler where
 
 --------------------------------------------------------------------------------
@@ -12,6 +10,8 @@ import App.Config (Environment)
 import App.Domains qualified as Domains
 import App.Handler.Error (HandlerError, logHandlerError, throwHandlerFailure)
 import App.Monad (AppM)
+import Component.Banner (BannerType (..))
+import Component.Flash (FlashMessage (..), flashCookie)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT)
@@ -22,7 +22,7 @@ import Data.Password.Argon2 (PasswordCheck (..), checkPassword)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (NominalDiffTime, nominalDay)
-import Domain.Types.EmailAddress ()
+import Domain.Types.EmailAddress (EmailAddress)
 import Effects.Database.Execute (execQuery, execQueryThrow)
 import Effects.Database.Tables.EmailVerificationTokens qualified as VerificationTokens
 import Effects.Database.Tables.User qualified as User
@@ -75,10 +75,15 @@ action sockAddr mUserAgent Login {..} redirectQueryParam = do
     Just _user -> do
       Log.logInfo "Login Attempt" ulEmail
       Log.logInfo "Invalid Credentials" (Aeson.object ["field" .= ("password" :: Text)])
-      pure $ LoginInvalidCredentials ("/" <> Http.toUrlPiece (userLinks.loginGet Nothing $ Just ulEmail))
+      pure $ LoginInvalidCredentials (loginPageUrl redirectQueryParam ulEmail)
     Nothing -> do
       Log.logInfo "Invalid Credentials" (Aeson.object [("field", "email"), "value" .= ulEmail])
-      pure $ LoginInvalidCredentials ("/" <> Http.toUrlPiece (userLinks.loginGet Nothing $ Just ulEmail))
+      pure $ LoginInvalidCredentials (loginPageUrl redirectQueryParam ulEmail)
+
+-- | The login page, with the redirect target and the email of the attempt.
+loginPageUrl :: Maybe Text -> EmailAddress -> Text
+loginPageUrl redirectQueryParam email =
+  "/" <> Http.toUrlPiece (userLinks.loginGet redirectQueryParam (Just email))
 
 -- | Build session cookie and redirect URL for a successful login.
 --
@@ -129,8 +134,8 @@ handler sockAddr mUserAgent loginForm redirectQueryParam = do
     Left err -> do
       logHandlerError "Login" err
       pure $
-        Servant.noHeader $
-          Servant.addHeader ("/" <> Http.toUrlPiece (userLinks.loginGet Nothing Nothing)) Servant.NoContent
+        Servant.addHeader (flashCookie (Just loginErrorFlash)) $
+          Servant.addHeader (loginPageUrl redirectQueryParam (ulEmail loginForm)) Servant.NoContent
     Right (LoginSuccess cookieHeader redirectLink) ->
       pure $
         Servant.addHeader cookieHeader $
@@ -138,4 +143,15 @@ handler sockAddr mUserAgent loginForm redirectQueryParam = do
     Right (LoginEmailNotVerified redirectUrl) ->
       pure $ Servant.noHeader $ Servant.addHeader redirectUrl Servant.NoContent
     Right (LoginInvalidCredentials redirectUrl) ->
-      pure $ Servant.noHeader $ Servant.addHeader redirectUrl Servant.NoContent
+      pure $
+        Servant.addHeader (flashCookie (Just invalidCredentialsFlash)) $
+          Servant.addHeader redirectUrl Servant.NoContent
+
+-- | The banner that the login page shows after a failed login.
+invalidCredentialsFlash :: FlashMessage
+invalidCredentialsFlash = FlashMessage Error "Login Failed" "Your email address or password is invalid."
+
+-- | The banner that the login page shows after a login that failed for a
+-- reason other than the credentials.
+loginErrorFlash :: FlashMessage
+loginErrorFlash = FlashMessage Error "Login Failed" "Something went wrong. Try again."

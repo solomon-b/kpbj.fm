@@ -12,6 +12,7 @@ import API.Types (Routes (..))
 import App.Common (getUserInfo, renderTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
+import Component.Flash (FlashMessage)
 import Control.Monad (forM)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
@@ -56,9 +57,10 @@ handler ::
   Maybe Int64 ->
   Maybe Text ->
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler maybePage maybeTag cookie (foldHxReq -> hxRequest) =
+handler maybePage maybeTag cookie mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Blog list" apiLinks.rootGet $ do
     mUserInfo <- lift $ getUserInfo cookie <&> fmap snd
     let page = fromMaybe 1 maybePage
@@ -67,7 +69,7 @@ handler maybePage maybeTag cookie (foldHxReq -> hxRequest) =
     vd <- action maybePage maybeTag
     if isAppendRequest
       then pure $ renderItemsFragment vd.blvdStorageBackend vd.blvdCurrentTime vd.blvdPosts vd.blvdPage vd.blvdHasMore vd.blvdMaybeTag
-      else lift $ renderTemplate hxRequest mUserInfo (template vd.blvdStorageBackend vd.blvdCurrentTime vd.blvdPosts vd.blvdPage vd.blvdHasMore vd.blvdMaybeTag)
+      else lift $ renderTemplate hxRequest mFlash mUserInfo (template vd.blvdStorageBackend vd.blvdCurrentTime vd.blvdPosts vd.blvdPage vd.blvdHasMore vd.blvdMaybeTag)
 
 --------------------------------------------------------------------------------
 

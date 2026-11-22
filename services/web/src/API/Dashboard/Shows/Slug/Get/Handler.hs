@@ -16,6 +16,7 @@ import App.Handler.Combinators (authorizeShow)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad (unless)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
@@ -86,23 +87,25 @@ handler ::
   Slug ->
   Maybe Int ->
   Satisfies 'UserMetadata.Host RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler showId showSlug mPage host@(Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler showId showSlug mPage host@(Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Show details" apiLinks.rootGet $ do
     showModel <- authorizeShow host showSlug
     vd <- action auth.raMetadata showId showModel mPage
-    lift $ renderShowDetails vd.sdvBackend hxRequest vd.sdvUserMetadata vd.sdvShowModel (Just vd.sdvPage)
+    lift $ renderShowDetails vd.sdvBackend hxRequest mFlash vd.sdvUserMetadata vd.sdvShowModel (Just vd.sdvPage)
 
 -- | Render show details page within dashboard frame
 renderShowDetails ::
   StorageBackend ->
   HxRequest ->
+  Maybe FlashMessage ->
   UserMetadata.Model ->
   Shows.Model ->
   Maybe Int ->
   AppM (Lucid.Html ())
-renderShowDetails backend hxRequest userMetadata showModel mPage = do
+renderShowDetails backend hxRequest mFlash userMetadata showModel mPage = do
   let page = fromMaybe 1 mPage
       limit = fromIntegral episodesPerPage
       offset = fromIntegral (page - 1) * fromIntegral episodesPerPage
@@ -111,10 +114,10 @@ renderShowDetails backend hxRequest userMetadata showModel mPage = do
     Left err -> do
       Log.logAttention "Failed to fetch show details from database" (show err)
       let content = template backend showModel [] [] [] [] [] page
-      renderDashboardTemplate hxRequest userMetadata (ForShow showModel) NavShows Nothing Nothing content
+      renderDashboardTemplate hxRequest mFlash userMetadata (ForShow showModel) NavShows Nothing Nothing content
     Right (hosts, schedule, episodes, blogPosts, tags) -> do
       let content = template backend showModel episodes hosts schedule blogPosts tags page
-      renderDashboardTemplate hxRequest userMetadata (ForShow showModel) NavShows Nothing Nothing content
+      renderDashboardTemplate hxRequest mFlash userMetadata (ForShow showModel) NavShows Nothing Nothing content
 
 fetchShowDetails ::
   UTCTime ->

@@ -7,8 +7,9 @@ module Component.Frame where
 import API.Links (apiLinks, archiveLink, dashboardLinks, eventsLinks, rootLink, scheduleLink, showsLinks, staticAssetLink, storeLinks, userLinks)
 import API.Types
 import App.CustomContext (StreamConfig (..))
-import Component.Banner (bannerContainerId)
+import Component.Banner (bannerContainer, bannerContainerId, bannerTemplates)
 import Component.FeedLink (FeedLink, renderFeedLink)
+import Component.Flash (FlashMessage, renderFlash)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
 import Data.String.Interpolate (i)
@@ -603,56 +604,24 @@ activeNavScript =
 
 -- | JavaScript that defines @window.showBanner(type, title, msg)@.
 --
--- Writes a banner into @#banner-container@. The type is @success@, @error@,
--- @warning@, or @info@. The flash script and the HTMX error script use it.
--- Load it before both of them.
+-- Appends a banner to @#banner-container@. The type is @success@, @error@,
+-- @warning@, or @info@. The banner is a copy of a template from
+-- 'bannerTemplates', so the script holds no banner markup. It sets the
+-- title and the message as text. The HTMX error script uses it, so load it
+-- before that script.
 showBannerScript :: Text
 showBannerScript =
-  "\
-  \window.showBanner = function(type, title, msg) {\
-  \    function esc(s) { const el = document.createElement('span'); el.textContent = s; return el.innerHTML; }\
-  \    const styles = {\
-  \      success: { bg: 'bg-[var(--theme-success)]/10', border: 'border-[var(--theme-success)]', title: 'text-[var(--theme-success)]', msg: 'text-[var(--theme-success)]', dismiss: 'text-[var(--theme-success)] hover:opacity-70', icon: '\\u2713' },\
-  \      error: { bg: 'bg-[var(--theme-error)]/10', border: 'border-[var(--theme-error)]', title: 'text-[var(--theme-error)]', msg: 'text-[var(--theme-error)]', dismiss: 'text-[var(--theme-error)] hover:opacity-70', icon: '\\u2715' },\
-  \      warning: { bg: 'bg-[var(--theme-warning)]/10', border: 'border-[var(--theme-warning)]', title: 'text-[var(--theme-warning)]', msg: 'text-[var(--theme-warning)]', dismiss: 'text-[var(--theme-warning)] hover:opacity-70', icon: '\\u26A0' },\
-  \      info: { bg: 'bg-[var(--theme-info)]/10', border: 'border-[var(--theme-info)]', title: 'text-[var(--theme-info)]', msg: 'text-[var(--theme-info)]', dismiss: 'text-[var(--theme-info)] hover:opacity-70', icon: '\\u2139' }\
-  \    };\
-  \    const style = styles[type] || styles.info;\
-  \    const container = document.getElementById('banner-container');\
-  \    if (container) {\
-  \      container.innerHTML = '<div id=\"banner\" class=\"' + style.bg + ' border-2 ' + style.border + ' p-4 mb-6 w-full\">' +\
-  \        '<div class=\"flex items-center justify-between\">' +\
-  \          '<div class=\"flex items-center gap-3\">' +\
-  \            '<span class=\"text-2xl\">' + style.icon + '</span>' +\
-  \            '<div>' +\
-  \              '<h3 class=\"font-bold ' + style.title + '\">' + esc(title) + '</h3>' +\
-  \              '<p class=\"text-sm ' + style.msg + '\">' + esc(msg) + '</p>' +\
-  \            '</div>' +\
-  \          '</div>' +\
-  \          '<button onclick=\"this.closest(\\'#banner\\').remove()\" class=\"' + style.dismiss + ' font-bold text-xl\">\\u00D7</button>' +\
-  \        '</div>' +\
-  \      '</div>';\
-  \    }\
-  \};"
-
--- | JavaScript to display banner from flash cookie on page load
---
--- Reads _flash cookie, displays the banner, then clears the cookie.
--- Needs 'showBannerScript'.
-bannerFromUrlScript :: Text
-bannerFromUrlScript =
-  "\
-  \(function() {\
-  \  const match = document.cookie.match(/_flash=([^;]+)/);\
-  \  if (!match) return;\
-  \  try {\
-  \    const flash = JSON.parse(decodeURIComponent(match[1]));\
-  \    window.showBanner(flash.type, flash.title, flash.msg);\
-  \    document.cookie = '_flash=; Max-Age=0; Path=/; SameSite=Strict';\
-  \  } catch(e) {\
-  \    document.cookie = '_flash=; Max-Age=0; Path=/; SameSite=Strict';\
-  \  }\
-  \})();"
+  [i|
+    window.showBanner = function(type, title, msg) {
+      const template = document.getElementById('banner-template-' + type) || document.getElementById('banner-template-info');
+      const container = document.getElementById('#{bannerContainerId}');
+      if (!template || !container) return;
+      const banner = template.content.firstElementChild.cloneNode(true);
+      banner.querySelector('[data-banner-title]').textContent = title;
+      banner.querySelector('[data-banner-message]').textContent = msg;
+      container.appendChild(banner);
+    };
+  |]
 
 -- | JavaScript to show an error banner when an HTMX request fails.
 --
@@ -964,9 +933,10 @@ suspensionBanner Suspended =
 -- | The full site frame around the page content.
 --
 -- The list of feeds puts one RSS discovery link in the head for each feed.
--- Most pages pass an empty list.
-template :: Maybe GoogleAnalyticsId -> StreamConfig -> Maybe UserMetadata.Model -> [FeedLink] -> Lucid.Html () -> Lucid.Html ()
-template mGoogleAnalyticsId streamSettings mUser feedLinks main =
+-- Most pages pass an empty list. The flash message of the request goes in
+-- the banner container.
+template :: Maybe GoogleAnalyticsId -> StreamConfig -> Maybe UserMetadata.Model -> Maybe FlashMessage -> [FeedLink] -> Lucid.Html () -> Lucid.Html ()
+template mGoogleAnalyticsId streamSettings mUser mFlash feedLinks main =
   Lucid.doctypehtml_ $ do
     Lucid.head_ $ do
       googleAnalyticsScript mGoogleAnalyticsId
@@ -990,7 +960,6 @@ template mGoogleAnalyticsId streamSettings mUser feedLinks main =
       Lucid.script_ [] activeNavScript
       Lucid.script_ [] showBannerScript
       Lucid.script_ [] htmxErrorBannerScript
-      Lucid.script_ [] bannerFromUrlScript
       Lucid.script_ [] clearBannerOnNavScript
       Lucid.style_ [] ("[x-cloak] { display: none !important; }" :: Text)
       Lucid.style_ [] marqueeStyles
@@ -1028,9 +997,11 @@ template mGoogleAnalyticsId streamSettings mUser feedLinks main =
                   navigation
                   authWidget mUser
 
-            -- Banner container
+            -- Banner container. The wrapper sets only the width, so it
+            -- takes no space when the container is empty.
             Lucid.div_ [class_ $ base [Tokens.px4, Tokens.maxWidth, "mx-auto", Tokens.fullWidth]] $
-              Lucid.div_ [Lucid.id_ bannerContainerId, Lucid.class_ Tokens.fullWidth] mempty
+              bannerContainer (foldMap renderFlash mFlash)
+            bannerTemplates
 
             -- Main content
             -- "isolate" creates a stacking context so PayPal iframes can't escape with high z-index
@@ -1096,11 +1067,11 @@ template mGoogleAnalyticsId streamSettings mUser feedLinks main =
 
 --------------------------------------------------------------------------------
 
-loadFrame :: (Log.MonadLog m, MonadThrow m) => Maybe GoogleAnalyticsId -> StreamConfig -> [FeedLink] -> Lucid.Html () -> m (Lucid.Html ())
-loadFrame mGoogleAnalyticsId streamSettings feedLinks = pure . template mGoogleAnalyticsId streamSettings Nothing feedLinks
+loadFrame :: (Log.MonadLog m, MonadThrow m) => Maybe GoogleAnalyticsId -> StreamConfig -> Maybe FlashMessage -> [FeedLink] -> Lucid.Html () -> m (Lucid.Html ())
+loadFrame mGoogleAnalyticsId streamSettings mFlash feedLinks = pure . template mGoogleAnalyticsId streamSettings Nothing mFlash feedLinks
 
-loadFrameWithUser :: (Log.MonadLog m, MonadThrow m) => Maybe GoogleAnalyticsId -> StreamConfig -> UserMetadata.Model -> [FeedLink] -> Lucid.Html () -> m (Lucid.Html ())
-loadFrameWithUser mGoogleAnalyticsId streamSettings user feedLinks = pure . template mGoogleAnalyticsId streamSettings (Just user) feedLinks
+loadFrameWithUser :: (Log.MonadLog m, MonadThrow m) => Maybe GoogleAnalyticsId -> StreamConfig -> UserMetadata.Model -> Maybe FlashMessage -> [FeedLink] -> Lucid.Html () -> m (Lucid.Html ())
+loadFrameWithUser mGoogleAnalyticsId streamSettings user mFlash feedLinks = pure . template mGoogleAnalyticsId streamSettings (Just user) mFlash feedLinks
 
 -- | Load content-only for HTMX responses
 loadContentOnly :: (Log.MonadLog m, MonadThrow m) => Lucid.Html () -> m (Lucid.Html ())

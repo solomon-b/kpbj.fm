@@ -13,6 +13,7 @@ import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.Trans (lift)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Execute (execQuery)
@@ -26,14 +27,16 @@ import Utils (fromRightM)
 -- | Handler for GET /dashboard/air-breaks/underwriters.
 handler ::
   Satisfies 'Staff RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Underwriter list" apiLinks.rootGet $ do
     underwriters <- fromRightM throwDatabaseError $ execQuery Underwriters.getAll
     lift $
       renderDashboardTemplate
         hxRequest
+        mFlash
         auth.raMetadata
         NoShow
         NavUnderwriters

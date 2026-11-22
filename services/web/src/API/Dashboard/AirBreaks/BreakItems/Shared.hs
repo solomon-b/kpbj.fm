@@ -206,8 +206,8 @@ announcementSection =
 -- List
 
 -- | @GET /dashboard/air-breaks/psas@ and @GET /dashboard/air-breaks/underwriting@.
-listHandler :: Section -> Maybe PageNumber -> Satisfies 'UserMetadata.Staff RoleAuth -> Maybe HxRequest -> AppM (Lucid.Html ())
-listHandler sec maybePage (Satisfies _ auth) (foldHxReq -> hxRequest) =
+listHandler :: Section -> Maybe PageNumber -> Satisfies 'UserMetadata.Staff RoleAuth -> Maybe FlashMessage -> Maybe HxRequest -> AppM (Lucid.Html ())
+listHandler sec maybePage (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors (sec.secLogName <> " list") apiLinks.rootGet $ do
     let page@(PageNumber pageNum) = fromMaybe (PageNumber 1) maybePage
         limit = 20 :: Limit
@@ -237,6 +237,7 @@ listHandler sec maybePage (Satisfies _ auth) (foldHxReq -> hxRequest) =
         lift $
           renderDashboardTemplate
             hxRequest
+            mFlash
             auth.raMetadata
             NoShow
             sec.secNav
@@ -248,8 +249,8 @@ listHandler sec maybePage (Satisfies _ auth) (foldHxReq -> hxRequest) =
 -- Upload
 
 -- | @GET /dashboard/air-breaks/psas/new@ and @GET /dashboard/air-breaks/underwriting/new@.
-newGetHandler :: Section -> Satisfies 'UserMetadata.Staff RoleAuth -> Maybe HxRequest -> AppM (Lucid.Html ())
-newGetHandler sec (Satisfies _ auth) (foldHxReq -> hxRequest) =
+newGetHandler :: Section -> Satisfies 'UserMetadata.Staff RoleAuth -> Maybe FlashMessage -> Maybe HxRequest -> AppM (Lucid.Html ())
+newGetHandler sec (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors (sec.secLogName <> " upload form") apiLinks.rootGet $ do
     env <- asks (Has.getter @Environment)
     today <- pacificDay <$> liftIO getCurrentTime
@@ -258,6 +259,7 @@ newGetHandler sec (Satisfies _ auth) (foldHxReq -> hxRequest) =
     lift $
       renderDashboardTemplate
         hxRequest
+        mFlash
         auth.raMetadata
         NoShow
         sec.secNav
@@ -326,9 +328,10 @@ editGetHandler ::
   Section ->
   BreakItems.Id ->
   Satisfies 'UserMetadata.Staff RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-editGetHandler sec itemId (Satisfies _ auth) (foldHxReq -> hxRequest) =
+editGetHandler sec itemId (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleRedirectErrors (sec.secLogName <> " edit form") sec.secListLink $ do
     item <- fetchInSection sec itemId
     mUf <- sectionUnderwritingFields sec (Just item)
@@ -336,6 +339,7 @@ editGetHandler sec itemId (Satisfies _ auth) (foldHxReq -> hxRequest) =
       lift $
         renderDashboardTemplate
           hxRequest
+          mFlash
           auth.raMetadata
           NoShow
           sec.secNav

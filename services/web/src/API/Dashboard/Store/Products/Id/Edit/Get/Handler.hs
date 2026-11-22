@@ -19,6 +19,7 @@ import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -59,14 +60,16 @@ data ProductEditViewData = ProductEditViewData
 handler ::
   Products.Id ->
   Satisfies 'UserMetadata.Staff RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler productId (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler productId (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Product edit form" apiLinks.rootGet $ do
     vd <- action auth.raMetadata productId
     lift $
       renderDashboardTemplate
         hxRequest
+        mFlash
         vd.pevUserMetadata
         NoShow
         NavStoreProducts

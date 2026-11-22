@@ -2,6 +2,7 @@ module API.Dashboard.Users.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Data.Int (Int64)
 import Data.Text (Text)
 import Domain.Types.Filter (Filter)
@@ -25,5 +26,6 @@ type Route =
     :> Servant.QueryParam "role" (Filter UserMetadata.UserRole)
     :> Servant.QueryParam "sort" (Filter UserSortBy)
     :> RequireRole "cookie-auth" 'UserMetadata.Staff
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

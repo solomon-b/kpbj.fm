@@ -2,6 +2,7 @@ module API.Dashboard.AirBreaks.Timeline.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Data.Text (Text)
 import Domain.Types.HxRequest (HxRequest)
 import Effects.Database.Tables.UserMetadata (UserRole (..))
@@ -22,5 +23,6 @@ type Route =
     :> "timeline"
     :> Servant.QueryParam "day" Text
     :> RequireRole "cookie-auth" 'Staff
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

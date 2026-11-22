@@ -5,7 +5,7 @@ module API.User.Login.Get.Handler where
 import API.User.Login.Get.Templates.Form (template)
 import App.Common (getUserInfo, renderUnauthTemplate)
 import App.Monad (AppM)
-import Component.Flash (jsRedirectBody)
+import Component.Flash (FlashMessage, jsRedirectBody)
 import Control.Applicative ((<|>))
 import Control.Monad.Catch (throwM)
 import Data.Text (Text)
@@ -22,11 +22,12 @@ import Servant qualified
 handler ::
   Maybe Cookie ->
   Maybe Text ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   Maybe Text ->
   Maybe EmailAddress ->
   AppM (Lucid.Html ())
-handler cookie hxCurrentUrl hxRequest redirectQueryParam emailQueryParam = do
+handler cookie hxCurrentUrl mFlash hxRequest redirectQueryParam emailQueryParam = do
   mUserInfo <- getUserInfo cookie
   case mUserInfo of
     Just _ -> do
@@ -46,4 +47,4 @@ handler cookie hxCurrentUrl hxRequest redirectQueryParam emailQueryParam = do
           }
     Nothing -> do
       let loginForm = template emailQueryParam $ hxCurrentUrl <|> redirectQueryParam
-      renderUnauthTemplate (foldHxReq hxRequest) loginForm
+      renderUnauthTemplate (foldHxReq hxRequest) mFlash loginForm

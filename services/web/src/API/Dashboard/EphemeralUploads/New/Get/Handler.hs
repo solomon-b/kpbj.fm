@@ -16,6 +16,7 @@ import App.Domains (audioUploadUrl)
 import App.Handler.Error (HandlerError, handleHtmlErrors)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -51,10 +52,11 @@ action userMetadata = do
 -- | Servant handler: thin glue composing action + render with dashboard chrome.
 handler ::
   Satisfies 'UserMetadata.Host RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Ephemeral upload form" apiLinks.rootGet $ do
     vd <- action auth.raMetadata
     let content = ephemeralUploadForm vd.unvUploadUrl
-    lift $ renderDashboardTemplate hxRequest vd.unvUserMetadata NoShow NavEphemeralUploads Nothing Nothing content
+    lift $ renderDashboardTemplate hxRequest mFlash vd.unvUserMetadata NoShow NavEphemeralUploads Nothing Nothing content

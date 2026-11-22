@@ -13,6 +13,7 @@ import App.Common (getUserInfo, renderTemplateWithFeeds)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
 import Component.FeedLink (stationFeed)
+import Component.Flash (FlashMessage)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
@@ -47,9 +48,10 @@ data ArchiveListViewData = ArchiveListViewData
 handler ::
   Maybe Int64 ->
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler maybePage cookie (foldHxReq -> hxRequest) =
+handler maybePage cookie mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Archive list" apiLinks.rootGet $ do
     mUserInfo <- lift $ getUserInfo cookie <&> fmap snd
     let page = fromMaybe 1 maybePage
@@ -58,7 +60,7 @@ handler maybePage cookie (foldHxReq -> hxRequest) =
     vd <- action maybePage
     if isAppendRequest
       then pure $ renderItemsFragment vd.alvdStorageBackend vd.alvdEpisodes vd.alvdPage vd.alvdHasMore
-      else lift $ renderTemplateWithFeeds hxRequest mUserInfo [stationFeed] (template vd.alvdStorageBackend vd.alvdEpisodes vd.alvdPage vd.alvdHasMore)
+      else lift $ renderTemplateWithFeeds hxRequest mFlash mUserInfo [stationFeed] (template vd.alvdStorageBackend vd.alvdEpisodes vd.alvdPage vd.alvdHasMore)
 
 --------------------------------------------------------------------------------
 

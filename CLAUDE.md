@@ -29,9 +29,10 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for system topology and CI/CD. See [READM
 
 ### HTML-Over-The-Wire
 - HTMX swaps HTML fragments (no JSON API + SPA)
-- `renderTemplate hxRequest mUserInfo content` returns full page or fragment based on `HX-Request` header
-- `renderUnauthTemplate` for unauthenticated pages
-- `renderDashboardTemplate hxRequest userMetadata showContext nav stats actionButton content` (in `App.Dashboard.Template`) for dashboard pages. Pass `NoShow` for a page that is not about a show, and `ForShow show` for a page about one show. Do not load shows for the sidebar in a handler.
+- `renderTemplate hxRequest mFlash mUserInfo content` returns full page or fragment based on `HX-Request` header
+- `renderUnauthTemplate hxRequest mFlash content` for unauthenticated pages
+- `renderDashboardTemplate hxRequest mFlash userMetadata showContext nav stats actionButton content` (in `App.Dashboard.Template`) for dashboard pages. Pass `NoShow` for a page that is not about a show, and `ForShow show` for a page about one show. Do not load shows for the sidebar in a handler.
+- `mFlash` is the flash message of the request. Every page route has the `ReadFlash` combinator (`App.Flash`), which gives the handler a `Maybe FlashMessage`. Pass it to the frame function. A full page renders it as a banner, and `Middleware.Flash` then deletes the `_flash` cookie.
 - Persistent music player survives navigation
 
 ### HTMX Response Patterns
@@ -59,6 +60,8 @@ handler (Satisfies _ auth) form =
         Servant.addHeader (flashCookie (Just flash)) Servant.NoContent
 ```
 
+The target page shows the flash. Its route reads the cookie with `ReadFlash`, and its frame renders the banner on the server. No JavaScript reads the cookie.
+
 `handleRedirectErrors`'s second argument is a `Servant.Link` (not `Text`) used as the redirect target for a suspended user (`UserSuspended`). `NotAuthorized` redirects to the dashboard or the home page, by role. Validation errors fall through to an inline OOB error banner instead of redirecting. Imports: `Component.Flash (FlashMessage (..), flashCookie)`, `Component.Banner (BannerType (..))`, `App.Handler.Error (handleRedirectErrors)`.
 
 **Pattern B — Row update with OOB banner** (update item in list, stay on page):
@@ -76,6 +79,8 @@ pure $ do
   renderBanner Success "Deleted" "Item deleted."
 ```
 Wrap with `handleBannerErrors`. Return type is `AppM (Lucid.Html ())`.
+
+`renderBanner` appends the banner to `#banner-container` with an out of band swap, so banners stack. All banner markup comes from `bannerItem` in `Component.Banner`. Do not write banner markup anywhere else, in Haskell or in JavaScript. In the browser, `window.showBanner(type, title, msg)` copies a hidden template that the frame renders with `bannerItem`.
 
 **Errors**: don't construct error banners by hand. Use the `handle*Errors` wrappers and the `throw*` helpers in `App.Handler.Error` (`throwDatabaseError`, `throwNotFound`, `throwNotAuthorized`, …). Each wrapper renders the appropriate OOB error banner (Pattern B/C) or redirect-with-flash (Pattern A) automatically.
 
@@ -162,16 +167,17 @@ src/API/<Feature>/<Action>/<Method>/
 type Route =
   "feature"
     :> Servant.Header "Cookie" Cookie
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())
 ```
 
 **Handler.hs**:
 ```haskell
-handler :: Maybe Cookie -> Maybe HxRequest -> AppM (Lucid.Html ())
-handler cookie (foldHxReq -> hxRequest) = do
+handler :: Maybe Cookie -> Maybe FlashMessage -> Maybe HxRequest -> AppM (Lucid.Html ())
+handler cookie mFlash (foldHxReq -> hxRequest) = do
   mUserInfo <- fmap snd <$> getUserInfo cookie
-  renderTemplate hxRequest mUserInfo pageTemplate
+  renderTemplate hxRequest mFlash mUserInfo pageTemplate
 ```
 
 A public page reads the optional user with `getUserInfo`, as above. A route that needs a role puts a gate in place of the `Cookie` header (see Role System).
@@ -219,11 +225,12 @@ Enforcement: the role of a route is in its type, with `servant-auth-roles`. The 
 type Route =
   "dashboard" :> "stream-settings"
     :> RequireRole "cookie-auth" 'Admin
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())
 
-handler :: Satisfies 'UserMetadata.Admin RoleAuth -> Maybe HxRequest -> AppM (Lucid.Html ())
-handler (Satisfies _ auth) (foldHxReq -> hxRequest) = ...  -- auth.raUser, auth.raMetadata
+handler :: Satisfies 'UserMetadata.Admin RoleAuth -> Maybe FlashMessage -> Maybe HxRequest -> AppM (Lucid.Html ())
+handler (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) = ...  -- auth.raUser, auth.raMetadata
 ```
 
 - A gate admits its role and every role above it. A suspended user has the effective role `User`.
@@ -254,7 +261,7 @@ just build            # Build all
 just test             # Run tests
 just test-liquidsoap  # Run Liquidsoap integration tests (~9 min)
 
-# Formatting (ormolu 0.7.2.0 required)
+# Formatting (ormolu 0.8.0.2 required)
 just format-changed   # Format changed files
 just hlint-changed    # Lint changed files
 

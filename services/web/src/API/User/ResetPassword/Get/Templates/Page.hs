@@ -32,17 +32,14 @@ userResetPasswordPostUrl = Link.linkURI userLinks.resetPasswordPost
 --
 -- Shows a form for the user to enter their new password.
 -- The token is included as a hidden field.
-template :: Token -> Maybe Text -> Lucid.Html ()
-template token mError =
+template :: Token -> Lucid.Html ()
+template token =
   let postUrl = [i|/#{userResetPasswordPostUrl}|]
    in Lucid.div_
         [class_ $ base [Tokens.fullWidth, "max-w-md", "mx-auto"]]
         do
           Lucid.div_ [class_ $ base [Tokens.bgMain, "p-8"]] do
             pageHeader "RESET PASSWORD"
-
-            -- Error alert (shown when validation failed)
-            maybe mempty errorAlert mError
 
             -- Instructions
             Lucid.p_
@@ -96,9 +93,3 @@ passwordRequirements =
     Lucid.div_ "• At least 8 characters long"
     Lucid.div_ "• Include uppercase and lowercase letters"
     Lucid.div_ "• Include at least one number"
-
-errorAlert :: Text -> Lucid.Html ()
-errorAlert message =
-  Lucid.div_
-    [class_ $ base [Tokens.p4, Tokens.mb4, Tokens.textSm, Tokens.errorText, "rounded-lg", Tokens.errorBg], Lucid.role_ "alert"]
-    (Lucid.toHtml message)

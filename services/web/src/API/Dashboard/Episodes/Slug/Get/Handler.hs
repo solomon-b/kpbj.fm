@@ -14,6 +14,7 @@ import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotAuthorized, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -84,15 +85,17 @@ handler ::
   Slug ->
   Episodes.EpisodeNumber ->
   Satisfies 'UserMetadata.Host RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler showSlug episodeNumber (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler showSlug episodeNumber (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Episode detail" apiLinks.rootGet $ do
     vd <- action auth.raUser auth.raMetadata showSlug episodeNumber
     let content = template vd.edvBackend vd.edvUserMetadata vd.edvShowModel vd.edvEpisode vd.edvTracks vd.edvTags
     lift $
       renderDashboardTemplate
         hxRequest
+        mFlash
         vd.edvUserMetadata
         (ForShow vd.edvShowModel)
         NavEpisodes

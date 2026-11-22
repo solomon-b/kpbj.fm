@@ -17,6 +17,7 @@ import App.Handler.Combinators (authorizeShow)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad (void)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
@@ -70,14 +71,15 @@ action userMetadata showSlug = do
 handler ::
   Slug ->
   Satisfies 'UserMetadata.Host RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler showSlug host@(Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler showSlug host@(Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Episode upload form" apiLinks.rootGet $ do
     void $ authorizeShow host showSlug
     vd <- action auth.raMetadata showSlug
     let content = episodeUploadForm vd.engvUploadUrl vd.engvShowModel vd.engvUpcomingDates vd.engvUserMetadata
-    lift $ renderDashboardTemplate hxRequest vd.engvUserMetadata (ForShow vd.engvShowModel) NavEpisodes Nothing Nothing content
+    lift $ renderDashboardTemplate hxRequest mFlash vd.engvUserMetadata (ForShow vd.engvShowModel) NavEpisodes Nothing Nothing content
 
 -- | Fetch show by slug or throw NotFound
 fetchShowOrNotFound ::

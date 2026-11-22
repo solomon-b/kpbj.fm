@@ -9,6 +9,7 @@ import API.Invite.Token.Get.Templates.ErrorPage qualified as ErrorPage
 import API.Invite.Token.Get.Templates.Page qualified as Page
 import App.Common (getUserInfo, renderUnauthTemplate)
 import App.Monad (AppM)
+import Component.Flash (FlashMessage)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Execute (execQuery)
@@ -32,10 +33,12 @@ handler ::
   HostInvitation.Token ->
   -- | Session cookie
   Maybe Cookie ->
+  -- | Flash message of the request
+  Maybe FlashMessage ->
   -- | HTMX request header
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler token cookie (foldHxReq -> hxRequest) = do
+handler token cookie mFlash (foldHxReq -> hxRequest) = do
   mUserInfo <- getUserInfo cookie
   case mUserInfo of
     Just (_, userMetadata)
@@ -43,22 +46,22 @@ handler token cookie (foldHxReq -> hxRequest) = do
           result <- execQuery (HostInvitation.getByTokenWithCreator token)
           case result of
             Right (Just invitation) ->
-              renderUnauthTemplate hxRequest (Page.staffPreviewTemplate invitation)
+              renderUnauthTemplate hxRequest mFlash (Page.staffPreviewTemplate invitation)
             _ ->
-              renderUnauthTemplate hxRequest ErrorPage.template
+              renderUnauthTemplate hxRequest mFlash ErrorPage.template
     Just _ -> do
       result <- execQuery (HostInvitation.getByToken token)
       case result of
         Right (Just invitation) ->
-          renderUnauthTemplate hxRequest (Page.alreadyLoggedInTemplate invitation.hiRecipientEmail)
+          renderUnauthTemplate hxRequest mFlash (Page.alreadyLoggedInTemplate invitation.hiRecipientEmail)
         _ ->
-          renderUnauthTemplate hxRequest ErrorPage.template
+          renderUnauthTemplate hxRequest mFlash ErrorPage.template
     Nothing -> do
       result <- execQuery (HostInvitation.getByToken token)
       case result of
         Left _ ->
-          renderUnauthTemplate hxRequest ErrorPage.template
+          renderUnauthTemplate hxRequest mFlash ErrorPage.template
         Right Nothing ->
-          renderUnauthTemplate hxRequest ErrorPage.template
+          renderUnauthTemplate hxRequest mFlash ErrorPage.template
         Right (Just invitation) ->
-          renderUnauthTemplate hxRequest (Page.template token invitation)
+          renderUnauthTemplate hxRequest mFlash (Page.template token invitation)

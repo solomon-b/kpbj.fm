@@ -17,6 +17,7 @@ import App.Monad (AppM)
 import Component.Button ((&))
 import Component.Button qualified as Button
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -81,9 +82,10 @@ action userMetadata maybePage = do
 handler ::
   Maybe PageNumber ->
   Satisfies 'UserMetadata.Host RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler maybePage (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler maybePage (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Ephemeral uploads list" apiLinks.rootGet $ do
     vd <- action auth.raMetadata maybePage
     let PageNumber pageNum = vd.ulvPage
@@ -92,7 +94,7 @@ handler maybePage (Satisfies _ auth) (foldHxReq -> hxRequest) =
       then pure $ renderItemsFragment vd.ulvBackend vd.ulvIsStaffOrAdmin vd.ulvEphemeralUploads vd.ulvPage vd.ulvHasMore
       else do
         let ephemeralUploadsTemplate = template vd.ulvBackend vd.ulvEphemeralUploads vd.ulvPage vd.ulvHasMore vd.ulvUserMetadata
-        lift $ renderDashboardTemplate hxRequest vd.ulvUserMetadata NoShow NavEphemeralUploads Nothing (Just actionButton) ephemeralUploadsTemplate
+        lift $ renderDashboardTemplate hxRequest mFlash vd.ulvUserMetadata NoShow NavEphemeralUploads Nothing (Just actionButton) ephemeralUploadsTemplate
 
 fetchEphemeralUploads :: Bool -> Limit -> Offset -> ExceptT HandlerError AppM [EphemeralUploads.EphemeralUploadWithCreator]
 fetchEphemeralUploads includeFlagged limit offset =

@@ -16,6 +16,7 @@ import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (handleHtmlErrors, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.Trans (lift)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Execute (execQueryThrow)
@@ -31,9 +32,10 @@ import Utils (fromMaybeM)
 handler ::
   Orders.Id ->
   Satisfies 'Staff RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler orderId (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler orderId (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Store order detail" apiLinks.rootGet $ do
     -- Fetch the order; 404 if not found
     order <- fromMaybeM (throwNotFound "Order") $ lift (execQueryThrow (Orders.getById orderId))
@@ -44,6 +46,7 @@ handler orderId (Satisfies _ auth) (foldHxReq -> hxRequest) =
     lift $
       renderDashboardTemplate
         hxRequest
+        mFlash
         auth.raMetadata
         NoShow
         NavStoreOrders

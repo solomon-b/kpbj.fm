@@ -2,6 +2,7 @@ module API.Archive.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Data.Int (Int64)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
@@ -17,5 +18,6 @@ type Route =
   "archive"
     :> Servant.QueryParam "page" Int64
     :> Servant.Header "Cookie" Cookie
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

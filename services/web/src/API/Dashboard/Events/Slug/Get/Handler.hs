@@ -16,6 +16,7 @@ import App.Monad (AppM)
 import Component.Button ((&))
 import Component.Button qualified as Button
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
@@ -56,15 +57,17 @@ handler ::
   Events.Id ->
   Slug ->
   Satisfies 'UserMetadata.Staff RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler eventId _slug (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler eventId _slug (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Event detail" (dashboardEventsLinks.list Nothing) $ do
     vd <- action auth.raMetadata eventId
     let eventTemplate = template vd.edvEvent vd.edvAuthor
     lift $
       renderDashboardTemplate
         hxRequest
+        mFlash
         vd.edvUserMetadata
         NoShow
         NavEvents

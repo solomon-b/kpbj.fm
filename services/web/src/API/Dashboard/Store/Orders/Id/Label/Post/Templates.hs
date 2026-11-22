@@ -20,6 +20,7 @@ where
 
 import API.Links (dashboardStoreOrdersLinks, rootLink)
 import API.Types (DashboardStoreOrdersRoutes (..))
+import Component.Banner (BannerType (..), renderBanner)
 import Component.Button ((&))
 import Component.Button qualified as Button
 import Data.Foldable (for_)
@@ -31,7 +32,6 @@ import Domain.Types.Cents qualified as Cents
 import EasyPost.Types (Rate (..), Shipment (..))
 import Effects.Database.Tables.Orders qualified as Orders
 import Lucid qualified
-import Lucid.Base qualified as LucidBase
 import Lucid.HTMX (hxPost_, hxTarget_)
 import Store.Checkout.Logic (easypostRateToCents)
 
@@ -141,7 +141,7 @@ successTemplate ::
   Maybe Text ->
   Lucid.Html ()
 successTemplate trackingNumber mLabelUrl = do
-  renderBanner'
+  renderBanner Success "Label Purchased" "Shipping label purchased and saved."
   Lucid.div_
     [ class_ $ base [Tokens.bgAlt, Tokens.p4, "border", Tokens.borderDefault, "space-y-2"]
     ]
@@ -171,33 +171,3 @@ successTemplate trackingNumber mLabelUrl = do
                     ]
               ]
               "Download Shipping Label"
-  where
-    -- OOB success banner
-    renderBanner' :: Lucid.Html ()
-    renderBanner' =
-      Lucid.div_
-        [ Lucid.id_ "banner-container",
-          LucidBase.makeAttributes "hx-swap-oob" "true",
-          Lucid.class_ Tokens.fullWidth
-        ]
-        $ Lucid.div_
-          [ Lucid.id_ "banner",
-            class_ $
-              base
-                [ Tokens.successBg,
-                  Tokens.border2,
-                  Tokens.successBorder,
-                  Tokens.p4,
-                  Tokens.mb6,
-                  Tokens.fullWidth
-                ]
-          ]
-        $ Lucid.div_
-          [class_ $ base ["flex", "items-center", "justify-between"]]
-        $ Lucid.div_
-          [class_ $ base ["flex", "items-center", Tokens.gap4]]
-        $ do
-          Lucid.span_ [Lucid.class_ Tokens.text2xl] "✓"
-          Lucid.div_ $ do
-            Lucid.h3_ [class_ $ base [Tokens.fontBold, Tokens.successText]] "Label Purchased"
-            Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.successText]] "Shipping label purchased and saved."

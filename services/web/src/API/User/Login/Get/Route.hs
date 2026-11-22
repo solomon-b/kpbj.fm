@@ -2,6 +2,7 @@ module API.User.Login.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Data.Text (Text)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.EmailAddress (EmailAddress)
@@ -19,6 +20,7 @@ type Route =
     :> "login"
     :> Servant.Header "Cookie" Cookie
     :> Servant.Header "HX-Current-Url" Text
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.QueryParam "redirect" Text
     :> Servant.QueryParam "email" EmailAddress

@@ -2,6 +2,7 @@ module API.Dashboard.NewsletterSubscribers.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Data.Int (Int64)
 import Data.Text (Text)
 import Domain.Types.HxRequest (HxRequest)
@@ -19,6 +20,7 @@ type Route =
   "dashboard"
     :> "newsletter-subscribers"
     :> RequireRole "cookie-auth" 'Staff
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.QueryParam "search" Text
     :> Servant.QueryParam "page" Int64

@@ -70,10 +70,10 @@ import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Bifunctor (second)
 import Data.ByteString qualified as ByteString
-import Data.Maybe (isJust)
 import Data.Text.Display (display)
 import Data.Text.Encoding qualified as Text.Encoding
 import Data.Time (getCurrentTime)
+import Domain.Types.HxRequest (HxRequest (..), hxRequestFromHeaders)
 import Effects.Database.Tables.ServerSessions qualified as ServerSessions
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -200,7 +200,7 @@ roleRejectionHandler logEnv =
 -- default, so it does not count.
 rendersHtml :: Request -> Bool
 rendersHtml request =
-  isJust (lookup "HX-Request" headers)
+  hxRequestFromHeaders headers == IsHxRequest
     || maybe False ("text/html" `ByteString.isInfixOf`) (lookup "Accept" headers)
   where
     headers = Wai.requestHeaders request

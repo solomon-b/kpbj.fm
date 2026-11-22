@@ -9,6 +9,7 @@ import API.Shows.Slug.Episode.Get.Templates.Page (template)
 import App.Common (getUserInfo, renderTemplate)
 import App.Handler.Error (HandlerError, handlePublicErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
+import Component.Flash (FlashMessage)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -44,14 +45,15 @@ handler ::
   Slug ->
   Episodes.EpisodeNumber ->
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler showSlug episodeNumber cookie (foldHxReq -> hxRequest) =
+handler showSlug episodeNumber cookie mFlash (foldHxReq -> hxRequest) =
   handlePublicErrors "Episode detail" hxRequest renderError $ do
     mUserInfo <- lift $ getUserInfo cookie <&> fmap snd
     vd <- action showSlug episodeNumber
     lift $
-      renderTemplate hxRequest mUserInfo $
+      renderTemplate hxRequest mFlash mUserInfo $
         template
           vd.evdStorageBackend
           vd.evdShowModel
@@ -61,7 +63,7 @@ handler showSlug episodeNumber cookie (foldHxReq -> hxRequest) =
   where
     renderError content = do
       mUserInfo <- getUserInfo cookie <&> fmap snd
-      renderTemplate hxRequest mUserInfo content
+      renderTemplate hxRequest mFlash mUserInfo content
 
 --------------------------------------------------------------------------------
 

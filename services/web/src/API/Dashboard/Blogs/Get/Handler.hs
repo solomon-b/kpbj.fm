@@ -18,6 +18,7 @@ import App.Monad (AppM)
 import Component.Button ((&))
 import Component.Button qualified as Button
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Int (Int64)
@@ -44,9 +45,10 @@ handler ::
   Slug ->
   Maybe Int64 ->
   Satisfies 'UserMetadata.Host RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler showSlug maybePage (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler showSlug maybePage (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Show blog list" apiLinks.rootGet $ do
     vd <- action auth.raMetadata showSlug maybePage
     let isAppendRequest = hxRequest == IsHxRequest && vd.blvPage > 1
@@ -58,9 +60,9 @@ handler showSlug maybePage (Satisfies _ auth) (foldHxReq -> hxRequest) =
           pure $ renderItemsFragment showModel vd.blvPosts vd.blvPage vd.blvHasMore
       else case vd.blvCurrentShow of
         Nothing ->
-          lift $ renderDashboardTemplate hxRequest vd.blvUserMetadata NoShow NavBlog (statsContent []) Nothing (template Nothing [] vd.blvPage False)
+          lift $ renderDashboardTemplate hxRequest mFlash vd.blvUserMetadata NoShow NavBlog (statsContent []) Nothing (template Nothing [] vd.blvPage False)
         Just showModel ->
-          lift $ renderDashboardTemplate hxRequest vd.blvUserMetadata (ForShow showModel) NavBlog (statsContent vd.blvPosts) (actionButton showModel) (template (Just showModel) vd.blvPosts vd.blvPage vd.blvHasMore)
+          lift $ renderDashboardTemplate hxRequest mFlash vd.blvUserMetadata (ForShow showModel) NavBlog (statsContent vd.blvPosts) (actionButton showModel) (template (Just showModel) vd.blvPosts vd.blvPage vd.blvHasMore)
   where
     statsContent :: [ShowBlogPosts.Model] -> Maybe (Lucid.Html ())
     statsContent blogPosts =

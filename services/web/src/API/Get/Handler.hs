@@ -13,6 +13,7 @@ import App.Common (getUserInfo, renderTemplateWithFeeds)
 import App.Handler.Error (HandlerError, handleHtmlErrors)
 import App.Monad (AppM)
 import Component.FeedLink (stationFeed)
+import Component.Flash (FlashMessage)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -36,13 +37,14 @@ data HomeViewData = HomeViewData
 
 handler ::
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler cookie (foldHxReq -> hxRequest) =
+handler cookie mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Home" apiLinks.rootGet $ do
     mUserInfo <- lift $ getUserInfo cookie <&> fmap snd
     vd <- action
-    lift $ renderTemplateWithFeeds hxRequest mUserInfo [stationFeed] (template vd.hvdStorageBackend vd.hvdFeaturedEvent)
+    lift $ renderTemplateWithFeeds hxRequest mFlash mUserInfo [stationFeed] (template vd.hvdStorageBackend vd.hvdFeaturedEvent)
 
 --------------------------------------------------------------------------------
 

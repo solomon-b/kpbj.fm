@@ -18,6 +18,7 @@ import App.Monad (AppM)
 import Component.Button ((&))
 import Component.Button qualified as Button
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -104,9 +105,10 @@ handler ::
   Maybe (Filter UserMetadata.UserRole) ->
   Maybe (Filter UserSortBy) ->
   Satisfies 'UserMetadata.Staff RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler maybePage queryFilterParam roleFilterParam sortFilterParam (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler maybePage queryFilterParam roleFilterParam sortFilterParam (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Users list" apiLinks.rootGet $ do
     vd <- action auth.raUser auth.raMetadata maybePage queryFilterParam roleFilterParam sortFilterParam hxRequest
     now <- liftIO getCurrentTime
@@ -116,7 +118,7 @@ handler maybePage queryFilterParam roleFilterParam sortFilterParam (Satisfies _ 
       else do
         let usersTemplate = template vd.ulvViewerId vd.ulvViewerRole now vd.ulvUsers vd.ulvPage vd.ulvHasMore vd.ulvQueryFilter vd.ulvRoleFilter vd.ulvSortBy
             filtersContent = Just $ filtersUI vd.ulvQueryFilter vd.ulvRoleFilter vd.ulvSortBy
-        lift $ renderDashboardTemplate hxRequest vd.ulvUserMetadata NoShow NavUsers filtersContent Nothing usersTemplate
+        lift $ renderDashboardTemplate hxRequest mFlash vd.ulvUserMetadata NoShow NavUsers filtersContent Nothing usersTemplate
 
 -- | Filter UI for top bar
 filtersUI :: Maybe Text -> Maybe UserMetadata.UserRole -> UserSortBy -> Lucid.Html ()

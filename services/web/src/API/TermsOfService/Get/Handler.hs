@@ -7,6 +7,7 @@ module API.TermsOfService.Get.Handler where
 import API.TermsOfService.Get.Templates (template)
 import App.Common (getUserInfo, renderTemplate)
 import App.Monad (AppM)
+import Component.Flash (FlashMessage)
 import Data.Functor ((<&>))
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
@@ -19,9 +20,10 @@ import Lucid qualified
 
 handler ::
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler cookie (foldHxReq -> hxRequest) = do
+handler cookie mFlash (foldHxReq -> hxRequest) = do
   mUserInfo <- getUserInfo cookie <&> fmap snd
   -- Fetch page content from database
   pageResult <- execQuery (SitePages.getPageBySlug "terms-of-service")
@@ -30,4 +32,4 @@ handler cookie (foldHxReq -> hxRequest) = do
       Log.logAttention "Failed to fetch terms of service page from database" (show err)
       pure Nothing
     Right p -> pure p
-  renderTemplate hxRequest mUserInfo (template mPage)
+  renderTemplate hxRequest mFlash mUserInfo (template mPage)

@@ -16,6 +16,7 @@ import App.Monad (AppM)
 import Component.Button ((&))
 import Component.Button qualified as Button
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
@@ -59,15 +60,17 @@ handler ::
   BlogPosts.Id ->
   Slug ->
   Satisfies 'UserMetadata.Staff RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler postId _slug (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler postId _slug (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Station blog post detail" (dashboardStationBlogLinks.list Nothing) $ do
     vd <- action auth.raMetadata postId
     let postTemplate = template vd.sbdvPost vd.sbdvTags vd.sbdvAuthor
     lift $
       renderDashboardTemplate
         hxRequest
+        mFlash
         vd.sbdvUserMetadata
         NoShow
         NavStationBlog

@@ -8,7 +8,7 @@ module API.User.Login.Get.Templates.Form where
 import API.Links (userLinks)
 import API.Types
 import Component.PageHeader (pageHeader)
-import Data.Maybe (fromMaybe, isJust)
+import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
@@ -37,16 +37,12 @@ template :: Maybe EmailAddress -> Maybe Text -> Lucid.Html ()
 template emailAddress redirectLink =
   let emailValue = maybe "" display emailAddress
       redirectLink' = fromMaybe "/" redirectLink
-      hasError = isJust emailAddress
       postUrl = [i|/#{userLoginPostUrl redirectLink'}|]
    in Lucid.div_
         [class_ $ base [Tokens.fullWidth, "max-w-md", "mx-auto"]]
         do
           Lucid.div_ [class_ $ base [Tokens.bgMain, "p-8"]] do
             pageHeader "LOGIN"
-
-            -- Error alert (shown when login failed)
-            when hasError alert
 
             -- Login form using form builder
             renderForm (loginFormConfig postUrl) (loginForm emailValue)
@@ -120,9 +116,3 @@ registerSection =
         class_ $ base [Tokens.successBg, Tokens.successText, Tokens.px6, "py-3", Tokens.fontBold, Tokens.hoverBg, "inline-block"]
       ]
       "CREATE ACCOUNT"
-
-alert :: Lucid.Html ()
-alert =
-  Lucid.div_
-    [class_ $ base [Tokens.p4, Tokens.mb4, Tokens.textSm, Tokens.errorText, "rounded-lg", Tokens.errorBg], Lucid.role_ "alert"]
-    "Your email address or password is invalid."

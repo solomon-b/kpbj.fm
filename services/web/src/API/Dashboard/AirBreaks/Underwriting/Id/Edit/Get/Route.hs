@@ -2,6 +2,7 @@ module API.Dashboard.AirBreaks.Underwriting.Id.Edit.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Data.Text (Text)
 import Domain.Types.HxRequest (HxRequest)
 import Effects.Database.Tables.BreakItems qualified as BreakItems
@@ -22,5 +23,6 @@ type Route =
     :> Servant.Capture "underwriting_id" BreakItems.Id
     :> "edit"
     :> RequireRole "cookie-auth" 'Staff
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))

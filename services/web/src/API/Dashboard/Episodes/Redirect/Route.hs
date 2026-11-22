@@ -2,6 +2,7 @@ module API.Dashboard.Episodes.Redirect.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
 import Effects.Database.Tables.UserMetadata (UserRole (..))
@@ -21,5 +22,6 @@ type Route =
     :> "episodes"
     :> RequireRole "cookie-auth" 'Host
     :> Servant.Header "Cookie" Cookie
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

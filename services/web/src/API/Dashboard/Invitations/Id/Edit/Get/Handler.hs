@@ -16,6 +16,7 @@ import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Component.ScheduleEditor (ScheduleEditorData (..), slotToEditorJson)
 import Control.Monad.Trans (lift)
 import Data.Text (Text)
@@ -39,9 +40,10 @@ import Utils (fromRightM)
 handler ::
   HostInvitation.Id ->
   Satisfies 'Staff RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler invitationId (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler invitationId (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Edit invitation form" dashboardInvitationsLinks.list $ do
     inv <- fromRightM throwDatabaseError $ execQuery (HostInvitation.getById invitationId)
     invitation <- case inv of
@@ -62,7 +64,7 @@ handler invitationId (Satisfies _ auth) (foldHxReq -> hxRequest) =
               sedMinDate = dateText (min today invitation.hiStartsOn)
             }
     lift $
-      renderDashboardTemplate hxRequest auth.raMetadata NoShow NavInvitations Nothing Nothing $
+      renderDashboardTemplate hxRequest mFlash auth.raMetadata NoShow NavInvitations Nothing Nothing $
         template invitation.hiId invitation.hiRecipientEmail editorData
 
 --------------------------------------------------------------------------------

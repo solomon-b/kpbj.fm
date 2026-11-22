@@ -11,7 +11,6 @@ where
 import API.Links (apiLinks, userLinks)
 import API.Types
 import Component.PageHeader (pageHeader)
-import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
@@ -46,16 +45,12 @@ template mDisplayName mFullName mEmailAddress _redirectLink =
   let displayNameValue = maybe "" display mDisplayName
       fullNameValue = maybe "" display mFullName
       emailValue = maybe "" display mEmailAddress
-      hasError = isJust mEmailAddress
       postUrl = [i|/#{userRegisterPostUrl}|]
    in Lucid.div_
         [class_ $ base ["max-w-2xl", "mx-auto"]]
         do
           Lucid.div_ [class_ $ base [Tokens.bgMain, "p-8"]] do
             pageHeader "CREATE ACCOUNT"
-
-            -- Error alert (shown when registration failed)
-            when hasError alert
 
             -- Registration form using form builder
             renderForm (registerFormConfig postUrl) (registerForm displayNameValue fullNameValue emailValue)
@@ -174,9 +169,3 @@ loginSection =
         class_ $ base [Tokens.infoBg, Tokens.infoText, Tokens.px6, "py-3", Tokens.fontBold, Tokens.hoverBg, "inline-block"]
       ]
       "LOGIN"
-
-alert :: Lucid.Html ()
-alert =
-  Lucid.div_
-    [class_ $ base [Tokens.p4, Tokens.mb4, Tokens.textSm, Tokens.errorText, "rounded-lg", Tokens.errorBg], Lucid.role_ "alert"]
-    "Your email address or password is invalid."

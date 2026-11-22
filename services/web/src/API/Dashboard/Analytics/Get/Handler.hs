@@ -30,6 +30,7 @@ import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Exception (try)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
@@ -65,14 +66,16 @@ import Servant.Links qualified as Links
 handler ::
   Satisfies 'UserMetadata.Admin RoleAuth ->
   Maybe AnalyticsRange ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler (Satisfies _ auth) (fromMaybe defaultRange -> range) (foldHxReq -> hxRequest) =
+handler (Satisfies _ auth) (fromMaybe defaultRange -> range) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Analytics" apiLinks.rootGet $ do
     vd <- action auth.raMetadata range
     lift $
       renderDashboardTemplate
         hxRequest
+        mFlash
         vd.avUserMetadata
         NoShow
         NavAnalytics

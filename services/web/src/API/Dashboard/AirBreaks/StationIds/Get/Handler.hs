@@ -17,6 +17,7 @@ import App.Monad (AppM)
 import Component.Button ((&))
 import Component.Button qualified as Button
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -39,9 +40,10 @@ import Utils (fromRightM)
 handler ::
   Maybe PageNumber ->
   Satisfies 'UserMetadata.Host RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler maybePage (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler maybePage (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Station IDs list" apiLinks.rootGet $ do
     vd <- action auth.raMetadata maybePage
     let isAppendRequest = hxRequest == IsHxRequest && vd.sivPage > PageNumber 1
@@ -49,7 +51,7 @@ handler maybePage (Satisfies _ auth) (foldHxReq -> hxRequest) =
       then pure $ renderItemsFragment vd.sivBackend vd.sivStationIds vd.sivPage vd.sivHasMore
       else do
         let stationIdsTemplate = template vd.sivBackend vd.sivStationIds vd.sivPage vd.sivHasMore vd.sivUserMetadata
-        lift $ renderDashboardTemplate hxRequest vd.sivUserMetadata NoShow NavStationIds Nothing (Just actionButton) stationIdsTemplate
+        lift $ renderDashboardTemplate hxRequest mFlash vd.sivUserMetadata NoShow NavStationIds Nothing (Just actionButton) stationIdsTemplate
 
 --------------------------------------------------------------------------------
 

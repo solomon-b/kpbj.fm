@@ -2,6 +2,7 @@ module API.Dashboard.AirBreaks.Underwriting.Delivery.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Data.Text (Text)
 import Domain.Types.HxRequest (HxRequest)
 import Effects.Database.Tables.UserMetadata (UserRole (..))
@@ -23,5 +24,6 @@ type Route =
     :> "delivery"
     :> Servant.QueryParam "month" Text
     :> RequireRole "cookie-auth" 'Staff
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

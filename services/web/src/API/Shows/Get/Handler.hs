@@ -11,6 +11,7 @@ import API.Types
 import App.Common (getUserInfo, renderTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
+import Component.Flash (FlashMessage)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -45,16 +46,17 @@ handler ::
   Maybe (Filter Search) ->
   Maybe (Filter ShowSortBy) ->
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler mPage mTag mStatus mSearch mSort (coerce -> cookie) (fromMaybe IsNotHxRequest -> hxRequest) =
+handler mPage mTag mStatus mSearch mSort (coerce -> cookie) mFlash (fromMaybe IsNotHxRequest -> hxRequest) =
   handleHtmlErrors "Shows list" apiLinks.rootGet $ do
     mUserInfo <- lift $ getUserInfo cookie <&> fmap snd
     let isAppendRequest = hxRequest == IsHxRequest && fromMaybe 1 mPage > 1
     viewData <- action mPage mTag mStatus mSearch mSort
     if isAppendRequest
       then pure (renderItemsFragment viewData)
-      else lift $ renderTemplate hxRequest mUserInfo (template viewData)
+      else lift $ renderTemplate hxRequest mFlash mUserInfo (template viewData)
 
 --------------------------------------------------------------------------------
 

@@ -10,6 +10,7 @@ import App.Config (Environment)
 import App.CustomContext (StreamConfig)
 import App.Monad (AppM)
 import Component.FeedLink (FeedLink)
+import Component.Flash (FlashMessage)
 import Component.Frame (loadContentOnly, loadFrame, loadFrameWithUser)
 import Control.Monad.Reader (asks)
 import Data.Aeson ((.=))
@@ -55,11 +56,13 @@ getUserInfo (coerce -> cookie) = do
 -- Reads stream config from environment for the music player.
 renderTemplate ::
   HxRequest ->
+  -- | The flash message of the request, from 'App.Flash.ReadFlash'
+  Maybe FlashMessage ->
   Maybe UserMetadata.Model ->
   Lucid.Html () ->
   AppM (Lucid.Html ())
-renderTemplate hxRequest mUserInfo =
-  renderTemplateWithFeeds hxRequest mUserInfo []
+renderTemplate hxRequest mFlash mUserInfo =
+  renderTemplateWithFeeds hxRequest mFlash mUserInfo []
 
 -- | 'renderTemplate' for a page that offers RSS feeds.
 --
@@ -67,11 +70,13 @@ renderTemplate hxRequest mUserInfo =
 -- HTMX fragment has no head, so the feeds have no effect on it.
 renderTemplateWithFeeds ::
   HxRequest ->
+  -- | The flash message of the request, from 'App.Flash.ReadFlash'
+  Maybe FlashMessage ->
   Maybe UserMetadata.Model ->
   [FeedLink] ->
   Lucid.Html () ->
   AppM (Lucid.Html ())
-renderTemplateWithFeeds hxRequest mUserInfo feedLinks templateContent = do
+renderTemplateWithFeeds hxRequest mFlash mUserInfo feedLinks templateContent = do
   mGoogleAnalyticsId <- asks getter
   case hxRequest of
     IsHxRequest ->
@@ -80,9 +85,9 @@ renderTemplateWithFeeds hxRequest mUserInfo feedLinks templateContent = do
       streamCfg <- asks (getter @StreamConfig)
       case mUserInfo of
         Just userInfo ->
-          loadFrameWithUser mGoogleAnalyticsId streamCfg userInfo feedLinks templateContent
+          loadFrameWithUser mGoogleAnalyticsId streamCfg userInfo mFlash feedLinks templateContent
         Nothing ->
-          loadFrame mGoogleAnalyticsId streamCfg feedLinks templateContent
+          loadFrame mGoogleAnalyticsId streamCfg mFlash feedLinks templateContent
 
 -- | Render template for unauthenticated pages (login, register, etc.)
 --
@@ -90,12 +95,14 @@ renderTemplateWithFeeds hxRequest mUserInfo feedLinks templateContent = do
 -- user context. It still reads stream config for the music player.
 renderUnauthTemplate ::
   HxRequest ->
+  -- | The flash message of the request, from 'App.Flash.ReadFlash'
+  Maybe FlashMessage ->
   Lucid.Html () ->
   AppM (Lucid.Html ())
-renderUnauthTemplate hxRequest templateContent = do
+renderUnauthTemplate hxRequest mFlash templateContent = do
   case hxRequest of
     IsHxRequest -> loadContentOnly templateContent
     IsNotHxRequest -> do
       mGoogleAnalyticsId <- asks getter
       streamCfg <- asks (getter @StreamConfig)
-      loadFrame mGoogleAnalyticsId streamCfg [] templateContent
+      loadFrame mGoogleAnalyticsId streamCfg mFlash [] templateContent

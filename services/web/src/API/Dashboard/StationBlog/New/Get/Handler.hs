@@ -14,6 +14,7 @@ import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Component.Flash (FlashMessage)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
@@ -40,14 +41,16 @@ action userMetadata =
 -- | Servant handler: thin glue composing action + render with dashboard chrome.
 handler ::
   Satisfies 'UserMetadata.Staff RoleAuth ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler (Satisfies _ auth) (foldHxReq -> hxRequest) =
+handler (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "Blog post create form" apiLinks.rootGet $ do
     vd <- action auth.raMetadata
     lift $
       renderDashboardTemplate
         hxRequest
+        mFlash
         vd.snvdUserMetadata
         NoShow
         NavStationBlog

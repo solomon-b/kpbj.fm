@@ -12,6 +12,7 @@ import API.Shows.Slug.Blog.Get.Templates.Page (template)
 import App.Common (getUserInfo, renderTemplate)
 import App.Handler.Error (HandlerError, handlePublicErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
+import Component.Flash (FlashMessage)
 import Control.Monad (join)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
@@ -60,14 +61,15 @@ handler ::
   Maybe Int64 ->
   Maybe Text ->
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler slug maybePage maybeTag cookie (foldHxReq -> hxRequest) =
+handler slug maybePage maybeTag cookie mFlash (foldHxReq -> hxRequest) =
   handlePublicErrors "Show blog" hxRequest renderError $ do
     mUserInfo <- lift $ getUserInfo cookie <&> fmap snd
     vd <- action slug maybePage maybeTag
     lift $
-      renderTemplate hxRequest mUserInfo $
+      renderTemplate hxRequest mFlash mUserInfo $
         template
           vd.sbvdStorageBackend
           vd.sbvdShowModel
@@ -79,7 +81,7 @@ handler slug maybePage maybeTag cookie (foldHxReq -> hxRequest) =
   where
     renderError content = do
       mUserInfo <- getUserInfo cookie <&> fmap snd
-      renderTemplate hxRequest mUserInfo content
+      renderTemplate hxRequest mFlash mUserInfo content
 
 --------------------------------------------------------------------------------
 

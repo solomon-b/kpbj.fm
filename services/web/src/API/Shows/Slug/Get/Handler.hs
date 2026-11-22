@@ -11,6 +11,7 @@ import App.Common (getUserInfo, renderTemplate, renderTemplateWithFeeds)
 import App.Handler.Error (HandlerError, handlePublicErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.FeedLink (showFeed)
+import Component.Flash (FlashMessage)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -63,14 +64,15 @@ handler ::
   Slug ->
   Maybe Int ->
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler slug mPage cookie (foldHxReq -> hxRequest) =
+handler slug mPage cookie mFlash (foldHxReq -> hxRequest) =
   handlePublicErrors "Show detail" hxRequest renderError $ do
     mUserInfo <- lift $ getUserInfo cookie <&> fmap snd
     vd <- action slug mPage
     lift $
-      renderTemplateWithFeeds hxRequest mUserInfo [showFeed vd.svdShowModel] $
+      renderTemplateWithFeeds hxRequest mFlash mUserInfo [showFeed vd.svdShowModel] $
         template
           vd.svdStorageBackend
           vd.svdShowModel
@@ -83,7 +85,7 @@ handler slug mPage cookie (foldHxReq -> hxRequest) =
   where
     renderError content = do
       mUserInfo <- getUserInfo cookie <&> fmap snd
-      renderTemplate hxRequest mUserInfo content
+      renderTemplate hxRequest mFlash mUserInfo content
 
 --------------------------------------------------------------------------------
 

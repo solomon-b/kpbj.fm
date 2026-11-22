@@ -14,7 +14,7 @@ import API.Types
 import API.User.ForgotPassword.Get.Templates.Page qualified as Templates
 import App.Common (getUserInfo, renderUnauthTemplate)
 import App.Monad (AppM)
-import Component.Flash (throwHxRedirect)
+import Component.Flash (FlashMessage, throwHxRedirect)
 import Data.String.Interpolate (i)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Lucid qualified
@@ -28,13 +28,14 @@ dashboardGetUrl = Links.linkURI dashboardLinks.home
 --------------------------------------------------------------------------------
 
 handler ::
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler (foldHxReq -> hxRequest) = do
+handler mFlash (foldHxReq -> hxRequest) = do
   getUserInfo Nothing >>= \case
     Just _ ->
       -- Logged in users should change their password in settings
       throwHxRedirect [i|/#{dashboardGetUrl}|] Nothing
     Nothing -> do
       let content = Templates.template
-      renderUnauthTemplate hxRequest content
+      renderUnauthTemplate hxRequest mFlash content

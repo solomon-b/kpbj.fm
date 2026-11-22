@@ -6,6 +6,7 @@ module API.User.Login.Post.HandlerSpec where
 
 import API.User.Login.Post.Handler (LoginResult (..), action)
 import API.User.Login.Post.Route (Login (..))
+import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Password.Argon2 (mkPassword)
@@ -24,7 +25,7 @@ import Test.Database.Monad (TestDBConfig, withTestDB)
 import Test.Gen.EmailAddress (mkEmailAddressUnsafe)
 import Test.Handler.Fixtures (expectSetupRight, mkUserInsert)
 import Test.Handler.Monad (bracketAppM)
-import Test.Hspec (Spec, describe, expectationFailure, it)
+import Test.Hspec (Spec, describe, expectationFailure, it, shouldBe)
 
 --------------------------------------------------------------------------------
 
@@ -95,9 +96,10 @@ test_invalidCredentialsWrongPassword cfg = do
     _ <- liftIO $ expectSetupRight dbResult
 
     let loginForm = Login (mkEmailAddressUnsafe "login-wrong-pass@test.example.com") (mkPassword "wrongpassword") False
-    result <- runExceptT $ action testSockAddr Nothing loginForm Nothing
+    result <- runExceptT $ action testSockAddr Nothing loginForm (Just "/dashboard/episodes")
     liftIO $ case result of
-      Right (LoginInvalidCredentials _) -> pure ()
+      Right (LoginInvalidCredentials url) ->
+        url `shouldBe` "/user/login?redirect=%2Fdashboard%2Fepisodes&email=login-wrong-pass%40test.example.com"
       Right other -> expectationFailure $ "Expected LoginInvalidCredentials but got: " <> showLoginResult other
       Left err -> expectationFailure $ "Expected Right LoginInvalidCredentials but got Left: " <> show err
 
@@ -146,9 +148,9 @@ test_noRememberMeBrowserSessionCookie cfg = do
     result <- runExceptT $ action testSockAddr Nothing loginForm Nothing
     liftIO $ case result of
       Right (LoginSuccess cookie _) ->
-        if "Max-Age" `Text.isInfixOf` cookie
-          then expectationFailure $ "Expected cookie without Max-Age, got: " <> Text.unpack cookie
-          else pure ()
+        when ("Max-Age" `Text.isInfixOf` cookie) $
+          expectationFailure $
+            "Expected cookie without Max-Age, got: " <> Text.unpack cookie
       Right other -> expectationFailure $ "Expected LoginSuccess but got: " <> showLoginResult other
       Left err -> expectationFailure $ "Expected Right LoginSuccess but got Left: " <> show err
 
@@ -182,8 +184,8 @@ assertExpiryAround (Just expiresAt) target = do
 -- | Most recent @expires_at@ for any session belonging to a user.
 latestSessionExpiry :: User.Id -> Hasql.Statement () (Maybe UTCTime)
 latestSessionExpiry uid =
-  fmap (fmap getOneColumn) $
-    interp
+  fmap getOneColumn
+    <$> interp
       False
       [sql|
     SELECT expires_at

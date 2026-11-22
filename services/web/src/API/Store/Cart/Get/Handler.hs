@@ -5,6 +5,7 @@ module API.Store.Cart.Get.Handler where
 import API.Store.Cart.Get.Templates (template)
 import App.Common (getUserInfo, renderTemplate)
 import App.Monad (AppM)
+import Component.Flash (FlashMessage)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
 import Domain.Types.HxRequest qualified as HxRequest
@@ -17,8 +18,9 @@ import Lucid qualified
 -- server-rendered item fragments.
 handler ::
   Maybe Cookie ->
+  Maybe FlashMessage ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler cookie (HxRequest.foldHxReq -> hxRequest) = do
+handler cookie mFlash (HxRequest.foldHxReq -> hxRequest) = do
   mUserInfo <- fmap snd <$> getUserInfo cookie
-  renderTemplate hxRequest mUserInfo template
+  renderTemplate hxRequest mFlash mUserInfo template

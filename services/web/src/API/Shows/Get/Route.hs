@@ -2,6 +2,7 @@ module API.Shows.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Domain.Types.Cookie (Cookie)
 import Domain.Types.Filter (Filter)
 import Domain.Types.HxRequest (HxRequest)
@@ -26,5 +27,6 @@ type Route =
     :> Servant.QueryParam "search" (Filter Search)
     :> Servant.QueryParam "sortBy" (Filter ShowSortBy)
     :> Servant.Header "Cookie" Cookie
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

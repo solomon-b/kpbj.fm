@@ -2,6 +2,7 @@ module API.Dashboard.Shows.Get.Route where
 
 --------------------------------------------------------------------------------
 
+import App.Flash (ReadFlash)
 import Data.Int (Int64)
 import Data.Text (Text)
 import Domain.Types.Filter (Filter)
@@ -25,5 +26,6 @@ type Route =
     :> Servant.QueryParam "status" (Filter Shows.Status)
     :> Servant.QueryFlag "deleted"
     :> RequireRole "cookie-auth" 'Staff
+    :> ReadFlash
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())
