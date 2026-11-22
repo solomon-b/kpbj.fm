@@ -14,6 +14,7 @@ module App.Handler.Combinators
     requireStaffNotSuspended,
     requireAdminNotSuspended,
     requireShowHostOrStaff,
+    authorizeShow,
 
     -- * Validation Helpers
     requireJust,
@@ -23,9 +24,10 @@ where
 
 --------------------------------------------------------------------------------
 
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Common (getUserInfo)
 import App.CustomContext (PlayoutSecret (..), secretsMatch)
-import App.Handler.Error (HandlerError, throwDatabaseError, throwNotAuthenticated, throwNotAuthorized, throwValidationError)
+import App.Handler.Error (HandlerError, throwDatabaseError, throwNotAuthenticated, throwNotAuthorized, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Control.Monad (unless, when)
 import Control.Monad.Reader (asks)
@@ -37,10 +39,11 @@ import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowHost qualified as ShowHost
+import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
-import Utils (fromRightM)
+import Utils (fromMaybeM, fromRightM)
 
 --------------------------------------------------------------------------------
 
@@ -198,6 +201,40 @@ requireShowHostOrStaff userId showSlug userMetadata = do
       throwNotAuthorized msg (Just userMetadata.mUserRole)
   where
     msg = "You don't have permission to access this show."
+
+--------------------------------------------------------------------------------
+
+-- | Load the show in the path, and check that the user may manage it.
+--
+-- Staff and Admin may manage every show. A Host must have a row in
+-- @show_hosts@ for the show. The 'Satisfies' argument comes from a @'Host@
+-- gate, which already refuses a suspended user.
+--
+-- Usage:
+--
+-- @
+-- handler showSlug host =
+--   handleHtmlErrors "Show edit" apiLinks.rootGet $ do
+--     showModel <- authorizeShow host showSlug
+--     -- ... rest of handler
+-- @
+authorizeShow ::
+  Satisfies 'UserMetadata.Host RoleAuth ->
+  -- | The slug in the path
+  Slug ->
+  ExceptT HandlerError AppM Shows.Model
+authorizeShow (Satisfies _ auth) showSlug = do
+  showModel <-
+    fromMaybeM (throwNotFound "Show") $
+      fromRightM throwDatabaseError $
+        execQuery (Shows.getShowBySlug showSlug)
+  unless (UserMetadata.isStaffOrHigher auth.raMetadata.mUserRole) $ do
+    isHost <-
+      fromRightM throwDatabaseError $
+        execQuery (ShowHost.isUserHostOfShowSlug auth.raUser.mId showSlug)
+    unless isHost $
+      throwNotAuthorized "You don't have permission to access this show." (Just auth.raMetadata.mUserRole)
+  pure showModel
 
 --------------------------------------------------------------------------------
 

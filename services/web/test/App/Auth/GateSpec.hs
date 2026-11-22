@@ -17,16 +17,24 @@ import API.Types (DashboardRoutes (..), Routes (..), UserRoutes (..))
 import App.Auth (sessionCookieName)
 import App.Auth.Roles (RequireRole, RoleAuth, Satisfies (..), roleAuthHandler, roleRejectionHandler)
 import App.Config (Environment (..))
+import App.Handler.Combinators (authorizeShow)
+import App.Handler.Error (HandlerError (..))
 import Component.Banner (BannerType (..))
 import Component.Flash (FlashMessage (..), flashCookie)
 import Control.Exception (bracket)
 import Control.Monad (void)
+import Control.Monad.Except (throwError)
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Trans.Except (runExceptT)
 import Data.ByteString (ByteString)
+import Data.String (fromString)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time (NominalDiffTime, addUTCTime, getCurrentTime)
+import Domain.Types.Slug (Slug (..))
 import Effects.Database.Tables.ServerSessions qualified as ServerSessions
+import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Interpolate (getOneRow, interp, sql)
@@ -39,9 +47,10 @@ import Network.Wai qualified as Wai
 import Network.Wai.Test (SResponse (..), defaultRequest, request, runSession, setPath)
 import Servant (Context (..), (:<|>) (..), (:>))
 import Servant qualified
+import Test.Database.Helpers (addTestShowHost, insertTestShowWithSchedule)
 import Test.Database.Monad (TestDBConfig (..), noOpLoggerEnv, withTestDB)
-import Test.Handler.Fixtures (expectSetupRight, mkUserInsert, setupUserModels)
-import Test.Handler.Monad (acquireTestPool)
+import Test.Handler.Fixtures (defaultScheduleInsert, expectSetupRight, mkUserInsert, setupUserModels)
+import Test.Handler.Monad (acquireTestPool, bracketAppM)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldThrow)
 
 --------------------------------------------------------------------------------
@@ -72,6 +81,10 @@ spec =
       it "answers a fetch by a Host with a 403" test_fetchHost
       it "answers a fetch by a suspended Admin with a 403" test_fetchSuspendedAdmin
       it "lets a fetch by an Admin through" test_fetchAdmin
+      it "lets the host of a show through authorizeShow" test_authorizeShowHost
+      it "refuses a host of another show in authorizeShow" test_authorizeShowOtherHost
+      it "lets a Staff user who hosts no show through authorizeShow" test_authorizeShowStaff
+      it "answers an unknown slug in authorizeShow with a 404" test_authorizeShowUnknownSlug
 
 --------------------------------------------------------------------------------
 -- Tests
@@ -216,6 +229,39 @@ test_fetchAdmin cfg = withPool cfg $ \pool -> do
   statusCode (simpleStatus response) `shouldBe` 200
   simpleBody response `shouldBe` "Admin"
 
+test_authorizeShowHost :: TestDBConfig -> IO ()
+test_authorizeShowHost cfg = withPool cfg $ \pool -> do
+  (userId, cookie) <- userWithSessionId pool "gate-show-host" UserMetadata.Host NotSuspended 3600
+  showId <- insertShow pool "gate-show-host"
+  addHost pool showId userId
+  response <- showProbe cfg pool "gate-show-host" [cookie]
+  statusCode (simpleStatus response) `shouldBe` 200
+  simpleBody response `shouldBe` "gate-show-host"
+
+test_authorizeShowOtherHost :: TestDBConfig -> IO ()
+test_authorizeShowOtherHost cfg = withPool cfg $ \pool -> do
+  (userId, cookie) <- userWithSessionId pool "gate-show-other-host" UserMetadata.Host NotSuspended 3600
+  ownShowId <- insertShow pool "gate-show-own"
+  addHost pool ownShowId userId
+  void $ insertShow pool "gate-show-other"
+  response <- showProbe cfg pool "gate-show-other" [cookie]
+  shouldBeStatus response 403
+
+-- | Staff and Admin may manage every show, with no @show_hosts@ row.
+test_authorizeShowStaff :: TestDBConfig -> IO ()
+test_authorizeShowStaff cfg = withPool cfg $ \pool -> do
+  cookie <- userWithSession pool "gate-show-staff" UserMetadata.Staff NotSuspended 3600
+  void $ insertShow pool "gate-show-staff"
+  response <- showProbe cfg pool "gate-show-staff" [cookie]
+  statusCode (simpleStatus response) `shouldBe` 200
+  simpleBody response `shouldBe` "gate-show-staff"
+
+test_authorizeShowUnknownSlug :: TestDBConfig -> IO ()
+test_authorizeShowUnknownSlug cfg = withPool cfg $ \pool -> do
+  cookie <- userWithSession pool "gate-show-missing" UserMetadata.Host NotSuspended 3600
+  response <- showProbe cfg pool "gate-show-missing" [cookie]
+  shouldBeStatus response 404
+
 --------------------------------------------------------------------------------
 -- The probe API
 
@@ -269,6 +315,38 @@ probePath pool path headers =
         )
         probeServer
 
+-- | One route behind a @'Host@ gate that runs 'authorizeShow' on the slug in
+-- the path. It answers with the slug of the show, a 403 for a user who may
+-- not manage the show, and a 404 for a slug with no show.
+type ShowProbeAPI =
+  RequireRole "cookie-auth" 'UserMetadata.Host
+    :> "show"
+    :> Servant.Capture "slug" Slug
+    :> Servant.Get '[Servant.PlainText] Text
+
+showProbeServer :: TestDBConfig -> Servant.Server ShowProbeAPI
+showProbeServer cfg host slug =
+  liftIO (bracketAppM cfg (runExceptT (authorizeShow host slug))) >>= \case
+    Right showModel -> pure (display showModel.slug)
+    Left (NotAuthorized _ _) -> throwError Servant.err403
+    Left (NotFound _) -> throwError Servant.err404
+    Left err -> throwError Servant.err500 {Servant.errBody = fromString (show err)}
+
+-- | Send @GET /show/:slug@ as an HTMX request with the given headers, through
+-- the real @'Host@ gate.
+showProbe :: TestDBConfig -> HSQL.Pool -> Text -> [Header] -> IO SResponse
+showProbe cfg pool slug headers =
+  runSession (request (setPath defaultRequest ("/show/" <> encodeUtf8 slug)) {Wai.requestHeaders = htmxHeader : headers}) app
+  where
+    app =
+      Servant.serveWithContext
+        (Servant.Proxy @ShowProbeAPI)
+        ( roleAuthHandler noOpLoggerEnv pool Development
+            :. roleRejectionHandler noOpLoggerEnv
+            :. Servant.EmptyContext
+        )
+        (showProbeServer cfg)
+
 --------------------------------------------------------------------------------
 -- Helpers
 
@@ -281,7 +359,12 @@ withPool cfg = bracket (acquireTestPool cfg) HSQL.release
 -- | Make a user with a session that expires the given number of seconds from
 -- now, and return the cookie header for that session.
 userWithSession :: HSQL.Pool -> Text -> UserMetadata.UserRole -> Suspension -> NominalDiffTime -> IO Header
-userWithSession pool emailPrefix role suspension expiresIn = do
+userWithSession pool emailPrefix role suspension expiresIn =
+  snd <$> userWithSessionId pool emailPrefix role suspension expiresIn
+
+-- | 'userWithSession', and also return the id of the user.
+userWithSessionId :: HSQL.Pool -> Text -> UserMetadata.UserRole -> Suspension -> NominalDiffTime -> IO (User.Id, Header)
+userWithSessionId pool emailPrefix role suspension expiresIn = do
   userInsert <- mkUserInsert emailPrefix role
   now <- getCurrentTime
   result <- HSQL.use pool $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
@@ -302,7 +385,22 @@ userWithSession pool emailPrefix role suspension expiresIn = do
               }
         )
   session <- expectSetupRight result
-  pure ("Cookie", sessionCookieName Development <> "=" <> encodeUtf8 (display session.mSessionId))
+  pure (session.mUserId, ("Cookie", sessionCookieName Development <> "=" <> encodeUtf8 (display session.mSessionId)))
+
+-- | Make an active show with the given slug, and return its id.
+insertShow :: HSQL.Pool -> Text -> IO Shows.Id
+insertShow pool slug = do
+  result <-
+    HSQL.use pool $
+      TRX.transaction TRX.ReadCommitted TRX.Write $
+        fst <$> insertTestShowWithSchedule (Shows.Insert slug (Slug slug) Nothing Nothing Shows.Active) defaultScheduleInsert
+  expectSetupRight result
+
+-- | Make the user a host of the show.
+addHost :: HSQL.Pool -> Shows.Id -> User.Id -> IO ()
+addHost pool showId userId =
+  HSQL.use pool (TRX.transaction TRX.ReadCommitted TRX.Write (addTestShowHost showId userId))
+    >>= expectSetupRight
 
 deleteMetadata :: User.Id -> Hasql.Statement () ()
 deleteMetadata userId = interp False [sql| DELETE FROM user_metadata WHERE user_id = #{userId} |]
