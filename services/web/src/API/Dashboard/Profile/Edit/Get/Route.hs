@@ -2,11 +2,12 @@ module API.Dashboard.Profile.Edit.Get.Route where
 
 --------------------------------------------------------------------------------
 
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest)
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Lucid qualified
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Text.HTML (HTML)
 
 --------------------------------------------------------------------------------
@@ -16,6 +17,6 @@ type Route =
   "dashboard"
     :> "profile"
     :> "edit"
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'User
     :> Servant.Header "HX-Request" HxRequest
     :> Servant.Get '[HTML] (Lucid.Html ())

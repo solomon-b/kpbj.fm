@@ -8,11 +8,11 @@ module API.Dashboard.Episodes.Slug.Edit.Get.Handler where
 import API.Dashboard.Episodes.Slug.Edit.Get.Templates.Form (EpisodeEditContext (..), template)
 import API.Links (dashboardEpisodesLinks)
 import API.Types
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Config (Environment)
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
 import App.Domains (audioUploadUrl)
-import App.Handler.Combinators (requireAuth)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotAuthorized, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -28,7 +28,6 @@ import Data.Maybe (isJust)
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Data.Time (getCurrentTime)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Execute (execQuery, execTransaction)
@@ -53,13 +52,12 @@ import Utils (fromRightM)
 handler ::
   Slug ->
   Episodes.EpisodeNumber ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   Maybe HxRequest ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text] (Lucid.Html ()))
-handler showSlug episodeNumber cookie (foldHxReq -> hxRequest) =
+handler showSlug episodeNumber (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleRedirectErrors "Episode edit" (dashboardEpisodesLinks.list showSlug Nothing) $ do
-    (user, userMetadata) <- requireAuth cookie
-    vd <- action user userMetadata showSlug episodeNumber
+    vd <- action auth.raUser auth.raMetadata showSlug episodeNumber
     let statsContent = Lucid.span_ [] $ Lucid.toHtml $ "Episode #" <> display vd.eevEditContext.eecEpisode.episodeNumber
     html <-
       lift $

@@ -8,9 +8,9 @@ module API.Dashboard.Profile.Edit.Get.Handler where
 import API.Dashboard.Profile.Edit.Get.Templates.Form (template)
 import API.Links (apiLinks)
 import API.Types (Routes (..))
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwUserSuspended)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
@@ -19,7 +19,6 @@ import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Has (getter)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Tables.User qualified as User
@@ -29,15 +28,17 @@ import Lucid qualified
 --------------------------------------------------------------------------------
 
 -- | Servant handler: thin glue composing action + render with dashboard chrome.
+--
+-- A suspended user has the effective role 'UserMetadata.User', so the gate
+-- lets them through, and the handler refuses them.
 handler ::
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.User RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler cookie (foldHxReq -> hxRequest) =
+handler (Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Profile edit" apiLinks.rootGet $ do
-    (user, userMetadata) <- requireAuth cookie
-    when (UserMetadata.isSuspended userMetadata) throwUserSuspended
-    vd <- action user userMetadata
+    when (UserMetadata.isSuspended auth.raMetadata) throwUserSuspended
+    vd <- action auth.raUser auth.raMetadata
     lift $ renderDashboardTemplate hxRequest vd.pefUserMetadata NoShow NavSettings Nothing Nothing (template vd.pefStorageBackend vd.pefUser vd.pefUserMetadata)
 
 --------------------------------------------------------------------------------

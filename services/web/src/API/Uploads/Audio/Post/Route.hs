@@ -6,12 +6,13 @@ import API.Uploads.Types (AudioUploadForm, UploadResponse)
 import Data.Aeson (ToJSON (..))
 import Data.Aeson qualified as Aeson
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.Origin (Origin)
 import Effects.Database.Tables.BreakItems qualified as BreakItems
+import Effects.Database.Tables.UserMetadata (UserRole (..))
 import GHC.Generics (Generic)
 import Servant ((:>))
 import Servant qualified
+import Servant.Auth.Roles (RequireRole)
 import Servant.Multipart (MultipartForm, Tmp)
 
 --------------------------------------------------------------------------------
@@ -24,11 +25,14 @@ type CorsHeaders =
    ]
 
 -- | "POST /api/uploads/audio"
+--
+-- A response from the gate has no CORS headers, so the browser hides it, and
+-- the upload script shows its generic failure message.
 type Route =
   "api"
     :> "uploads"
     :> "audio"
-    :> Servant.Header "Cookie" Cookie
+    :> RequireRole "cookie-auth" 'Host
     :> Servant.Header "Origin" Origin
     :> Servant.QueryParam "category" BreakItems.Category
     :> MultipartForm Tmp AudioUploadForm
