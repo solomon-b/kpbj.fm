@@ -60,7 +60,7 @@ async function deleteEvent(page: Page, title: string) {
   const row = page.locator("#events-table-body tr", { hasText: title });
   await expect(row).toBeVisible();
   page.once("dialog", (d) => d.accept());
-  await row.locator("select").selectOption("delete");
+  await row.getByRole("button", { name: "Delete", exact: true }).click();
   await page.waitForURL(/\/dashboard\/events/);
 }
 
@@ -100,7 +100,7 @@ test.describe("Events CRUD", () => {
 
   test("edit form loads pre-filled and saves changes", async ({ page }) => {
     await page.goto("/dashboard/events");
-    await blockPartyRow(page).locator("select").selectOption("edit");
+    await blockPartyRow(page).getByRole("link", { name: "Edit", exact: true }).click();
     await page.waitForURL(/\/edit/);
     await expect(page.locator('input[name="title"]')).toHaveValue("Summer Block Party");
 
@@ -111,9 +111,7 @@ test.describe("Events CRUD", () => {
   test("feature toggle updates row with banner", async ({ page }) => {
     await page.goto("/dashboard/events");
     // "Promote" or "Demote". No confirm dialog for this action.
-    const dropdown = blockPartyRow(page).locator("select");
-    await expect(dropdown.locator('option[value="feature"]')).toBeAttached();
-    await dropdown.selectOption("feature");
+    await blockPartyRow(page).getByRole("button", { name: /^(Promote|Demote)$/ }).click();
     await expect(page.locator("#banner-container")).toContainText(/Promoted|Demoted/);
   });
 

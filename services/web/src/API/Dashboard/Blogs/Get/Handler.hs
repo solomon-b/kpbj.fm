@@ -15,6 +15,8 @@ import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -22,8 +24,6 @@ import Data.Int (Int64)
 import Data.List (find)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.String.Interpolate (i)
-import Design (base, class_)
-import Design.Tokens qualified as Tokens
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
@@ -34,7 +34,6 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as Txn
 import Lucid qualified
-import Lucid.HTMX
 import Servant.Links qualified as Links
 import Utils (fromRightM)
 
@@ -73,15 +72,7 @@ handler showSlug maybePage (Satisfies _ auth) (foldHxReq -> hxRequest) =
     actionButton :: Shows.Model -> Maybe (Lucid.Html ())
     actionButton showModel =
       let newBlogUrl = Links.linkURI $ dashboardBlogsLinks.newGet showModel.slug
-       in Just $
-            Lucid.a_
-              [ Lucid.href_ [i|/#{newBlogUrl}|],
-                hxGet_ [i|/#{newBlogUrl}|],
-                hxTarget_ "#main-content",
-                hxPushUrl_ "true",
-                class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, Tokens.hoverBg]
-              ]
-              "New Post"
+       in Just $ Button.render (Button.defaults & Button.primary & Button.dashboardLink [i|/#{newBlogUrl}|]) "New Post"
 
 --------------------------------------------------------------------------------
 

@@ -10,6 +10,9 @@ where
 
 import API.Links (dashboardEpisodesLinks)
 import API.Types (DashboardEpisodesRoutes (..))
+import Component.Button ((&))
+import Component.Button qualified as Button
+import Control.Monad (unless, when)
 import Data.Maybe (isJust, isNothing)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
@@ -22,8 +25,6 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Effects.Markdown (markdownToPlainText)
 import Lucid qualified
-import Lucid.Alpine
-import Lucid.Base qualified as LucidBase
 import Lucid.HTMX
 import Servant.Links qualified as Links
 
@@ -94,70 +95,37 @@ renderEpisodeTableRow userMeta showModel episode = do
             then Lucid.span_ [class_ $ base ["inline-block", Tokens.warningBg, Tokens.warningText, "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "UNSCHEDULED"
             else mempty
 
-    -- Actions dropdown
-    Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
-      Lucid.div_ [xData_ "{}"] $
-        do
-          -- Hidden link for Edit
-          Lucid.a_
-            [ Lucid.href_ [i|/#{episodeEditUrl}|],
-              hxGet_ [i|/#{episodeEditUrl}|],
-              hxTarget_ "#main-content",
-              hxPushUrl_ "true",
-              xRef_ "editLink",
-              Lucid.class_ "hidden"
-            ]
-            ""
-          -- Hidden button for Archive (soft delete for staff+)
-          Lucid.button_
-            [ hxDelete_ [i|/#{archiveUrl}|],
-              hxTarget_ ("#" <> episodeRowId),
-              hxSwap_ "outerHTML",
-              LucidBase.makeAttributes "hx-confirm" "Are you sure you want to archive this episode? It will no longer appear publicly.",
-              xRef_ "archiveBtn",
-              Lucid.class_ "hidden"
-            ]
-            ""
-          -- Hidden button for Unarchive (restore for staff+)
-          Lucid.button_
-            [ hxPost_ [i|/#{unarchiveUrl}|],
-              hxTarget_ ("#" <> episodeRowId),
-              hxSwap_ "outerHTML",
-              LucidBase.makeAttributes "hx-confirm" "Unarchive this episode? It will appear publicly again.",
-              xRef_ "unarchiveBtn",
-              Lucid.class_ "hidden"
-            ]
-            ""
-          -- Visible dropdown
-          Lucid.select_
-            [ class_ $ base ["p-2", "border", Tokens.borderMuted, "text-xs", Tokens.bgMain, Tokens.fgPrimary],
-              xOnChange_
-                [i|
-              const action = $el.value;
-              $el.value = '';
-              if (action === 'edit') {
-                $refs.editLink.click();
-              } else if (action === 'archive') {
-                $refs.archiveBtn.click();
-              } else if (action === 'unarchive') {
-                $refs.unarchiveBtn.click();
-              }
-            |]
-            ]
-            $ do
-              Lucid.option_ [Lucid.value_ ""] "Actions..."
-              -- An archived episode is read-only. Unarchive it to edit it.
-              if isArchived
-                then mempty
-                else Lucid.option_ [Lucid.value_ "edit"] "Edit"
-              -- Staff+ can archive any episode (soft delete)
-              if isStaff && not isArchived
-                then Lucid.option_ [Lucid.value_ "archive"] "Archive"
-                else mempty
-              -- Staff+ can put an archived episode back on the public site
-              if isStaff && isArchived
-                then Lucid.option_ [Lucid.value_ "unarchive"] "Unarchive"
-                else mempty
+    -- Actions
+    Lucid.td_ [class_ $ base [Tokens.p4, Tokens.textSm, "text-center"]] $
+      Button.group $ do
+        -- An archived episode is read-only. Unarchive it to edit it.
+        unless isArchived $
+          Button.render (Button.defaults & Button.dashboardLink [i|/#{episodeEditUrl}|]) "Edit"
+        -- Staff+ can archive any episode (soft delete)
+        when (isStaff && not isArchived) $
+          Button.render
+            ( Button.defaults
+                & Button.danger
+                & Button.with
+                  [ hxDelete_ [i|/#{archiveUrl}|],
+                    hxTarget_ ("#" <> episodeRowId),
+                    hxSwap_ "outerHTML",
+                    hxConfirm_ "Are you sure you want to archive this episode? It will no longer appear publicly."
+                  ]
+            )
+            "Archive"
+        -- Staff+ can put an archived episode back on the public site
+        when (isStaff && isArchived) $
+          Button.render
+            ( Button.defaults
+                & Button.with
+                  [ hxPost_ [i|/#{unarchiveUrl}|],
+                    hxTarget_ ("#" <> episodeRowId),
+                    hxSwap_ "outerHTML",
+                    hxConfirm_ "Unarchive this episode? It will appear publicly again."
+                  ]
+            )
+            "Unarchive"
   where
     epNum = episode.episodeNumber
     episodeEditUrl = episodeEditGetUrl showModel.slug epNum

@@ -15,6 +15,8 @@ import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Trans (lift)
 import Data.Int (Int64)
@@ -67,7 +69,7 @@ handler (Satisfies _ auth) (foldHxReq -> hxRequest) mSearchRaw mPage =
             auth.raMetadata
             NoShow
             NavNewsletterSubscribers
-            Nothing
+            (Just (filtersUI mSearch total))
             (Just actionButton)
             (template subscribers total page hasMore mSearch)
 
@@ -76,17 +78,38 @@ normalizeSearch :: Maybe Text -> Maybe Text
 normalizeSearch =
   (>>= \t -> let stripped = Text.strip t in if Text.null stripped then Nothing else Just stripped)
 
+-- | Search form and subscriber count for the top bar.
+filtersUI ::
+  -- | Current search term, if any
+  Maybe Text ->
+  -- | Total subscriber count for the current search
+  Int64 ->
+  Lucid.Html ()
+filtersUI mSearch total = do
+  let listUri = Links.linkURI $ dashboardNewsletterSubscribersLinks.list Nothing Nothing
+  Lucid.form_
+    [ hxGet_ [i|/#{listUri}|],
+      hxTarget_ "#main-content",
+      hxPushUrl_ "true",
+      Lucid.class_ "flex items-center gap-3"
+    ]
+    $ do
+      Lucid.input_
+        [ Lucid.type_ "search",
+          Lucid.name_ "search",
+          Lucid.value_ (fromMaybe "" mSearch),
+          Lucid.placeholder_ "Search by email...",
+          class_ $ base ["px-2", "py-1", Tokens.textSm, "border", Tokens.borderMuted, Tokens.bgMain, Tokens.fgPrimary, "w-48"]
+        ]
+      Button.render (Button.defaults & Button.small & Button.submit) "Search"
+      Lucid.span_ [class_ $ base [Tokens.textSm, Tokens.fgMuted]] $
+        Lucid.toHtml $
+          (show total :: String) <> " subscriber" <> (if total == 1 then "" else "s")
+
 -- | "BULK ADD" action button rendered in the dashboard top bar.
 actionButton :: Lucid.Html ()
 actionButton =
   let bulkUri = Links.linkURI dashboardNewsletterSubscribersLinks.bulkGet
       bulkUrl :: Text
       bulkUrl = [i|/#{bulkUri}|]
-   in Lucid.a_
-        [ Lucid.href_ bulkUrl,
-          hxGet_ bulkUrl,
-          hxTarget_ "#main-content",
-          hxPushUrl_ "true",
-          class_ $ base [Tokens.bgAlt, Tokens.fgPrimary, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, Tokens.hoverBg]
-        ]
-        (Lucid.toHtml ("BULK ADD" :: Text))
+   in Button.render (Button.defaults & Button.dashboardLink bulkUrl) "BULK ADD"

@@ -27,6 +27,8 @@ where
 
 --------------------------------------------------------------------------------
 
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.InfiniteScroll (renderEndOfContent, renderLoadingIndicator, renderSentinel)
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
@@ -241,15 +243,7 @@ renderNoscriptPagination config = do
   Lucid.div_ [class_ $ base ["flex", "justify-between", "items-center", "mt-4"]] $ do
     -- Previous button
     case config.pcPrevPageUrl of
-      Just prevUrl ->
-        Lucid.a_
-          [ Lucid.href_ prevUrl,
-            hxGet_ prevUrl,
-            hxTarget_ "#main-content",
-            hxPushUrl_ "true",
-            class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, Tokens.hoverBg]
-          ]
-          "<- PREVIOUS"
+      Just prevUrl -> Button.render (Button.defaults & Button.dashboardLink prevUrl) "<- PREVIOUS"
       Nothing ->
         Lucid.div_ [] mempty
 
@@ -260,15 +254,7 @@ renderNoscriptPagination config = do
 
     -- Next button
     case config.pcNextPageUrl of
-      Just nextUrl ->
-        Lucid.a_
-          [ Lucid.href_ nextUrl,
-            hxGet_ nextUrl,
-            hxTarget_ "#main-content",
-            hxPushUrl_ "true",
-            class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, Tokens.hoverBg]
-          ]
-          "NEXT ->"
+      Just nextUrl -> Button.render (Button.defaults & Button.dashboardLink nextUrl) "NEXT ->"
       Nothing ->
         Lucid.div_ [] mempty
 

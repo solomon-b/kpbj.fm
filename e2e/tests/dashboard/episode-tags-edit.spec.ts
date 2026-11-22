@@ -50,7 +50,7 @@ test.describe("Episode Tag Editing", () => {
     await page.goto(LIST_URL);
     const row = page.locator("#episodes-table-body tr", { hasText: MOCK_EPISODE_TEXT }).first();
     await expect(row).toBeVisible();
-    await row.locator("select").selectOption("edit");
+    await row.getByRole("link", { name: "Edit", exact: true }).click();
     await page.waitForURL(/\/dashboard\/episodes\/sunday-morning-jazz\/\d+\/edit/);
     const editUrl = page.url();
     const tagsInput = page.locator('input[name="tags"]');

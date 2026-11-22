@@ -15,6 +15,8 @@ where
 
 import API.Links (dashboardShowsLinks)
 import API.Types (DashboardShowsRoutes (..))
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -23,6 +25,7 @@ import Component.Table
     clickableCellAttrs,
     renderIndexTable,
   )
+import Control.Monad (when)
 import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -32,7 +35,6 @@ import Design.Tokens qualified as Tokens
 import Domain.Types.Filter (Filter (..))
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
-import Lucid.Alpine
 import Lucid.HTMX
 import Servant.Links qualified as Links
 
@@ -114,67 +116,36 @@ renderShowRow isAdmin deletedView showInfo =
                     Lucid.toHtml $
                       "(" <> show showInfo.swhiHostCount <> ")"
 
-            Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
-              if deletedView
-                then
-                  -- Restore action (admin only)
-                  if isAdmin
-                    then
-                      Lucid.button_
-                        [ hxPost_ showRestoreUrl,
-                          hxTarget_ "closest tr",
-                          hxSwap_ "outerHTML swap:1s",
-                          xOnClick_ "event.stopPropagation()",
-                          class_ $ base ["p-2", "border", Tokens.borderMuted, "text-xs", Tokens.bgMain, Tokens.fgPrimary, "hover:opacity-80"]
-                        ]
+            Lucid.td_ [class_ $ base [Tokens.p4, Tokens.textSm, "text-center"]] $
+              Button.group $
+                if deletedView
+                  then
+                    -- Restore action (admin only)
+                    when isAdmin $
+                      Button.render
+                        ( Button.defaults
+                            & Button.with
+                              [ hxPost_ showRestoreUrl,
+                                hxTarget_ "closest tr",
+                                hxSwap_ "outerHTML swap:1s"
+                              ]
+                        )
                         "Restore"
-                    else mempty
-                else Lucid.div_ [xData_ "{}"] $
-                  do
-                    -- Hidden link for Edit - HTMX handles history properly
-                    Lucid.a_
-                      [ Lucid.href_ [i|/#{showEditUrl}|],
-                        hxGet_ [i|/#{showEditUrl}|],
-                        hxTarget_ "#main-content",
-                        hxPushUrl_ "true",
-                        xRef_ "editLink",
-                        Lucid.class_ "hidden"
-                      ]
-                      ""
-                    -- Hidden button for Delete (admin only) - HTMX handles the request
-                    if isAdmin
-                      then
-                        Lucid.button_
-                          [ hxDelete_ showDeleteUrl,
-                            hxTarget_ "closest tr",
-                            hxSwap_ "outerHTML swap:1s",
-                            hxConfirm_ [i|Are you sure you want to delete "#{showTitle}"? You can restore it later from the Deleted view.|],
-                            xRef_ "deleteBtn",
-                            Lucid.class_ "hidden"
-                          ]
-                          ""
-                      else mempty
-                    -- Visible dropdown
-                    Lucid.select_
-                      [ class_ $ base ["p-2", "border", Tokens.borderMuted, "text-xs", Tokens.bgMain, Tokens.fgPrimary],
-                        xOnChange_
-                          [i|
-                          const action = $el.value;
-                          $el.value = '';
-                          if (action === 'edit') {
-                            $refs.editLink.click();
-                          } else if (action === 'delete') {
-                            $refs.deleteBtn.click();
-                          }
-                        |],
-                        xOnClick_ "event.stopPropagation()"
-                      ]
-                      $ do
-                        Lucid.option_ [Lucid.value_ ""] "Actions..."
-                        Lucid.option_ [Lucid.value_ "edit"] "Edit"
-                        if isAdmin
-                          then Lucid.option_ [Lucid.value_ "delete"] "Delete"
-                          else mempty
+                  else do
+                    Button.render (Button.defaults & Button.dashboardLink [i|/#{showEditUrl}|]) "Edit"
+                    -- Delete (admin only)
+                    when isAdmin $
+                      Button.render
+                        ( Button.defaults
+                            & Button.danger
+                            & Button.with
+                              [ hxDelete_ showDeleteUrl,
+                                hxTarget_ "closest tr",
+                                hxSwap_ "outerHTML swap:1s",
+                                hxConfirm_ [i|Are you sure you want to delete "#{showTitle}"? You can restore it later from the Deleted view.|]
+                              ]
+                        )
+                        "Delete"
 
 renderStatusBadge :: Shows.Status -> Lucid.Html ()
 renderStatusBadge status = do

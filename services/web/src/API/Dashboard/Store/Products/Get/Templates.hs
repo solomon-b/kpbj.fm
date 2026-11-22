@@ -7,6 +7,8 @@ module API.Dashboard.Store.Products.Get.Templates (template, renderProductRow) w
 
 import API.Links (dashboardStoreProductsLinks, rootLink)
 import API.Types (DashboardStoreProductsRoutes (..))
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -135,15 +137,17 @@ renderInlineCreateRow =
       -- Actions (in the Status column position)
       Lucid.td_ [class_ $ base [Tokens.p2]] $
         Lucid.div_ [class_ $ base ["flex", "gap-2", "items-center"]] $ do
-          Lucid.button_
-            [ Lucid.type_ "button",
-              hxPost_ (rootLink dashboardStoreProductsLinks.inlineCreate),
-              hxTarget_ "#inline-create-row",
-              hxSwap_ "beforebegin",
-              hxInclude_ "closest tr",
-              hxOnAfterRequest_ "if(event.detail.successful){ window.dispatchEvent(new Event('hide-create')); this.closest('tr').querySelectorAll('input').forEach(i => i.value = i.defaultValue) }",
-              class_ $ base [Tokens.bgAlt, Tokens.fgPrimary, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, Tokens.hoverBg]
-            ]
+          Button.render
+            ( Button.defaults
+                & Button.primary
+                & Button.with
+                  [ hxPost_ (rootLink dashboardStoreProductsLinks.inlineCreate),
+                    hxTarget_ "#inline-create-row",
+                    hxSwap_ "beforebegin",
+                    hxInclude_ "closest tr",
+                    hxOnAfterRequest_ "if(event.detail.successful){ window.dispatchEvent(new Event('hide-create')); this.closest('tr').querySelectorAll('input').forEach(i => i.value = i.defaultValue) }"
+                  ]
+            )
             "SAVE"
           Lucid.button_
             [ Lucid.type_ "button",

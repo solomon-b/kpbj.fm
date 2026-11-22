@@ -12,6 +12,8 @@ import API.Dashboard.Shows.Slug.Get.Templates.Episode (renderEpisodeCard, render
 import API.Dashboard.Shows.Slug.Get.Templates.ShowHeader (renderShowHeader)
 import API.Links (dashboardShowsLinks, showBlogLinks)
 import API.Types (DashboardShowsRoutes (..), ShowBlogRoutes (..))
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.Card.BlogPost (renderShowBlogPostCard)
 import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
@@ -26,7 +28,6 @@ import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
 import Lucid qualified
 import Lucid.Alpine
-import Lucid.HTMX
 import Rel8 (Result)
 import Servant.Links qualified as Links
 
@@ -116,18 +117,8 @@ renderPagination showModel currentPage episodeCount = do
       if hasPrevPage
         then do
           let prevUrl = Links.linkURI $ dashboardShowsLinks.detail showId showSlug (Just (currentPage - 1))
-          Lucid.a_
-            [ Lucid.href_ [i|/#{prevUrl}|],
-              hxGet_ [i|/#{prevUrl}|],
-              hxTarget_ "#main-content",
-              hxPushUrl_ "true",
-              class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.fontBold, "hover:opacity-80"]
-            ]
-            "Previous"
-        else
-          Lucid.span_
-            [class_ $ base [Tokens.bgAlt, Tokens.fgMuted, Tokens.px4, Tokens.py2, Tokens.fontBold, "cursor-not-allowed"]]
-            "Previous"
+          Button.render (Button.defaults & Button.dashboardLink [i|/#{prevUrl}|]) "Previous"
+        else Button.render (Button.defaults & Button.with [Lucid.disabled_ "disabled"]) "Previous"
 
       -- Page indicator
       Lucid.span_ [class_ $ base [Tokens.px4, Tokens.py2, Tokens.fontBold]] $
@@ -138,18 +129,8 @@ renderPagination showModel currentPage episodeCount = do
       if hasNextPage
         then do
           let nextUrl = Links.linkURI $ dashboardShowsLinks.detail showId showSlug (Just (currentPage + 1))
-          Lucid.a_
-            [ Lucid.href_ [i|/#{nextUrl}|],
-              hxGet_ [i|/#{nextUrl}|],
-              hxTarget_ "#main-content",
-              hxPushUrl_ "true",
-              class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.fontBold, "hover:opacity-80"]
-            ]
-            "Next"
-        else
-          Lucid.span_
-            [class_ $ base [Tokens.bgAlt, Tokens.fgMuted, Tokens.px4, Tokens.py2, Tokens.fontBold, "cursor-not-allowed"]]
-            "Next"
+          Button.render (Button.defaults & Button.dashboardLink [i|/#{nextUrl}|]) "Next"
+        else Button.render (Button.defaults & Button.with [Lucid.disabled_ "disabled"]) "Next"
 
 -- Helper function to render blog content
 renderBlogContent :: StorageBackend -> Shows.Model -> [ShowBlogPosts.Model] -> Lucid.Html ()
@@ -166,11 +147,4 @@ renderBlogContent backend showModel blogPosts = do
       -- View all link
       let blogUrl = Links.linkURI $ showBlogLinks.list (Shows.slug showModel) Nothing Nothing
       Lucid.div_ [class_ $ base ["mt-8", "text-center"]] $ do
-        Lucid.a_
-          [ Lucid.href_ [i|/#{blogUrl}|],
-            hxGet_ [i|/#{blogUrl}|],
-            hxTarget_ "#main-content",
-            hxPushUrl_ "true",
-            class_ $ base ["inline-block", Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, "py-3", Tokens.fontBold, "hover:opacity-80"]
-          ]
-          "View All Blog Posts"
+        Button.render (Button.defaults & Button.pageLink [i|/#{blogUrl}|]) "View All Blog Posts"

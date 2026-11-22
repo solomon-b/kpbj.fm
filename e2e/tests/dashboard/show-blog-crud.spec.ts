@@ -7,9 +7,8 @@ import { HOST_AUTH } from "../../playwright.config";
 // Covers list, create, edit, and delete for show-scoped blog posts.
 // Uses HOST_AUTH (host-sunday-morning-jazz@kpbj.fm).
 //
-// The show blog uses a different dropdown pattern from ActionsDropdown:
-// Alpine x-ref with hidden <a> (edit) and <button> (delete). The delete
-// button has hx-confirm which triggers a native confirm dialog.
+// Each row has an Edit link and a Delete button. The Delete button has
+// hx-confirm, which triggers a native confirm dialog.
 //
 // NOTE: Mock data has no show blog posts (show_blog_posts is truncated and
 // not re-seeded). So one test creates a post, then edits and deletes it.
@@ -42,9 +41,9 @@ test.describe("Show Blog CRUD", () => {
       await expect(page.getByText(postTitle)).toBeVisible();
     });
 
-    await test.step("edit created post via dropdown", async () => {
+    await test.step("edit created post from list", async () => {
       await page.goto(LIST_URL);
-      await row.locator("select").selectOption("edit");
+      await row.getByRole("link", { name: "Edit", exact: true }).click();
       await page.waitForURL(/\/edit/);
       await expect(page.locator('input[name="title"]')).toHaveValue(postTitle);
 
@@ -58,10 +57,9 @@ test.describe("Show Blog CRUD", () => {
       await page.goto(LIST_URL);
       await expect(row).toBeVisible();
 
-      // The dropdown triggers a hidden button with hx-confirm, which fires
-      // a native dialog.
+      // The Delete button has hx-confirm, which fires a native dialog.
       page.once("dialog", (d) => d.accept());
-      await row.locator("select").selectOption("delete");
+      await row.getByRole("button", { name: "Delete", exact: true }).click();
 
       // Delete swaps outerHTML of the row, so the row disappears.
       await expect(row).not.toBeVisible();

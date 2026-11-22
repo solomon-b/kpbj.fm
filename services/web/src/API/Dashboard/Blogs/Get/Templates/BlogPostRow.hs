@@ -10,6 +10,8 @@ where
 
 import API.Links (dashboardBlogsLinks)
 import API.Types
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
@@ -22,8 +24,6 @@ import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Markdown (markdownToPlainText)
 import Lucid qualified
-import Lucid.Alpine
-import Lucid.Base qualified as LucidBase
 import Lucid.HTMX
 import Servant.Links qualified as Links
 
@@ -76,47 +76,21 @@ renderBlogPostTableRow showModel post = do
     Lucid.td_ cellLinkAttrs $
       renderStatusBadge post.status
 
-    -- Actions dropdown
-    Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
-      Lucid.div_ [xData_ "{}"] $ do
-        -- Hidden link for Edit
-        Lucid.a_
-          [ Lucid.href_ [i|/#{editUrl}|],
-            hxGet_ [i|/#{editUrl}|],
-            hxTarget_ "#main-content",
-            hxPushUrl_ "true",
-            xRef_ "editLink",
-            Lucid.class_ "hidden"
-          ]
-          ""
-        -- Hidden button for Delete
-        Lucid.button_
-          [ hxDelete_ [i|/#{deleteUrl}|],
-            hxTarget_ ("#" <> postRowId),
-            hxSwap_ "outerHTML",
-            LucidBase.makeAttributes "hx-confirm" "Are you sure you want to delete this blog post?",
-            xRef_ "deleteBtn",
-            Lucid.class_ "hidden"
-          ]
-          ""
-        -- Visible dropdown
-        Lucid.select_
-          [ class_ $ base ["p-2", "border", Tokens.borderMuted, "text-xs", Tokens.bgMain, Tokens.fgPrimary],
-            xOnChange_
-              [i|
-              const action = $el.value;
-              $el.value = '';
-              if (action === 'edit') {
-                $refs.editLink.click();
-              } else if (action === 'delete') {
-                $refs.deleteBtn.click();
-              }
-            |]
-          ]
-          $ do
-            Lucid.option_ [Lucid.value_ ""] "Actions..."
-            Lucid.option_ [Lucid.value_ "edit"] "Edit"
-            Lucid.option_ [Lucid.value_ "delete"] "Delete"
+    -- Actions
+    Lucid.td_ [class_ $ base [Tokens.p4, Tokens.textSm, "text-center"]] $
+      Button.group $ do
+        Button.render (Button.defaults & Button.dashboardLink [i|/#{editUrl}|]) "Edit"
+        Button.render
+          ( Button.defaults
+              & Button.danger
+              & Button.with
+                [ hxDelete_ [i|/#{deleteUrl}|],
+                  hxTarget_ ("#" <> postRowId),
+                  hxSwap_ "outerHTML",
+                  hxConfirm_ "Are you sure you want to delete this blog post?"
+                ]
+          )
+          "Delete"
 
 -- | Render status badge with appropriate styling
 renderStatusBadge :: BlogPostStatus -> Lucid.Html ()

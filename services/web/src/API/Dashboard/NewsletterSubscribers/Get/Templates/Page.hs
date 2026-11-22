@@ -11,6 +11,8 @@ where
 
 import API.Links (dashboardNewsletterSubscribersLinks)
 import API.Types
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -20,7 +22,6 @@ import Component.Table
     rowAttrs,
   )
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
@@ -47,69 +48,36 @@ template ::
   -- | Current search term, if any.
   Maybe Text ->
   Lucid.Html ()
-template subscribers total currentPage hasMore mSearch = do
-  Lucid.section_ [class_ $ base [Tokens.bgMain, Tokens.mb4]] $
-    renderSearchBar mSearch total
-  Lucid.div_ [Lucid.id_ "subscribers-list"] $
-    Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden", Tokens.mb8]] $
-      if total == 0
-        then renderEmptyState mSearch
-        else
-          renderIndexTable
-            IndexTableConfig
-              { itcBodyId = "subscribers-table-body",
-                itcHeaders =
-                  [ ColumnHeader "Email" AlignLeft,
-                    ColumnHeader "Subscribed On" AlignLeft,
-                    ColumnHeader "Mailchimp" AlignLeft,
-                    ColumnHeader "" AlignCenter
-                  ],
-                itcNextPageUrl = if hasMore then Just [i|/#{nextPageUrl}|] else Nothing,
-                itcPaginationConfig =
-                  Just
-                    PaginationConfig
-                      { pcPrevPageUrl = if currentPage > 1 then Just [i|/#{prevPageUrl}|] else Nothing,
-                        pcNextPageUrl = if hasMore then Just [i|/#{nextPageUrl}|] else Nothing,
-                        pcCurrentPage = currentPage
-                      }
-              }
-            (mapM_ renderSubscriberRow subscribers)
+template subscribers total currentPage hasMore mSearch =
+  Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden", Tokens.mb8]] $
+    if total == 0
+      then renderEmptyState mSearch
+      else
+        renderIndexTable
+          IndexTableConfig
+            { itcBodyId = "subscribers-table-body",
+              itcHeaders =
+                [ ColumnHeader "Email" AlignLeft,
+                  ColumnHeader "Subscribed On" AlignLeft,
+                  ColumnHeader "Mailchimp" AlignLeft,
+                  ColumnHeader "" AlignCenter
+                ],
+              itcNextPageUrl = if hasMore then Just [i|/#{nextPageUrl}|] else Nothing,
+              itcPaginationConfig =
+                Just
+                  PaginationConfig
+                    { pcPrevPageUrl = if currentPage > 1 then Just [i|/#{prevPageUrl}|] else Nothing,
+                      pcNextPageUrl = if hasMore then Just [i|/#{nextPageUrl}|] else Nothing,
+                      pcCurrentPage = currentPage
+                    }
+            }
+          (mapM_ renderSubscriberRow subscribers)
   where
     nextPageUrl :: Links.URI
     nextPageUrl = Links.linkURI $ dashboardNewsletterSubscribersLinks.list mSearch (Just (currentPage + 1))
 
     prevPageUrl :: Links.URI
     prevPageUrl = Links.linkURI $ dashboardNewsletterSubscribersLinks.list mSearch (Just (currentPage - 1))
-
--- | Search input bar that re-fetches the list on submit.
-renderSearchBar :: Maybe Text -> Int64 -> Lucid.Html ()
-renderSearchBar mSearch total =
-  let listUri = Links.linkURI $ dashboardNewsletterSubscribersLinks.list Nothing Nothing
-      listUrl :: Text
-      listUrl = [i|/#{listUri}|]
-   in Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between", Tokens.gap4, Tokens.p4]] $ do
-        Lucid.form_
-          [ hxGet_ listUrl,
-            hxTarget_ "#main-content",
-            hxPushUrl_ "true",
-            class_ $ base ["flex", "items-center", Tokens.gap4, "flex-1"]
-          ]
-          $ do
-            Lucid.input_
-              [ Lucid.type_ "search",
-                Lucid.name_ "search",
-                Lucid.value_ (fromMaybe "" mSearch),
-                Lucid.placeholder_ "Search by email...",
-                class_ $ base ["px-3", "py-2", Tokens.textSm, "border", Tokens.borderMuted, Tokens.bgMain, Tokens.fgPrimary, "w-64"]
-              ]
-            Lucid.button_
-              [ Lucid.type_ "submit",
-                class_ $ base [Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.bgInverse, Tokens.fgInverse, Tokens.fontBold, "hover:opacity-80"]
-              ]
-              "Search"
-        Lucid.span_ [class_ $ base [Tokens.textSm, Tokens.fgMuted]] $
-          Lucid.toHtml $
-            (show total :: String) <> " subscriber" <> (if total == 1 then "" else "s")
 
 -- | Render a single subscriber row, with a per-row delete button.
 renderSubscriberRow :: NewsletterSubscribers.Model -> Lucid.Html ()
@@ -138,15 +106,19 @@ renderSubscriberRow subscriber =
         Lucid.td_ [class_ $ base [Tokens.p4]] $
           renderMailchimpBadge (NewsletterSubscribers.mMailchimpStatus subscriber)
 
-        Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
-          Lucid.button_
-            [ hxDelete_ deleteUrl,
-              hxTarget_ rowSelector,
-              hxSwap_ "outerHTML",
-              hxConfirm_ confirmMessage,
-              class_ $ base [Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, Tokens.errorBg, Tokens.errorText, "border", Tokens.borderMuted, "hover:opacity-80"]
-            ]
-            "Delete"
+        Lucid.td_ [class_ $ base [Tokens.p4, Tokens.textSm, "text-center"]] $
+          Button.group $
+            Button.render
+              ( Button.defaults
+                  & Button.danger
+                  & Button.with
+                    [ hxDelete_ deleteUrl,
+                      hxTarget_ rowSelector,
+                      hxSwap_ "outerHTML",
+                      hxConfirm_ confirmMessage
+                    ]
+              )
+              "Delete"
 
 -- | Render a colored pill for the Mailchimp sync status.
 --

@@ -59,7 +59,7 @@ test.describe("Users CRUD", () => {
     // Change the role of the user to the given role.
     const setRole = async (role: string) => {
       await page.goto(`/dashboard/users?q=${encodeURIComponent(email)}`);
-      await userRow(page, email).locator("select").selectOption("edit");
+      await userRow(page, email).getByRole("link", { name: "Edit", exact: true }).click();
       await page.waitForURL(/\/edit/);
 
       await page.locator('select[name="role"]').selectOption(role);
@@ -81,7 +81,7 @@ test.describe("Users CRUD", () => {
 
   test("edit form loads and saves changes", async ({ page }) => {
     await page.goto("/dashboard/users");
-    await userRow(page, "listener@example.com").locator("select").selectOption("edit");
+    await userRow(page, "listener@example.com").getByRole("link", { name: "Edit", exact: true }).click();
     await page.waitForURL(/\/edit/);
 
     await expect(page.locator('input[name="display_name"]')).toHaveValue("RadioHead42");
@@ -103,7 +103,7 @@ test.describe("Users CRUD", () => {
 
     await test.step("suspend", async () => {
       page.once("dialog", (d) => d.accept());
-      await row.locator("select").selectOption("suspend");
+      await row.getByRole("button", { name: "Suspend", exact: true }).click();
       await expect(row).toContainText(/Suspended/);
       await expect(page.locator("#banner-container")).toContainText(/Suspended/i);
     });
@@ -112,7 +112,7 @@ test.describe("Users CRUD", () => {
       // Reload so the row has the actions of a suspended user.
       await page.goto("/dashboard/users");
       page.once("dialog", (d) => d.accept());
-      await row.locator("select").selectOption("unsuspend");
+      await row.getByRole("button", { name: "Unsuspend", exact: true }).click();
       await expect(row).toContainText(/Active/);
       await expect(page.locator("#banner-container")).toContainText(/Unsuspended/i);
     });

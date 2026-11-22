@@ -10,7 +10,8 @@ where
 
 import API.Links (dashboardStationIdsLinks)
 import API.Types
-import Component.ActionsDropdown qualified as ActionsDropdown
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.InlineAudioPlayer (renderInlineAudioPlayer)
 import Component.Table
   ( ColumnAlign (..),
@@ -31,6 +32,7 @@ import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.StationIds qualified as StationIds
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
+import Lucid.HTMX
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -112,26 +114,21 @@ renderStationIdRow backend stationId =
           Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
             renderInlineAudioPlayer audioUrl
 
-          -- Actions cell (Download link + Delete dropdown)
-          Lucid.td_ [class_ $ base [Tokens.p4, "text-center", "flex", "items-center", "justify-center", Tokens.gap2]] $ do
-            -- Download button
-            Lucid.a_
-              [ Lucid.href_ audioUrl,
-                Lucid.download_ "",
-                class_ $ base ["p-2", "rounded", Tokens.hoverBg, "transition-colors"],
-                Lucid.title_ "Download"
-              ]
-              $ Lucid.i_ [Lucid.class_ [i|fa-solid fa-download #{Tokens.fgMuted}|]] mempty
-            -- Delete dropdown
-            ActionsDropdown.render
-              [ ActionsDropdown.htmxDeleteAction
-                  "delete"
-                  "Delete"
-                  [i|/#{deleteUrl}|]
-                  ("#" <> rowId)
-                  ActionsDropdown.SwapOuterHTML
-                  deleteConfirmMessage
-              ]
+          -- Actions cell
+          Lucid.td_ [class_ $ base [Tokens.p4, Tokens.textSm, "text-center"]] $
+            Button.group $ do
+              Button.downloadLink audioUrl
+              Button.render
+                ( Button.defaults
+                    & Button.danger
+                    & Button.with
+                      [ hxDelete_ [i|/#{deleteUrl}|],
+                        hxTarget_ ("#" <> rowId),
+                        hxSwap_ "outerHTML",
+                        hxConfirm_ deleteConfirmMessage
+                      ]
+                )
+                "Delete"
 
 -- | Render empty state when no station IDs exist
 renderEmptyState :: Lucid.Html ()

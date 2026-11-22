@@ -7,6 +7,8 @@ where
 
 --------------------------------------------------------------------------------
 
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Design (base, class_)
@@ -72,23 +74,17 @@ renderPasswordModal user plaintext =
                 Lucid.onclick_ "this.select()",
                 class_ $ base ["flex-1", "min-w-0", Tokens.p4, "font-mono", Tokens.textLg, Tokens.bgAlt, Tokens.fgPrimary, Tokens.border2, Tokens.borderDefault]
               ]
-            Lucid.button_
-              [ Lucid.type_ "button",
-                xOnClick_ "navigator.clipboard.writeText($refs.pw.value).then(() => { copied = true; setTimeout(() => copied = false, 2000) })",
-                class_ $ base [Tokens.px4, Tokens.py2, Tokens.fontBold, Tokens.bgAlt, Tokens.fgPrimary, Tokens.border2, Tokens.borderDefault, "hover:opacity-80"]
-              ]
+            Button.render
+              ( Button.defaults
+                  & Button.with [xOnClick_ "navigator.clipboard.writeText($refs.pw.value).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"]
+              )
               $ do
                 Lucid.span_ [xShow_ "!copied"] "Copy"
                 Lucid.span_ [xShow_ "copied"] "Copied!"
 
           -- Done button
           Lucid.div_ [class_ $ base ["flex", "justify-end"]] $
-            Lucid.button_
-              [ Lucid.type_ "button",
-                xOnClick_ "open = false",
-                class_ $ base [Tokens.px4, Tokens.py2, Tokens.fontBold, Tokens.bgMain, Tokens.fgPrimary, Tokens.border2, Tokens.borderDefault, "hover:opacity-80"]
-              ]
-              "Done"
+            Button.render (Button.defaults & Button.primary & Button.with [xOnClick_ "open = false"]) "Done"
   where
     displayName = display user.uwmDisplayName :: Text
     email = display user.uwmEmail :: Text

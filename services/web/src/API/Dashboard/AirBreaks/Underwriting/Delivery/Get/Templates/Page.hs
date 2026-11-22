@@ -16,6 +16,8 @@ where
 
 import API.Links (dashboardUnderwritingLinks)
 import API.Types (DashboardUnderwritingRoutes (..))
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Control.Monad (forM_)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -79,11 +81,7 @@ renderMonthNav firstDay =
     monthLink :: Day -> Text -> Lucid.Html ()
     monthLink target label =
       let uri = Links.linkURI (dashboardUnderwritingLinks.delivery (Just (Text.pack (formatTime defaultTimeLocale "%Y-%m" target))))
-       in Lucid.a_
-            [ Lucid.href_ [i|/#{uri}|],
-              class_ $ base [Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, Tokens.bgAlt, Tokens.fgPrimary, "border", Tokens.borderMuted, "hover:opacity-80"]
-            ]
-            (Lucid.toHtml label)
+       in Button.render (Button.defaults & Button.dashboardLink [i|/#{uri}|]) (Lucid.toHtml label)
 
 renderRow :: DeliveryRow -> Lucid.Html ()
 renderRow row = do

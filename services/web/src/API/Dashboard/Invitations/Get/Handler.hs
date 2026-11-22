@@ -13,16 +13,15 @@ import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.Trans (lift)
-import Design (base, class_)
-import Design.Tokens qualified as Tokens
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.HostInvitation qualified as HostInvitation
 import Effects.Database.Tables.UserMetadata (UserRole (..))
 import Lucid qualified
-import Lucid.HTMX
 import Utils (fromRightM)
 
 --------------------------------------------------------------------------------
@@ -49,13 +48,6 @@ handler (Satisfies _ auth) (foldHxReq -> hxRequest) =
 -- | Action button for creating a new invitation.
 actionButton :: Lucid.Html ()
 actionButton =
-  Lucid.a_
-    [ Lucid.href_ newInvitationUrl,
-      hxGet_ newInvitationUrl,
-      hxTarget_ "#main-content",
-      hxPushUrl_ "true",
-      class_ $ base [Tokens.bgAlt, Tokens.fgPrimary, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, Tokens.hoverBg]
-    ]
-    "New Invitation"
+  Button.render (Button.defaults & Button.primary & Button.dashboardLink newInvitationUrl) "New Invitation"
   where
     newInvitationUrl = rootLink dashboardInvitationsLinks.newGet

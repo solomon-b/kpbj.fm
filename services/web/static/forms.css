@@ -1029,6 +1029,47 @@
   background-color: var(--theme-hover);
 }
 
+/* Dashboard forms use the look of Component.Button: Primary for submit and
+   Secondary for cancel. Keep these values in step with that module. */
+.dashboard .fb-submit,
+.dashboard .fb-cancel {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 0.25rem;
+  white-space: nowrap;
+}
+
+.dashboard .fb-submit {
+  background-color: var(--theme-bg-inverse);
+  color: var(--theme-fg-inverse);
+}
+
+.dashboard .fb-cancel {
+  background-color: var(--theme-button);
+  color: var(--theme-fg);
+}
+
+.dashboard .fb-submit:hover {
+  opacity: 0.8;
+}
+
+.dashboard .fb-cancel:hover {
+  background-color: var(--theme-button);
+  opacity: 0.8;
+}
+
+.dashboard .fb-submit--loading,
+.dashboard .fb-submit--loading:hover {
+  opacity: 0.7;
+}
+
+.dashboard .fb-submit:disabled {
+  opacity: 0.5;
+}
+
 /* ==========================================================================
    Event Photo Gallery — editor (dashboard) + public grid/lightbox
    Photos preserve their original aspect ratio (no cropping).

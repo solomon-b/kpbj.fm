@@ -14,6 +14,8 @@ where
 import API.Links (dashboardShowsLinks)
 import API.Types
 import Component.BreakItems (audioHint, audioMaxSizeMb, formatDay, formatDuration, formatRange)
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.InlineAudioPlayer (renderInlineAudioPlayer)
 import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTableWithBodyId, rowAttrs)
 import Data.String.Interpolate (i)
@@ -114,23 +116,20 @@ renderPromoRow backend showSlug promo =
       renderInlineAudioPlayer audioUrl
 
     -- Actions cell (Download link + Withdraw button)
-    Lucid.td_ [class_ $ base [Tokens.p4, "text-center", "flex", "items-center", "justify-center", Tokens.gap2]] $ do
-      Lucid.a_
-        [ Lucid.href_ audioUrl,
-          Lucid.download_ "",
-          class_ $ base ["p-2", "rounded", Tokens.hoverBg, "transition-colors"],
-          Lucid.title_ "Download"
-        ]
-        $ Lucid.i_ [Lucid.class_ [i|fa-solid fa-download #{Tokens.fgMuted}|]] mempty
-      Lucid.button_
-        [ Lucid.type_ "button",
-          hxDelete_ [i|/#{withdrawUri}|],
-          hxTarget_ ("#" <> rowId),
-          hxSwap_ "outerHTML",
-          hxConfirm_ withdrawConfirmMessage,
-          class_ $ base [Tokens.px3, Tokens.py2, Tokens.fontBold, "border", Tokens.borderDefault, Tokens.hoverBg]
-        ]
-        "Withdraw"
+    Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
+      Button.group $ do
+        Button.downloadLink audioUrl
+        Button.render
+          ( Button.defaults
+              & Button.danger
+              & Button.with
+                [ hxDelete_ [i|/#{withdrawUri}|],
+                  hxTarget_ ("#" <> rowId),
+                  hxSwap_ "outerHTML",
+                  hxConfirm_ withdrawConfirmMessage
+                ]
+          )
+          "Withdraw"
   where
     promoIdText = display promo.bimId
     rowId = [i|promo-row-#{promoIdText}|] :: Text

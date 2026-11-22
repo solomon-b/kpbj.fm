@@ -35,8 +35,7 @@ function unscheduledRow(page: Page) {
 async function navigateToEdit(page: Page) {
   await page.goto(LIST_URL);
   await expect(unscheduledRow(page)).toBeVisible();
-  // Use the actions dropdown to navigate to edit
-  await unscheduledRow(page).locator("select").selectOption("edit");
+  await unscheduledRow(page).getByRole("link", { name: "Edit", exact: true }).click();
   await page.waitForURL(/\/dashboard\/episodes\/sunday-morning-jazz\/\d+\/edit/);
 }
 
@@ -82,7 +81,7 @@ test.describe("Past episode schedule visibility", () => {
       .first();
     await expect(pastRow).toBeVisible();
 
-    await pastRow.locator("select").selectOption("edit");
+    await pastRow.getByRole("link", { name: "Edit", exact: true }).click();
     await page.waitForURL(/\/dashboard\/episodes\/sunday-morning-jazz\/\d+\/edit/);
 
     // The schedule slot section is hidden for a past episode when the

@@ -20,6 +20,8 @@ where
 
 import API.Links (dashboardStoreOrdersLinks, rootLink)
 import API.Types (DashboardStoreOrdersRoutes (..))
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Data.Foldable (for_)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -71,22 +73,7 @@ ratesTemplate shipment rates orderId =
             Lucid.div_
               [class_ $ base [Tokens.mb4]]
               $ for_ rates renderRateOption
-            Lucid.button_
-              [ Lucid.type_ "submit",
-                class_ $
-                  base
-                    [ Tokens.bgAlt,
-                      Tokens.fgPrimary,
-                      Tokens.border2,
-                      Tokens.borderDefault,
-                      Tokens.px4,
-                      Tokens.py2,
-                      Tokens.textSm,
-                      Tokens.fontBold,
-                      Tokens.hoverBg
-                    ]
-              ]
-              "Purchase Label"
+            Button.render (Button.defaults & Button.primary & Button.submit) "Purchase Label"
   where
     labelUrl :: Text
     labelUrl = rootLink $ dashboardStoreOrdersLinks.purchaseLabel orderId

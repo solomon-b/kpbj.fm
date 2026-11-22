@@ -15,6 +15,8 @@ where
 
 import API.Links (dashboardUnderwritersLinks)
 import API.Types (DashboardUnderwritersRoutes (..))
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -78,7 +80,7 @@ renderAddForm =
     ]
     $ do
       nameInput ""
-      saveButton "ADD UNDERWRITER"
+      Button.render (Button.defaults & Button.primary & Button.submit) "ADD UNDERWRITER"
   where
     newPostUri = Links.linkURI dashboardUnderwritersLinks.newPost
 
@@ -95,7 +97,7 @@ renderRow u =
         ]
       $ do
         nameInput u.uwName
-        saveButton "RENAME"
+        Button.render (Button.defaults & Button.submit) "RENAME"
     Lucid.td_ [class_ $ base [Tokens.p4, Tokens.textSm, Tokens.fgMuted]] $
       Lucid.toHtml (display u.uwId)
   where
@@ -112,11 +114,3 @@ nameInput current =
       Lucid.maxlength_ "200",
       class_ $ base ["flex-1", Tokens.px3, "py-1", Tokens.textSm, Tokens.bgAlt, Tokens.fgPrimary, "border", Tokens.borderMuted]
     ]
-
-saveButton :: Text -> Lucid.Html ()
-saveButton =
-  Lucid.button_
-    [ Lucid.type_ "submit",
-      class_ $ base [Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, Tokens.bgAlt, Tokens.fgPrimary, "border", Tokens.borderMuted, "hover:opacity-80"]
-    ]
-    . Lucid.toHtml

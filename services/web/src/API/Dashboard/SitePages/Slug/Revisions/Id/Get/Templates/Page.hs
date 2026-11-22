@@ -10,6 +10,8 @@ where
 
 import API.Links (dashboardSitePagesLinks)
 import API.Types (DashboardSitePagesRoutes (..))
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
@@ -93,12 +95,15 @@ renderRestoreButton page revision = do
         Lucid.p_
           [class_ $ base [Tokens.textSm, Tokens.fgMuted]]
           "This will replace the current page content with the content from this revision."
-      Lucid.button_
-        [ class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px6, Tokens.py2, Tokens.fontBold, "hover:opacity-80"],
-          hxPost_ [i|/#{dashboardSitePagesRestoreUrl (SitePages.spmSlug page) (SitePageRevisions.sprId revision)}|],
-          hxTarget_ "#main-content",
-          Lucid.data_ "confirm" "Are you sure you want to restore this revision? This will replace the current page content."
-        ]
+      Button.render
+        ( Button.defaults
+            & Button.primary
+            & Button.with
+              [ hxPost_ [i|/#{dashboardSitePagesRestoreUrl (SitePages.spmSlug page) (SitePageRevisions.sprId revision)}|],
+                hxTarget_ "#main-content",
+                hxConfirm_ "Are you sure you want to restore this revision? This will replace the current page content."
+              ]
+        )
         "RESTORE REVISION"
 
 formatDateTime :: UTCTime -> String

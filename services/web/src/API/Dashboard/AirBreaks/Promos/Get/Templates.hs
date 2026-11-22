@@ -17,6 +17,8 @@ where
 import API.Links (dashboardPromosLinks, dashboardShowsLinks)
 import API.Types
 import Component.BreakItems (formatDuration, formatRange)
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.InlineAudioPlayer (renderInlineAudioPlayer)
 import Component.Table
   ( ColumnAlign (..),
@@ -129,10 +131,9 @@ renderEmptyState =
 
 -- | One promo row.
 --
--- Every row has a play button, a download link, and an actions dropdown with
--- Delete. A pending row also has Approve in the dropdown and a visible Reject
--- button. The Reject button opens a note field inside the row, because the
--- host needs to know what to change.
+-- Every row has a play button, a download link, and a Delete button. A pending
+-- row also has Approve and Reject buttons. The Reject button opens a note
+-- field inside the row, because the host needs to know what to change.
 renderPromoRow ::
   -- | Builds the audio URL of the promo
   StorageBackend ->
@@ -194,14 +195,8 @@ renderPromoRow backend showsById promo =
     -- The download link and the given buttons, in one centered line.
     renderActionBar :: Lucid.Html () -> Lucid.Html ()
     renderActionBar buttons =
-      Lucid.div_ [class_ $ base ["flex", "items-center", "justify-center", Tokens.gap2]] $ do
-        Lucid.a_
-          [ Lucid.href_ audioUrl,
-            Lucid.download_ "",
-            class_ $ base ["p-2", "rounded", Tokens.hoverBg, "transition-colors"],
-            Lucid.title_ "Download"
-          ]
-          $ Lucid.i_ [Lucid.class_ [i|fa-solid fa-download #{Tokens.fgMuted}|]] mempty
+      Button.group $ do
+        Button.downloadLink audioUrl
         buttons
 
     -- Only a pending promo can be approved or rejected. The Reject button
@@ -210,24 +205,24 @@ renderPromoRow backend showsById promo =
     renderPendingActions =
       Lucid.div_ [xData_ "{ rejecting: false }"] $ do
         renderActionBar $ do
-          Lucid.button_
-            [ Lucid.type_ "button",
-              hxPost_ [i|/#{approveUri}|],
-              hxTarget_ rowTarget,
-              hxSwap_ "outerHTML",
-              class_ $ base [Tokens.px3, Tokens.py2, Tokens.fontBold, Tokens.bgInverse, Tokens.fgInverse, "hover:opacity-80"]
-            ]
+          Button.render
+            ( Button.defaults
+                & Button.primary
+                & Button.with
+                  [ hxPost_ [i|/#{approveUri}|],
+                    hxTarget_ rowTarget,
+                    hxSwap_ "outerHTML"
+                  ]
+            )
             "Approve"
-          Lucid.button_
-            [ Lucid.type_ "button",
-              xOnClick_ "rejecting = !rejecting",
-              class_ $ base [Tokens.px3, Tokens.py2, Tokens.fontBold, "border", Tokens.borderDefault, Tokens.hoverBg]
-            ]
+          Button.render
+            (Button.defaults & Button.with [xOnClick_ "rejecting = !rejecting"])
             "Reject"
           renderDeleteButton
 
         Lucid.form_
           [ xShow_ "rejecting",
+            xCloak_,
             hxPost_ [i|/#{rejectUri}|],
             hxTarget_ rowTarget,
             hxSwap_ "outerHTML",
@@ -244,22 +239,20 @@ renderPromoRow backend showsById promo =
                 class_ $ base [Tokens.p2, "border", Tokens.borderDefault, Tokens.bgMain, Tokens.fgPrimary]
               ]
               ""
-            Lucid.button_
-              [ Lucid.type_ "submit",
-                class_ $ base [Tokens.px3, Tokens.py2, Tokens.fontBold, Tokens.bgInverse, Tokens.fgInverse, "hover:opacity-80"]
-              ]
-              "Send Rejection"
+            Button.render (Button.defaults & Button.primary & Button.submit) "Send Rejection"
 
     renderDeleteButton :: Lucid.Html ()
     renderDeleteButton =
-      Lucid.button_
-        [ Lucid.type_ "button",
-          hxDelete_ [i|/#{deleteUri}|],
-          hxTarget_ rowTarget,
-          hxSwap_ "outerHTML",
-          hxConfirm_ deleteConfirmMessage,
-          class_ $ base [Tokens.px3, Tokens.py2, Tokens.fontBold, "border", Tokens.borderDefault, Tokens.errorText, Tokens.hoverBg]
-        ]
+      Button.render
+        ( Button.defaults
+            & Button.danger
+            & Button.with
+              [ hxDelete_ [i|/#{deleteUri}|],
+                hxTarget_ rowTarget,
+                hxSwap_ "outerHTML",
+                hxConfirm_ deleteConfirmMessage
+              ]
+        )
         "Delete"
 
 -- | The show title, linked to the show's dashboard page.

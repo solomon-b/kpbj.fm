@@ -631,7 +631,6 @@ library
     App.Smtp
     App.Storage
     App.Handler.Error
-    Component.ActionsDropdown
     Component.AudioPlayer.Waveform
     Component.BreakItems
     Component.InfiniteScroll
@@ -654,6 +653,7 @@ library
     Component.Frame
     Component.NotFound
     Component.PageHeader
+    Component.Button
     Component.Table
     Component.Tags
     Design
@@ -735,6 +735,7 @@ test-suite kpbj-web-test
                     , hspec-hedgehog
                     , HUnit
                     , iproute
+                    , lens
                     , log-base
                     , lucid2
                     , directory
@@ -858,6 +859,7 @@ test-suite kpbj-web-test
        API.Dashboard.Shows.Slug.Edit.Get.HandlerSpec
        API.Dashboard.Shows.Slug.Episode.New.Post.HandlerSpec
        API.Dashboard.Shows.Slug.Edit.Post.ScheduleDiffSpec
+       Component.ButtonSpec
        Component.DashboardFrameSpec
        Component.FlashSpec
        Component.ScheduleEditorSpec

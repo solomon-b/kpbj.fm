@@ -29,6 +29,8 @@ where
 
 --------------------------------------------------------------------------------
 
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BSL
 import Data.String.Interpolate (i)
@@ -378,15 +380,12 @@ renderFrequencySelector =
 
 freqButton :: Text -> Text -> Lucid.Html ()
 freqButton freqVal label =
-  Lucid.button_
-    [ Lucid.type_ "button",
-      xOnClick_ [i|setFrequency('#{freqVal}')|],
-      class_ $ base [Tokens.border2, Tokens.fontBold, Tokens.textSm, "hover:opacity-80", Tokens.px4, Tokens.py2],
-      xBindClass_
-        [i|frequency === '#{freqVal}'
-          ? '#{Tokens.infoBg} #{Tokens.infoText} #{Tokens.infoBorder}'
-          : '#{Tokens.bgAlt} #{Tokens.fgPrimary} #{Tokens.borderMuted}'|]
-    ]
+  Button.render
+    ( Button.defaults
+        & Button.primary
+        & Button.toggle [i|frequency === '#{freqVal}'|] Button.Secondary
+        & Button.with [xOnClick_ [i|setFrequency('#{freqVal}')|]]
+    )
     (Lucid.toHtml label)
 
 --------------------------------------------------------------------------------
@@ -423,15 +422,12 @@ renderWeekSelector =
 
 weeksButton :: Text -> Text -> Lucid.Html ()
 weeksButton jsArray label =
-  Lucid.button_
-    [ Lucid.type_ "button",
-      xOnClick_ [i|setWeeks(#{jsArray})|],
-      class_ $ base [Tokens.border2, Tokens.fontBold, Tokens.textSm, "hover:opacity-80", Tokens.px4, Tokens.py2],
-      xBindClass_
-        [i|JSON.stringify(weeks) === JSON.stringify(#{jsArray})
-          ? '#{Tokens.infoBg} #{Tokens.infoText} #{Tokens.infoBorder}'
-          : '#{Tokens.bgAlt} #{Tokens.fgPrimary} #{Tokens.borderMuted}'|]
-    ]
+  Button.render
+    ( Button.defaults
+        & Button.primary
+        & Button.toggle [i|JSON.stringify(weeks) === JSON.stringify(#{jsArray})|] Button.Secondary
+        & Button.with [xOnClick_ [i|setWeeks(#{jsArray})|]]
+    )
     (Lucid.toHtml label)
 
 onceWeekButton :: Text -> Text -> Lucid.Html ()
@@ -546,15 +542,12 @@ renderDurationButtons =
 
 durationButton :: Int -> Text -> Lucid.Html ()
 durationButton dur label =
-  Lucid.button_
-    [ Lucid.type_ "button",
-      xOnClick_ [i|setDuration(#{dur})|],
-      class_ $ base [Tokens.border2, Tokens.fontBold, Tokens.textSm, "hover:opacity-80", Tokens.px4, Tokens.py2],
-      xBindClass_
-        [i|slot.duration === #{dur}
-          ? '#{Tokens.infoBg} #{Tokens.infoText} #{Tokens.infoBorder}'
-          : '#{Tokens.bgAlt} #{Tokens.fgPrimary} #{Tokens.borderMuted}'|]
-    ]
+  Button.render
+    ( Button.defaults
+        & Button.primary
+        & Button.toggle [i|slot.duration === #{dur}|] Button.Secondary
+        & Button.with [xOnClick_ [i|setDuration(#{dur})|]]
+    )
     (Lucid.toHtml label)
 
 --------------------------------------------------------------------------------

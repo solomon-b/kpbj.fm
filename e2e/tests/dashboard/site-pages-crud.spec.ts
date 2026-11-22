@@ -34,8 +34,11 @@ test.describe("Site Pages CRUD (Staff)", () => {
     await expect(tableBody).toContainText("Privacy Policy");
     await expect(tableBody).toContainText("Terms of Service");
 
-    // Navigate to edit via actions dropdown.
-    await tableBody.locator("tr", { hasText: "About KPBJ" }).locator("select").selectOption("edit");
+    // Navigate to edit via the row's Edit button.
+    await tableBody
+      .locator("tr", { hasText: "About KPBJ" })
+      .getByRole("link", { name: "Edit", exact: true })
+      .click();
     await page.waitForURL(/\/dashboard\/site-pages\/about\/edit/);
     await expect(page.locator('input[name="title"]')).toHaveValue("About KPBJ");
     await expect(page.locator('textarea[name="content"]')).toHaveValue(/KPBJ/);

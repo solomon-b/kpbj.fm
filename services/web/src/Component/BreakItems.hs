@@ -37,7 +37,8 @@ where
 
 import API.Links (dashboardUnderwritersLinks, rootLink)
 import API.Types (DashboardUnderwritersRoutes (..))
-import Component.ActionsDropdown qualified as ActionsDropdown
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.InlineAudioPlayer (renderInlineAudioPlayer)
 import Component.Table
   ( ColumnAlign (..),
@@ -68,6 +69,7 @@ import Effects.Database.Tables.BreakItems qualified as BreakItems
 import Effects.Database.Tables.Underwriters qualified as Underwriters
 import Lucid qualified
 import Lucid.Form.Builder
+import Lucid.HTMX (hxConfirm_, hxDelete_, hxSwap_, hxTarget_)
 import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
@@ -243,24 +245,21 @@ renderRow backend urls mNames item =
         Lucid.td_ [class_ $ base [Tokens.p4, "text-center"]] $
           renderInlineAudioPlayer audioUrl
 
-        Lucid.td_ [class_ $ base [Tokens.p4, "text-center", "flex", "items-center", "justify-center", Tokens.gap2]] $ do
-          Lucid.a_
-            [ Lucid.href_ audioUrl,
-              Lucid.download_ "",
-              class_ $ base ["p-2", "rounded", Tokens.hoverBg, "transition-colors"],
-              Lucid.title_ "Download"
-            ]
-            $ Lucid.i_ [Lucid.class_ [i|fa-solid fa-download #{Tokens.fgMuted}|]] mempty
-          ActionsDropdown.render
-            [ ActionsDropdown.navigateAction "edit" "Edit" editUrl,
-              ActionsDropdown.htmxDeleteAction
-                "delete"
-                "Delete"
-                deleteUrl
-                ("#" <> rowId)
-                ActionsDropdown.SwapOuterHTML
-                deleteConfirmMessage
-            ]
+        Lucid.td_ [class_ $ base [Tokens.p4, Tokens.textSm, "text-center"]] $
+          Button.group $ do
+            Button.downloadLink audioUrl
+            Button.render (Button.defaults & Button.dashboardLink editUrl) "Edit"
+            Button.render
+              ( Button.defaults
+                  & Button.danger
+                  & Button.with
+                    [ hxDelete_ deleteUrl,
+                      hxTarget_ ("#" <> rowId),
+                      hxSwap_ "outerHTML",
+                      hxConfirm_ deleteConfirmMessage
+                    ]
+              )
+              "Delete"
 
 renderEmptyState :: SectionUrls -> Lucid.Html ()
 renderEmptyState urls =
@@ -272,24 +271,13 @@ renderEmptyState urls =
 
 -- | The button that sits in the dashboard top bar.
 renderActionButton :: SectionUrls -> Lucid.Html ()
-renderActionButton urls = renderLinkButton ("Upload " <> urls.suNoun) newUrl
+renderActionButton urls =
+  Button.render
+    (Button.defaults & Button.primary & Button.dashboardLink newUrl)
+    (Lucid.toHtml ("Upload " <> urls.suNoun))
   where
     newUri = urls.suNewGetUrl
     newUrl = [i|/#{newUri}|] :: Text
-
--- | A top bar link styled as a button.
-renderLinkButton ::
-  -- | Label
-  Text ->
-  -- | Target URL
-  Text ->
-  Lucid.Html ()
-renderLinkButton buttonLabel url =
-  Lucid.a_
-    [ Lucid.href_ url,
-      Lucid.class_ "bg-[var(--theme-bg-inverse)] text-[var(--theme-fg-inverse)] px-4 py-2 text-sm font-bold hover:opacity-80"
-    ]
-    (Lucid.toHtml buttonLabel)
 
 --------------------------------------------------------------------------------
 -- Forms

@@ -15,6 +15,8 @@ import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError)
 import App.Monad (AppM)
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.DashboardFrame (DashboardNav (..))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans (lift)
@@ -27,8 +29,6 @@ import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time (Day, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import Design (base, class_)
-import Design.Tokens qualified as Tokens
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
@@ -41,7 +41,6 @@ import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction qualified as Txn
 import Lucid qualified
-import Lucid.HTMX
 import OrphanInstances.TimeOfDay (formatTimeOfDay)
 import Rel8 (Result)
 import Servant.Links qualified as Links
@@ -139,14 +138,7 @@ handler showSlug maybePage (Satisfies _ auth) (foldHxReq -> hxRequest) =
     actionButton :: Shows.Model -> Lucid.Html ()
     actionButton showModel =
       let uploadUrl = Links.linkURI $ dashboardShowsLinks.episodeNewGet showModel.slug
-       in Lucid.a_
-            [ Lucid.href_ [i|/#{uploadUrl}|],
-              hxGet_ [i|/#{uploadUrl}|],
-              hxTarget_ "#main-content",
-              hxPushUrl_ "true",
-              class_ $ base [Tokens.bgInverse, Tokens.fgInverse, Tokens.px4, Tokens.py2, Tokens.textSm, Tokens.fontBold, Tokens.hoverBg]
-            ]
-            "New Episode"
+       in Button.render (Button.defaults & Button.primary & Button.dashboardLink [i|/#{uploadUrl}|]) "New Episode"
 
     statsContent ::
       UserMetadata.Model ->
