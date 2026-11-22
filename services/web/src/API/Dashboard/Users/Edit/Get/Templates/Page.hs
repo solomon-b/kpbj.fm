@@ -4,8 +4,10 @@ module API.Dashboard.Users.Edit.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
+import API.Dashboard.Users.Edit.Shared (CanChangeRole)
 import API.Links (dashboardUsersLinks)
 import API.Types
+import Control.Monad (forM_)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
@@ -21,8 +23,15 @@ import Servant.Links qualified as Links
 
 --------------------------------------------------------------------------------
 
-template :: StorageBackend -> User.Model -> UserMetadata.Model -> Lucid.Html ()
-template backend user metadata = do
+-- | The edit form. The role field shows only with a 'CanChangeRole'.
+template ::
+  -- | The permission to change the role, for an Admin
+  Maybe CanChangeRole ->
+  StorageBackend ->
+  User.Model ->
+  UserMetadata.Model ->
+  Lucid.Html ()
+template mCanChangeRole backend user metadata = do
   renderFormHeader user metadata
   renderForm config form
   where
@@ -79,21 +88,27 @@ template backend user metadata = do
           Just _ -> currentFile avatarUrl
           Nothing -> pure ()
 
-      section "" $ do
-        -- Role Selector
-        selectField "role" $ do
-          hint "Changing user roles affects their permissions"
-          required
-          roleOption UserMetadata.User "User" metadata.mUserRole
-          roleOption UserMetadata.Host "Host" metadata.mUserRole
-          roleOption UserMetadata.Staff "Staff" metadata.mUserRole
-          roleOption UserMetadata.Admin "Admin" metadata.mUserRole
-
-        -- Info box
-        plain roleInfoBox
+      forM_ mCanChangeRole $ \canChangeRole ->
+        roleSection canChangeRole metadata.mUserRole
 
       cancelButton backUrl "CANCEL"
       submitButton "SAVE CHANGES"
+
+-- | The role selector. It needs the permission to change the role.
+roleSection :: CanChangeRole -> UserMetadata.UserRole -> FormBuilder
+roleSection _ currentRole =
+  section "" $ do
+    -- Role Selector
+    selectField "role" $ do
+      hint "Changing user roles affects their permissions"
+      required
+      roleOption UserMetadata.User "User" currentRole
+      roleOption UserMetadata.Host "Host" currentRole
+      roleOption UserMetadata.Staff "Staff" currentRole
+      roleOption UserMetadata.Admin "Admin" currentRole
+
+    -- Info box
+    plain roleInfoBox
 
 -- | Helper to add a role option, selecting it if it matches current role
 roleOption :: UserMetadata.UserRole -> Text -> UserMetadata.UserRole -> FieldBuilder
