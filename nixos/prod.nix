@@ -97,6 +97,10 @@
     sopsFile = ../secrets/prod-web.yaml;
   };
 
+  sops.secrets.open_container_api_key = {
+    sopsFile = ../secrets/prod-web.yaml;
+  };
+
   sops.secrets.discord_webhook_url = {
     sopsFile = ../secrets/prod-web.yaml;
   };
@@ -167,8 +171,8 @@
 
     llm = {
       enable = true;
-      apiUrl = "https://api.deepseek.com/chat/completions";
-      model = "deepseek-chat";
+      apiUrl = "https://openrouter.ai/api/v1/chat/completions";
+      model = "deepseek/deepseek-chat";
       systemPromptFile = pkgs.writeText "friendly-ghost-prompt-prod.txt" (
         builtins.readFile ./scripts/friendly-ghost-prompt.txt
         + ''
@@ -182,7 +186,7 @@
           so a sudden large diff is worth flagging.
         ''
       );
-      apiKeyFile = config.sops.secrets.deepseek_api_key.path;
+      apiKeyFile = config.sops.secrets.open_container_api_key.path;
       maxTokens = 2048;
     };
   };

@@ -104,6 +104,10 @@
     sopsFile = ../secrets/staging-web.yaml;
   };
 
+  sops.secrets.open_container_api_key = {
+    sopsFile = ../secrets/staging-web.yaml;
+  };
+
   sops.secrets.discord_webhook_url = {
     sopsFile = ../secrets/staging-web.yaml;
   };
@@ -197,8 +201,8 @@
 
     llm = {
       enable = true;
-      apiUrl = "https://api.deepseek.com/chat/completions";
-      model = "deepseek-chat";
+      apiUrl = "https://openrouter.ai/api/v1/chat/completions";
+      model = "deepseek/deepseek-chat";
       systemPromptFile = pkgs.writeText "friendly-ghost-prompt-staging.txt" (
         builtins.readFile ./scripts/friendly-ghost-prompt.txt
         + ''
@@ -212,7 +216,7 @@
           sanitized DB, so its large diffs are expected.
         ''
       );
-      apiKeyFile = config.sops.secrets.deepseek_api_key.path;
+      apiKeyFile = config.sops.secrets.open_container_api_key.path;
       maxTokens = 2048;
     };
   };
