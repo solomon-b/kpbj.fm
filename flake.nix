@@ -53,8 +53,8 @@
           };
           servantAuthRolesSrc = pkgs.fetchgit {
             url = "https://github.com/solomon-b/servant-auth-roles.git";
-            rev = "74db973fbb75f7725c97aee42b4f2e9f93778492";
-            sha256 = "sha256-twlgPcSJ0ToZWQZRtT2xbBF7ZwzbXkMpBtz9gTdfd2U=";
+            rev = "9300751f126ff375f36b57ebf33fa4fb1fcbb820";
+            sha256 = "sha256-YgIU5yXaO9AoF1QW7k/CQFjoLbRcUEOhCvFjvSskd1c=";
           };
           hsPkgs = pkgs.haskellPackages.override {
             overrides = hfinal: hprev: {
