@@ -50,35 +50,64 @@
             rev = "74db973fbb75f7725c97aee42b4f2e9f93778492";
             sha256 = "sha256-twlgPcSJ0ToZWQZRtT2xbBF7ZwzbXkMpBtz9gTdfd2U=";
           };
+          # The local packages build with their test suites on, so `nix build`
+          # compiles each package once and runs its tests in the same build. The
+          # deployed binary is then the one that passed the tests. A failing test
+          # stops the build of that package and of every package that needs it.
+          #
+          # The database suites start their own Postgres through tmp-postgres, so
+          # they need the server binaries and sqlx on PATH. They also need the
+          # migrations, which live under services/web and are therefore outside
+          # the source tree of kpbj-database, so MIGRATIONS_DIR names them.
+          #
+          # The locale is UTF-8. Hedgehog prints coverage bars with a non-ASCII
+          # character, and an ASCII locale makes that write fail.
+          #
+          # Library profiling is off. Nixpkgs turns it on by default, which
+          # compiles every module a second time, and nothing reads the profiling
+          # libraries. The devShell builds the local packages through cabal, so
+          # profiling a build by hand still works.
+          localPackage = hfinal: name: src:
+            pkgs.haskell.lib.overrideCabal
+              (pkgs.haskell.lib.doCheck
+                (pkgs.haskell.lib.disableLibraryProfiling
+                  (hfinal.callCabal2nix name src { })))
+              (old: {
+                testToolDepends = (old.testToolDepends or [ ]) ++ [ pkgs.postgresql_17 pkgs.sqlx-cli ];
+                preCheck = (old.preCheck or "") + ''
+                  export MIGRATIONS_DIR=${./services/web/migrations}
+                  export LC_ALL=C.UTF-8
+                '';
+              });
           hsPkgs = pkgs.haskellPackages.override {
             overrides = hfinal: hprev: {
               servant-auth-roles = pkgs.haskell.lib.dontCheck
                 (hfinal.callCabal2nix "servant-auth-roles" servantAuthRolesSrc { });
 
-              kpbj-types = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-types" ./lib/kpbj-types { });
+              kpbj-types = localPackage hfinal "kpbj-types" ./lib/kpbj-types;
 
-              kpbj-storage = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-storage" ./lib/kpbj-storage { });
+              kpbj-storage = localPackage hfinal "kpbj-storage" ./lib/kpbj-storage;
 
-              kpbj-database = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-database" ./lib/kpbj-database { });
+              kpbj-database = localPackage hfinal "kpbj-database" ./lib/kpbj-database;
 
-              kpbj-email = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-email" ./lib/kpbj-email { });
+              kpbj-email = localPackage hfinal "kpbj-email" ./lib/kpbj-email;
 
-              kpbj-job = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-job" ./lib/kpbj-job { });
+              kpbj-job = localPackage hfinal "kpbj-job" ./lib/kpbj-job;
 
-              stripe-http = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "stripe-http" ./lib/stripe-http { });
+              stripe-http = localPackage hfinal "stripe-http" ./lib/stripe-http;
 
-              easypost-http = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "easypost-http" ./lib/easypost-http { });
+              easypost-http = localPackage hfinal "easypost-http" ./lib/easypost-http;
 
-              mailchimp-http = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "mailchimp-http" ./lib/mailchimp-http { });
+              mailchimp-http = localPackage hfinal "mailchimp-http" ./lib/mailchimp-http;
 
-              google-service-account = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "google-service-account" ./lib/google-service-account { });
+              google-service-account = localPackage hfinal "google-service-account" ./lib/google-service-account;
 
               # The audio upload runs ffprobe to measure each file and refuses one
               # it cannot measure. The wrapper puts ffprobe on the binary's PATH,
               # so the server finds it wherever it runs: the NixOS service, CI,
               # or a local `nix build`.
               kpbj-web = pkgs.haskell.lib.overrideCabal
-                (pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "kpbj-web" ./services/web { }))
+                (localPackage hfinal "kpbj-web" ./services/web)
                 (old: {
                   buildTools = (old.buildTools or [ ]) ++ [ pkgs.makeWrapper ];
                   postInstall = (old.postInstall or "") + ''
@@ -86,29 +115,29 @@
                   '';
                 });
 
-              sync-host-emails = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "sync-host-emails" ./jobs/sync-host-emails { });
+              sync-host-emails = localPackage hfinal "sync-host-emails" ./jobs/sync-host-emails;
 
-              sync-schedule-calendar = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "sync-schedule-calendar" ./jobs/sync-schedule-calendar { });
+              sync-schedule-calendar = localPackage hfinal "sync-schedule-calendar" ./jobs/sync-schedule-calendar;
 
-              token-cleanup = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "token-cleanup" ./jobs/token-cleanup { });
+              token-cleanup = localPackage hfinal "token-cleanup" ./jobs/token-cleanup;
 
-              episode-check = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "episode-check" ./jobs/episode-check { });
+              episode-check = localPackage hfinal "episode-check" ./jobs/episode-check;
 
-              listener-snapshots = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "listener-snapshots" ./jobs/listener-snapshots { });
+              listener-snapshots = localPackage hfinal "listener-snapshots" ./jobs/listener-snapshots;
 
-              ga-poller = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "ga-poller" ./jobs/ga-poller { });
+              ga-poller = localPackage hfinal "ga-poller" ./jobs/ga-poller;
 
-              mailchimp-reconcile = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "mailchimp-reconcile" ./jobs/mailchimp-reconcile { });
+              mailchimp-reconcile = localPackage hfinal "mailchimp-reconcile" ./jobs/mailchimp-reconcile;
 
-              order-cleanup = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "order-cleanup" ./jobs/order-cleanup { });
+              order-cleanup = localPackage hfinal "order-cleanup" ./jobs/order-cleanup;
 
-              staged-upload-cleanup = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "staged-upload-cleanup" ./jobs/staged-upload-cleanup { });
+              staged-upload-cleanup = localPackage hfinal "staged-upload-cleanup" ./jobs/staged-upload-cleanup;
 
-              lucid-form-builder = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-form-builder" ./lib/lucid-form-builder { });
+              lucid-form-builder = localPackage hfinal "lucid-form-builder" ./lib/lucid-form-builder;
 
-              lucid-htmx-alpine = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-htmx-alpine" ./lib/lucid-htmx-alpine { });
+              lucid-htmx-alpine = localPackage hfinal "lucid-htmx-alpine" ./lib/lucid-htmx-alpine;
 
-              lucid-tailwind = pkgs.haskell.lib.dontCheck (hfinal.callCabal2nix "lucid-tailwind" ./lib/lucid-tailwind { });
+              lucid-tailwind = localPackage hfinal "lucid-tailwind" ./lib/lucid-tailwind;
 
               # rel8 1.7.0.0 for hasql 1.9 compatibility
               rel8 = pkgs.haskell.lib.dontCheck (hfinal.callHackageDirect
@@ -157,7 +186,7 @@
         in
         rec {
           devShell = hsPkgs.shellFor {
-            packages = p: map pkgs.haskell.lib.doCheck [ p.kpbj-types p.kpbj-storage p.kpbj-database p.kpbj-email p.kpbj-job p.kpbj-web p.sync-host-emails p.sync-schedule-calendar p.token-cleanup p.episode-check p.listener-snapshots p.ga-poller p.mailchimp-reconcile ];
+            packages = p: map pkgs.haskell.lib.doCheck [ p.kpbj-types p.kpbj-storage p.kpbj-database p.kpbj-email p.kpbj-job p.kpbj-web p.stripe-http p.easypost-http p.mailchimp-http p.google-service-account p.lucid-form-builder p.lucid-htmx-alpine p.lucid-tailwind p.sync-host-emails p.sync-schedule-calendar p.token-cleanup p.episode-check p.listener-snapshots p.ga-poller p.mailchimp-reconcile ];
             withHoogle = false;
             buildInputs = [
               pkgs.cabal-install
@@ -202,47 +231,21 @@
 
           defaultPackage = packages.kpbj-web;
 
-          # Every package above is built with dontCheck, so a deploy never waits
-          # on the suites and a broken test never blocks a build. These run them.
-          #
-          # The database suites start their own Postgres through tmp-postgres, so
-          # they need the server binaries and sqlx on PATH. They also need the
-          # migrations, which live under services/web and are therefore outside
-          # the source tree of kpbj-database, so MIGRATIONS_DIR names them.
-          #
-          # The locale is UTF-8. Hedgehog prints coverage bars with a non-ASCII
-          # character, and an ASCII locale makes that write fail.
-          #
-          # Profiling is off here. Nixpkgs turns it on by default, which compiles
-          # every module a second time, and nothing reads the profiling libraries.
-          # The packages and the devShell keep it, so profiling a build by hand
-          # still works.
-          checks =
-            let
-              runTests = pkg:
-                pkgs.haskell.lib.overrideCabal
-                  (pkgs.haskell.lib.doCheck
-                    (pkgs.haskell.lib.disableLibraryProfiling pkg))
-                  (old: {
-                    testToolDepends = (old.testToolDepends or [ ]) ++ [ pkgs.postgresql_17 pkgs.sqlx-cli ];
-                    preCheck = (old.preCheck or "") + ''
-                      export MIGRATIONS_DIR=${./services/web/migrations}
-                      export LC_ALL=C.UTF-8
-                    '';
-                  });
-            in
-            {
-              kpbj-web = runTests hsPkgs.kpbj-web;
-              kpbj-database = runTests hsPkgs.kpbj-database;
-              kpbj-storage = runTests hsPkgs.kpbj-storage;
-              kpbj-job = runTests hsPkgs.kpbj-job;
-              stripe-http = runTests hsPkgs.stripe-http;
-              easypost-http = runTests hsPkgs.easypost-http;
-              mailchimp-http = runTests hsPkgs.mailchimp-http;
-              google-service-account = runTests hsPkgs.google-service-account;
-              sync-host-emails = runTests hsPkgs.sync-host-emails;
-              sync-schedule-calendar = runTests hsPkgs.sync-schedule-calendar;
-            };
+          # The packages with a test suite. Each one runs its suite as part of its
+          # own build, so a check is the same derivation as the package.
+          checks = {
+            inherit (hsPkgs)
+              kpbj-web
+              kpbj-database
+              kpbj-storage
+              kpbj-job
+              stripe-http
+              easypost-http
+              mailchimp-http
+              google-service-account
+              sync-host-emails
+              sync-schedule-calendar;
+          };
 
           apps = {
             kpbj-web = {
