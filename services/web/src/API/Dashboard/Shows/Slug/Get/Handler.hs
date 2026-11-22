@@ -9,13 +9,15 @@ module API.Dashboard.Shows.Slug.Get.Handler where
 import API.Dashboard.Shows.Slug.Get.Templates.Page (template)
 import API.Links (apiLinks)
 import API.Types
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Dashboard.CurrentShow (fetchDashboardShows)
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
-import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
+import App.Handler.Combinators (authorizeShow)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Control.Monad (void)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -24,7 +26,6 @@ import Data.Int (Int64)
 import Data.List (find)
 import Data.Maybe (fromMaybe)
 import Data.Time (UTCTime)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
@@ -38,7 +39,6 @@ import Effects.Database.Tables.ShowHost qualified as ShowHost
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.ShowTags qualified as ShowTags
 import Effects.Database.Tables.Shows qualified as Shows
-import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Pool qualified as HSQL.Pool
 import Hasql.Transaction qualified as TRX
@@ -91,15 +91,13 @@ handler ::
   Shows.Id ->
   Slug ->
   Maybe Int ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler showId showSlug mPage cookie (foldHxReq -> hxRequest) =
+handler showId showSlug mPage host@(Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Show details" apiLinks.rootGet $ do
-    -- 1. Require authentication and host role
-    (user, userMetadata) <- requireAuth cookie
-    requireShowHostOrStaff user.mId showSlug userMetadata
-    vd <- action userMetadata showId showSlug mPage
+    void $ authorizeShow host showSlug
+    vd <- action auth.raMetadata showId showSlug mPage
     lift $ renderShowDetails vd.sdvBackend hxRequest vd.sdvUserMetadata vd.sdvShowModel (Just vd.sdvPage)
 
 -- | Render show details page within dashboard frame

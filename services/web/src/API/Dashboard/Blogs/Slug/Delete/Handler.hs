@@ -4,19 +4,18 @@ module API.Dashboard.Blogs.Slug.Delete.Handler where
 
 --------------------------------------------------------------------------------
 
-import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
+import App.Auth.Roles (RoleAuth, Satisfies)
+import App.Handler.Combinators (authorizeShow)
 import App.Handler.Error (HandlerError, handleBannerErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
 import Control.Monad (unless)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.Shows qualified as Shows
-import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
@@ -28,38 +27,33 @@ import Utils (fromMaybeM, fromRightM)
 handler ::
   Slug ->
   ShowBlogPosts.Id ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   AppM (Lucid.Html ())
-handler showSlug postId cookie =
+handler showSlug postId host =
   handleBannerErrors "Show blog post delete" $ do
-    (user, userMetadata) <- requireAuth cookie
-    action user userMetadata showSlug postId
+    showModel <- authorizeShow host showSlug
+    action showModel postId
     pure $ do
       Lucid.toHtmlRaw ("" :: Text)
       renderBanner Success "Blog Post Deleted" "The blog post has been deleted."
 
 --------------------------------------------------------------------------------
 
--- | Business logic: show fetch, post fetch, ownership check, delete.
+-- | Business logic: post fetch, ownership check, delete, for a show that
+-- 'authorizeShow' checked.
 action ::
-  User.Model ->
-  UserMetadata.Model ->
-  Slug ->
+  Shows.Model ->
   ShowBlogPosts.Id ->
   ExceptT HandlerError AppM ()
-action user userMetadata showSlug postId = do
-  -- 1. Fetch show and blog post
-  showModel <- fetchShow showSlug
+action showModel postId = do
+  -- 1. Fetch the blog post
   blogPost <- fetchBlogPost postId
 
   -- 2. Verify blog post belongs to show
   unless (blogPost.showId == showModel.id) $
     throwNotFound "Blog post"
 
-  -- 3. Check authorization (host of show or staff+, not suspended)
-  requireShowHostOrStaff user.mId showSlug userMetadata
-
-  -- 4. Delete the blog post
+  -- 3. Delete the blog post
   _ <-
     fromMaybeM (throwNotFound "Blog post") $
       fromRightM throwDatabaseError $
@@ -68,14 +62,6 @@ action user userMetadata showSlug postId = do
 
 --------------------------------------------------------------------------------
 -- Helpers
-
-fetchShow ::
-  Slug ->
-  ExceptT HandlerError AppM Shows.Model
-fetchShow showSlug =
-  fromMaybeM (throwNotFound "Show") $
-    fromRightM throwDatabaseError $
-      execQuery (Shows.getShowBySlug showSlug)
 
 fetchBlogPost ::
   ShowBlogPosts.Id ->

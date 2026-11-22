@@ -9,7 +9,6 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Int (Int64)
 import Data.Text (Text)
-import Domain.Types.Slug (Slug (..))
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.BreakItems qualified as BreakItems
@@ -34,7 +33,6 @@ spec =
     describe "API.Dashboard.Shows.Slug.Promos.New.Post.Handler.action" $ do
       it "saves a pending promo for the host's show" test_hostSubmitsPendingPromo
       it "saves a promo from staff as pending too" test_staffSubmitIsPending
-      it "refuses a host who does not host the show" test_refusesOtherHost
       it "refuses a promo longer than 30 seconds" test_refusesLongPromo
 
 --------------------------------------------------------------------------------
@@ -58,25 +56,27 @@ setupHostAndUpload ::
   UserMetadata.UserRole ->
   -- | Upload length in seconds
   Int64 ->
-  IO (User.Model, UserMetadata.Model, Shows.Id)
+  IO (User.Model, Shows.Model)
 setupHostAndUpload cfg token role seconds = do
   userInsert <- mkUserInsert token role
   writeStagedAudioFile token
   bracketAppM cfg $ do
     dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-      (userModel, userMeta) <- setupUserModels userInsert
+      (userModel, _userMeta) <- setupUserModels userInsert
       showId <- insertActiveShow "Night Shift" "night-shift"
       addTestShowHost showId (User.mId userModel)
       _uploadId <- TRX.statement () (StagedUploads.insert (stagedBreakItemAudio token userModel seconds))
-      pure (userModel, userMeta, showId)
+      showModel <- TRX.statement () (Shows.getShowById showId) >>= maybe (error "show not found") pure
+      pure (userModel, showModel)
     liftIO $ expectSetupRight dbResult
 
 -- | Submit the form and check the saved row.
 expectPendingPromo :: TestDBConfig -> Text -> UserMetadata.UserRole -> IO ()
 expectPendingPromo cfg token role = do
-  (userModel, userMeta, showId) <- setupHostAndUpload cfg token role 8
+  (userModel, showModel) <- setupHostAndUpload cfg token role 8
+  let showId = Shows.id showModel
   bracketAppM cfg $ do
-    result <- runExceptT (action userModel userMeta (Slug "night-shift") (promoForm token))
+    result <- runExceptT (action userModel showModel (promoForm token))
     case result of
       Left err -> liftIO $ expectationFailure $ "Expected the promo to save, got " <> show err
       Right promoId -> do
@@ -97,39 +97,14 @@ test_hostSubmitsPendingPromo cfg = expectPendingPromo cfg "promo-host-submit" Us
 test_staffSubmitIsPending :: TestDBConfig -> IO ()
 test_staffSubmitIsPending cfg = expectPendingPromo cfg "promo-staff-submit" UserMetadata.Staff
 
--- | A host of "Morning Glory" submits for "Night Shift", which they do not
--- host. The handler refuses before it claims the upload or saves a row.
-test_refusesOtherHost :: TestDBConfig -> IO ()
-test_refusesOtherHost cfg = do
-  userInsert <- mkUserInsert "promo-other-host" UserMetadata.Host
-  writeStagedAudioFile "promo-other-host"
-  bracketAppM cfg $ do
-    dbResult <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-      (userModel, userMeta) <- setupUserModels userInsert
-      ownShowId <- insertActiveShow "Morning Glory" "morning-glory"
-      addTestShowHost ownShowId (User.mId userModel)
-      otherShowId <- insertActiveShow "Night Shift" "night-shift"
-      _uploadId <- TRX.statement () (StagedUploads.insert (stagedBreakItemAudio "promo-other-host" userModel 8))
-      pure (userModel, userMeta, otherShowId)
-    (userModel, userMeta, otherShowId) <- liftIO $ expectSetupRight dbResult
-
-    result <- runExceptT (action userModel userMeta (Slug "night-shift") (promoForm "promo-other-host"))
-    liftIO $ case result of
-      Left (NotAuthorized _ _) -> pure ()
-      other -> expectationFailure $ "Expected NotAuthorized, got " <> show other
-
-    promos <- execQuery (BreakItems.getPromosForShow otherShowId)
-    liftIO $ case promos of
-      Right [] -> pure ()
-      other -> expectationFailure $ "Expected no promos, got " <> show other
-
 -- | The host stages a 31 second upload. The handler refuses it before it
 -- claims the upload or saves a row.
 test_refusesLongPromo :: TestDBConfig -> IO ()
 test_refusesLongPromo cfg = do
-  (userModel, userMeta, showId) <- setupHostAndUpload cfg "promo-too-long" UserMetadata.Host 31
+  (userModel, showModel) <- setupHostAndUpload cfg "promo-too-long" UserMetadata.Host 31
+  let showId = Shows.id showModel
   bracketAppM cfg $ do
-    result <- runExceptT (action userModel userMeta (Slug "night-shift") (promoForm "promo-too-long"))
+    result <- runExceptT (action userModel showModel (promoForm "promo-too-long"))
     liftIO $ case result of
       Left (ValidationError _) -> pure ()
       other -> expectationFailure $ "Expected ValidationError, got " <> show other

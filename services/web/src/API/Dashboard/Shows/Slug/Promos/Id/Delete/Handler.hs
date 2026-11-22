@@ -10,18 +10,17 @@ where
 
 --------------------------------------------------------------------------------
 
-import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
+import App.Auth.Roles (RoleAuth, Satisfies)
+import App.Handler.Combinators (authorizeShow)
 import App.Handler.Error (HandlerError, handleBannerErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..), renderBanner)
-import Control.Monad (when)
+import Control.Monad (unless)
 import Control.Monad.Trans.Except (ExceptT)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.BreakItems qualified as BreakItems
 import Effects.Database.Tables.Shows qualified as Shows
-import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Log qualified
 import Lucid qualified
@@ -29,47 +28,33 @@ import Utils (fromMaybeM, fromRightM)
 
 --------------------------------------------------------------------------------
 
--- | Servant handler: check the session, run the action, and render.
-handler :: Slug -> BreakItems.Id -> Maybe Cookie -> AppM (Lucid.Html ())
-handler showSlug promoId cookie =
+-- | Servant handler: check access to the show, run the action, and render.
+handler :: Slug -> BreakItems.Id -> Satisfies 'UserMetadata.Host RoleAuth -> AppM (Lucid.Html ())
+handler showSlug promoId host =
   handleBannerErrors "Show promo withdraw" $ do
-    (user, userMetadata) <- requireAuth cookie
-    action user userMetadata showSlug promoId
+    showModel <- authorizeShow host showSlug
+    action showModel promoId
     pure $ do
       mempty
       renderBanner Success "Promo Withdrawn" "It will not air."
 
--- | Business logic: check that the user may withdraw this promo, then soft
--- delete it.
+-- | Business logic: soft delete a promo of a show that 'authorizeShow'
+-- checked.
 --
--- The access check reads the show from the promo row, not from the URL. So a
--- host cannot withdraw the promo of another show when they put their own show
--- in the URL. The URL show must also match, so each page acts only on its own
--- rows.
+-- The promo must belong to that show. So a host cannot withdraw the promo of
+-- another show when they put their own show in the URL, and each page acts
+-- only on its own rows.
 action ::
-  User.Model ->
-  UserMetadata.Model ->
-  Slug ->
+  Shows.Model ->
   BreakItems.Id ->
   ExceptT HandlerError AppM ()
-action user userMetadata showSlug promoId = do
+action showModel promoId = do
   promo <-
     fromMaybeM (throwNotFound "Show promo") $
       fromRightM throwDatabaseError $
         execQuery (BreakItems.getById promoId)
 
-  promoShowId <- case (promo.bimCategory, promo.bimShowId) of
-    (BreakItems.ShowPromo, Just showId) -> pure showId
-    _ -> throwNotFound "Show promo"
-
-  promoShow <-
-    fromMaybeM (throwNotFound "Show") $
-      fromRightM throwDatabaseError $
-        execQuery (Shows.getShowById promoShowId)
-
-  requireShowHostOrStaff (User.mId user) promoShow.slug userMetadata
-
-  when (promoShow.slug /= showSlug) $
+  unless (promo.bimCategory == BreakItems.ShowPromo && promo.bimShowId == Just (Shows.id showModel)) $
     throwNotFound "Show promo"
 
   _ <-

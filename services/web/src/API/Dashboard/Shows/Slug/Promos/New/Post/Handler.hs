@@ -15,14 +15,14 @@ import API.Dashboard.AirBreaks.BreakItems.Form (BreakItemForm (..))
 import API.Dashboard.AirBreaks.BreakItems.Shared (ClaimedAudio (..), ParsedBreakItem (..), claimBreakItemAudio, parseBreakItemForm, redirectTo)
 import API.Links (dashboardShowsLinks, rootLink)
 import API.Types
-import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
-import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure, throwNotFound)
+import App.Auth.Roles (RoleAuth, Satisfies (..))
+import App.Handler.Combinators (authorizeShow)
+import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwHandlerFailure)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Flash (FlashMessage (..))
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.BreakItems qualified as BreakItems
@@ -35,17 +35,17 @@ import Utils (fromMaybeM, fromRightM)
 
 --------------------------------------------------------------------------------
 
--- | Servant handler: check the session, run the action, and redirect back to
--- the promos page with a flash.
+-- | Servant handler: check access to the show, run the action, and redirect
+-- back to the promos page with a flash.
 handler ::
   Slug ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   BreakItemForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler showSlug cookie form =
+handler showSlug host@(Satisfies _ auth) form =
   handleRedirectErrors "Show promo submit" promosLink $ do
-    (user, userMetadata) <- requireAuth cookie
-    _ <- action user userMetadata showSlug form
+    showModel <- authorizeShow host showSlug
+    _ <- action auth.raUser showModel form
     pure $
       redirectTo
         (rootLink promosLink)
@@ -53,24 +53,17 @@ handler showSlug cookie form =
   where
     promosLink = dashboardShowsLinks.promosGet showSlug
 
--- | Business logic: check access to the show, parse the form, claim the
--- audio, and save a pending promo.
+-- | Business logic: parse the form, claim the audio, and save a pending promo
+-- for a show that 'authorizeShow' checked.
 --
 -- Returns the ID of the new promo.
 action ::
+  -- | The user who submits the promo
   User.Model ->
-  UserMetadata.Model ->
-  Slug ->
+  Shows.Model ->
   BreakItemForm ->
   ExceptT HandlerError AppM BreakItems.Id
-action user userMetadata showSlug form = do
-  requireShowHostOrStaff (User.mId user) showSlug userMetadata
-
-  showModel <-
-    fromMaybeM (throwNotFound "Show") $
-      fromRightM throwDatabaseError $
-        execQuery (Shows.getShowBySlug showSlug)
-
+action user showModel form = do
   parsed <- parseBreakItemForm BreakItems.ShowPromo form
   audio <- claimBreakItemAudio user BreakItems.ShowPromo form.bifAudioToken
 

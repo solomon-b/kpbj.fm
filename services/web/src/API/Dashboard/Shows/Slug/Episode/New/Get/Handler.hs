@@ -8,27 +8,27 @@ module API.Dashboard.Shows.Slug.Episode.New.Get.Handler where
 import API.Dashboard.Shows.Slug.Episode.New.Get.Templates.Form (episodeUploadForm)
 import API.Links (apiLinks)
 import API.Types
+import App.Auth.Roles (RoleAuth, Satisfies (..))
 import App.Config (Environment)
 import App.Dashboard.ShowContext (ShowContext (..))
 import App.Dashboard.Template (renderDashboardTemplate)
 import App.Domains (audioUploadUrl)
-import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
+import App.Handler.Combinators (authorizeShow)
 import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, throwNotFound)
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
+import Control.Monad (void)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Either (fromRight)
 import Data.Has qualified as Has
 import Data.Text (Text)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.Slug (Slug)
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
-import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
 import Utils (fromMaybeM, fromRightM)
@@ -69,15 +69,13 @@ action userMetadata showSlug = do
 
 handler ::
   Slug ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   Maybe HxRequest ->
   AppM (Lucid.Html ())
-handler showSlug cookie (foldHxReq -> hxRequest) =
+handler showSlug host@(Satisfies _ auth) (foldHxReq -> hxRequest) =
   handleHtmlErrors "Episode upload form" apiLinks.rootGet $ do
-    -- 1. Require authentication and authorization (host of show or staff+)
-    (user, userMetadata) <- requireAuth cookie
-    requireShowHostOrStaff user.mId showSlug userMetadata
-    vd <- action userMetadata showSlug
+    void $ authorizeShow host showSlug
+    vd <- action auth.raMetadata showSlug
     let content = episodeUploadForm vd.engvUploadUrl vd.engvShowModel vd.engvUpcomingDates vd.engvUserMetadata
     lift $ renderDashboardTemplate hxRequest vd.engvUserMetadata (ForShow vd.engvShowModel) NavEpisodes Nothing Nothing content
 

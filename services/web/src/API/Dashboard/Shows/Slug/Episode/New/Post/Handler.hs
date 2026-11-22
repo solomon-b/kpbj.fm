@@ -8,11 +8,13 @@ import API.Dashboard.Shows.Slug.Episode.New.Post.Route (EpisodeUploadForm (..), 
 import API.Links (dashboardEpisodesLinks, dashboardShowsLinks)
 import API.Types
 import Amazonka qualified as AWS
-import App.Handler.Combinators (requireAuth, requireShowHostOrStaff)
+import App.Auth.Roles (RoleAuth, Satisfies (..))
+import App.Handler.Combinators (authorizeShow)
 import App.Handler.Error (HandlerError, handleRedirectErrors, throwDatabaseError, throwNotFound, throwValidationError)
 import App.Monad (AppM)
 import Component.Banner (BannerType (..))
 import Component.Flash (FlashMessage (..), flashCookie)
+import Control.Monad (void)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
@@ -28,7 +30,6 @@ import Data.Text.Encoding qualified as Text
 import Data.Time (Day, UTCTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Domain.EpisodeLength (checkEpisodeFitsSlot)
-import Domain.Types.Cookie (Cookie)
 import Domain.Types.FileStorage (BucketType (..), ResourceType (..))
 import Domain.Types.FileUpload (uploadResultStoragePath)
 import Domain.Types.Slug (Slug)
@@ -60,14 +61,13 @@ import Utils (fromMaybeM, fromRightM, partitionEithers)
 
 handler ::
   Slug ->
-  Maybe Cookie ->
+  Satisfies 'UserMetadata.Host RoleAuth ->
   EpisodeUploadForm ->
   AppM (Servant.Headers '[Servant.Header "HX-Redirect" Text, Servant.Header "Set-Cookie" Text] Servant.NoContent)
-handler showSlug cookie form =
+handler showSlug host@(Satisfies _ auth) form =
   handleRedirectErrors "Episode upload" (dashboardShowsLinks.episodeNewGet showSlug) $ do
-    (user, userMetadata) <- requireAuth cookie
-    requireShowHostOrStaff user.mId showSlug userMetadata
-    episodeId <- action user userMetadata showSlug form
+    void $ authorizeShow host showSlug
+    episodeId <- action auth.raUser auth.raMetadata showSlug form
     buildUploadRedirect showSlug episodeId
 
 --------------------------------------------------------------------------------
