@@ -48,6 +48,7 @@ library
     , Component.PageHeader
     , Component.SourceTypeBadge
     , Component.Table
+    , Component.Tailwind
     , Design
     , Design.FormStyles
     , Design.StyleBuilder
@@ -69,6 +70,7 @@ test-suite kpbj-ui-test
   main-is:          Main.hs
   other-modules:
     Component.ButtonSpec
+    Component.TailwindSpec
     Design.ThemeSpec
   default-language: Haskell2010
   default-extensions:
