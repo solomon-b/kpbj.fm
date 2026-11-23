@@ -285,8 +285,7 @@ template mGoogleAnalyticsId userMeta mFlash showContext selectorShows activeNav 
       currentShowCookieTag showContext
     -- An HTMX history snapshot holds the DOM after Alpine changed it. Alpine
     -- fails when it starts on that DOM again, so HTMX saves no snapshot.
-    -- The @dashboard@ class scopes the dashboard button styles in forms.css.
-    Lucid.body_ [class_ $ base ["dashboard", "font-mono", Tokens.fgPrimary, Tokens.bgAlt], LucidBase.makeAttributes "hx-history" "false"] $ do
+    Lucid.body_ [class_ $ base ["font-mono", Tokens.fgPrimary, Tokens.bgAlt], LucidBase.makeAttributes "hx-history" "false"] $ do
       -- Full height flex container
       Lucid.div_ [class_ $ base ["min-h-screen", "flex"]] $ do
         -- Left sidebar

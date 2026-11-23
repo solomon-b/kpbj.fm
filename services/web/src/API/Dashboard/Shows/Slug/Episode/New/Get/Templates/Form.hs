@@ -55,6 +55,7 @@ episodeUploadForm uploadUrl showModel upcomingDates _userMeta = do
         { fcAction = postUrl,
           fcMethod = "post",
           fcHtmxTarget = Just "#main-content",
+          fcFooterLook = DashboardFooter,
           fcHtmxSwap = Just "innerHTML"
         }
 

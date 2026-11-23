@@ -17,6 +17,7 @@
 module Lucid.Form.Builder.Render
   ( -- * Form Configuration
     FormConfig (..),
+    FooterLook (..),
     defaultFormConfig,
 
     -- * Rendering
@@ -28,6 +29,8 @@ where
 
 --------------------------------------------------------------------------------
 
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Control.Monad (forM_, unless, when)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BSL
@@ -36,6 +39,7 @@ import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Design (base, class_)
 import Lucid qualified
 import Lucid.Alpine
 import Lucid.Base (makeAttributes)
@@ -61,8 +65,19 @@ data FormConfig = FormConfig
     -- | HTMX target selector (enables HTMX if set)
     fcHtmxTarget :: Maybe Text,
     -- | HTMX swap mode
-    fcHtmxSwap :: Maybe Text
+    fcHtmxSwap :: Maybe Text,
+    -- | The look of the submit and cancel buttons (default: 'PublicFooter')
+    fcFooterLook :: FooterLook
   }
+
+-- | The look of the submit and cancel buttons in the form footer.
+data FooterLook
+  = -- | The look of the public forms, such as login and register.
+    PublicFooter
+  | -- | The Primary submit and the Secondary cancel of "Component.Button".
+    -- A form in the dashboard frame uses it.
+    DashboardFooter
+  deriving stock (Eq, Show)
 
 -- | Default form configuration.
 defaultFormConfig :: FormConfig
@@ -73,7 +88,8 @@ defaultFormConfig =
       fcHeader = Nothing,
       fcFooter = Nothing,
       fcHtmxTarget = Nothing,
-      fcHtmxSwap = Nothing
+      fcHtmxSwap = Nothing,
+      fcFooterLook = PublicFooter
     }
 
 --------------------------------------------------------------------------------
@@ -163,7 +179,7 @@ renderFormElement config state allFields hasFileFields = do
         let hasUploadFields = hasFileFields || any needsValidation allFields
         case fsFooterItems state of
           [] -> fromMaybe mempty (fcFooter config)
-          items -> renderFooter (fcHtmxTarget config) items (fsFooterHint state) hasUploadFields
+          items -> renderFooter config items (fsFooterHint state) hasUploadFields
 
 --------------------------------------------------------------------------------
 -- Element Rendering
@@ -192,8 +208,8 @@ renderSection sec = do
 -- Footer Rendering
 
 -- | Render form footer (buttons and inline controls like toggles).
-renderFooter :: Maybe Text -> [FormFooterItem] -> Maybe Text -> Bool -> Lucid.Html ()
-renderFooter mHtmxTarget items mHint hasUploadFields =
+renderFooter :: FormConfig -> [FormFooterItem] -> Maybe Text -> Bool -> Lucid.Html ()
+renderFooter config items mHint hasUploadFields =
   Lucid.div_ [Lucid.class_ "fb-footer"] $ do
     -- Footer hint (displayed above the buttons)
     forM_ mHint $ \hint ->
@@ -219,29 +235,28 @@ renderFooter mHtmxTarget items mHint hasUploadFields =
     Lucid.div_ [Lucid.class_ "fb-footer-buttons"] $
       forM_ items $ \case
         FooterSubmit lbl ->
-          Lucid.button_
-            [ Lucid.type_ "submit",
-              Lucid.class_ "fb-submit",
-              xBindDisabled_ "isUploading || stagedUploading",
-              xBindClass_ "{ 'fb-submit--loading': isUploading || stagedUploading }"
-            ]
-            (Lucid.toHtml lbl)
-        FooterCancel url lbl ->
-          Lucid.a_
-            ( [ Lucid.href_ url,
-                Lucid.class_ "fb-cancel"
-              ]
-                <> case mHtmxTarget of
-                  Just target ->
-                    [ hxGet_ url,
-                      hxTarget_ target,
-                      hxPushUrl_ "true"
-                    ]
-                  Nothing -> []
+          Button.render
+            ( Button.defaults
+                & submitLook
+                & Button.submit
+                & Button.with [xBindDisabled_ "isUploading || stagedUploading"]
             )
             (Lucid.toHtml lbl)
+        FooterCancel url lbl ->
+          Button.render (Button.defaults & cancelLook & cancelKind url) (Lucid.toHtml lbl)
         FooterToggle field ->
           renderFooterToggle field
+  where
+    (submitLook, cancelLook) = case fcFooterLook config of
+      PublicFooter -> (Button.accent . Button.large . Button.square, Button.muted . Button.large . Button.square)
+      DashboardFooter -> (Button.primary, Button.secondary)
+
+    -- The cancel link swaps the page into the HTMX target of the form.
+    cancelKind :: Text -> Button.Spec -> Button.Spec
+    cancelKind url = case fcHtmxTarget config of
+      Just "#main-content" -> Button.dashboardLink url
+      Just target -> Button.pageLink url . Button.with [hxGet_ url, hxTarget_ target, hxPushUrl_ "true"]
+      Nothing -> Button.pageLink url
 
 -- | Render a toggle switch inline with footer buttons.
 renderFooterToggle :: Field -> Lucid.Html ()
@@ -650,10 +665,8 @@ renderFileField field accept = do
 
         -- Upload button/zone
         Lucid.div_ [xShow_ ("!fields." <> name <> ".fileName"), Lucid.class_ "fb-file-empty"] $ do
-          Lucid.label_
-            [ Lucid.for_ (name <> "-input"),
-              Lucid.class_ "fb-file-button"
-            ]
+          Button.render
+            (Button.defaults & Button.primary & Button.labelFor (name <> "-input"))
             (Lucid.toHtml buttonLabel)
           forM_ (fcHint cfg) $ \h ->
             Lucid.p_ [Lucid.class_ "fb-file-hint"] (Lucid.toHtml h)
@@ -671,12 +684,7 @@ renderFileField field accept = do
             Lucid.span_ [Lucid.class_ "fb-file-name", xText_ ("fields." <> name <> ".fileName")] ""
             Lucid.span_ [Lucid.class_ "fb-file-size", xText_ ("formatFileSize(fields." <> name <> ".fileSize)")] ""
           -- Clear button
-          Lucid.button_
-            [ Lucid.type_ "button",
-              Lucid.class_ "fb-file-remove",
-              xOnClick_ ("clear" <> capName <> "()")
-            ]
-            "Remove"
+          Button.render (Button.defaults & Button.danger & Button.small & Button.with [xOnClick_ ("clear" <> capName <> "()")]) "Remove"
 
     -- Error message
     Lucid.span_
@@ -881,11 +889,8 @@ renderImageField field = do
                         Lucid.alt_ "Current image"
                       ]
                 Lucid.p_ [Lucid.class_ "fb-image-current-label"] "Current image"
-                Lucid.button_
-                  [ Lucid.type_ "button",
-                    xOnClick_ "$event.stopPropagation(); clearFile()",
-                    Lucid.class_ "fb-image-remove"
-                  ]
+                Button.render
+                  (Button.defaults & Button.danger & Button.small & Button.with [xOnClick_ "$event.stopPropagation(); clearFile()"])
                   "Remove image"
 
             -- New file preview
@@ -908,11 +913,8 @@ renderImageField field = do
                   "("
                   Lucid.span_ [xText_ "formatFileSize(fileSize)"] ""
                   ")"
-              Lucid.button_
-                [ Lucid.type_ "button",
-                  xOnClick_ "$event.stopPropagation(); clearFile()",
-                  Lucid.class_ "fb-image-remove"
-                ]
+              Button.render
+                (Button.defaults & Button.danger & Button.small & Button.with [xOnClick_ "$event.stopPropagation(); clearFile()"])
                 "Remove"
 
       -- Error message
@@ -1095,11 +1097,15 @@ renderImagesField field = do
                 ]
 
               -- Remove button
-              Lucid.button_
-                [ Lucid.type_ "button",
-                  xOnClick_ "removeImage(idx)",
-                  Lucid.class_ "fb-images-remove"
-                ]
+              Button.render
+                ( Button.defaults
+                    & Button.small
+                    & Button.with
+                      [ class_ $ base ["absolute", "top-1", "right-1"],
+                        xOnClick_ "removeImage(idx)",
+                        makeAttributes "aria-label" "Remove image"
+                      ]
+                )
                 "\215"
 
               -- Alt text input
@@ -1192,12 +1198,8 @@ renderAudioField field = do
 
           -- Player controls (always visible)
           Lucid.div_ [Lucid.class_ "fb-player-controls"] $ do
-            Lucid.button_
-              [ Lucid.type_ "button",
-                Lucid.class_ "fb-player-button",
-                xOnClick_ "toggle()",
-                xText_ "isPlaying ? 'PAUSE' : 'PLAY'"
-              ]
+            Button.render
+              (Button.defaults & Button.primary & Button.with [xOnClick_ "toggle()", xText_ "isPlaying ? 'PAUSE' : 'PLAY'"])
               "PLAY"
 
             Lucid.div_ [Lucid.class_ "fb-player-progress", xOnClick_ "seek($event)"] $
@@ -1216,8 +1218,10 @@ renderAudioField field = do
           <> [Lucid.required_ "" | isReq]
 
       -- File picker button
-      Lucid.label_ [Lucid.for_ inputId, Lucid.class_ "fb-audio-button-wrapper"] $ do
-        Lucid.div_ [Lucid.class_ "fb-audio-button"] "CHOOSE AUDIO FILE"
+      Lucid.div_ [Lucid.class_ "fb-audio-button-wrapper"] $ do
+        Button.render
+          (Button.defaults & Button.primary & Button.labelFor inputId)
+          "CHOOSE AUDIO FILE"
         Lucid.p_ [Lucid.class_ "fb-hint"] $
           if isReq
             then "MP3, WAV, FLAC accepted"
@@ -1685,12 +1689,8 @@ renderStagedAudioField field uploadUrl uploadType = do
 
           -- Player controls (always visible)
           Lucid.div_ [Lucid.class_ "fb-player-controls"] $ do
-            Lucid.button_
-              [ Lucid.type_ "button",
-                Lucid.class_ "fb-player-button",
-                xOnClick_ "toggle()",
-                xText_ "isPlaying ? 'PAUSE' : 'PLAY'"
-              ]
+            Button.render
+              (Button.defaults & Button.primary & Button.with [xOnClick_ "toggle()", xText_ "isPlaying ? 'PAUSE' : 'PLAY'"])
               "PLAY"
 
             Lucid.div_ [Lucid.class_ "fb-player-progress", xOnClick_ "seek($event)"] $
@@ -1727,18 +1727,8 @@ renderStagedAudioField field uploadUrl uploadType = do
               Lucid.span_ [Lucid.class_ "fb-audio-current-icon"] "✓"
               Lucid.span_ [Lucid.class_ "fb-audio-current-label"] "Current file uploaded"
             Lucid.div_ [Lucid.class_ "fb-audio-current-actions"] $ do
-              Lucid.button_
-                [ Lucid.type_ "button",
-                  xOnClick_ "triggerInput()",
-                  Lucid.class_ "fb-audio-button"
-                ]
-                "REPLACE FILE"
-              Lucid.button_
-                [ Lucid.type_ "button",
-                  xOnClick_ "clearUpload()",
-                  Lucid.class_ "fb-audio-remove"
-                ]
-                "Remove"
+              Button.render (Button.defaults & Button.primary & Button.with [xOnClick_ "triggerInput()"]) "REPLACE FILE"
+              Button.render (Button.defaults & Button.danger & Button.small & Button.with [xOnClick_ "clearUpload()"]) "Remove"
 
         -- Empty state
         let emptyCondition =
@@ -1751,12 +1741,7 @@ renderStagedAudioField field uploadUrl uploadType = do
             Lucid.style_ (if hasExisting then "display: none;" else "")
           ]
           $ do
-            Lucid.button_
-              [ Lucid.type_ "button",
-                xOnClick_ "triggerInput()",
-                Lucid.class_ "fb-audio-button"
-              ]
-              "CHOOSE AUDIO FILE"
+            Button.render (Button.defaults & Button.primary & Button.with [xOnClick_ "triggerInput()"]) "CHOOSE AUDIO FILE"
             Lucid.p_ [Lucid.class_ "fb-hint"] $
               Lucid.toHtml (fromMaybe [i|MP3 only · Max #{maxSizeMB}MB|] (fcHint cfg) :: Text)
 
@@ -1772,18 +1757,8 @@ renderStagedAudioField field uploadUrl uploadType = do
               Lucid.span_ [Lucid.class_ "fb-audio-uploaded-name", xText_ "fileName"] ""
               Lucid.span_ [Lucid.class_ "fb-audio-uploaded-size", xText_ "formatFileSize(fileSize)"] ""
             Lucid.div_ [Lucid.class_ "fb-audio-uploaded-actions"] $ do
-              Lucid.button_
-                [ Lucid.type_ "button",
-                  xOnClick_ "triggerInput()",
-                  Lucid.class_ "fb-audio-button"
-                ]
-                "CHANGE FILE"
-              Lucid.button_
-                [ Lucid.type_ "button",
-                  xOnClick_ "clearUpload()",
-                  Lucid.class_ "fb-audio-remove"
-                ]
-                "Remove"
+              Button.render (Button.defaults & Button.primary & Button.with [xOnClick_ "triggerInput()"]) "CHANGE FILE"
+              Button.render (Button.defaults & Button.danger & Button.small & Button.with [xOnClick_ "clearUpload()"]) "Remove"
 
         -- Error message
         Lucid.span_
@@ -2060,11 +2035,8 @@ renderStagedImageField field uploadUrl uploadType = do
                         Lucid.alt_ "Current image"
                       ]
                 Lucid.p_ [Lucid.class_ "fb-image-current-label"] "Current image"
-                Lucid.button_
-                  [ Lucid.type_ "button",
-                    xOnClick_ "$event.stopPropagation(); clearUpload()",
-                    Lucid.class_ "fb-image-remove"
-                  ]
+                Button.render
+                  (Button.defaults & Button.danger & Button.small & Button.with [xOnClick_ "$event.stopPropagation(); clearUpload()"])
                   "Remove image"
 
             -- New file preview
@@ -2088,11 +2060,8 @@ renderStagedImageField field uploadUrl uploadType = do
                   Lucid.span_ [Lucid.class_ "fb-image-uploaded-icon"] "✓"
                   Lucid.span_ [Lucid.class_ "fb-image-filename", xText_ "fileName"] ""
                   Lucid.span_ [Lucid.class_ "fb-image-filesize", xText_ "formatFileSize(fileSize)"] ""
-                Lucid.button_
-                  [ Lucid.type_ "button",
-                    xOnClick_ "$event.stopPropagation(); clearUpload()",
-                    Lucid.class_ "fb-image-remove"
-                  ]
+                Button.render
+                  (Button.defaults & Button.danger & Button.small & Button.with [xOnClick_ "$event.stopPropagation(); clearUpload()"])
                   "Remove"
 
       -- Error message
@@ -2446,12 +2415,7 @@ renderCropperModal ratioText = do
             "Crop Image"
             Lucid.span_ [Lucid.class_ "fb-image-crop-ratio"] $
               Lucid.toHtml ([i|(#{ratioText} ratio)|] :: Text)
-          Lucid.button_
-            [ Lucid.type_ "button",
-              xOnClick_ "cancelCrop()",
-              Lucid.class_ "fb-image-crop-close"
-            ]
-            "\215"
+          Button.render (Button.defaults & Button.small & Button.with [xOnClick_ "cancelCrop()"]) "\215"
 
         Lucid.div_ [Lucid.class_ "fb-image-crop-container"] $
           Lucid.img_
@@ -2463,30 +2427,10 @@ renderCropperModal ratioText = do
 
         Lucid.div_ [Lucid.class_ "fb-image-crop-footer"] $ do
           Lucid.div_ [Lucid.class_ "fb-image-crop-zoom"] $ do
-            Lucid.button_
-              [ Lucid.type_ "button",
-                xOnClick_ "cropper?.zoom(-0.1)",
-                Lucid.class_ "fb-image-crop-zoom-btn"
-              ]
-              "\8722"
+            Button.render (Button.defaults & Button.small & Button.with [xOnClick_ "cropper?.zoom(-0.1)"]) "\8722"
             Lucid.span_ [Lucid.class_ "fb-image-crop-zoom-label"] "Zoom"
-            Lucid.button_
-              [ Lucid.type_ "button",
-                xOnClick_ "cropper?.zoom(0.1)",
-                Lucid.class_ "fb-image-crop-zoom-btn"
-              ]
-              "+"
+            Button.render (Button.defaults & Button.small & Button.with [xOnClick_ "cropper?.zoom(0.1)"]) "+"
 
           Lucid.div_ [Lucid.class_ "fb-image-crop-actions"] $ do
-            Lucid.button_
-              [ Lucid.type_ "button",
-                xOnClick_ "cancelCrop()",
-                Lucid.class_ "fb-image-crop-cancel"
-              ]
-              "Cancel"
-            Lucid.button_
-              [ Lucid.type_ "button",
-                xOnClick_ "confirmCrop()",
-                Lucid.class_ "fb-image-crop-confirm"
-              ]
-              "Apply Crop"
+            Button.render (Button.defaults & Button.with [xOnClick_ "cancelCrop()"]) "Cancel"
+            Button.render (Button.defaults & Button.accent & Button.with [xOnClick_ "confirmCrop()"]) "Apply Crop"

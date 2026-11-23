@@ -25,7 +25,6 @@ module Lucid.Form.Builder.Field
     description,
     value,
     disabled,
-    classes,
 
     -- * File Field Configuration
     maxSize,
@@ -107,7 +106,6 @@ mergeConfigs c1 c2 =
       fcHint = fcHint c2 <|> fcHint c1,
       fcInitialValue = fcInitialValue c2 <|> fcInitialValue c1,
       fcDisabled = fcDisabled c1 || fcDisabled c2,
-      fcCustomClasses = fcCustomClasses c2 <|> fcCustomClasses c1,
       fcMaxSizeMB = fcMaxSizeMB c2 <|> fcMaxSizeMB c1,
       fcButtonText = fcButtonText c2 <|> fcButtonText c1,
       fcCurrentValue = fcCurrentValue c2 <|> fcCurrentValue c1,
@@ -189,13 +187,6 @@ value txt = tellConfig $ \c -> c {fcInitialValue = Just txt}
 -- >   disabled
 disabled :: FieldBuilder
 disabled = tellConfig $ \c -> c {fcDisabled = True}
-
--- | Set custom CSS classes.
---
--- > textField "special" do
--- >   classes "bg-yellow-100 border-yellow-500"
-classes :: Text -> FieldBuilder
-classes txt = tellConfig $ \c -> c {fcCustomClasses = Just txt}
 
 --------------------------------------------------------------------------------
 -- File Field Configuration

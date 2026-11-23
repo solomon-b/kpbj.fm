@@ -45,6 +45,7 @@ template backend user metadata =
         { fcAction = postUrl,
           fcMethod = "post",
           fcHtmxTarget = Just "#main-content",
+          fcFooterLook = DashboardFooter,
           fcHtmxSwap = Just "innerHTML"
         }
 

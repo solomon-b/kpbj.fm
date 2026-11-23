@@ -54,7 +54,8 @@ template invitationId recipientEmail editorData =
       defaultFormConfig
         { fcAction = postUrl,
           fcMethod = "post",
-          fcHtmxTarget = Just "#main-content"
+          fcHtmxTarget = Just "#main-content",
+          fcFooterLook = DashboardFooter
         }
 
     form :: FormBuilder

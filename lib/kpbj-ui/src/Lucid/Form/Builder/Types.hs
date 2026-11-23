@@ -193,8 +193,6 @@ data FieldConfig = FieldConfig
     fcInitialValue :: Maybe Text,
     -- | Whether field is disabled
     fcDisabled :: Bool,
-    -- | Custom CSS classes
-    fcCustomClasses :: Maybe Text,
     -- | Max file size in MB (file fields only)
     fcMaxSizeMB :: Maybe Int,
     -- | Button text (file fields only)
@@ -233,7 +231,6 @@ defaultFieldConfig =
       fcHint = Nothing,
       fcInitialValue = Nothing,
       fcDisabled = False,
-      fcCustomClasses = Nothing,
       fcMaxSizeMB = Nothing,
       fcButtonText = Nothing,
       fcCurrentValue = Nothing,
