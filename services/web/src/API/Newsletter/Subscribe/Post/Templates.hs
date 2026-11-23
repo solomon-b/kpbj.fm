@@ -30,7 +30,7 @@ thanksFragment :: Lucid.Html ()
 thanksFragment =
   Lucid.div_
     [ Lucid.id_ newsletterSignupContainerId,
-      class_ $ base [Tokens.mt2, "text-[var(--theme-success-text)]", "text-center"]
+      class_ $ base [Tokens.mt2, Tokens.successText, "text-center"]
     ]
     "Thanks for subscribing!"
 
@@ -59,6 +59,6 @@ signupForm =
           ]
         Lucid.button_
           [ Lucid.type_ "submit",
-            class_ $ base [Tokens.px3, Tokens.py2, Tokens.textXs, Tokens.fontMedium, "text-center", "inline-flex", "items-center", Tokens.fgInverse, Tokens.bgInverse, "rounded-md", "hover:bg-[var(--theme-hover-bg)]", "focus:ring-4", "focus:outline-none", "focus:ring-[var(--theme-border)]"]
+            class_ $ base [Tokens.px3, Tokens.py2, Tokens.textXs, Tokens.fontMedium, "text-center", "inline-flex", "items-center", Tokens.fgInverse, Tokens.bgInverse, "rounded-md", "hover:opacity-80", "focus:ring-4", "focus:outline-none", "focus:ring-[var(--theme-border)]"]
           ]
           "Subscribe"
