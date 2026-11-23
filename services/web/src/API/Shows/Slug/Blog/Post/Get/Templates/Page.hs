@@ -33,7 +33,7 @@ template :: Shows.Model -> ShowBlogPosts.Model -> UserMetadata.Model -> [ShowBlo
 template showModel post author tags renderedContent = do
   Lucid.article_ [class_ $ base ["max-w-4xl", "mx-auto", Tokens.px4, "py-12"]] $ do
     -- Article header
-    Lucid.header_ [class_ $ base [Tokens.mb8, Tokens.pb2, "pb-6", "border-b-2", "Tokens.borderDefault"]] $ do
+    Lucid.header_ [class_ $ base [Tokens.mb8, Tokens.pb2, "pb-6", "border-b-2", Tokens.borderDefault]] $ do
       -- Title
       Lucid.h1_ [class_ $ do { base ["text-4xl", Tokens.fontBold, Tokens.mb4]; tablet ["text-5xl"] }] $ do
         Lucid.toHtml (ShowBlogPosts.title post)
@@ -74,7 +74,7 @@ template showModel post author tags renderedContent = do
     renderedContent
 
     -- Back to blog link
-    Lucid.div_ [class_ $ base ["mt-12", Tokens.p6, "pt-6", "border-t-2", "Tokens.borderDefault"]] $ do
+    Lucid.div_ [class_ $ base ["mt-12", Tokens.p6, "pt-6", "border-t-2", Tokens.borderDefault]] $ do
       Lucid.a_
         [ Lucid.href_ [i|/#{showBlogGetUrl (Shows.slug showModel)}|],
           hxGet_ [i|/#{showBlogGetUrl (Shows.slug showModel)}|],
