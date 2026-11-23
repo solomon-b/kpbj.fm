@@ -7,7 +7,7 @@
 
 packages:
   services/web/kpbj-web.cabal
-  lib/lucid-form-builder/lucid-form-builder.cabal
+  lib/kpbj-ui/kpbj-ui.cabal
   lib/lucid-htmx-alpine/lucid-htmx-alpine.cabal
   lib/lucid-tailwind/lucid-tailwind.cabal
   lib/kpbj-types/kpbj-types.cabal

@@ -130,8 +130,7 @@ library
                   , web-server-core
                   , witherable
                   , lucid-htmx-alpine
-                  , lucid-form-builder
-                  , lucid-tailwind
+                  , kpbj-ui
                   , xmlhtml
                   , xmlhtml-lens
                   , xss-sanitize
@@ -338,7 +337,6 @@ library
     API.Dashboard.AirBreaks.Timeline.Get.Route
     API.Dashboard.AirBreaks.Timeline.Get.Handler
     API.Dashboard.AirBreaks.Timeline.Get.Templates.Page
-    Component.SourceTypeBadge
     API.Dashboard.AirBreaks.Underwriters.Form
     API.Dashboard.AirBreaks.Underwriters.Get.Route
     API.Dashboard.AirBreaks.Underwriters.Get.Handler
@@ -634,11 +632,9 @@ library
     App.Handler.Error
     Component.AudioPlayer.Waveform
     Component.BreakItems
-    Component.InfiniteScroll
     Component.InlineAudioPlayer
     Component.TrackListingEditor
     Component.ScheduleEditor
-    Component.Banner
     Component.Flash
     Component.Form.Hints
     Component.Card.BlogPost
@@ -653,16 +649,7 @@ library
     Component.FeedLink
     Component.Frame
     Component.NotFound
-    Component.PageHeader
-    Component.Button
-    Component.Table
     Component.Tags
-    Design
-    Design.StyleBuilder
-    Design.StyleBuilder.Internal
-    Design.Theme
-    Design.Tokens
-    Design.FormStyles
     Domain.Types.VariantsPayload
     Domain.BreakPlanner
     Domain.DayTimeline
@@ -710,6 +697,7 @@ test-suite kpbj-web-test
     ghc-options:      -Wall -Werror -threaded -rtsopts -with-rtsopts=-N -O0 -fwrite-ide-info
     build-depends:    base >=4.19.2.0
                     , aeson
+                    , kpbj-ui
                     , kpbj-web
                     , kpbj-types
                     , kpbj-database
@@ -861,7 +849,6 @@ test-suite kpbj-web-test
        API.Dashboard.Shows.Slug.Edit.Get.HandlerSpec
        API.Dashboard.Shows.Slug.Episode.New.Post.HandlerSpec
        API.Dashboard.Shows.Slug.Edit.Post.ScheduleDiffSpec
-       Component.ButtonSpec
        Component.DashboardFrameSpec
        Component.FlashSpec
        Component.ScheduleEditorSpec

@@ -3,7 +3,8 @@
 -- | CSS styles for the form builder semantic classes.
 --
 -- This module provides CSS rules that map the semantic fb-* classes
--- from lucid-form-builder to actual styles. The styles are theme-aware
+-- from the form builder ("Lucid.Form.Builder") to actual styles. The rules
+-- are in @static/forms.css@ in this package. The styles are theme-aware
 -- using CSS custom properties.
 module Design.FormStyles (formBuilderCSS) where
 

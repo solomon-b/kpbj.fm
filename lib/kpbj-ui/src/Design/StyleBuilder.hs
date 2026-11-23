@@ -6,7 +6,7 @@
 -- Example usage:
 --
 -- > -- Direct attribute usage (preferred)
--- > Lucid.div_ [className $ do
+-- > Lucid.div_ [class_ $ do
 -- >   base [bgWhite, cardBorder, p4, mb4]
 -- >   tablet [p6, mb6]
 -- >   desktop [p8, mb8]]
@@ -45,16 +45,16 @@ where
 import Control.Monad.Writer.Strict (Writer, execWriter, tell)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Design.StyleBuilder.Internal qualified as Internal
 import Lucid qualified
 import Lucid.Base (Attributes)
+import Lucid.Tailwind qualified as Tailwind
 
 --------------------------------------------------------------------------------
 -- Types
 
 -- | A builder for accumulating responsive CSS classes.
 --
--- Use with 'styles' to execute the builder and produce a class string.
+-- Use with 'class_' or 'class_'' to execute the builder.
 type StyleBuilder = Writer [Text] ()
 
 --------------------------------------------------------------------------------
@@ -115,7 +115,7 @@ mobile = base
 --
 -- > tablet [p6, textBase]
 tablet :: [Text] -> StyleBuilder
-tablet = tell . map Internal.md
+tablet = tell . map Tailwind.md
 
 -- | Desktop breakpoint styles (lg: prefix, 1024px+).
 --
@@ -125,7 +125,7 @@ tablet = tell . map Internal.md
 --
 -- > desktop [p8, textLg]
 desktop :: [Text] -> StyleBuilder
-desktop = tell . map Internal.lg
+desktop = tell . map Tailwind.lg
 
 -- | Wide screen breakpoint styles (xl: prefix, 1280px+).
 --
@@ -135,7 +135,7 @@ desktop = tell . map Internal.lg
 --
 -- > wide ["max-w-7xl"]
 wide :: [Text] -> StyleBuilder
-wide = tell . map Internal.xl
+wide = tell . map Tailwind.xl
 
 -- | Ultra-wide screen breakpoint styles (2xl: prefix, 1536px+).
 --
@@ -145,7 +145,7 @@ wide = tell . map Internal.xl
 --
 -- > ultrawide ["max-w-8xl"]
 ultrawide :: [Text] -> StyleBuilder
-ultrawide = tell . map Internal.xxl
+ultrawide = tell . map Tailwind.xxl
 
 --------------------------------------------------------------------------------
 -- Conditional Styles
@@ -154,7 +154,7 @@ ultrawide = tell . map Internal.xxl
 --
 -- Example:
 --
--- > styles $ do
+-- > class_ $ do
 -- >   base [bgWhite, p4]
 -- >   when isActive $ base [bgBlue500]
 -- >   when hasError $ base [borderRed500]
@@ -166,7 +166,7 @@ when False _ = pure ()
 --
 -- Example:
 --
--- > styles $ do
+-- > class_ $ do
 -- >   base [p4]
 -- >   unless isCompact $ tablet [p6]
 unless :: Bool -> StyleBuilder -> StyleBuilder
@@ -182,7 +182,7 @@ unless cond = when (not cond)
 --
 -- Example:
 --
--- > styles $ do
+-- > class_ $ do
 -- >   base [bgWhite, p4]
 -- >   tablet [p6]
 -- >   also ["hover:bg-gray-100", "transition-colors"]

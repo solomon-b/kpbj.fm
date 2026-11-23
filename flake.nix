@@ -140,7 +140,7 @@
 
               staged-upload-cleanup = localPackage hfinal "staged-upload-cleanup" ./jobs/staged-upload-cleanup;
 
-              lucid-form-builder = localPackage hfinal "lucid-form-builder" ./lib/lucid-form-builder;
+              kpbj-ui = localPackage hfinal "kpbj-ui" ./lib/kpbj-ui;
 
               lucid-htmx-alpine = localPackage hfinal "lucid-htmx-alpine" ./lib/lucid-htmx-alpine;
 
@@ -193,7 +193,7 @@
         in
         rec {
           devShell = hsPkgs.shellFor {
-            packages = p: map pkgs.haskell.lib.doCheck [ p.kpbj-types p.kpbj-storage p.kpbj-database p.kpbj-email p.kpbj-job p.kpbj-web p.stripe-http p.easypost-http p.mailchimp-http p.google-service-account p.lucid-form-builder p.lucid-htmx-alpine p.lucid-tailwind p.sync-host-emails p.sync-schedule-calendar p.token-cleanup p.episode-check p.listener-snapshots p.ga-poller p.mailchimp-reconcile ];
+            packages = p: map pkgs.haskell.lib.doCheck [ p.kpbj-types p.kpbj-storage p.kpbj-database p.kpbj-email p.kpbj-job p.kpbj-web p.stripe-http p.easypost-http p.mailchimp-http p.google-service-account p.kpbj-ui p.lucid-htmx-alpine p.lucid-tailwind p.sync-host-emails p.sync-schedule-calendar p.token-cleanup p.episode-check p.listener-snapshots p.ga-poller p.mailchimp-reconcile ];
             withHoogle = false;
             buildInputs = [
               pkgs.cabal-install

@@ -122,7 +122,6 @@ import App.FormFieldSpec qualified as FormField
 import App.Handler.CombinatorsSpec qualified as Combinators
 import App.Handler.ErrorSpec qualified as ErrorHandler
 import App.RequestLogSpec qualified as RequestLog
-import Component.ButtonSpec qualified as Button
 import Component.DashboardFrameSpec qualified as DashboardFrame
 import Component.FlashSpec qualified as Flash
 import Component.ScheduleEditorSpec qualified as ScheduleEditor
@@ -185,7 +184,6 @@ main = do
     RequestLog.spec
     ScheduleDiff.spec
     ScheduleEditor.spec
-    Button.spec
     DashboardFrame.spec
     Flash.spec
     ContentSanitization.spec

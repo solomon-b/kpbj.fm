@@ -88,7 +88,6 @@ where
 
 import Data.String.Interpolate (i)
 import Data.Text (Text)
-import Effects.Database.Tables.UserMetadata (ThemeName (..))
 import Prelude hiding (error)
 
 --------------------------------------------------------------------------------
@@ -552,11 +551,11 @@ hoverBg = "hover:bg-[var(--theme-hover)]"
 --------------------------------------------------------------------------------
 -- Theme Lookup
 
--- | Get the Theme corresponding to a ThemeName.
+-- | Get the theme with the given name.
 --
--- Falls back to defaultTheme for unknown theme names.
-getTheme :: ThemeName -> Theme
-getTheme (ThemeName name) = case name of
+-- Fall back to 'defaultTheme' for an unknown name.
+getTheme :: Text -> Theme
+getTheme name = case name of
   "Default" -> defaultTheme
   "Solarized" -> solarizedTheme
   "Gruvbox" -> gruvboxTheme
