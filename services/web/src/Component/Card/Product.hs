@@ -76,4 +76,4 @@ renderProductCard backend prod mImagePath mAltText = do
 
       -- Out of Stock label
       when (inventory <= 0) $
-        Lucid.p_ [class_ $ base [Tokens.textSm, "text-red-600", Tokens.fontBold, "mt-1"]] "OUT OF STOCK"
+        Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.errorText, Tokens.fontBold, "mt-1"]] "OUT OF STOCK"
