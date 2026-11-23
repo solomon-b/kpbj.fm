@@ -156,6 +156,24 @@ inputSpec = describe "Lucid.Form.Builder.Render inputs" $ do
     it "disables the input" $
       html `shouldSatisfy` Text.isInfixOf "disabled=\"\""
 
+  describe "a disabled required date field" $ do
+    let html = renderFields $ dateField "starts" (label "Starts" >> required >> disabled)
+
+    it "renders the muted label with no required mark" $
+      html `shouldSatisfy` Text.isInfixOf "<label class=\"block font-bold mb-2 text-[var(--theme-fg-muted)]\" for=\"starts\">Starts</label>"
+
+  describe "a disabled required number field" $ do
+    let html = renderFields $ numberField "count" Nothing Nothing Nothing (label "Count" >> required >> disabled)
+
+    it "renders the muted label with no required mark" $
+      html `shouldSatisfy` Text.isInfixOf "<label class=\"block font-bold mb-2 text-[var(--theme-fg-muted)]\" for=\"count\">Count</label>"
+
+  describe "a disabled toggle field" $ do
+    let html = renderFields $ toggleField "featured" (label "Featured" >> disabled)
+
+    it "renders the muted label" $
+      html `shouldSatisfy` Text.isInfixOf "<label class=\"block font-bold mb-2 text-[var(--theme-fg-muted)]\">Featured</label>"
+
   describe "a select field" $ do
     let html = renderFields $ selectField "kind" (label "Kind" >> required >> addOption "a" "A")
 
