@@ -7,6 +7,8 @@ module API.User.Login.Get.Templates.Form where
 
 import API.Links (userLinks)
 import API.Types
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.Card qualified as Card
 import Component.PageHeader (pageHeader)
 import Data.Maybe (fromMaybe)
@@ -108,12 +110,18 @@ registerSection :: Lucid.Html ()
 registerSection =
   Lucid.div_ [class_ $ base ["mt-8", "pt-6", "border-t", Tokens.borderMuted, "text-center", "invisible"]] do
     Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb4]] "Don't have an account yet?"
-    Lucid.a_
-      [ Lucid.href_ "#",
-        hxGet_ [i|/#{userRegisterGetUrl}|],
-        hxSwap_ "innerHTML",
-        hxTarget_ "body",
-        hxPushUrl_ "true",
-        class_ $ base [Tokens.successBg, Tokens.successText, Tokens.px6, "py-3", Tokens.fontBold, Tokens.hoverBg, "inline-block"]
-      ]
+    Button.render
+      ( Button.defaults
+          & Button.muted
+          & Button.large
+          & Button.square
+          & Button.pageLink "#"
+          & Button.with
+            [ hxGet_ [i|/#{userRegisterGetUrl}|],
+              hxSwap_ "innerHTML",
+              hxTarget_ "body",
+              hxPushUrl_ "true",
+              class_ $ base ["inline-block"]
+            ]
+      )
       "CREATE ACCOUNT"

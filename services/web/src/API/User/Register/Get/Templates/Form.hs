@@ -10,6 +10,8 @@ where
 
 import API.Links (apiLinks, userLinks)
 import API.Types
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.Card qualified as Card
 import Component.PageHeader (pageHeader)
 import Data.String.Interpolate (i)
@@ -161,12 +163,18 @@ loginSection :: Lucid.Html ()
 loginSection =
   Lucid.div_ [class_ $ base ["mt-8", "pt-6", "border-t", Tokens.borderMuted, "text-center"]] do
     Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb4]] "Already have an account?"
-    Lucid.a_
-      [ Lucid.href_ [i|/#{userLoginGetUrl}|],
-        hxGet_ [i|/#{userLoginGetUrl}|],
-        hxSwap_ "innerHTML",
-        hxTarget_ "body",
-        hxPushUrl_ "true",
-        class_ $ base [Tokens.infoBg, Tokens.infoText, Tokens.px6, "py-3", Tokens.fontBold, Tokens.hoverBg, "inline-block"]
-      ]
+    Button.render
+      ( Button.defaults
+          & Button.muted
+          & Button.large
+          & Button.square
+          & Button.pageLink [i|/#{userLoginGetUrl}|]
+          & Button.with
+            [ hxGet_ [i|/#{userLoginGetUrl}|],
+              hxSwap_ "innerHTML",
+              hxTarget_ "body",
+              hxPushUrl_ "true",
+              class_ $ base ["inline-block"]
+            ]
+      )
       "LOGIN"

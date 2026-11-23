@@ -375,14 +375,20 @@ loginSection :: Lucid.Html ()
 loginSection =
   Lucid.div_ [class_ $ base [Tokens.mt8, "pt-6", "border-t", Tokens.borderMuted, "text-center"]] $ do
     Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb4]] "Already have an account?"
-    Lucid.a_
-      [ Lucid.href_ loginUrl,
-        hxGet_ loginUrl,
-        hxSwap_ "innerHTML",
-        hxTarget_ "body",
-        hxPushUrl_ "true",
-        class_ $ base [Tokens.infoBg, Tokens.infoText, Tokens.px6, "py-3", Tokens.fontBold, Tokens.hoverBg, "inline-block"]
-      ]
+    Button.render
+      ( Button.defaults
+          & Button.muted
+          & Button.large
+          & Button.square
+          & Button.pageLink loginUrl
+          & Button.with
+            [ hxGet_ loginUrl,
+              hxSwap_ "innerHTML",
+              hxTarget_ "body",
+              hxPushUrl_ "true",
+              class_ $ base ["inline-block"]
+            ]
+      )
       "LOGIN"
   where
     loginUrl = rootLink $ userLinks.loginGet Nothing Nothing
