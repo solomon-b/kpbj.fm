@@ -43,8 +43,8 @@ template mEmail = do
   Card.card Card.Auth ["max-w-md", "w-full", "space-y-8"] $ do
     -- Email icon
     Lucid.div_ [class_ $ base ["text-center"]] $ do
-      Lucid.div_ [class_ $ base ["mx-auto", "h-16", "w-16", "flex", "items-center", "justify-center", "rounded-full", "bg-[var(--theme-info-bg)]"]] $ do
-        Lucid.span_ [class_ $ base ["text-[var(--theme-info-text)]", Tokens.text3xl]] "✉"
+      Lucid.div_ [class_ $ base ["mx-auto", "h-16", "w-16", "flex", "items-center", "justify-center"]] $ do
+        Lucid.span_ [class_ $ base [Tokens.text3xl]] "✉"
 
     -- Title
     Lucid.h1_
@@ -93,7 +93,7 @@ template mEmail = do
                 ]
               Lucid.button_
                 [ Lucid.type_ "submit",
-                  class_ $ base [Tokens.fullWidth, "flex", "justify-center", "py-3", Tokens.px4, Tokens.border2, Tokens.borderDefault, Tokens.textSm, Tokens.fontBold, Tokens.fgPrimary, Tokens.bgMain, "hover:bg-[var(--theme-hover-bg)]", "transition-colors"]
+                  class_ $ base [Tokens.fullWidth, "flex", "justify-center", "py-3", Tokens.px4, Tokens.border2, Tokens.borderDefault, Tokens.textSm, Tokens.fontBold, Tokens.fgPrimary, Tokens.bgMain, Tokens.hoverBg, "transition-colors"]
                 ]
                 "Resend Verification Email"
 
