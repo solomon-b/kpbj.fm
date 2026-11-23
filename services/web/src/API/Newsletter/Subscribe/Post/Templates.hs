@@ -11,6 +11,8 @@ where
 
 import API.Links (apiLinks, rootLink)
 import API.Types (Routes (..))
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Data.Text (Text)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
@@ -57,8 +59,4 @@ signupForm =
             makeAttributes "aria-label" "Email Address",
             class_ $ base ["appearance-none", "bg-transparent", "border-none", Tokens.fullWidth, Tokens.fgPrimary, "mr-3", "py-1", "px-2", "leading-tight", "focus:outline-none"]
           ]
-        Lucid.button_
-          [ Lucid.type_ "submit",
-            class_ $ base [Tokens.px3, Tokens.py2, Tokens.textXs, Tokens.fontMedium, "text-center", "inline-flex", "items-center", Tokens.fgInverse, Tokens.bgInverse, "rounded-md", "hover:opacity-80", "focus:ring-4", "focus:outline-none", "focus:ring-[var(--theme-border)]"]
-          ]
-          "Subscribe"
+        Button.render (Button.defaults & Button.accent & Button.large & Button.square & Button.submit) "Subscribe"
