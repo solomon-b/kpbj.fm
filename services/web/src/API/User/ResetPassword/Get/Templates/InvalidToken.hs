@@ -37,7 +37,7 @@ template =
     Card.card Card.Auth [] $ do
       -- Warning icon
       Lucid.div_ [class_ $ base ["text-center"]] $ do
-        Lucid.div_ [class_ $ base ["mx-auto", "h-16", "w-16", "flex", "items-center", "justify-center", "rounded-full", Tokens.errorBg]] $ do
+        Lucid.div_ [class_ $ base ["mx-auto", "h-16", "w-16", "flex", "items-center", "justify-center"]] $ do
           Lucid.span_ [class_ $ base [Tokens.errorText, "text-3xl"]] "!"
 
       -- Title

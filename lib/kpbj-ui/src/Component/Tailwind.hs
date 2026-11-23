@@ -18,6 +18,7 @@ where
 --------------------------------------------------------------------------------
 
 import Component.Badge qualified as Badge
+import Component.Banner qualified as Banner
 import Component.Button qualified as Button
 import Component.Card qualified as Card
 import Component.Choice qualified as Choice
@@ -36,9 +37,10 @@ import Lucid qualified
 -- | The classes that the Tailwind CDN always writes.
 --
 -- It holds every class of the buttons, the form controls, the badges, the
--- cards, and the modals, and the classes of other elements that showed the
--- problem. It also holds the classes that place the remove button on an
--- image thumbnail, because no component gives them.
+-- cards, and the modals, the color classes of the banners, and the classes
+-- of other elements that showed the problem. It also holds the classes that
+-- place the remove button on an image thumbnail, because no component gives
+-- them.
 safelist :: [Text]
 safelist =
   nub $
@@ -47,6 +49,7 @@ safelist =
       <> Input.safelist
       <> Choice.safelist
       <> Badge.safelist
+      <> Banner.safelist
       <> Card.safelist
       <> Modal.safelist
       <> ["max-h-64", "absolute", "top-1", "right-1"]

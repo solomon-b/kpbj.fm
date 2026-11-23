@@ -333,9 +333,9 @@ colorClasses = \case
     fade :: Text
     fade = "hover:opacity-80"
 
-    -- The status tokens such as 'Tokens.warningBg' use an opacity modifier,
-    -- which Tailwind cannot apply to a color from a CSS variable. A mix with
-    -- transparent gives the tint.
+    -- A mix with transparent gives the tint, the same as the status tokens
+    -- such as 'Tokens.warningBg'. A button tint is 15%, so it is stronger
+    -- than the 10% of a token.
     tint :: Text -> Text
     tint color = [i|bg-[color-mix(in_srgb,var(--theme-#{color})_15%,transparent)]|]
 
