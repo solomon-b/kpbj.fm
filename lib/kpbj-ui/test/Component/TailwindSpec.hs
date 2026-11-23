@@ -3,11 +3,14 @@ module Component.TailwindSpec (spec) where
 
 --------------------------------------------------------------------------------
 
+import Component.Badge qualified as Badge
 import Component.Button (ButtonStyle (..), Kind (..), (&))
 import Component.Button qualified as Button
+import Component.Card qualified as Card
 import Component.Choice qualified as Choice
 import Component.Field qualified as Field
 import Component.Input qualified as Input
+import Component.Modal qualified as Modal
 import Component.Tailwind qualified as Tailwind
 import Control.Lens ((.~))
 import Data.Foldable (for_)
@@ -29,6 +32,9 @@ spec = describe "Component.Tailwind" $ do
 
     it "holds every class that a form control renders" $
       unlisted Tailwind.safelist formControls `shouldBe` []
+
+    it "holds every class that a badge, a card, or a modal renders" $
+      unlisted Tailwind.safelist panels `shouldBe` []
 
   it "keeps max-h-64 in the safelist" $
     Tailwind.safelist `shouldContain` ["max-h-64"]
@@ -82,6 +88,15 @@ formControls = do
     Choice.checkbox "a" [] "x" requirement (Just "x")
   Choice.radioGroup [Choice.radioErrorWhen "bad"] $
     Choice.radioOption "b" [] "x" (Just "x")
+
+-- | Each badge, card, and modal, in each variant.
+panels :: Lucid.Html ()
+panels = do
+  sequence_ [Badge.badge shape tone "x" | shape <- [minBound .. maxBound], tone <- [minBound .. maxBound]]
+  for_ [minBound .. maxBound] $ \variant -> do
+    Card.card variant [] "x"
+    Card.section variant [] "x"
+  for_ [minBound .. maxBound] $ \look -> Modal.modal look "open" "open = false" [] "x"
 
 render :: Lucid.Html () -> Text
 render = LText.toStrict . Lucid.renderText

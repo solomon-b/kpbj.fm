@@ -12,6 +12,7 @@ import API.Links (dashboardStoreProductsLinks, rootLink)
 import API.Types (DashboardStoreProductsRoutes (..))
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Card qualified as Card
 import Component.Form.Hints (markdownHint)
 import Data.Int (Int64)
 import Data.Scientific (FPFormat (..), formatScientific)
@@ -61,7 +62,7 @@ template userMeta productModel existingImages hasVariants optionsVariantsJson = 
 
 renderPageHeader :: Products.Model -> UserMetadata.Model -> Lucid.Html ()
 renderPageHeader productModel userMeta =
-  Lucid.section_ [class_ $ base [Tokens.bgMain, Tokens.fgPrimary, Tokens.p6, Tokens.mb8, Tokens.fullWidth]] $
+  Card.section Card.Header [] $
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "EDIT PRODUCT"

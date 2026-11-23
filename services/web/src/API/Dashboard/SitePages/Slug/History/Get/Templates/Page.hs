@@ -10,6 +10,7 @@ where
 
 import API.Links (dashboardSitePagesLinks)
 import API.Types (DashboardSitePagesRoutes (..))
+import Component.Card qualified as Card
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -69,7 +70,7 @@ template page revisions = do
 
 renderHeader :: SitePages.Model -> Lucid.Html ()
 renderHeader page =
-  Lucid.section_ [class_ $ base [Tokens.bgMain, Tokens.fgPrimary, Tokens.p6, Tokens.mb8, Tokens.fullWidth]] $ do
+  Card.section Card.Header [] $ do
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "REVISION HISTORY"
@@ -123,7 +124,7 @@ renderRevisionRow pageSlug (versionNum, rwe) =
 
 renderEmptyState :: Lucid.Html ()
 renderEmptyState = do
-  Lucid.div_ [class_ $ base [Theme.bgAlt, Tokens.border2, Theme.borderMuted, "p-12", "text-center"]] $ do
+  Card.card Card.EmptyState [] $ do
     Lucid.p_ [class_ $ base [Tokens.textXl, Theme.fgMuted]] "No revisions yet."
     Lucid.p_ [class_ $ base [Theme.fgMuted, "mt-2"]] "Edit the page to create the first revision."
 

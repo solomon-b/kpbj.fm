@@ -11,6 +11,7 @@ import API.Links (apiLinks, dashboardSitePagesLinks)
 import API.Types
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Card qualified as Card
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -95,7 +96,7 @@ publicPageUrl slug = case slug of
 
 renderEmptyState :: Lucid.Html ()
 renderEmptyState = do
-  Lucid.div_ [class_ $ base [Theme.bgAlt, Tokens.border2, Theme.borderMuted, "p-12", "text-center"]] $ do
+  Card.card Card.EmptyState [] $ do
     Lucid.p_ [class_ $ base [Tokens.textXl, Theme.fgMuted]] "No site pages found."
     Lucid.p_ [class_ $ base [Theme.fgMuted, "mt-2"]] "Site pages should be seeded in the database."
 

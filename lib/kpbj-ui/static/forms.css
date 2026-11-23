@@ -259,34 +259,8 @@
   color: var(--theme-fg-muted);
 }
 
-/* Image Crop Modal */
-.fb-image-crop-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.fb-image-crop-backdrop {
-  position: absolute;
-  inset: 0;
-  background-color: rgba(0, 0, 0, 0.75);
-}
-
-.fb-image-crop-dialog {
-  position: relative;
-  background-color: var(--theme-bg);
-  border: 1px solid var(--theme-border);
-  width: 90%;
-  max-width: 600px;
-  max-height: 90vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
+/* Image Crop Modal. Component.Modal draws the root, the backdrop, and the
+   dialog box. These rules lay out the content of the box. */
 .fb-image-crop-header {
   display: flex;
   justify-content: space-between;

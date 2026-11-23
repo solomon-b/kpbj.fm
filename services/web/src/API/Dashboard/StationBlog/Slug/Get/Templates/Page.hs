@@ -2,6 +2,8 @@ module API.Dashboard.StationBlog.Slug.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
+import Component.Badge qualified as Badge
+import Component.Card qualified as Card
 import Data.Text qualified as Text
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
 import Design (base, class_)
@@ -22,7 +24,7 @@ template ::
 template post tags mAuthor = do
   Lucid.div_ [class_ $ base [Tokens.fullWidth]] $ do
     -- Header with title
-    Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p6, Tokens.mb6]] $ do
+    Card.card Card.Detail [Tokens.mb6] $ do
       Lucid.div_ [class_ $ base [Tokens.mb4]] $ do
         Lucid.h2_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] $
           Lucid.toHtml post.bpmTitle
@@ -50,7 +52,7 @@ template post tags mAuthor = do
     -- Tags
     if null tags
       then mempty
-      else Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p6, Tokens.mb6]] $ do
+      else Card.card Card.Detail [Tokens.mb6] $ do
         Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Tags"
         Lucid.div_ [class_ $ base ["flex", "flex-wrap", Tokens.gap2]] $
           mapM_ renderTag tags
@@ -58,7 +60,7 @@ template post tags mAuthor = do
     -- Excerpt
     case post.bpmExcerpt of
       Just excerpt | not (Text.null excerpt) ->
-        Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p6, Tokens.mb6]] $ do
+        Card.card Card.Detail [Tokens.mb6] $ do
           Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Excerpt"
           -- Blog cards show the excerpt as plain text, so the preview does too.
           Lucid.p_ [class_ $ base [Tokens.fgMuted]] $
@@ -66,24 +68,15 @@ template post tags mAuthor = do
       _ -> mempty
 
     -- Content preview
-    Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p6]] $ do
+    Card.card Card.Detail [] $ do
       Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Content"
       renderContent post.bpmContent
 
 renderStatusBadge :: BlogPostStatus -> Lucid.Html ()
-renderStatusBadge status = case status of
-  Published ->
-    Lucid.span_
-      [class_ $ base ["inline-block", Tokens.successBg, Tokens.successText, "px-3", "py-1", Tokens.textSm, Tokens.fontBold, "rounded"]]
-      "Published"
-  Draft ->
-    Lucid.span_
-      [class_ $ base ["inline-block", Tokens.warningBg, Tokens.warningText, "px-3", "py-1", Tokens.textSm, Tokens.fontBold, "rounded"]]
-      "Draft"
-  Deleted ->
-    Lucid.span_
-      [class_ $ base ["inline-block", Tokens.errorBg, Tokens.errorText, "px-3", "py-1", Tokens.textSm, Tokens.fontBold, "rounded"]]
-      "Deleted"
+renderStatusBadge = \case
+  Published -> Badge.badge Badge.Regular Badge.Success "Published"
+  Draft -> Badge.badge Badge.Regular Badge.Warning "Draft"
+  Deleted -> Badge.badge Badge.Regular Badge.Error "Deleted"
 
 renderTag :: BlogTags.Model -> Lucid.Html ()
 renderTag tag =

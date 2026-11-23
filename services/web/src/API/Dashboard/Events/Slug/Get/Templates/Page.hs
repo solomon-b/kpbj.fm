@@ -2,7 +2,8 @@ module API.Dashboard.Events.Slug.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
-import Data.Text (Text)
+import Component.Badge qualified as Badge
+import Component.Card qualified as Card
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
@@ -20,7 +21,7 @@ template ::
 template event mAuthor = do
   Lucid.div_ [Lucid.class_ Tokens.fullWidth] $ do
     -- Header with title
-    Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p6, Tokens.mb6]] $ do
+    Card.card Card.Detail [Tokens.mb6] $ do
       Lucid.div_ [Lucid.class_ Tokens.mb4] $ do
         Lucid.h2_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] $
           Lucid.toHtml event.emTitle
@@ -41,7 +42,7 @@ template event mAuthor = do
           Lucid.toHtml $ formatDateTime event.emUpdatedAt
 
     -- Date & Time
-    Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p6, Tokens.mb6]] $ do
+    Card.card Card.Detail [Tokens.mb6] $ do
       Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Date & Time"
       Lucid.div_ [class_ $ base ["grid", "grid-cols-2", Tokens.gap4, Tokens.textSm]] $ do
         Lucid.div_ [] $ do
@@ -52,7 +53,7 @@ template event mAuthor = do
           Lucid.toHtml $ formatDateTimeFull event.emEndsAt
 
     -- Location
-    Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p6, Tokens.mb6]] $ do
+    Card.card Card.Detail [Tokens.mb6] $ do
       Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Location"
       Lucid.div_ [Lucid.class_ Tokens.textSm] $ do
         Lucid.p_ [Lucid.class_ Tokens.fontBold] $
@@ -61,19 +62,14 @@ template event mAuthor = do
           Lucid.toHtml event.emLocationAddress
 
     -- Description
-    Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p6]] $ do
+    Card.card Card.Detail [] $ do
       Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, "mb-3"]] "Description"
       renderContent event.emDescription
 
 renderStatusBadge :: Events.Status -> Lucid.Html ()
-renderStatusBadge status = do
-  let (bgClass, textClass, statusText) = case status of
-        Events.Published -> (Tokens.successBg, Tokens.successText, "Published") :: (Text, Text, Text)
-        Events.Draft -> (Tokens.warningBg, Tokens.warningText, "Draft")
-
-  Lucid.span_
-    [class_ $ base ["inline-block", "px-3", "py-1", Tokens.textSm, Tokens.fontBold, "rounded", bgClass, textClass]]
-    $ Lucid.toHtml statusText
+renderStatusBadge = \case
+  Events.Published -> Badge.badge Badge.Regular Badge.Success "Published"
+  Events.Draft -> Badge.badge Badge.Regular Badge.Warning "Draft"
 
 formatDateTime :: UTCTime -> String
 formatDateTime = formatTime defaultTimeLocale "%b %d, %Y"

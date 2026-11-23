@@ -11,6 +11,7 @@ where
 
 import API.Links (dashboardUsersLinks)
 import API.Types
+import Component.Badge qualified as Badge
 import Component.Button ((&))
 import Component.Button qualified as Button
 import Component.Table
@@ -221,27 +222,16 @@ renderUserRow viewerId viewerRole now user =
                   "Delete"
 
 renderRoleBadge :: UserMetadata.UserRole -> Lucid.Html ()
-renderRoleBadge role = do
-  let (bgClass, textClass, roleText) = case role of
-        UserMetadata.Admin -> (Tokens.errorBg, Tokens.errorText, "Admin") :: (Text, Text, Text)
-        UserMetadata.Staff -> (Tokens.warningBg, Tokens.warningText, "Staff")
-        UserMetadata.Host -> (Tokens.infoBg, Tokens.infoText, "Host")
-        UserMetadata.User -> (Tokens.bgAlt, Tokens.fgPrimary, "User")
-
-  Lucid.span_
-    [Lucid.class_ [i|inline-block px-3 py-1 text-sm font-bold rounded #{bgClass} #{textClass}|]]
-    $ Lucid.toHtml roleText
+renderRoleBadge = \case
+  UserMetadata.Admin -> Badge.badge Badge.Regular Badge.Error "Admin"
+  UserMetadata.Staff -> Badge.badge Badge.Regular Badge.Warning "Staff"
+  UserMetadata.Host -> Badge.badge Badge.Regular Badge.Info "Host"
+  UserMetadata.User -> Badge.badge Badge.Regular Badge.Plain "User"
 
 renderStatusBadge :: Maybe UTCTime -> Lucid.Html ()
 renderStatusBadge = \case
-  Nothing ->
-    Lucid.span_
-      [Lucid.class_ [i|inline-block px-3 py-1 text-sm font-bold rounded #{Tokens.successBg} #{Tokens.successText}|]]
-      "Active"
-  Just _ ->
-    Lucid.span_
-      [Lucid.class_ [i|inline-block px-3 py-1 text-sm font-bold rounded #{Tokens.warningBg} #{Tokens.warningText}|]]
-      "Suspended"
+  Nothing -> Badge.badge Badge.Regular Badge.Success "Active"
+  Just _ -> Badge.badge Badge.Regular Badge.Warning "Suspended"
 
 renderEmptyState :: Maybe Text -> Lucid.Html ()
 renderEmptyState maybeQuery = do

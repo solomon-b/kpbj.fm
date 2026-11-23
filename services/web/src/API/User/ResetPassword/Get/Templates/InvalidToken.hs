@@ -10,6 +10,7 @@ where
 
 import API.Links (userLinks)
 import API.Types
+import Component.Card qualified as Card
 import Data.String.Interpolate (i)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
@@ -33,7 +34,7 @@ userLoginGetUrl = Link.linkURI (userLinks.loginGet Nothing Nothing)
 template :: Lucid.Html ()
 template =
   Lucid.div_ [class_ $ base [Tokens.fullWidth, "max-w-md", "mx-auto"]] $ do
-    Lucid.div_ [class_ $ base [Tokens.bgMain, "p-8"]] $ do
+    Card.card Card.Auth [] $ do
       -- Warning icon
       Lucid.div_ [Lucid.class_ "text-center"] $ do
         Lucid.div_ [class_ $ base ["mx-auto", "h-16", "w-16", "flex", "items-center", "justify-center", "rounded-full", Tokens.errorBg]] $ do

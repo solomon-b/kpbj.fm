@@ -31,6 +31,7 @@ where
 
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Card qualified as Card
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BSL
 import Data.String.Interpolate (i)
@@ -440,7 +441,7 @@ renderSlot :: Lucid.Html ()
 renderSlot =
   Lucid.div_
     [ xShow_ "frequency !== null",
-      class_ $ base [Tokens.border2, Tokens.borderMuted, Tokens.bgAlt, Tokens.p4, Tokens.mb2]
+      class_ $ base (Card.classes Card.Inset <> [Tokens.mb2])
     ]
     $ do
       Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between", Tokens.mb2]] $

@@ -12,6 +12,7 @@ import API.Links (dashboardStationIdsLinks)
 import API.Types
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Card qualified as Card
 import Component.InlineAudioPlayer (renderInlineAudioPlayer)
 import Component.Table
   ( ColumnAlign (..),
@@ -133,7 +134,7 @@ renderStationIdRow backend stationId =
 -- | Render empty state when no station IDs exist
 renderEmptyState :: Lucid.Html ()
 renderEmptyState = do
-  Lucid.div_ [class_ $ base [Theme.bgAlt, Tokens.border2, Theme.borderMuted, "p-12", "text-center"]] $ do
+  Card.card Card.EmptyState [] $ do
     Lucid.p_ [class_ $ base [Tokens.textXl, Theme.fgMuted]] "No station IDs uploaded yet."
     Lucid.p_ [class_ $ base [Theme.fgMuted, "mt-2"]] "Upload a new station ID to get started."
 

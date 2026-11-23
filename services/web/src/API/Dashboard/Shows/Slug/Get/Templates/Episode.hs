@@ -13,6 +13,7 @@ import API.Links (showEpisodesLinks)
 import API.Types
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Card qualified as Card
 import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
 import Data.Text qualified as Text
@@ -40,7 +41,7 @@ episodeDetailUrl showSlug epNum = Links.linkURI $ showEpisodesLinks.detail showS
 -- | Render a featured "Latest Episode" section with full details
 renderLatestEpisode :: StorageBackend -> Shows.Model -> Episodes.Model -> [EpisodeTrack.Model] -> Lucid.Html ()
 renderLatestEpisode backend showModel episode tracks = do
-  Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p6, Tokens.mb8]] $ do
+  Card.card Card.Detail [Tokens.mb8] $ do
     Lucid.h2_ [class_ $ base [Tokens.textXl, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", Tokens.borderDefault, Tokens.pb2]] "Latest Episode"
 
     -- Episode header with image and info
@@ -93,7 +94,7 @@ renderLatestEpisode backend showModel episode tracks = do
             episodeMetadata :: Text.Text
             episodeMetadata = escapeJsString [i|#{showTitle} - Episode #{episodeNum}|]
         Lucid.div_
-          [ class_ $ base [Tokens.bgAlt, Tokens.border2, Tokens.borderMuted, Tokens.p4, Tokens.mb4],
+          [ class_ $ base (Card.classes Card.Inset <> [Tokens.mb4]),
             xData_
               [i|{
               playerId: '#{playerId}',
@@ -246,7 +247,7 @@ renderEpisodeCard backend showModel episode = do
               episodeMetadata :: Text.Text
               episodeMetadata = escapeJsString [i|#{showTitle} - Episode #{episodeNum}|]
           Lucid.div_
-            [ class_ $ base [Tokens.bgAlt, Tokens.border2, Tokens.borderMuted, Tokens.p4, Tokens.mb4],
+            [ class_ $ base (Card.classes Card.Inset <> [Tokens.mb4]),
               xData_
                 [i|{
                 playerId: '#{playerId}',

@@ -11,8 +11,10 @@ where
 
 import API.Links (dashboardNewsletterSubscribersLinks)
 import API.Types
+import Component.Badge qualified as Badge
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Card qualified as Card
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -134,23 +136,21 @@ renderMailchimpBadge = \case
     Lucid.span_ [class_ $ base [Tokens.textSm, Tokens.fgMuted]] $
       Lucid.toHtml @Text "—"
   Just status ->
-    let (bgClass, textClass, label) = badgeStyle status
-     in Lucid.span_
-          [class_ $ base ["inline-block", Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, "rounded", bgClass, textClass]]
-          $ Lucid.toHtml label
+    let (tone, label) = badgeStyle status
+     in Badge.badge Badge.Regular tone $ Lucid.toHtml label
   where
-    badgeStyle :: Text -> (Text, Text, Text)
+    badgeStyle :: Text -> (Badge.Tone, Text)
     badgeStyle = \case
-      "subscribed" -> (Tokens.successBg, Tokens.successText, "Subscribed")
-      "pending" -> (Tokens.warningBg, Tokens.warningText, "Pending")
-      "error" -> (Tokens.errorBg, Tokens.errorText, "Error")
-      "unsubscribed" -> (Tokens.bgAlt, Tokens.fgMuted, "Unsubscribed")
-      "cleaned" -> (Tokens.bgAlt, Tokens.fgMuted, "Cleaned")
-      other -> (Tokens.bgAlt, Tokens.fgMuted, other)
+      "subscribed" -> (Badge.Success, "Subscribed")
+      "pending" -> (Badge.Warning, "Pending")
+      "error" -> (Badge.Error, "Error")
+      "unsubscribed" -> (Badge.Neutral, "Unsubscribed")
+      "cleaned" -> (Badge.Neutral, "Cleaned")
+      other -> (Badge.Neutral, other)
 
 renderEmptyState :: Maybe Text -> Lucid.Html ()
 renderEmptyState mSearch =
-  Lucid.div_ [class_ $ base [Tokens.bgAlt, Tokens.border2, Tokens.borderMuted, "p-12", "text-center"]] $ do
+  Card.card Card.EmptyState [] $ do
     case mSearch of
       Just search ->
         Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.fgMuted]] $

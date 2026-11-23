@@ -10,6 +10,7 @@ where
 
 import API.Links (dashboardEpisodesLinks)
 import API.Types (DashboardEpisodesRoutes (..))
+import Component.Badge qualified as Badge
 import Component.Button ((&))
 import Component.Button qualified as Button
 import Control.Monad (unless, when)
@@ -89,10 +90,10 @@ renderEpisodeTableRow userMeta showModel episode = do
     -- Status column
     Lucid.td_ cellLinkAttrs $
       if isArchived
-        then Lucid.span_ [class_ $ base ["inline-block", Tokens.errorBg, Tokens.errorText, "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "ARCHIVED"
+        then Badge.badge Badge.Compact Badge.Error "ARCHIVED"
         else
           if isNothing episode.scheduleTemplateId
-            then Lucid.span_ [class_ $ base ["inline-block", Tokens.warningBg, Tokens.warningText, "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "UNSCHEDULED"
+            then Badge.badge Badge.Compact Badge.Warning "UNSCHEDULED"
             else mempty
 
     -- Actions

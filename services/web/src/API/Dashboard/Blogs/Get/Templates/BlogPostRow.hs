@@ -10,6 +10,7 @@ where
 
 import API.Links (dashboardBlogsLinks)
 import API.Types
+import Component.Badge qualified as Badge
 import Component.Button ((&))
 import Component.Button qualified as Button
 import Data.Maybe (fromMaybe)
@@ -94,9 +95,7 @@ renderBlogPostTableRow showModel post = do
 
 -- | Render status badge with appropriate styling
 renderStatusBadge :: BlogPostStatus -> Lucid.Html ()
-renderStatusBadge Draft =
-  Lucid.span_ [class_ $ base ["inline-block", Tokens.bgAlt, Tokens.fgPrimary, "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "DRAFT"
-renderStatusBadge Published =
-  Lucid.span_ [class_ $ base ["inline-block", Tokens.successBg, Tokens.successText, "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "PUBLISHED"
-renderStatusBadge Deleted =
-  Lucid.span_ [class_ $ base ["inline-block", Tokens.errorBg, Tokens.errorText, "px-2", "py-1", "rounded", Tokens.textXs, Tokens.fontBold]] "DELETED"
+renderStatusBadge = \case
+  Draft -> Badge.badge Badge.Compact Badge.Plain "DRAFT"
+  Published -> Badge.badge Badge.Compact Badge.Success "PUBLISHED"
+  Deleted -> Badge.badge Badge.Compact Badge.Error "DELETED"

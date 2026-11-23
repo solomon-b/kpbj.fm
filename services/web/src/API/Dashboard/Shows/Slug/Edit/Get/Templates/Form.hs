@@ -10,6 +10,7 @@ where
 
 import API.Links (apiLinks)
 import API.Types
+import Component.Card qualified as Card
 import Component.Form.Hints (markdownHint)
 import Component.ScheduleEditor (ScheduleEditorData (..), renderScheduleEditor)
 import Data.Set (Set)
@@ -145,7 +146,7 @@ template backend showModel userMeta isStaff schedulesJson eligibleHosts currentH
 renderFormHeader :: UserMetadata.Model -> Shows.Model -> Lucid.Html ()
 renderFormHeader userMeta showModel = do
   let showBackUrl = showGetUrl showModel.slug
-  Lucid.section_ [class_ $ base [Tokens.bgMain, Tokens.fgPrimary, Tokens.p6, Tokens.mb8, Tokens.fullWidth]] $ do
+  Card.section Card.Header [] $ do
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "EDIT SHOW"
@@ -181,7 +182,7 @@ renderFormHeader userMeta showModel = do
 -- what's coming up while they edit the upcoming schedule.
 renderSchedulePreview :: [ShowSchedule.ScheduleTemplate Result] -> [ShowSchedule.ScheduleTemplate Result] -> Text -> Lucid.Html ()
 renderSchedulePreview activeTemplates pendingTemplates pendingStartDate =
-  Lucid.div_ [class_ $ base [Tokens.border2, Tokens.borderMuted, Tokens.bgAlt, Tokens.p4, Tokens.mb4]] $ do
+  Card.card Card.Inset [Tokens.mb4] $ do
     -- Active schedule
     unless (null activeTemplates) $ do
       Lucid.p_ [class_ $ base [Tokens.fontBold, Tokens.textSm, Tokens.mb2]] "CURRENT SCHEDULE"

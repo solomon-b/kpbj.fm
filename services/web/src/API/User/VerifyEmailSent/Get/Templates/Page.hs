@@ -6,6 +6,7 @@ module API.User.VerifyEmailSent.Get.Templates.Page (template) where
 
 import API.Links (userLinks)
 import API.Types (UserRoutes (loginGet, verifyEmailResendPost))
+import Component.Card qualified as Card
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
@@ -37,7 +38,7 @@ resendUrl = [i|/#{verifyEmailResendPostUri}|]
 -- | Template for the "check your email" page.
 template :: Maybe EmailAddress -> Lucid.Html ()
 template mEmail = do
-  Lucid.div_ [Lucid.class_ "max-w-md w-full space-y-8 bg-[var(--theme-bg)] p-8"] $ do
+  Card.card Card.Auth ["max-w-md", "w-full", "space-y-8"] $ do
     -- Email icon
     Lucid.div_ [Lucid.class_ "text-center"] $ do
       Lucid.div_ [Lucid.class_ "mx-auto h-16 w-16 flex items-center justify-center rounded-full bg-[var(--theme-info-bg)]"] $ do

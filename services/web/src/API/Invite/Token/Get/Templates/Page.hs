@@ -13,6 +13,7 @@ where
 import API.Dashboard.Invitations.Get.Templates.Page (formatDateTime, formatStartDate, renderScheduleSummary, renderStatusBadge)
 import API.Links (apiLinks, dashboardInvitationsLinks, inviteLinks, rootLink, userLinks)
 import API.Types (DashboardInvitationsRoutes (..), InviteRoutes (..), Routes (..), UserRoutes (..))
+import Component.Card qualified as Card
 import Component.Form.Hints (markdownHint)
 import Data.Aeson (Value)
 import Data.String.Interpolate (i)
@@ -50,7 +51,7 @@ template token invitation =
         hxPost_ postUrl,
         hxTarget_ "body",
         hxSwap_ "innerHTML",
-        class_ $ base [Tokens.bgMain, "p-8"]
+        class_ $ base (Card.classes Card.Auth)
       ]
     $ do
       -- Step 1: Create Account
@@ -392,7 +393,7 @@ alreadyLoggedInTemplate ::
   Lucid.Html ()
 alreadyLoggedInTemplate recipientEmail =
   Lucid.div_ [class_ $ base ["max-w-2xl", "mx-auto", Tokens.py8]] $
-    Lucid.div_ [class_ $ base [Tokens.bgMain, "p-8", "text-center"]] $ do
+    Card.card Card.Auth ["text-center"] $ do
       Lucid.h1_
         [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb4]]
         "This invitation is not claimed"
@@ -437,7 +438,7 @@ staffPreviewTemplate ::
   Lucid.Html ()
 staffPreviewTemplate invitation =
   Lucid.div_ [class_ $ base ["max-w-2xl", "mx-auto", Tokens.py8]] $
-    Lucid.div_ [class_ $ base [Tokens.bgMain, "p-8"]] $ do
+    Card.card Card.Auth [] $ do
       Lucid.h1_
         [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]]
         "Host invitation"

@@ -7,6 +7,7 @@ module API.Dashboard.Store.Products.Get.Templates (template, renderProductRow) w
 
 import API.Links (dashboardStoreProductsLinks, rootLink)
 import API.Types (DashboardStoreProductsRoutes (..))
+import Component.Badge qualified as Badge
 import Component.Button ((&))
 import Component.Button qualified as Button
 import Component.Table
@@ -169,11 +170,6 @@ renderEmptyRow =
       Lucid.p_ [class_ $ base ["mt-2"]] "Click + NEW above to create your first product."
 
 renderStatusBadge :: Bool -> Lucid.Html ()
-renderStatusBadge isActive =
-  let (bgClass, textClass, statusText) =
-        if isActive
-          then (Tokens.successBg, Tokens.successText, "Active") :: (Text, Text, Text)
-          else (Tokens.warningBg, Tokens.warningText, "Inactive")
-   in Lucid.span_
-        [class_ $ base ["inline-block", "px-3", "py-1", Tokens.textSm, Tokens.fontBold, "rounded", bgClass, textClass]]
-        $ Lucid.toHtml statusText
+renderStatusBadge isActive
+  | isActive = Badge.badge Badge.Regular Badge.Success "Active"
+  | otherwise = Badge.badge Badge.Regular Badge.Warning "Inactive"

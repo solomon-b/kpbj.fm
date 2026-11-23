@@ -16,6 +16,7 @@ import API.Types
 import Component.BreakItems (audioHint, audioMaxSizeMb, formatDay, formatDuration, formatRange)
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Card qualified as Card
 import Component.InlineAudioPlayer (renderInlineAudioPlayer)
 import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTableWithBodyId, rowAttrs)
 import Data.String.Interpolate (i)
@@ -76,7 +77,7 @@ columnHeaders =
 
 renderEmptyState :: Lucid.Html ()
 renderEmptyState =
-  Lucid.div_ [class_ $ base [Theme.bgAlt, Tokens.border2, Theme.borderMuted, "p-12", "text-center"]] $ do
+  Card.card Card.EmptyState [] $ do
     Lucid.p_ [class_ $ base [Tokens.textXl, Theme.fgMuted]] "No promos for this show yet."
     Lucid.p_ [class_ $ base [Theme.fgMuted, "mt-2"]] "Submit one below. It airs in breaks after staff approve it."
 

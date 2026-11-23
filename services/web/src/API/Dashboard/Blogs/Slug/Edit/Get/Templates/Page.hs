@@ -9,6 +9,7 @@ where
 
 import API.Links (dashboardBlogsLinks)
 import API.Types
+import Component.Card qualified as Card
 import Component.Form.Hints (markdownHint, plainTextHint)
 import Data.Foldable (for_)
 import Data.String.Interpolate (i)
@@ -108,7 +109,7 @@ editBlogPostForm showModel post tags = do
 
 renderFormHeader :: Shows.Model -> ShowBlogPosts.Model -> Lucid.Html ()
 renderFormHeader showModel post =
-  Lucid.section_ [class_ $ base [Tokens.bgMain, Tokens.fgPrimary, Tokens.p6, Tokens.mb8, Tokens.fullWidth]] $ do
+  Card.section Card.Header [] $ do
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "EDIT BLOG POST"

@@ -9,6 +9,7 @@ where
 
 import API.Links (dashboardShowsLinks)
 import API.Types
+import Component.Card qualified as Card
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -87,7 +88,7 @@ renderRow sme =
 
 renderEmptyState :: Lucid.Html ()
 renderEmptyState = do
-  Lucid.div_ [class_ $ base [Theme.bgAlt, Tokens.border2, Theme.borderMuted, "p-12", "text-center"]] $ do
+  Card.card Card.EmptyState [] $ do
     Lucid.p_ [class_ $ base [Tokens.textXl, Theme.fgMuted]] "All upcoming shows have episodes uploaded."
 
 -- | Format a Day as "Feb 15, 2026".

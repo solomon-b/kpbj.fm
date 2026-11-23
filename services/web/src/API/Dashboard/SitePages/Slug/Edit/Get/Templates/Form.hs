@@ -10,6 +10,7 @@ where
 
 import API.Links (dashboardSitePagesLinks)
 import API.Types (DashboardSitePagesRoutes (..))
+import Component.Card qualified as Card
 import Component.Form.Hints (markdownHint)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -91,7 +92,7 @@ template page = do
 
 renderFormHeader :: SitePages.Model -> Lucid.Html ()
 renderFormHeader page =
-  Lucid.section_ [class_ $ base [Tokens.bgMain, Tokens.fgPrimary, Tokens.p6, Tokens.mb8, Tokens.fullWidth]] $ do
+  Card.section Card.Header [] $ do
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "EDIT SITE PAGE"

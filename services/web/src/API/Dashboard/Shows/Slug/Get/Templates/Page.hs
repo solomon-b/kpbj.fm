@@ -14,6 +14,7 @@ import API.Links (dashboardShowsLinks, showBlogLinks)
 import API.Types (DashboardShowsRoutes (..), ShowBlogRoutes (..))
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Card qualified as Card
 import Component.Card.BlogPost (renderShowBlogPostCard)
 import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
@@ -90,12 +91,12 @@ renderEpisodesContent backend showModel episodes currentPage = do
             then do
               renderLatestEpisode backend showModel latestEpisode []
               unless (null otherEpisodes) $ do
-                Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p6]] $ do
+                Card.card Card.Detail [] $ do
                   Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", Tokens.borderDefault, Tokens.pb2]] "Previous Episodes"
                   mapM_ (renderEpisodeCard backend showModel) otherEpisodes
             else do
               -- On subsequent pages, show all episodes as cards
-              Lucid.div_ [class_ $ base [Tokens.bgMain, "rounded", Tokens.p6]] $ do
+              Card.card Card.Detail [] $ do
                 Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", Tokens.borderDefault, Tokens.pb2]] "Episodes"
                 mapM_ (renderEpisodeCard backend showModel) episodes
 

@@ -9,6 +9,7 @@ where
 
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Modal qualified as Modal
 import Data.Text (Text)
 import Data.Text.Display (display)
 import Design (base, class_)
@@ -31,60 +32,43 @@ renderPasswordModal ::
   Text ->
   Lucid.Html ()
 renderPasswordModal user plaintext =
-  Lucid.div_
-    [ xData_ "{ open: true, copied: false }",
-      xShow_ "open",
-      class_ $ base ["fixed", "inset-0", "z-50", "flex", "items-center", "justify-center", Tokens.p4]
-    ]
-    $ do
-      -- Backdrop
-      Lucid.div_
-        [ xOnClick_ "open = false",
-          class_ $ base ["absolute", "inset-0", "bg-black", "opacity-70"]
-        ]
-        mempty
+  Modal.modal Modal.Standard "open" "open = false" [xData_ "{ open: true, copied: false }"] $ do
+    Lucid.h2_
+      [class_ $ base [Tokens.headingLg, Tokens.fontBold, Tokens.mb4]]
+      "Password Reset"
 
-      -- Modal card
-      Lucid.div_
-        [ class_ $ base ["relative", "w-full", "max-w-md", Tokens.bgMain, Tokens.fgPrimary, Tokens.border2, Tokens.borderDefault, Tokens.p6]
+    Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.mb2]] $ do
+      "The new password for "
+      Lucid.span_ [class_ $ base [Tokens.fontBold]] $ Lucid.toHtml displayName
+      " ("
+      Lucid.toHtml email
+      ") is below."
+
+    Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb4]] $
+      "Copy it now — it will not be shown again. The user has been signed out of all "
+        <> "sessions and must log in with this password."
+
+    -- Password field + copy button
+    Lucid.div_ [class_ $ base ["flex", Tokens.gap2, Tokens.mb6]] $ do
+      Lucid.input_
+        [ Lucid.type_ "text",
+          Lucid.readonly_ "readonly",
+          xRef_ "pw",
+          Lucid.value_ plaintext,
+          Lucid.onclick_ "this.select()",
+          class_ $ base ["flex-1", "min-w-0", Tokens.p4, "font-mono", Tokens.textLg, Tokens.bgAlt, Tokens.fgPrimary, Tokens.border2, Tokens.borderDefault]
         ]
+      Button.render
+        ( Button.defaults
+            & Button.with [xOnClick_ "navigator.clipboard.writeText($refs.pw.value).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"]
+        )
         $ do
-          Lucid.h2_
-            [class_ $ base [Tokens.headingLg, Tokens.fontBold, Tokens.mb4]]
-            "Password Reset"
+          Lucid.span_ [xShow_ "!copied"] "Copy"
+          Lucid.span_ [xShow_ "copied"] "Copied!"
 
-          Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.mb2]] $ do
-            "The new password for "
-            Lucid.span_ [class_ $ base [Tokens.fontBold]] $ Lucid.toHtml displayName
-            " ("
-            Lucid.toHtml email
-            ") is below."
-
-          Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb4]] $
-            "Copy it now — it will not be shown again. The user has been signed out of all "
-              <> "sessions and must log in with this password."
-
-          -- Password field + copy button
-          Lucid.div_ [class_ $ base ["flex", Tokens.gap2, Tokens.mb6]] $ do
-            Lucid.input_
-              [ Lucid.type_ "text",
-                Lucid.readonly_ "readonly",
-                xRef_ "pw",
-                Lucid.value_ plaintext,
-                Lucid.onclick_ "this.select()",
-                class_ $ base ["flex-1", "min-w-0", Tokens.p4, "font-mono", Tokens.textLg, Tokens.bgAlt, Tokens.fgPrimary, Tokens.border2, Tokens.borderDefault]
-              ]
-            Button.render
-              ( Button.defaults
-                  & Button.with [xOnClick_ "navigator.clipboard.writeText($refs.pw.value).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"]
-              )
-              $ do
-                Lucid.span_ [xShow_ "!copied"] "Copy"
-                Lucid.span_ [xShow_ "copied"] "Copied!"
-
-          -- Done button
-          Lucid.div_ [class_ $ base ["flex", "justify-end"]] $
-            Button.render (Button.defaults & Button.primary & Button.with [xOnClick_ "open = false"]) "Done"
+    -- Done button
+    Lucid.div_ [class_ $ base ["flex", "justify-end"]] $
+      Button.render (Button.defaults & Button.primary & Button.with [xOnClick_ "open = false"]) "Done"
   where
     displayName = display user.uwmDisplayName :: Text
     email = display user.uwmEmail :: Text

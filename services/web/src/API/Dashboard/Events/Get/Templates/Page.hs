@@ -12,8 +12,10 @@ where
 
 import API.Links (dashboardEventsLinks, eventsLinks)
 import API.Types
+import Component.Badge qualified as Badge
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Card qualified as Card
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -139,18 +141,13 @@ renderEventRow event =
                 "Delete"
 
 renderStatusBadge :: Events.Status -> Lucid.Html ()
-renderStatusBadge status = do
-  let (bgClass, textClass, statusText) = case status of
-        Events.Published -> (Tokens.successBg, Tokens.successText, "Published") :: (Text, Text, Text)
-        Events.Draft -> (Tokens.warningBg, Tokens.warningText, "Draft")
-
-  Lucid.span_
-    [class_ $ base ["inline-block", "px-3", "py-1", Tokens.textSm, Tokens.fontBold, "rounded", bgClass, textClass]]
-    $ Lucid.toHtml statusText
+renderStatusBadge = \case
+  Events.Published -> Badge.badge Badge.Regular Badge.Success "Published"
+  Events.Draft -> Badge.badge Badge.Regular Badge.Warning "Draft"
 
 renderEmptyState :: Lucid.Html ()
 renderEmptyState = do
-  Lucid.div_ [class_ $ base [Theme.bgAlt, Tokens.border2, Theme.borderMuted, "p-12", "text-center"]] $ do
+  Card.card Card.EmptyState [] $ do
     Lucid.p_ [class_ $ base [Tokens.textXl, Theme.fgMuted]] "No events found."
     Lucid.p_ [class_ $ base [Theme.fgMuted, "mt-2"]] "Create a new event to get started."
 
