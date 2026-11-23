@@ -1,19 +1,15 @@
 {-# LANGUAGE QuasiQuotes #-}
 
--- | HTML rendering for form builder with semantic CSS classes.
+-- | HTML rendering for the form builder.
 --
--- This module converts 'FormState' to Lucid HTML, outputting semantic CSS
--- classes (fb-*) that can be styled by the consuming application.
+-- This module converts 'FormState' to Lucid HTML. The buttons and the basic
+-- inputs render through the components: "Component.Button",
+-- "Component.Field", "Component.Input", and "Component.Choice". They have
+-- Tailwind classes.
 --
--- == Semantic Class Convention
---
--- All classes use the @fb-@ prefix (form builder):
---
--- * Form structure: @fb-form@, @fb-title@, @fb-section@, etc.
--- * Fields: @fb-field@, @fb-label@, @fb-input@, @fb-textarea@, etc.
--- * States: @fb-field--error@, @fb-field--disabled@, etc.
---
--- The consuming application maps these to actual styles (e.g., Tailwind).
+-- The other parts have semantic classes with the @fb-@ prefix, such as
+-- @fb-form@, @fb-section@, @fb-file-zone@, and @fb-toggle@. The rules for
+-- these classes are in @static/forms.css@.
 module Lucid.Form.Builder.Render
   ( -- * Form Configuration
     FormConfig (..),
@@ -31,7 +27,11 @@ where
 
 import Component.Button ((&))
 import Component.Button qualified as Button
-import Control.Monad (forM_, unless, when)
+import Component.Choice qualified as Choice
+import Component.Field qualified as Field
+import Component.Input qualified as Input
+import Control.Applicative ((<|>))
+import Control.Monad (forM_, when)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BSL
 import Data.Maybe (fromMaybe)
@@ -205,6 +205,35 @@ renderSection sec = do
           renderField field
 
 --------------------------------------------------------------------------------
+-- Field Parts
+
+-- | The state of the label of a field that can be disabled.
+labelState ::
+  -- | Whether the field is disabled
+  Bool ->
+  Field.State
+labelState isDisabled = if isDisabled then Field.Disabled else Field.Enabled
+
+-- | The Alpine condition that is true when a validated field shows its error
+-- look.
+invalidCondition ::
+  -- | Field name
+  Text ->
+  Text
+invalidCondition name = "showErrors && !fields." <> name <> ".isValid"
+
+-- | The error message of a validated field. It shows when the field is not
+-- valid after a submit.
+fieldError ::
+  -- | Field name
+  Text ->
+  -- | Message
+  Lucid.Html () ->
+  Lucid.Html ()
+fieldError name =
+  Field.errorMessage [xShow_ ("!fields." <> name <> ".isValid && showErrors")]
+
+--------------------------------------------------------------------------------
 -- Footer Rendering
 
 -- | Render form footer (buttons and inline controls like toggles).
@@ -351,20 +380,19 @@ renderTextInputField inputType field = do
       isDisabled = fcDisabled cfg
       hasVal = needsValidation field && not isDisabled
       capName = capitalizeFirst name
-      disabledClass = if isDisabled then " fb-field--disabled" else ""
 
-  Lucid.div_ [Lucid.class_ ("fb-field" <> disabledClass)] $ do
+  Field.field [] $ do
     -- Label
-    Lucid.label_
-      [Lucid.for_ name, Lucid.class_ "fb-label"]
+    Field.label
+      (labelState isDisabled)
+      [Lucid.for_ name]
       (Lucid.toHtml $ fromMaybe name (fcLabel cfg) <> if isReq && not isDisabled then " *" else "")
 
     -- Input
-    Lucid.input_ $
+    Input.input $
       [ Lucid.type_ inputType,
         Lucid.name_ name,
-        Lucid.id_ name,
-        Lucid.class_ "fb-input"
+        Lucid.id_ name
       ]
         <> maybe [] (\v -> [Lucid.value_ v]) (fcInitialValue cfg)
         <> maybe [] (\p -> [Lucid.placeholder_ p]) (fcPlaceholder cfg)
@@ -375,7 +403,7 @@ renderTextInputField inputType field = do
         <> if hasVal
           then
             [ xModel_ ("fields." <> name <> ".value"),
-              xBindClass_ ("{ 'fb-input--error': showErrors && !fields." <> name <> ".isValid }"),
+              Input.errorWhen (invalidCondition name),
               xOnInput_ ("showErrors && validate" <> capName <> "()"),
               xOnBlur_ ("showErrors && validate" <> capName <> "()")
             ]
@@ -383,16 +411,11 @@ renderTextInputField inputType field = do
 
     -- Error message
     when hasVal $
-      Lucid.span_
-        [ xShow_ ("!fields." <> name <> ".isValid && showErrors"),
-          Lucid.class_ "fb-error",
-          Lucid.style_ "display: none;"
-        ]
-        "Please check this field"
+      fieldError name "Please check this field"
 
     -- Hint
     forM_ (fcHint cfg) $ \h ->
-      Lucid.p_ [Lucid.class_ "fb-hint"] (Lucid.toHtml h)
+      Field.hint (Lucid.toHtml h)
 
 --------------------------------------------------------------------------------
 -- Password Field
@@ -406,20 +429,19 @@ renderPasswordField field = do
       isDisabled = fcDisabled cfg
       hasVal = needsValidation field && not isDisabled
       capName = capitalizeFirst name
-      disabledClass = if isDisabled then " fb-field--disabled" else ""
 
-  Lucid.div_ [Lucid.class_ ("fb-field" <> disabledClass)] $ do
+  Field.field [] $ do
     -- Label
-    Lucid.label_
-      [Lucid.for_ name, Lucid.class_ "fb-label"]
+    Field.label
+      (labelState isDisabled)
+      [Lucid.for_ name]
       (Lucid.toHtml $ fromMaybe name (fcLabel cfg) <> if isReq && not isDisabled then " *" else "")
 
     -- Input
-    Lucid.input_ $
+    Input.input $
       [ Lucid.type_ "password",
         Lucid.name_ name,
-        Lucid.id_ name,
-        Lucid.class_ "fb-input"
+        Lucid.id_ name
       ]
         <> maybe [] (\v -> [Lucid.value_ v]) (fcInitialValue cfg)
         <> maybe [] (\p -> [Lucid.placeholder_ p]) (fcPlaceholder cfg)
@@ -430,7 +452,7 @@ renderPasswordField field = do
         <> if hasVal
           then
             [ xModel_ ("fields." <> name <> ".value"),
-              xBindClass_ ("{ 'fb-input--error': showErrors && !fields." <> name <> ".isValid }"),
+              Input.errorWhen (invalidCondition name),
               xOnInput_ ("showErrors && validate" <> capName <> "()"),
               xOnBlur_ ("showErrors && validate" <> capName <> "()")
             ]
@@ -438,16 +460,11 @@ renderPasswordField field = do
 
     -- Error message
     when hasVal $
-      Lucid.span_
-        [ xShow_ ("!fields." <> name <> ".isValid && showErrors"),
-          Lucid.class_ "fb-error",
-          Lucid.style_ "display: none;"
-        ]
-        "Please check this field"
+      fieldError name "Please check this field"
 
     -- Hint
     forM_ (fcHint cfg) $ \h ->
-      Lucid.p_ [Lucid.class_ "fb-hint"] (Lucid.toHtml h)
+      Field.hint (Lucid.toHtml h)
 
 --------------------------------------------------------------------------------
 -- Textarea Field
@@ -461,20 +478,19 @@ renderTextareaField field rows = do
       isDisabled = fcDisabled cfg
       hasVal = needsValidation field && not isDisabled
       capName = capitalizeFirst name
-      disabledClass = if isDisabled then " fb-field--disabled" else ""
 
-  Lucid.div_ [Lucid.class_ ("fb-field" <> disabledClass)] $ do
+  Field.field [] $ do
     -- Label
-    Lucid.label_
-      [Lucid.for_ name, Lucid.class_ "fb-label"]
+    Field.label
+      (labelState isDisabled)
+      [Lucid.for_ name]
       (Lucid.toHtml $ fromMaybe name (fcLabel cfg) <> if isReq && not isDisabled then " *" else "")
 
     -- Textarea
-    Lucid.textarea_
+    Input.textarea
       ( [ Lucid.name_ name,
           Lucid.id_ name,
-          Lucid.rows_ (Text.pack $ show rows),
-          Lucid.class_ "fb-textarea"
+          Lucid.rows_ (Text.pack $ show rows)
         ]
           <> maybe [] (\p -> [Lucid.placeholder_ p]) (fcPlaceholder cfg)
           <> [Lucid.required_ "" | isReq && not isDisabled]
@@ -484,7 +500,7 @@ renderTextareaField field rows = do
           <> if hasVal
             then
               [ xModel_ ("fields." <> name <> ".value"),
-                xBindClass_ ("{ 'fb-textarea--error': showErrors && !fields." <> name <> ".isValid }"),
+                Input.errorWhen (invalidCondition name),
                 xOnInput_ ("showErrors && validate" <> capName <> "()"),
                 xOnBlur_ ("showErrors && validate" <> capName <> "()")
               ]
@@ -494,16 +510,11 @@ renderTextareaField field rows = do
 
     -- Error message
     when hasVal $
-      Lucid.span_
-        [ xShow_ ("!fields." <> name <> ".isValid && showErrors"),
-          Lucid.class_ "fb-error",
-          Lucid.style_ "display: none;"
-        ]
-        "Please check this field"
+      fieldError name "Please check this field"
 
     -- Hint
     forM_ (fcHint cfg) $ \h ->
-      Lucid.p_ [Lucid.class_ "fb-hint"] (Lucid.toHtml h)
+      Field.hint (Lucid.toHtml h)
 
 --------------------------------------------------------------------------------
 -- Select Field
@@ -518,26 +529,25 @@ renderSelectField field = do
       isDisabled = fcDisabled cfg
       hasVal = needsValidation field && not isDisabled
       capName = capitalizeFirst name
-      disabledClass = if isDisabled then " fb-field--disabled" else ""
 
-  Lucid.div_ [Lucid.class_ ("fb-field" <> disabledClass)] $ do
+  Field.field [] $ do
     -- Label
-    Lucid.label_
-      [Lucid.for_ name, Lucid.class_ "fb-label"]
+    Field.label
+      (labelState isDisabled)
+      [Lucid.for_ name]
       (Lucid.toHtml $ fromMaybe name (fcLabel cfg) <> if isReq && not isDisabled then " *" else "")
 
     -- Select
-    Lucid.select_
+    Input.select
       ( [ Lucid.name_ name,
-          Lucid.id_ name,
-          Lucid.class_ "fb-select"
+          Lucid.id_ name
         ]
           <> [Lucid.required_ "" | isReq && not isDisabled]
           <> [Lucid.disabled_ "" | isDisabled]
           <> if hasVal
             then
               [ xModel_ ("fields." <> name <> ".value"),
-                xBindClass_ ("{ 'fb-select--error': showErrors && !fields." <> name <> ".isValid }"),
+                Input.errorWhen (invalidCondition name),
                 xOnChange_ ("showErrors && validate" <> capName <> "()")
               ]
             else []
@@ -556,16 +566,11 @@ renderSelectField field = do
 
     -- Error message
     when hasVal $
-      Lucid.span_
-        [ xShow_ ("!fields." <> name <> ".isValid && showErrors"),
-          Lucid.class_ "fb-error",
-          Lucid.style_ "display: none;"
-        ]
-        "Please select an option"
+      fieldError name "Please select an option"
 
     -- Hint
     forM_ (fcHint cfg) $ \h ->
-      Lucid.p_ [Lucid.class_ "fb-hint"] (Lucid.toHtml h)
+      Field.hint (Lucid.toHtml h)
 
 --------------------------------------------------------------------------------
 -- Radio Field
@@ -580,53 +585,40 @@ renderRadioField field = do
       hasVal = needsValidation field
       capName = capitalizeFirst name
 
-  Lucid.div_ [Lucid.class_ "fb-field"] $ do
+  Field.field [] $ do
     -- Label
-    Lucid.p_ [Lucid.class_ "fb-label"] $
+    Field.groupLabel $
       Lucid.toHtml $
         fromMaybe name (fcLabel cfg) <> if isReq then " *" else ""
 
     -- Radio group
-    Lucid.div_
-      ( [Lucid.class_ "fb-radio-group"]
-          <> [xBindClass_ ("{ 'fb-radio-group--error': showErrors && !fields." <> name <> ".isValid }") | hasVal]
-      )
-      $ do
-        forM_ options $ \opt -> do
-          let optId = name <> "-" <> soValue opt
-          Lucid.label_ [Lucid.for_ optId, Lucid.class_ "fb-radio-option"] $ do
-            Lucid.input_
-              ( [ Lucid.type_ "radio",
-                  Lucid.name_ name,
-                  Lucid.id_ optId,
-                  Lucid.value_ (soValue opt),
-                  Lucid.class_ "fb-radio-input"
-                ]
-                  <> [Lucid.checked_ | soSelected opt]
-                  <> [Lucid.required_ "" | isReq]
-                  <> if hasVal
-                    then
-                      [ xModel_ ("fields." <> name <> ".value"),
-                        xOnChange_ ("showErrors && validate" <> capName <> "()")
-                      ]
-                    else []
-              )
-            Lucid.span_ [Lucid.class_ "fb-radio-label"] (Lucid.toHtml $ soLabel opt)
-            forM_ (soDescription opt) $ \desc ->
-              Lucid.span_ [Lucid.class_ "fb-radio-description"] (Lucid.toHtml desc)
+    Choice.radioGroup [Choice.radioErrorWhen (invalidCondition name) | hasVal] $
+      forM_ options $ \opt -> do
+        let optId = name <> "-" <> soValue opt
+        Choice.radioOption
+          optId
+          ( [ Lucid.name_ name,
+              Lucid.value_ (soValue opt)
+            ]
+              <> [Lucid.checked_ | soSelected opt]
+              <> [Lucid.required_ "" | isReq]
+              <> if hasVal
+                then
+                  [ xModel_ ("fields." <> name <> ".value"),
+                    xOnChange_ ("showErrors && validate" <> capName <> "()")
+                  ]
+                else []
+          )
+          (Lucid.toHtml $ soLabel opt)
+          (Lucid.toHtml <$> soDescription opt)
 
     -- Error message
     when hasVal $
-      Lucid.span_
-        [ xShow_ ("!fields." <> name <> ".isValid && showErrors"),
-          Lucid.class_ "fb-error",
-          Lucid.style_ "display: none;"
-        ]
-        "Please select an option"
+      fieldError name "Please select an option"
 
     -- Hint
     forM_ (fcHint cfg) $ \h ->
-      Lucid.p_ [Lucid.class_ "fb-hint"] (Lucid.toHtml h)
+      Field.hint (Lucid.toHtml h)
 
 --------------------------------------------------------------------------------
 -- File Field
@@ -640,10 +632,11 @@ renderFileField field accept = do
       capName = capitalizeFirst name
       buttonLabel = fromMaybe "SELECT FILE" (fcButtonText cfg)
 
-  Lucid.div_ [Lucid.class_ "fb-field"] $ do
+  Field.field [] $ do
     -- Label
-    Lucid.label_
-      [Lucid.class_ "fb-label"]
+    Field.label
+      Field.Enabled
+      []
       (Lucid.toHtml $ fromMaybe name (fcLabel cfg) <> if isReq then " *" else "")
 
     -- File upload zone
@@ -687,10 +680,8 @@ renderFileField field accept = do
           Button.render (Button.defaults & Button.danger & Button.small & Button.with [xOnClick_ ("clear" <> capName <> "()")]) "Remove"
 
     -- Error message
-    Lucid.span_
+    Field.errorMessage
       [ xShow_ ("!fields." <> name <> ".isValid && showErrors"),
-        Lucid.class_ "fb-error",
-        Lucid.style_ "display: none;",
         xText_ ("fields." <> name <> ".error || 'Please select a file'")
       ]
       ""
@@ -740,7 +731,7 @@ renderImageField field = do
       friendlyTypes = "JPG, PNG, WEBP, GIF"
 
   -- Alpine.js state for this picker
-  Lucid.div_
+  Field.field
     [ xData_
         [i|{
   fileName: '',
@@ -802,16 +793,11 @@ renderImageField field = do
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 10) / 10 + ' ' + sizes[i];
   }
-}|],
-      Lucid.class_ "fb-field"
+}|]
     ]
     $ do
       -- Label
-      Lucid.label_
-        [ Lucid.for_ inputId,
-          Lucid.class_ "fb-label"
-        ]
-        (Lucid.toHtml labelText)
+      Field.label Field.Enabled [Lucid.for_ inputId] (Lucid.toHtml labelText)
 
       -- Hidden file input
       Lucid.input_ $
@@ -918,19 +904,12 @@ renderImageField field = do
                 "Remove"
 
       -- Error message
-      Lucid.span_
-        [ xShow_ "!isValid",
-          Lucid.class_ "fb-error",
-          Lucid.style_ "display: none;"
-        ]
-        $ do
-          Lucid.span_ [xText_ "error"] ""
+      Field.errorMessage [xShow_ "!isValid"] $
+        Lucid.span_ [xText_ "error"] ""
 
       -- Hint for non-required with existing
       when (not isReq && hasExisting) $
-        Lucid.p_
-          [Lucid.class_ "fb-hint"]
-          "Leave unchanged to keep the current image"
+        Field.hint "Leave unchanged to keep the current image"
 
       -- Cropper Modal
       renderCropperModal ratioText
@@ -971,7 +950,7 @@ renderImagesField field = do
           ""
 
   -- Alpine.js state for the multi-image manager
-  Lucid.div_
+  Field.field
     [ xData_
         [i|{
   images: #{existingImagesJson}.map((img, idx) => ({...img, isNew: false, file: null, previewUrl: img.url, _key: 'existing-' + (img.id ?? idx)})),
@@ -1056,20 +1035,15 @@ renderImagesField field = do
   serializeDeleted() {
     return JSON.stringify(this.deletedIds);
   },
-}|],
-      Lucid.class_ "fb-field"
+}|]
     ]
     $ do
       -- Label
-      Lucid.label_ [Lucid.class_ "fb-label"] (Lucid.toHtml labelText)
+      Field.label Field.Enabled [] (Lucid.toHtml labelText)
 
       -- Error display
-      Lucid.div_
-        [ xShow_ "error",
-          Lucid.class_ "fb-error",
-          Lucid.style_ "display: none;"
-        ]
-        $ Lucid.span_ [xText_ "error"] ""
+      Field.errorMessage [xShow_ "error"] $
+        Lucid.span_ [xText_ "error"] ""
 
       -- Image grid
       Lucid.div_
@@ -1163,7 +1137,7 @@ renderImagesField field = do
 
       -- Hint text
       forM_ hintText $ \h ->
-        Lucid.p_ [Lucid.class_ "fb-hint"] (Lucid.toHtml h)
+        Field.hint (Lucid.toHtml h)
 
 --------------------------------------------------------------------------------
 -- Audio Field
@@ -1178,13 +1152,9 @@ renderAudioField field = do
       inputId = name <> "-input"
       playerId = name <> "-player"
 
-  Lucid.div_ [Lucid.class_ "fb-field"] $ do
+  Field.field [] $ do
     -- Label
-    Lucid.label_
-      [ Lucid.for_ inputId,
-        Lucid.class_ "fb-label"
-      ]
-      (Lucid.toHtml labelText)
+    Field.label Field.Enabled [Lucid.for_ inputId] (Lucid.toHtml labelText)
 
     -- Audio container
     Lucid.div_ [Lucid.class_ "fb-audio-container"] $ do
@@ -1222,7 +1192,7 @@ renderAudioField field = do
         Button.render
           (Button.defaults & Button.primary & Button.labelFor inputId)
           "CHOOSE AUDIO FILE"
-        Lucid.p_ [Lucid.class_ "fb-hint"] $
+        Field.hint $
           if isReq
             then "MP3, WAV, FLAC accepted"
             else "MP3, WAV, FLAC accepted · Leave empty to keep current file"
@@ -1384,7 +1354,7 @@ renderStagedAudioField field uploadUrl uploadType = do
       playerIdJs = escapeJsString playerId
 
   -- Alpine.js state for this upload (includes player state)
-  Lucid.div_
+  Field.field
     [ xData_
         [i|{
   // Upload state
@@ -1647,16 +1617,11 @@ renderStagedAudioField field uploadUrl uploadType = do
     if (this.isProcessing) return 'Processing...';
     return this.uploadProgress + '%';
   }
-}|],
-      Lucid.class_ "fb-field"
+}|]
     ]
     $ do
       -- Label
-      Lucid.label_
-        [ Lucid.for_ inputId,
-          Lucid.class_ "fb-label"
-        ]
-        (Lucid.toHtml labelText)
+      Field.label Field.Enabled [Lucid.for_ inputId] (Lucid.toHtml labelText)
 
       -- Hidden token input
       Lucid.input_
@@ -1742,7 +1707,7 @@ renderStagedAudioField field uploadUrl uploadType = do
           ]
           $ do
             Button.render (Button.defaults & Button.primary & Button.with [xOnClick_ "triggerInput()"]) "CHOOSE AUDIO FILE"
-            Lucid.p_ [Lucid.class_ "fb-hint"] $
+            Field.hint $
               Lucid.toHtml (fromMaybe [i|MP3 only · Max #{maxSizeMB}MB|] (fcHint cfg) :: Text)
 
         -- Uploaded file display
@@ -1761,13 +1726,8 @@ renderStagedAudioField field uploadUrl uploadType = do
               Button.render (Button.defaults & Button.danger & Button.small & Button.with [xOnClick_ "clearUpload()"]) "Remove"
 
         -- Error message
-        Lucid.span_
-          [ xShow_ "uploadError",
-            Lucid.class_ "fb-error",
-            Lucid.style_ "display: none;"
-          ]
-          $ do
-            Lucid.span_ [xText_ "uploadError"] ""
+        Field.errorMessage [xShow_ "uploadError"] $
+          Lucid.span_ [xText_ "uploadError"] ""
 
 --------------------------------------------------------------------------------
 -- Staged Image Field
@@ -1794,7 +1754,7 @@ renderStagedImageField field uploadUrl uploadType = do
       ratioText = [i|#{ratioW}:#{ratioH}|]
 
   -- Alpine.js state for this upload
-  Lucid.div_
+  Field.field
     [ xData_
         [i|{
   uploadToken: '',
@@ -1930,16 +1890,11 @@ renderStagedImageField field uploadUrl uploadType = do
   triggerInput() {
     document.getElementById('#{inputIdJs}').click();
   }
-}|],
-      Lucid.class_ "fb-field"
+}|]
     ]
     $ do
       -- Label
-      Lucid.label_
-        [ Lucid.for_ inputId,
-          Lucid.class_ "fb-label"
-        ]
-        (Lucid.toHtml labelText)
+      Field.label Field.Enabled [Lucid.for_ inputId] (Lucid.toHtml labelText)
 
       -- Hidden token input
       Lucid.input_
@@ -2065,19 +2020,12 @@ renderStagedImageField field uploadUrl uploadType = do
                   "Remove"
 
       -- Error message
-      Lucid.span_
-        [ xShow_ "uploadError",
-          Lucid.class_ "fb-error",
-          Lucid.style_ "display: none;"
-        ]
-        $ do
-          Lucid.span_ [xText_ "uploadError"] ""
+      Field.errorMessage [xShow_ "uploadError"] $
+        Lucid.span_ [xText_ "uploadError"] ""
 
       -- Hint for non-required with existing
       when (not isReq && hasExisting) $
-        Lucid.p_
-          [Lucid.class_ "fb-hint"]
-          "Leave unchanged to keep the current image"
+        Field.hint "Leave unchanged to keep the current image"
 
 --------------------------------------------------------------------------------
 -- DateTime Field
@@ -2102,18 +2050,18 @@ renderDateInputField inputType errorMessage field = do
       hasVal = needsValidation field
       capName = capitalizeFirst name
 
-  Lucid.div_ [Lucid.class_ "fb-field"] $ do
+  Field.field [] $ do
     -- Label
-    Lucid.label_
-      [Lucid.for_ name, Lucid.class_ "fb-label"]
+    Field.label
+      Field.Enabled
+      [Lucid.for_ name]
       (Lucid.toHtml $ fromMaybe name (fcLabel cfg) <> if isReq then " *" else "")
 
     -- Date input
-    Lucid.input_ $
+    Input.input $
       [ Lucid.type_ inputType,
         Lucid.name_ name,
-        Lucid.id_ name,
-        Lucid.class_ "fb-input"
+        Lucid.id_ name
       ]
         <> maybe [] (\v -> [Lucid.value_ v]) (fcInitialValue cfg)
         <> [Lucid.required_ "" | isReq]
@@ -2121,23 +2069,18 @@ renderDateInputField inputType errorMessage field = do
         <> if hasVal
           then
             [ xModel_ ("fields." <> name <> ".value"),
-              xBindClass_ ("{ 'fb-input--error': showErrors && !fields." <> name <> ".isValid }"),
+              Input.errorWhen (invalidCondition name),
               xOnChange_ ("showErrors && validate" <> capName <> "()")
             ]
           else []
 
     -- Error message
     when hasVal $
-      Lucid.span_
-        [ xShow_ ("!fields." <> name <> ".isValid && showErrors"),
-          Lucid.class_ "fb-error",
-          Lucid.style_ "display: none;"
-        ]
-        (Lucid.toHtml errorMessage)
+      fieldError name (Lucid.toHtml errorMessage)
 
     -- Hint
     forM_ (fcHint cfg) $ \h ->
-      Lucid.p_ [Lucid.class_ "fb-hint"] (Lucid.toHtml h)
+      Field.hint (Lucid.toHtml h)
 
 --------------------------------------------------------------------------------
 -- Number Field
@@ -2151,18 +2094,18 @@ renderNumberField field minVal maxVal step = do
       hasVal = needsValidation field
       capName = capitalizeFirst name
 
-  Lucid.div_ [Lucid.class_ "fb-field"] $ do
+  Field.field [] $ do
     -- Label
-    Lucid.label_
-      [Lucid.for_ name, Lucid.class_ "fb-label"]
+    Field.label
+      Field.Enabled
+      [Lucid.for_ name]
       (Lucid.toHtml $ fromMaybe name (fcLabel cfg) <> if isReq then " *" else "")
 
     -- Number input
-    Lucid.input_ $
+    Input.input $
       [ Lucid.type_ "number",
         Lucid.name_ name,
-        Lucid.id_ name,
-        Lucid.class_ "fb-input"
+        Lucid.id_ name
       ]
         <> maybe [] (\v -> [Lucid.value_ v]) (fcInitialValue cfg)
         <> maybe [] (\n -> [Lucid.min_ (Text.pack $ show n)]) minVal
@@ -2173,23 +2116,18 @@ renderNumberField field minVal maxVal step = do
         <> if hasVal
           then
             [ xModel_ ("fields." <> name <> ".value"),
-              xBindClass_ ("{ 'fb-input--error': showErrors && !fields." <> name <> ".isValid }"),
+              Input.errorWhen (invalidCondition name),
               xOnInput_ ("showErrors && validate" <> capName <> "()")
             ]
           else []
 
     -- Error message
     when hasVal $
-      Lucid.span_
-        [ xShow_ ("!fields." <> name <> ".isValid && showErrors"),
-          Lucid.class_ "fb-error",
-          Lucid.style_ "display: none;"
-        ]
-        "Please enter a valid number"
+      fieldError name "Please enter a valid number"
 
     -- Hint
     forM_ (fcHint cfg) $ \h ->
-      Lucid.p_ [Lucid.class_ "fb-hint"] (Lucid.toHtml h)
+      Field.hint (Lucid.toHtml h)
 
 --------------------------------------------------------------------------------
 -- Checkbox Field
@@ -2202,18 +2140,13 @@ renderCheckboxField field = do
       isReq = vcRequired val
       hasVal = needsValidation field
       capName = capitalizeFirst name
-      hasDescription = case fcDescriptionHtml cfg of
-        Just _ -> True
-        Nothing -> False
+      -- The rich HTML description, or else the hint
+      description = fcDescriptionHtml cfg <|> (Lucid.toHtml <$> fcHint cfg)
 
-  Lucid.div_ [Lucid.class_ "fb-field fb-checkbox"] $ do
-    Lucid.div_ [Lucid.class_ "fb-checkbox-wrapper"] $ do
-      -- Checkbox input
-      Lucid.input_ $
-        [ Lucid.type_ "checkbox",
-          Lucid.name_ name,
-          Lucid.id_ name,
-          Lucid.class_ "fb-checkbox-input",
+  Field.field [] $ do
+    Choice.checkbox
+      name
+      ( [ Lucid.name_ name,
           Lucid.value_ "on"
         ]
           <> [Lucid.required_ "" | isReq]
@@ -2225,30 +2158,14 @@ renderCheckboxField field = do
                 xOnChange_ ("showErrors && validate" <> capName <> "()")
               ]
             else []
-
-      -- Label block
-      Lucid.label_ [Lucid.for_ name, Lucid.class_ "fb-checkbox-label"] $ do
-        Lucid.span_ [Lucid.class_ "fb-checkbox-label-text"] $ do
-          Lucid.toHtml $ fromMaybe name (fcLabel cfg)
-          when isReq $ Lucid.span_ [Lucid.class_ "fb-checkbox-required"] "*"
-
-        -- Rich HTML description (if provided)
-        forM_ (fcDescriptionHtml cfg) $ \descHtml ->
-          Lucid.div_ [Lucid.class_ "fb-checkbox-description"] descHtml
-
-        -- Fallback to hint as description (if no descriptionHtml)
-        unless hasDescription $
-          forM_ (fcHint cfg) $ \h ->
-            Lucid.div_ [Lucid.class_ "fb-checkbox-description"] (Lucid.toHtml h)
+      )
+      (Lucid.toHtml $ fromMaybe name (fcLabel cfg))
+      (if isReq then Choice.Required else Choice.Optional)
+      description
 
     -- Error message
     when hasVal $
-      Lucid.span_
-        [ xShow_ ("!fields." <> name <> ".isValid && showErrors"),
-          Lucid.class_ "fb-error",
-          Lucid.style_ "display: none;"
-        ]
-        "This field is required"
+      fieldError name "This field is required"
 
 --------------------------------------------------------------------------------
 -- Toggle Field
@@ -2266,10 +2183,10 @@ renderToggleField field = do
       toggleId = name <> "-toggle"
       disabledClass = if isDisabled then " fb-toggle--disabled" else ""
 
-  Lucid.div_ [Lucid.class_ "fb-field"] $ do
+  Field.field [] $ do
     -- Optional main label
     forM_ (fcLabel cfg) $ \lbl ->
-      Lucid.label_ [Lucid.class_ "fb-label"] (Lucid.toHtml lbl)
+      Field.label Field.Enabled [] (Lucid.toHtml lbl)
 
     -- Toggle container with Alpine.js state
     Lucid.div_
@@ -2305,7 +2222,7 @@ renderToggleField field = do
 
     -- Hint
     forM_ (fcHint cfg) $ \h ->
-      Lucid.p_ [Lucid.class_ "fb-hint"] (Lucid.toHtml h)
+      Field.hint (Lucid.toHtml h)
 
 --------------------------------------------------------------------------------
 -- Shared Cropper Helpers

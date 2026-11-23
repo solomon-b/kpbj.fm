@@ -10,6 +10,16 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **A Google Calendar shows the broadcast schedule.** The new `sync-schedule-calendar` job makes one station-owned Google Calendar equal to the schedule. It runs every 5 minutes on production. Each schedule slot is one recurring event, and a replay is a second event with "(Replay)" in its title. The calendar follows the playout timeline, so a show appears when it is active, with or without a host. Each event has the host names, the show description, and a link to the show page. The job writes the description with LF line ends. It writes each time with its UTC offset, so a time in the repeated hour of the autumn clock change has one meaning. An event does not start on a date on which its start time is in the spring clock-change gap. The job owns the calendar for today and later dates, and it deletes an event that a person adds by hand. It does not change what the calendar shows for dates before today. Nobody must edit the calendar by hand, so share it with "See all event details" only. If a person moves or deletes one airing, the job does not repair it. It logs an attention line on each run until a person corrects the airing. The job has its own Grafana alert, `sync-schedule-calendar-errors`, which fires when two successive runs log an error. One bad run raises no alert, because the next run repairs the calendar. On staging the job runs as a dry run and writes nothing. A dry run logs the problems of the calendar at info level, so staging does not repeat the alert of production. `ARCHITECTURE.md` has the setup steps and the three new secrets in `secrets/google.yaml` (#138).
 
 ### Changed
+- **The basic form inputs render through new components.** `kpbj-ui` has three new modules. `Component.Field` gives the field wrapper, the label, the hint, and the error message. `Component.Input` gives the text input, the textarea, and the select. `Component.Choice` gives the checkbox and the radio buttons. Each part copies one old `forms.css` rule as Tailwind classes. Each module gives a `safelist`, and `Component.Tailwind` adds it to the config.
+
+  Other changes:
+  - The form builder renders its text, URL, password, number, date, textarea, select, radio, and checkbox fields through the components. The file, image, audio, and toggle fields use the new wrapper, label, hint, and error message.
+  - The checkout page uses `Component.Field` and `Component.Input` in place of its own `fb-*` markup.
+  - The event gallery editor uses the new hint and error message.
+  - The replaced `forms.css` rules are removed. These are the field, label, input, textarea, select, hint, error, radio, and checkbox rules.
+  - The station ID e2e test finds the error message by its text, because the `fb-error` class is removed.
+
+  The public forms look the same.
 - **The form builder buttons render through `Component.Button`.** These are the footer submit and cancel, the file and audio pickers, the remove buttons, the play buttons, and the crop dialog buttons. Each template builds its buttons from the modifiers. `Component.Button` has new modifiers so that the modifiers can build the public form looks:
   - `accent`, a style with the accent colors of the theme.
   - `muted`, a style with the alternate background and a hover background.

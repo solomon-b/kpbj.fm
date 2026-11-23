@@ -27,6 +27,7 @@ where
 
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Field qualified as Field
 import Data.Aeson (ToJSON (..), object, (.=))
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BSL
@@ -151,15 +152,11 @@ renderEventGalleryEditor maxSizeMB existingImages = do
     ]
     $ do
       Lucid.h2_ [Lucid.class_ "fb-section-title"] "EVENT PHOTO GALLERY"
-      Lucid.p_ [Lucid.class_ "fb-hint"] "Optional. Post-event photos, shown as a gallery on the public event page. Drag to reorder \x2014 photos keep their original shape."
+      Field.hint "Optional. Post-event photos, shown as a gallery on the public event page. Drag to reorder \x2014 photos keep their original shape."
 
       -- Error display
-      Lucid.div_
-        [ xShow_ "error",
-          Lucid.class_ "fb-error",
-          Lucid.style_ "display: none;"
-        ]
-        $ Lucid.span_ [xText_ "error"] ""
+      Field.errorMessage [xShow_ "error"] $
+        Lucid.span_ [xText_ "error"] ""
 
       -- Image grid
       Lucid.div_

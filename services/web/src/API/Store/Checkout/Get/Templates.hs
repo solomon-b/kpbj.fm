@@ -16,6 +16,8 @@ where
 
 import API.Links (storeApiLinks, storeLinks)
 import API.Types (StoreApiRoutes (..), StoreRoutes (..))
+import Component.Field qualified as Field
+import Component.Input qualified as Input
 import Component.PageHeader (pageHeader)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -101,14 +103,13 @@ renderContactSection =
   Lucid.section_ [class_ $ base [Tokens.mb8]] $ do
     Lucid.h2_ [class_ $ base [Tokens.headingLg, Tokens.mb4, "uppercase"]] "Contact"
     renderField "email" "Email" "email" "your@email.com" True $
-      Lucid.input_
+      Input.input
         [ Lucid.type_ "email",
           Lucid.id_ "email",
           Lucid.name_ "email",
           xModel_ "form.email",
           Lucid.placeholder_ "your@email.com",
-          Lucid.required_ "",
-          Lucid.class_ inputClass
+          Lucid.required_ ""
         ]
 
 renderShippingSection :: Lucid.Html ()
@@ -125,46 +126,42 @@ renderShippingSection =
       $ do
         Lucid.div_ [class_ $ base ["flex-1"]] $
           renderField "firstName" "First Name" "text" "Jane" True $
-            Lucid.input_
+            Input.input
               [ Lucid.type_ "text",
                 Lucid.id_ "firstName",
                 Lucid.name_ "firstName",
                 xModel_ "form.firstName",
                 Lucid.placeholder_ "Jane",
-                Lucid.required_ "",
-                Lucid.class_ inputClass
+                Lucid.required_ ""
               ]
         Lucid.div_ [class_ $ base ["flex-1"]] $
           renderField "lastName" "Last Name" "text" "Smith" True $
-            Lucid.input_
+            Input.input
               [ Lucid.type_ "text",
                 Lucid.id_ "lastName",
                 Lucid.name_ "lastName",
                 xModel_ "form.lastName",
                 Lucid.placeholder_ "Smith",
-                Lucid.required_ "",
-                Lucid.class_ inputClass
+                Lucid.required_ ""
               ]
 
     renderField "address1" "Address" "text" "123 Main St" True $
-      Lucid.input_
+      Input.input
         [ Lucid.type_ "text",
           Lucid.id_ "address1",
           Lucid.name_ "address1",
           xModel_ "form.address1",
           Lucid.placeholder_ "123 Main St",
-          Lucid.required_ "",
-          Lucid.class_ inputClass
+          Lucid.required_ ""
         ]
 
     renderField "address2" "Apt, Suite, etc. (optional)" "text" "Apt 4B" False $
-      Lucid.input_
+      Input.input
         [ Lucid.type_ "text",
           Lucid.id_ "address2",
           Lucid.name_ "address2",
           xModel_ "form.address2",
-          Lucid.placeholder_ "Apt 4B",
-          Lucid.class_ inputClass
+          Lucid.placeholder_ "Apt 4B"
         ]
 
     -- City / State / Zip row
@@ -176,35 +173,32 @@ renderShippingSection =
       $ do
         Lucid.div_ [class_ $ base ["flex-1"]] $
           renderField "city" "City" "text" "Sun Valley" True $
-            Lucid.input_
+            Input.input
               [ Lucid.type_ "text",
                 Lucid.id_ "city",
                 Lucid.name_ "city",
                 xModel_ "form.city",
                 Lucid.placeholder_ "Sun Valley",
-                Lucid.required_ "",
-                Lucid.class_ inputClass
+                Lucid.required_ ""
               ]
         Lucid.div_ [class_ $ base ["w-full", "md:w-32", "flex-shrink-0"]] $
           renderField "state" "State" "text" "CA" True $
-            Lucid.select_
+            Input.select
               [ Lucid.id_ "state",
                 Lucid.name_ "state",
                 xModel_ "form.state",
-                Lucid.required_ "",
-                Lucid.class_ selectClass
+                Lucid.required_ ""
               ]
               usStateOptions
         Lucid.div_ [class_ $ base ["w-full", "md:w-28", "flex-shrink-0"]] $
           renderField "zip" "ZIP" "text" "91352" True $
-            Lucid.input_
+            Input.input
               [ Lucid.type_ "text",
                 Lucid.id_ "zip",
                 Lucid.name_ "zip",
                 xModel_ "form.zip",
                 Lucid.placeholder_ "91352",
-                Lucid.required_ "",
-                Lucid.class_ inputClass
+                Lucid.required_ ""
               ]
 
     -- Get Shipping Rates button
@@ -268,26 +262,13 @@ renderField ::
   Lucid.Html () ->
   Lucid.Html ()
 renderField fieldId labelText _type _placeholder isRequired inputEl =
-  Lucid.div_ [Lucid.class_ "fb-field"] $ do
-    Lucid.label_
-      [ Lucid.for_ fieldId,
-        Lucid.class_ "fb-label"
-      ]
-      $ do
-        Lucid.toHtml labelText
-        if isRequired
-          then Lucid.span_ [class_ $ base [Tokens.fgMuted, "ml-1"]] "*"
-          else mempty
+  Field.field [] $ do
+    Field.label Field.Enabled [Lucid.for_ fieldId] $ do
+      Lucid.toHtml labelText
+      if isRequired
+        then Lucid.span_ [class_ $ base [Tokens.fgMuted, "ml-1"]] "*"
+        else mempty
     inputEl
-
--- | Standard input field class — uses the form builder's semantic class
--- so inputs are styled consistently with forms throughout the site.
-inputClass :: Text
-inputClass = "fb-input"
-
--- | Standard select field class.
-selectClass :: Text
-selectClass = "fb-select"
 
 --------------------------------------------------------------------------------
 -- US state options

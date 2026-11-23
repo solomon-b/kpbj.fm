@@ -5,6 +5,9 @@ module Component.TailwindSpec (spec) where
 
 import Component.Button (ButtonStyle (..), Kind (..), (&))
 import Component.Button qualified as Button
+import Component.Choice qualified as Choice
+import Component.Field qualified as Field
+import Component.Input qualified as Input
 import Component.Tailwind qualified as Tailwind
 import Control.Lens ((.~))
 import Data.Foldable (for_)
@@ -19,10 +22,13 @@ import Test.Hspec
 
 spec :: Spec
 spec = describe "Component.Tailwind" $ do
-  describe "safelist" $
+  describe "safelist" $ do
     it "holds every class that a button renders" $
       for_ buttons $ \button ->
         unlisted Tailwind.safelist (Button.render button "x") `shouldBe` []
+
+    it "holds every class that a form control renders" $
+      unlisted Tailwind.safelist formControls `shouldBe` []
 
   it "keeps max-h-64 in the safelist" $
     Tailwind.safelist `shouldContain` ["max-h-64"]
@@ -59,6 +65,23 @@ buttons =
     kinds =
       [Action, Submit, DashboardLink "/x", PageLink "/x", LabelFor "x"]
         <> map (Toggle "open") styles
+
+-- | Each part of "Component.Field", "Component.Input", and
+-- "Component.Choice", in each state.
+formControls :: Lucid.Html ()
+formControls = do
+  Field.field [] "x"
+  for_ [minBound .. maxBound] $ \state -> Field.label state [] "x"
+  Field.groupLabel "x"
+  Field.hint "x"
+  Field.errorMessage [] "x"
+  Input.input [Input.errorWhen "bad"]
+  Input.textarea [Input.errorWhen "bad"] "x"
+  Input.select [Input.errorWhen "bad"] "x"
+  for_ [minBound .. maxBound] $ \requirement ->
+    Choice.checkbox "a" [] "x" requirement (Just "x")
+  Choice.radioGroup [Choice.radioErrorWhen "bad"] $
+    Choice.radioOption "b" [] "x" (Just "x")
 
 render :: Lucid.Html () -> Text
 render = LText.toStrict . Lucid.renderText

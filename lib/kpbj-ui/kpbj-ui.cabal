@@ -44,7 +44,10 @@ library
   exposed-modules:
       Component.Banner
     , Component.Button
+    , Component.Choice
+    , Component.Field
     , Component.InfiniteScroll
+    , Component.Input
     , Component.PageHeader
     , Component.SourceTypeBadge
     , Component.Table
@@ -70,6 +73,9 @@ test-suite kpbj-ui-test
   main-is:          Main.hs
   other-modules:
     Component.ButtonSpec
+    Component.ChoiceSpec
+    Component.FieldSpec
+    Component.InputSpec
     Component.TailwindSpec
     Design.ThemeSpec
     Lucid.Form.Builder.RenderSpec
