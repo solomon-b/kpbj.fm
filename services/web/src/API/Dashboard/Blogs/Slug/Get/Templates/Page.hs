@@ -8,9 +8,9 @@ where
 
 --------------------------------------------------------------------------------
 
+import API.Dashboard.Blogs.Get.Templates.BlogPostRow (renderStatusBadge)
 import API.Links (dashboardBlogsLinks)
 import API.Types
-import Component.Badge qualified as Badge
 import Component.Button ((&))
 import Component.Button qualified as Button
 import Control.Monad (unless)
@@ -19,7 +19,6 @@ import Data.Text qualified as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
-import Domain.Types.PostStatus (BlogPostStatus (..))
 import Domain.Types.Slug (Slug)
 import Effects.Database.Tables.ShowBlogPosts qualified as ShowBlogPosts
 import Effects.Database.Tables.ShowBlogTags qualified as ShowBlogTags
@@ -143,10 +142,3 @@ renderTag :: ShowBlogTags.Model -> Lucid.Html ()
 renderTag tag =
   Lucid.span_ [class_ $ base ["inline-block", Tokens.infoBg, Tokens.infoText, "px-2", "py-1", "rounded", "text-xs", "font-medium"]] $
     Lucid.toHtml tag.sbtmName
-
--- | Render status badge with appropriate styling
-renderStatusBadge :: BlogPostStatus -> Lucid.Html ()
-renderStatusBadge = \case
-  Draft -> Badge.badge Badge.Compact Badge.Warning "DRAFT"
-  Published -> Badge.badge Badge.Compact Badge.Success "PUBLISHED"
-  Deleted -> Badge.badge Badge.Compact Badge.Error "DELETED"

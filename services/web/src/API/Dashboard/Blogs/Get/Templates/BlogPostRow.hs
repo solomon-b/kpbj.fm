@@ -3,6 +3,7 @@
 
 module API.Dashboard.Blogs.Get.Templates.BlogPostRow
   ( renderBlogPostTableRow,
+    renderStatusBadge,
   )
 where
 
@@ -93,9 +94,11 @@ renderBlogPostTableRow showModel post = do
           )
           "Delete"
 
--- | Render status badge with appropriate styling
+-- | The status badge of a show blog post. The post list and the post detail
+-- page both use it. A draft is a warning, the same as a draft event or a
+-- draft station blog post.
 renderStatusBadge :: BlogPostStatus -> Lucid.Html ()
 renderStatusBadge = \case
-  Draft -> Badge.badge Badge.Compact Badge.Plain "DRAFT"
+  Draft -> Badge.badge Badge.Compact Badge.Warning "DRAFT"
   Published -> Badge.badge Badge.Compact Badge.Success "PUBLISHED"
   Deleted -> Badge.badge Badge.Compact Badge.Error "DELETED"
