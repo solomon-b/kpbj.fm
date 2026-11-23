@@ -41,15 +41,19 @@
 -- >           label "Profile Picture"
 -- >           maxSize 5
 --
--- = Semantic CSS Classes
+-- = Styles
 --
--- The form builder outputs semantic classes with the @fb-@ prefix:
+-- The buttons and the basic inputs (text, textarea, select, checkbox, radio,
+-- labels, hints, and error messages) render through the "Component" modules
+-- with Tailwind classes.
+--
+-- The other parts have semantic classes with the @fb-@ prefix:
 --
 -- * Form structure: @fb-form@, @fb-title@, @fb-section@, @fb-footer@
--- * Fields: @fb-field@, @fb-label@, @fb-input@, @fb-textarea@, @fb-select@
--- * States: @fb-field--disabled@, @fb-input--error@, @fb-toggle--checked@
+-- * File pickers: @fb-file-zone@, @fb-image-zone@, @fb-audio-container@
+-- * Toggles: @fb-toggle@, @fb-toggle--checked@
 --
--- Style these classes in your app's CSS (e.g., with Tailwind's @@apply).
+-- "Design.FormStyles" gives the CSS rules for these classes.
 module Lucid.Form.Builder
   ( -- * Form Building
     FormBuilder,

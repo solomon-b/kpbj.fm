@@ -34,7 +34,7 @@ test.describe("Station IDs CRUD", () => {
   test("submit with empty title shows validation error", async ({ page }) => {
     await page.goto(NEW_URL);
     await page.getByRole("button", { name: "UPLOAD" }).click();
-    await expect(page.locator(".fb-error").first()).toBeVisible();
+    await expect(page.getByText("Please check this field").first()).toBeVisible();
   });
 
   test("submit without audio file shows server error", async ({ page }) => {
