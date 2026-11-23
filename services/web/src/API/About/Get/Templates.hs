@@ -5,6 +5,8 @@ where
 
 --------------------------------------------------------------------------------
 
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.PageHeader (pageHeader)
 import Data.Text (Text)
 import Design (base, class_)
@@ -39,7 +41,7 @@ newsletterSignup = do
     Lucid.form_ [Lucid.action_ "https://docs.google.com/forms/u/0/d/e/1FAIpQLSfeM91iQ_A7ybaa070b8jiznHNRIJ_2JU0F7wJjo7vAvkS3tQ/formResponse", Lucid.method_ "POST", Lucid.target_ "hidden_iframe_about", Lucid.onsubmit_ "handleAboutSubmit(event)", class_ $ base [Tokens.fullWidth, "max-w-sm"]] $ do
       Lucid.div_ [class_ $ base ["flex", "items-center", "border-b", Tokens.borderDefault, Tokens.py2]] $ do
         Lucid.input_ [Lucid.type_ "email", Lucid.name_ "entry.936311333", Lucid.required_ "", Lucid.placeholder_ "you@example.com", makeAttributes "aria-label" "Email Address", class_ $ base ["appearance-none", "bg-transparent", "border-none", Tokens.fullWidth, Tokens.fgPrimary, "mr-3", "py-1", "px-2", "leading-tight", "focus:outline-none"]]
-        Lucid.button_ [Lucid.type_ "submit", Lucid.id_ "about-subscribe-button", class_ $ base [Tokens.px3, Tokens.py2, Tokens.textXs, Tokens.fontMedium, "text-center", "inline-flex", "items-center", Tokens.fgInverse, Tokens.bgInverse, "rounded-md", "hover:opacity-80", "focus:ring-4", "focus:outline-none", "focus:ring-[var(--theme-border)]"]] "Subscribe"
+        Button.render (Button.defaults & Button.accent & Button.large & Button.square & Button.submit & Button.with [Lucid.id_ "about-subscribe-button"]) "Subscribe"
       Lucid.p_ [Lucid.id_ "about-form-confirmation", class_ $ base [Tokens.mt2, Tokens.successText], Lucid.style_ "display: none;"] "Thanks for subscribing!"
 
     Lucid.script_ "function handleAboutSubmit(event) { const form = event.target; const confirmation = form.querySelector('#about-form-confirmation'); const button = form.querySelector('#about-subscribe-button'); button.disabled = true; button.innerText = 'Submitting...'; setTimeout(() => { confirmation.style.display = 'block'; form.reset(); button.disabled = false; button.innerText = 'Subscribe'; }, 500); }"
