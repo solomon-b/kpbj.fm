@@ -68,7 +68,7 @@ template vd = do
           class_ $ do base ["flex", "items-center", Tokens.gap2, Tokens.px3, Tokens.py2]; desktop ["hidden"]
         ]
         $ do
-          Lucid.span_ [Lucid.class_ "text-sm"] "≡"
+          Lucid.span_ [class_ $ base [Tokens.textSm]] "≡"
           "Filter"
 
       -- Mobile: Collapsible Filter Panel - overlays content below

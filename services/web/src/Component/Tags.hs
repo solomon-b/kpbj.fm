@@ -10,6 +10,8 @@ where
 
 import Data.String.Interpolate (i)
 import Data.Text (Text)
+import Design (base, class_)
+import Design.Tokens qualified as Tokens
 import Lucid qualified
 import Lucid.HTMX
 import Servant.Links qualified as Links
@@ -25,7 +27,7 @@ data TagLink = TagLink
 -- | Render tags as clickable pills with # prefix.
 renderTags :: [TagLink] -> Lucid.Html ()
 renderTags tags =
-  Lucid.div_ [Lucid.class_ "flex flex-wrap gap-2"] $ do
+  Lucid.div_ [class_ $ base ["flex", "flex-wrap", Tokens.gap2]] $ do
     mapM_ renderTag tags
   where
     renderTag :: TagLink -> Lucid.Html ()
@@ -37,10 +39,7 @@ renderTags tags =
               hxGet_ [i|/#{url}|],
               hxTarget_ "#main-content",
               hxPushUrl_ "true",
-              Lucid.class_ tagStyle
+              class_ $ base [Tokens.bgAlt, Tokens.fgPrimary, "px-2", "py-1", Tokens.textXs, "font-mono", Tokens.hoverBg, "cursor-pointer"]
             ]
             $ Lucid.toHtml
             $ "#" <> name
-
-    tagStyle :: Text
-    tagStyle = "bg-[var(--theme-bg-alt)] text-[var(--theme-fg)] px-2 py-1 text-xs font-mono hover:bg-[var(--theme-hover)] cursor-pointer"

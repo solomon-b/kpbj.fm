@@ -358,9 +358,9 @@ sidebarNav placement userMeta activeNav showContext =
         <> [hxSwapOob_ "innerHTML" | placement == OutOfBand]
     )
     $ do
-      Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
+      Lucid.ul_ [class_ $ base ["space-y-2"]] $ do
         Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "block", Tokens.px4, Tokens.mb2]] "HOST"
-        Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
+        Lucid.ul_ [class_ $ base ["space-y-2"]] $ do
           navItem "EPISODES" NavEpisodes activeNav (hostNavUrl SectionEpisodes showContext)
           navItem "PROMOS" NavShowPromos activeNav (hostNavUrl SectionPromos showContext)
           navItem "SHOW SETTINGS" NavSettings activeNav (hostNavUrl SectionSettings showContext)
@@ -373,7 +373,7 @@ sidebarNav placement userMeta activeNav showContext =
       when (UserMetadata.isStaffOrHigher userMeta.mUserRole) $ do
         Lucid.div_ [class_ $ base ["border-t", Theme.borderMuted, "mt-4", "pt-4"]] $ do
           Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "block", Tokens.px4, Tokens.mb2]] "ADMIN"
-          Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
+          Lucid.ul_ [class_ $ base ["space-y-2"]] $ do
             staffNavItem "USERS" NavUsers activeNav
             staffNavItem "INVITATIONS" NavInvitations activeNav
             staffNavItem "NEWSLETTER" NavNewsletterSubscribers activeNav
@@ -389,7 +389,7 @@ sidebarNav placement userMeta activeNav showContext =
               staffNavItem "ANALYTICS" NavAnalytics activeNav
         Lucid.div_ [class_ $ base ["border-t", Theme.borderMuted, "mt-4", "pt-4"]] $ do
           Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "block", Tokens.px4, Tokens.mb2]] "AIR BREAKS"
-          Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
+          Lucid.ul_ [class_ $ base ["space-y-2"]] $ do
             staffNavItem "STATION IDS" NavStationIds activeNav
             staffNavItem "PSAS" NavPsas activeNav
             staffNavItem "ANNOUNCEMENTS" NavAnnouncements activeNav
@@ -399,7 +399,7 @@ sidebarNav placement userMeta activeNav showContext =
             staffNavItem "DELIVERY" NavUnderwritingDelivery activeNav
         Lucid.div_ [class_ $ base ["border-t", Theme.borderMuted, "mt-4", "pt-4"]] $ do
           Lucid.span_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, "block", Tokens.px4, Tokens.mb2]] "STORE"
-          Lucid.ul_ [Lucid.class_ "space-y-2"] $ do
+          Lucid.ul_ [class_ $ base ["space-y-2"]] $ do
             staffNavItem "PRODUCTS" NavStoreProducts activeNav
             staffNavItem "ORDERS" NavStoreOrders activeNav
             when (UserMetadata.isAdmin userMeta.mUserRole) $

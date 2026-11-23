@@ -156,7 +156,7 @@ renderFormHeader userMeta showModel = do
           " • "
           Lucid.strong_ "Editor: "
           Lucid.toHtml userMeta.mDisplayName
-      Lucid.div_ [Lucid.class_ "space-x-4"] $ do
+      Lucid.div_ [class_ $ base ["space-x-4"]] $ do
         Lucid.a_
           [ Lucid.href_ [i|/#{showBackUrl}|],
             hxGet_ [i|/#{showBackUrl}|],
@@ -230,7 +230,7 @@ renderHostsMultiSelect eligibleHosts currentHostIds = do
   let (currentHosts, otherHosts) = partitionHosts eligibleHosts currentHostIds
       sortedHosts = currentHosts <> otherHosts
   Lucid.div_ [xData_ "{ search: '' }"] $ do
-    Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Assign Hosts"
+    Lucid.label_ [class_ $ base ["block", Tokens.fontBold, Tokens.mb2]] "Assign Hosts"
     Lucid.p_ [class_ $ base [Tokens.textXs, Tokens.fgMuted, Tokens.mb2]] "Select one or more hosts for this show. Regular users will be automatically promoted to Host role."
 
     -- Search input
@@ -249,7 +249,7 @@ renderHostsMultiSelect eligibleHosts currentHostIds = do
         Lucid.toHtml ("AVAILABLE HOSTS (" <> show (length eligibleHosts) <> ")")
 
       -- Scrollable host list
-      Lucid.div_ [Lucid.class_ "max-h-64 overflow-y-auto"] $
+      Lucid.div_ [class_ $ base ["max-h-64", "overflow-y-auto"]] $
         mapM_ (renderHostOption currentHostIds) sortedHosts
 
 -- | Partition hosts into current hosts and other hosts
@@ -281,7 +281,7 @@ renderHostOption currentHostIds user =
                 Lucid.name_ "hosts",
                 Lucid.id_ [i|host_#{userIdText}|],
                 Lucid.value_ userIdText,
-                Lucid.class_ "mr-3",
+                class_ $ base ["mr-3"],
                 xRef_ [i|host_#{userIdText}|]
               ]
                 <> [Lucid.checked_ | isCurrentHost]

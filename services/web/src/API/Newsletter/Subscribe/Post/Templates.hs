@@ -12,6 +12,8 @@ where
 import API.Links (apiLinks, rootLink)
 import API.Types (Routes (..))
 import Data.Text (Text)
+import Design (base, class_)
+import Design.Tokens qualified as Tokens
 import Lucid qualified
 import Lucid.Base (makeAttributes)
 import Lucid.HTMX
@@ -28,7 +30,7 @@ thanksFragment :: Lucid.Html ()
 thanksFragment =
   Lucid.div_
     [ Lucid.id_ newsletterSignupContainerId,
-      Lucid.class_ "mt-2 text-[var(--theme-success-text)] text-center"
+      class_ $ base [Tokens.mt2, "text-[var(--theme-success-text)]", "text-center"]
     ]
     "Thanks for subscribing!"
 
@@ -43,20 +45,20 @@ signupForm =
       [ hxPost_ (rootLink apiLinks.newsletterSubscribePost),
         hxTarget_ ("#" <> newsletterSignupContainerId),
         hxSwap_ "outerHTML",
-        Lucid.class_ "w-full max-w-sm"
+        class_ $ base [Tokens.fullWidth, "max-w-sm"]
       ]
     $ do
-      Lucid.div_ [Lucid.class_ "flex items-center border-b border-[var(--theme-border)] py-2"] $ do
+      Lucid.div_ [class_ $ base ["flex", "items-center", "border-b", Tokens.borderDefault, Tokens.py2]] $ do
         Lucid.input_
           [ Lucid.type_ "email",
             Lucid.name_ "email",
             Lucid.required_ "",
             Lucid.placeholder_ "you@example.com",
             makeAttributes "aria-label" "Email Address",
-            Lucid.class_ "appearance-none bg-transparent border-none w-full text-[var(--theme-fg)] mr-3 py-1 px-2 leading-tight focus:outline-none"
+            class_ $ base ["appearance-none", "bg-transparent", "border-none", Tokens.fullWidth, Tokens.fgPrimary, "mr-3", "py-1", "px-2", "leading-tight", "focus:outline-none"]
           ]
         Lucid.button_
           [ Lucid.type_ "submit",
-            Lucid.class_ "px-3 py-2 text-xs font-medium text-center inline-flex items-center text-[var(--theme-fg-inverse)] bg-[var(--theme-bg-inverse)] rounded-md hover:bg-[var(--theme-hover-bg)] focus:ring-4 focus:outline-none focus:ring-[var(--theme-border)]"
+            class_ $ base [Tokens.px3, Tokens.py2, Tokens.textXs, Tokens.fontMedium, "text-center", "inline-flex", "items-center", Tokens.fgInverse, Tokens.bgInverse, "rounded-md", "hover:bg-[var(--theme-hover-bg)]", "focus:ring-4", "focus:outline-none", "focus:ring-[var(--theme-border)]"]
           ]
           "Subscribe"

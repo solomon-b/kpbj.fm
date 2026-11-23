@@ -160,7 +160,7 @@ renderMobileDayPanel backend scheduledShows currentDayOfWeek currentTimeOfDay (i
       sortedShows = sortBy (\a b -> compare (ShowSchedule.sswdStartTime a) (ShowSchedule.sswdStartTime b)) showsForDay
       showCondition = [i|currentDay === #{idx :: Int}|]
 
-  Lucid.div_ [xShow_ showCondition, Lucid.class_ "space-y-3"] $ do
+  Lucid.div_ [xShow_ showCondition, class_ $ base ["space-y-3"]] $ do
     if null sortedShows
       then Lucid.p_ [mobileEmptyStyles] "NO SCHEDULED SHOWS"
       else mapM_ (renderShowCard backend currentDayOfWeek currentTimeOfDay dayOfWeek) sortedShows

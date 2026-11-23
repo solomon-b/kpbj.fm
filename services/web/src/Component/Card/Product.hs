@@ -51,7 +51,7 @@ renderProductCard backend prod mImagePath mAltText = do
       hxGet_ [i|/#{productGetUrl slug}|],
       hxTarget_ "#main-content",
       hxPushUrl_ "true",
-      Lucid.class_ "block"
+      class_ $ base ["block"]
     ]
     $ do
       -- Product Image (square 1:1) or placeholder
@@ -61,7 +61,7 @@ renderProductCard backend prod mImagePath mAltText = do
             Lucid.img_
               [ Lucid.src_ (buildMediaUrl backend imagePath),
                 Lucid.alt_ (fromMaybe (name <> " product image") mAltText),
-                Lucid.class_ "w-full h-full object-cover"
+                class_ $ base [Tokens.fullWidth, "h-full", "object-cover"]
               ]
           Nothing ->
             Lucid.div_ [class_ $ base [Tokens.fullWidth, "h-full", Tokens.bgAlt]] mempty

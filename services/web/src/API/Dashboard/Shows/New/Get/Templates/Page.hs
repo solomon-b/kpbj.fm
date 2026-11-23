@@ -138,7 +138,7 @@ renderFormHeader =
 renderHostsMultiSelect :: [UserMetadata.UserWithMetadata] -> Lucid.Html ()
 renderHostsMultiSelect eligibleHosts = do
   Lucid.div_ [xData_ "{ search: '' }"] $ do
-    Lucid.label_ [Lucid.class_ "block font-bold mb-2"] "Assign Hosts"
+    Lucid.label_ [class_ $ base ["block", T.fontBold, T.mb2]] "Assign Hosts"
     Lucid.p_ [class_ $ base [T.textXs, T.fgMuted, T.mb2]] "Select one or more hosts for this show. Regular users will be automatically promoted to Host role."
 
     -- Search input
@@ -157,7 +157,7 @@ renderHostsMultiSelect eligibleHosts = do
         Lucid.toHtml ("AVAILABLE HOSTS (" <> show (length eligibleHosts) <> ")")
 
       -- Scrollable host list
-      Lucid.div_ [Lucid.class_ "max-h-64 overflow-y-auto"] $
+      Lucid.div_ [class_ $ base ["max-h-64", "overflow-y-auto"]] $
         mapM_ renderHostOption eligibleHosts
 
 renderHostOption :: UserMetadata.UserWithMetadata -> Lucid.Html ()
@@ -182,7 +182,7 @@ renderHostOption user =
                 Lucid.name_ "hosts",
                 Lucid.id_ [i|host_#{userIdText}|],
                 Lucid.value_ userIdText,
-                Lucid.class_ "mr-3",
+                class_ $ base ["mr-3"],
                 xRef_ [i|host_#{userIdText}|]
               ]
             Lucid.label_ [Lucid.for_ [i|host_#{userIdText}|], class_ $ base ["flex-1", "cursor-pointer"]] $ do

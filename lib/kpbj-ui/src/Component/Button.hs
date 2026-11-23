@@ -435,4 +435,4 @@ downloadLink url =
       class_ $ base ["p-2", "rounded", Tokens.hoverBg, "transition-colors"],
       Lucid.title_ "Download"
     ]
-    $ Lucid.i_ [Lucid.class_ [i|fa-solid fa-download #{Tokens.fgMuted}|]] mempty
+    $ Lucid.i_ [class_ $ base ["fa-solid", "fa-download", Tokens.fgMuted]] mempty

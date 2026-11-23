@@ -31,10 +31,12 @@ module Design.Tokens
     fontBold,
     fontNormal,
     fontMedium,
+    fontSemibold,
 
     -- * Spacing Scale
     gap1,
     gap2,
+    gap3,
     gap4,
     gap6,
     gap8,
@@ -55,7 +57,9 @@ module Design.Tokens
     mb4,
     mb6,
     mb8,
+    mt2,
     mt4,
+    mt6,
     mt8,
     pb2,
 
@@ -191,6 +195,9 @@ fontNormal = "font-normal"
 fontMedium :: Text
 fontMedium = "font-medium"
 
+fontSemibold :: Text
+fontSemibold = "font-semibold"
+
 --------------------------------------------------------------------------------
 -- Spacing Scale
 
@@ -199,6 +206,9 @@ gap1 = "gap-1"
 
 gap2 :: Text
 gap2 = "gap-2"
+
+gap3 :: Text
+gap3 = "gap-3"
 
 gap4 :: Text
 gap4 = "gap-4"
@@ -260,8 +270,14 @@ mb6 = "mb-6"
 mb8 :: Text
 mb8 = "mb-8"
 
+mt2 :: Text
+mt2 = "mt-2"
+
 mt4 :: Text
 mt4 = "mt-4"
+
+mt6 :: Text
+mt6 = "mt-6"
 
 mt8 :: Text
 mt8 = "mt-8"

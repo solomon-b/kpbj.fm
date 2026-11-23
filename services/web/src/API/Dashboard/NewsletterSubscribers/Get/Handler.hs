@@ -94,7 +94,7 @@ filtersUI mSearch total = do
     [ hxGet_ [i|/#{listUri}|],
       hxTarget_ "#main-content",
       hxPushUrl_ "true",
-      Lucid.class_ "flex items-center gap-3"
+      class_ $ base ["flex", "items-center", Tokens.gap3]
     ]
     $ do
       Lucid.input_

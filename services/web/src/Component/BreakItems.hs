@@ -386,7 +386,7 @@ renderBreakItemForm urls postUrl submitLabel mUploadUrl startsOn endsOn title mU
             label "Underwriter"
             description $ do
               "Not in the list? Add it on the "
-              Lucid.a_ [Lucid.href_ underwritersUrl, Lucid.class_ "underline"] "underwriters page"
+              Lucid.a_ [Lucid.href_ underwritersUrl, class_ $ base ["underline"]] "underwriters page"
               "."
             let active = uf.ufActiveUnderwriters
                 showBreaks = uf.ufShowBreaksToday

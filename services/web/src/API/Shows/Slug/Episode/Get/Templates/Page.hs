@@ -67,7 +67,7 @@ template backend showModel episode tracks tags = do
           [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", Tokens.borderDefault, Tokens.pb2]]
           "Track Listing"
 
-        Lucid.div_ [Lucid.class_ "space-y-1"] $ do
+        Lucid.div_ [class_ $ base ["space-y-1"]] $ do
           mapM_ renderTrackRow tracks
 
 --------------------------------------------------------------------------------
@@ -80,8 +80,8 @@ renderTrackRow track = do
       Lucid.toHtml (show track.trackNumber <> ".")
 
     -- Track info
-    Lucid.div_ [Lucid.class_ "flex-grow"] $ do
-      Lucid.div_ [Lucid.class_ "font-medium"] $ do
+    Lucid.div_ [class_ $ base ["flex-grow"]] $ do
+      Lucid.div_ [class_ $ base [Tokens.fontMedium]] $ do
         "\"" <> Lucid.toHtml track.title <> "\""
 
       Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted]] $ do

@@ -264,5 +264,5 @@ renderShowCell = \case
   Nothing -> Lucid.span_ [Lucid.class_ Theme.fgMuted] "Deleted show"
   Just showModel ->
     let showUri = Links.linkURI $ dashboardShowsLinks.detail (Shows.id showModel) showModel.slug Nothing
-     in Lucid.a_ [Lucid.href_ [i|/#{showUri}|], Lucid.class_ "underline"] $
+     in Lucid.a_ [Lucid.href_ [i|/#{showUri}|], class_ $ base ["underline"]] $
           Lucid.toHtml showModel.title

@@ -19,6 +19,8 @@ import Data.ByteString.Lazy qualified as BSL
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Encoding qualified as Text
+import Design (base, class_)
+import Design.Tokens qualified as Tokens
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
 import Effects.Database.Tables.EventImages qualified as EventImages
 import Lucid qualified
@@ -55,11 +57,11 @@ renderEventGallery backend images = do
   Lucid.section_
     [ -- w-full: #main-content is a flex column with items-center on desktop, which
       -- would otherwise shrink this section to its content width and collapse the grid.
-      Lucid.class_ "mt-8 w-full",
+      class_ $ base [Tokens.mt8, Tokens.fullWidth],
       xData_ [i|{ open: false, idx: 0, photos: #{photosJson} }|]
     ]
     $ do
-      Lucid.h2_ [Lucid.class_ "text-lg font-bold mb-4 border-b-2 pb-2"] "PHOTOS"
+      Lucid.h2_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "border-b-2", Tokens.pb2]] "PHOTOS"
 
       -- Thumbnail grid
       Lucid.div_ [Lucid.class_ "eg-gallery-grid"] $

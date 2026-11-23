@@ -51,7 +51,7 @@ template backend _userMeta showModel episode tracks tags = do
             Nothing -> "[EPISODE ARTWORK]"
 
         -- Episode metadata
-        Lucid.div_ [Lucid.class_ "flex-grow"] $ do
+        Lucid.div_ [class_ $ base ["flex-grow"]] $ do
           Lucid.div_ $ do
             let epNum = episode.episodeNumber
             Lucid.div_ [class_ $ base ["text-xs", "uppercase", "tracking-wide", Tokens.fgMuted, Tokens.mb2]] $
@@ -145,7 +145,7 @@ template backend _userMeta showModel episode tracks tags = do
         Lucid.h2_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4, "uppercase", "border-b", Tokens.borderDefault, "pb-2"]] $
           "Track Listing (" <> Lucid.toHtml (show (length tracks)) <> " tracks)"
 
-        Lucid.div_ [Lucid.class_ "space-y-1"] $ do
+        Lucid.div_ [class_ $ base ["space-y-1"]] $ do
           mapM_ renderTrackRow tracks
 
 --------------------------------------------------------------------------------
@@ -167,7 +167,7 @@ renderTrackRow track = do
       Lucid.toHtml (show track.trackNumber <> ".")
 
     -- Track info
-    Lucid.div_ [Lucid.class_ "flex-grow"] $ do
+    Lucid.div_ [class_ $ base ["flex-grow"]] $ do
       Lucid.div_ [class_ $ base ["font-medium", Tokens.fgPrimary]] $ do
         "\"" <> Lucid.toHtml track.title <> "\""
 

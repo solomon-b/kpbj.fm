@@ -9,6 +9,8 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT)
 import Data.Text (Text)
 import Data.Text.Display (display)
+import Design (base, class_)
+import Design.Tokens qualified as Tokens
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.User qualified as User
 import Effects.EmailVerification qualified as EmailVerification
@@ -65,13 +67,13 @@ handler form = do
 -- | Success message fragment returned to HTMX.
 successMessage :: Lucid.Html ()
 successMessage =
-  Lucid.div_ [Lucid.class_ "p-4 bg-green-50 border border-green-200 text-green-800"] $ do
-    Lucid.p_ [Lucid.class_ "font-semibold"] "Verification email sent!"
-    Lucid.p_ [Lucid.class_ "text-sm mt-1"] "Please check your inbox and spam folder."
+  Lucid.div_ [class_ $ base [Tokens.p4, "bg-green-50", "border", "border-green-200", "text-green-800"]] $ do
+    Lucid.p_ [class_ $ base [Tokens.fontSemibold]] "Verification email sent!"
+    Lucid.p_ [class_ $ base [Tokens.textSm, "mt-1"]] "Please check your inbox and spam folder."
 
 -- | Error message fragment returned to HTMX.
 errorMessage :: Text -> Lucid.Html ()
 errorMessage msg =
-  Lucid.div_ [Lucid.class_ "p-4 bg-red-50 border border-red-200 text-red-800"] $ do
-    Lucid.p_ [Lucid.class_ "font-semibold"] "Error"
-    Lucid.p_ [Lucid.class_ "text-sm mt-1"] $ Lucid.toHtml msg
+  Lucid.div_ [class_ $ base [Tokens.p4, "bg-red-50", "border", "border-red-200", "text-red-800"]] $ do
+    Lucid.p_ [class_ $ base [Tokens.fontSemibold]] "Error"
+    Lucid.p_ [class_ $ base [Tokens.textSm, "mt-1"]] $ Lucid.toHtml msg

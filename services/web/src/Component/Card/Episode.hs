@@ -101,7 +101,7 @@ renderArtworkWithPlayer backend epUrl mArtworkUrl =
           Lucid.img_
             [ Lucid.src_ (buildMediaUrl backend artworkPath),
               Lucid.alt_ "Episode artwork",
-              Lucid.class_ "w-full h-full object-cover"
+              class_ $ base [Tokens.fullWidth, "h-full", "object-cover"]
             ]
         Nothing -> "[EP IMG]"
 
@@ -120,12 +120,12 @@ renderPlayButton =
     ]
     $ do
       -- Play icon (shown when not playing)
-      Lucid.span_ [xShow_ "!isPlaying", Lucid.class_ "pl-1"] $
-        svg_ [Lucid.class_ "w-7 h-7 fill-current", viewBox_ "0 0 24 24"] $
+      Lucid.span_ [xShow_ "!isPlaying", class_ $ base ["pl-1"]] $
+        svg_ [class_ $ base ["w-7", "h-7", "fill-current"], viewBox_ "0 0 24 24"] $
           path_ [d_ "M8 5v14l11-7z"] mempty
       -- Pause icon (shown when playing)
       Lucid.span_ [xShow_ "isPlaying"] $
-        svg_ [Lucid.class_ "w-7 h-7 fill-current", viewBox_ "0 0 24 24"] $
+        svg_ [class_ $ base ["w-7", "h-7", "fill-current"], viewBox_ "0 0 24 24"] $
           path_ [d_ "M6 19h4V5H6v14zm8-14v14h4V5h-4z"] mempty
 
 -- | Render the scrub/progress bar at the bottom of episode artwork.

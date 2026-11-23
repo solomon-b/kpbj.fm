@@ -142,7 +142,7 @@ renderFormHeader userMeta =
         Lucid.div_ [class_ $ base [Tokens.fgMuted, Tokens.textSm]] $ do
           Lucid.strong_ "Organizer: "
           Lucid.toHtml userMeta.mDisplayName
-      Lucid.div_ [Lucid.class_ "text-center"] $ do
+      Lucid.div_ [class_ $ base ["text-center"]] $ do
         Lucid.a_
           [ Lucid.href_ [i|/#{dashboardEventsGetUrl}|],
             hxGet_ [i|/#{dashboardEventsGetUrl}|],

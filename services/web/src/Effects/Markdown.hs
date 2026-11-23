@@ -308,7 +308,7 @@ renderContentM content = do
 
 -- | Put rendered markdown in the prose wrapper.
 wrapContent :: Lucid.Html () -> Lucid.Html ()
-wrapContent = Lucid.div_ [Lucid.class_ "prose max-w-none"]
+wrapContent = Lucid.div_ [class_ $ base ["prose", "max-w-none"]]
 
 --------------------------------------------------------------------------------
 -- Plain Text
