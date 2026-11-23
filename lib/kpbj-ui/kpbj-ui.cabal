@@ -72,6 +72,8 @@ test-suite kpbj-ui-test
     Component.ButtonSpec
     Component.TailwindSpec
     Design.ThemeSpec
+    Lucid.Form.Builder.RenderSpec
+    Test.Classes
   default-language: Haskell2010
   default-extensions:
       ImportQualifiedPost

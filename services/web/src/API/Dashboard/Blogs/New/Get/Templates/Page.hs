@@ -47,6 +47,7 @@ newBlogPostForm showModel = do
         { fcAction = postUrl,
           fcMethod = "post",
           fcHtmxTarget = Just "#main-content",
+          fcFooterLook = DashboardFooter,
           fcHtmxSwap = Just "innerHTML"
         }
 

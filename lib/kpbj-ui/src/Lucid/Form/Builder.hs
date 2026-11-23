@@ -57,6 +57,7 @@ module Lucid.Form.Builder
 
     -- * Form Configuration
     FormConfig (..),
+    FooterLook (..),
     defaultFormConfig,
 
     -- * Field Functions
@@ -104,7 +105,6 @@ module Lucid.Form.Builder
     description,
     value,
     disabled,
-    classes,
 
     -- * File Field Configuration
     maxSize,
@@ -214,7 +214,6 @@ import Lucid.Form.Builder.Field
     aspectRatio,
     buttonText,
     checked,
-    classes,
     currentFile,
     currentImages,
     customValidation,
@@ -238,7 +237,8 @@ import Lucid.Form.Builder.Field
 import Lucid.Form.Builder.JS (JSExpr)
 import Lucid.Form.Builder.JS qualified as JS
 import Lucid.Form.Builder.Render
-  ( FormConfig (..),
+  ( FooterLook (..),
+    FormConfig (..),
     defaultFormConfig,
     renderForm,
   )

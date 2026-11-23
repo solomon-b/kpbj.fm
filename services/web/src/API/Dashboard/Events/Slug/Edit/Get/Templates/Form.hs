@@ -70,6 +70,7 @@ template backend event galleryImages userMeta = do
         { fcAction = [i|/#{eventEditUrl}|],
           fcMethod = "post",
           fcHtmxTarget = Just "#main-content",
+          fcFooterLook = DashboardFooter,
           fcHtmxSwap = Just "innerHTML"
         }
 

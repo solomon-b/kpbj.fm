@@ -1,12 +1,13 @@
 {-# LANGUAGE QuasiQuotes #-}
 
--- | Buttons for the dashboard.
+-- | Buttons for the dashboard and the form builder.
 --
--- Every dashboard button renders through this module. A caller describes a
--- button with a 'Spec': its style by the purpose of the action, its size, its
--- width, its kind (a button, a submit, a link, or a toggle), and its extra
--- attributes. A caller starts from 'defaults', changes it with the named
--- modifiers or with the lenses, and draws it with 'render'.
+-- Every dashboard button and every form builder button renders through this
+-- module. A caller describes a button with a 'Spec': its style by the purpose
+-- of the action, its size, its corners, its width, its kind (a button, a
+-- submit, a link, a label, or a toggle), and its extra attributes. A caller
+-- starts from 'defaults', changes it with the named modifiers or with the
+-- lenses, and draws it with 'render'.
 --
 -- The module re-exports '(&)', so a caller needs no lens import:
 --
@@ -16,6 +17,7 @@
 -- > Button.render (Button.defaults & Button.primary & Button.with [hxPost_ url]) "Approve"
 -- > Button.render (Button.defaults & Button.small & Button.submit) "Filter"
 -- > Button.render (Button.defaults & Button.dashboardLink editUrl) "Edit"
+-- > Button.render (Button.defaults & Button.accent & Button.large & Button.square & Button.submit) "LOGIN"
 --
 -- A modifier is a lens setter with its value given, so a later modifier wins
 -- over an earlier one for the same field. 'with' is the exception: it adds
@@ -26,6 +28,7 @@ module Component.Button
     ButtonStyle (..),
     Tone (..),
     Size (..),
+    Corners (..),
     Width (..),
     Kind (..),
     defaults,
@@ -33,6 +36,7 @@ module Component.Button
     -- * Lenses
     style,
     size,
+    corners,
     width,
     kind,
     attributes,
@@ -43,11 +47,16 @@ module Component.Button
     secondary,
     danger,
     tinted,
+    accent,
+    muted,
     small,
+    large,
+    square,
     fullWidth,
     submit,
     dashboardLink,
     pageLink,
+    labelFor,
     toggle,
     with,
 
@@ -64,10 +73,12 @@ where
 --------------------------------------------------------------------------------
 
 import Control.Lens (Lens', lens, (&), (.~), (<>~), (^.))
+import Data.List (nub)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Design (base, class_)
+import Design.Theme qualified as Theme
 import Design.Tokens qualified as Tokens
 import Lucid qualified
 import Lucid.Alpine (xBindClass_)
@@ -86,6 +97,12 @@ data ButtonStyle
     Danger
   | -- | A status action, where the color carries meaning.
     Tinted Tone
+  | -- | The main action in the accent color of the theme, such as the submit
+    -- button of a public form.
+    Accent
+  | -- | A quiet action on the alternate background, such as the cancel link
+    -- of a public form.
+    Muted
   deriving stock (Eq, Show)
 
 -- | The status color of a 'Tinted' button.
@@ -101,6 +118,15 @@ data Size
   = -- | For a button next to small inputs, such as a top-bar filter form.
     Small
   | Medium
+  | -- | For the footer of a public form. The text keeps the size of its
+    -- parent.
+    Large
+  deriving stock (Eq, Show, Enum, Bounded)
+
+-- | The corners of a button.
+data Corners
+  = Rounded
+  | Square
   deriving stock (Eq, Show, Enum, Bounded)
 
 -- | The width of a button.
@@ -123,6 +149,10 @@ data Kind
   | -- | A link that leaves the dashboard frame, such as a public page or an
     -- @#anchor@ on the same page.
     PageLink Text
+  | -- | A label for the input with the given id. A click on the label has
+    -- the same effect as a click on the input. The form builder uses it to
+    -- open a hidden file input.
+    LabelFor Text
   | -- | A button with a selected state. It takes the Alpine condition that
     -- is true when the button is selected, and the style when it is not. The
     -- style of the spec is the style when selected.
@@ -133,18 +163,20 @@ data Kind
 data Spec = Spec
   { _style :: ButtonStyle,
     _size :: Size,
+    _corners :: Corners,
     _width :: Width,
     _kind :: Kind,
     _attributes :: [Lucid.Attributes]
   }
 
--- | A 'Secondary' 'Action' button of 'Medium' size and 'Auto' width, with no
--- extra attributes.
+-- | A 'Secondary' 'Action' button of 'Medium' size, 'Rounded' corners, and
+-- 'Auto' width, with no extra attributes.
 defaults :: Spec
 defaults =
   Spec
     { _style = Secondary,
       _size = Medium,
+      _corners = Rounded,
       _width = Auto,
       _kind = Action,
       _attributes = []
@@ -158,6 +190,9 @@ style = lens _style (\s x -> s {_style = x})
 
 size :: Lens' Spec Size
 size = lens _size (\s x -> s {_size = x})
+
+corners :: Lens' Spec Corners
+corners = lens _corners (\s x -> s {_corners = x})
 
 width :: Lens' Spec Width
 width = lens _width (\s x -> s {_width = x})
@@ -183,8 +218,20 @@ danger = style .~ Danger
 tinted :: Tone -> Spec -> Spec
 tinted tone = style .~ Tinted tone
 
+accent :: Spec -> Spec
+accent = style .~ Accent
+
+muted :: Spec -> Spec
+muted = style .~ Muted
+
 small :: Spec -> Spec
 small = size .~ Small
+
+large :: Spec -> Spec
+large = size .~ Large
+
+square :: Spec -> Spec
+square = corners .~ Square
 
 fullWidth :: Spec -> Spec
 fullWidth = width .~ Full
@@ -206,6 +253,13 @@ pageLink ::
   Spec
 pageLink url = kind .~ PageLink url
 
+labelFor ::
+  -- | Id of the input
+  Text ->
+  Spec ->
+  Spec
+labelFor inputId = kind .~ LabelFor inputId
+
 toggle ::
   -- | Alpine condition that is true when the button is selected
   Text ->
@@ -223,12 +277,18 @@ with attrs = attributes <>~ attrs
 -- Classes
 
 -- | The classes that every button has.
+--
+-- @ease-in-out@ in Tailwind is a cubic Bezier curve, so the transition uses
+-- the CSS @ease-in-out@ as an arbitrary value.
 baseClasses :: [Text]
 baseClasses =
   [ Tokens.fontBold,
-    "rounded",
     "whitespace-nowrap",
-    "hover:opacity-80",
+    "cursor-pointer",
+    "no-underline",
+    "transition-all",
+    "duration-150",
+    "ease-[ease-in-out]",
     "disabled:opacity-50",
     "disabled:cursor-not-allowed"
   ]
@@ -237,32 +297,63 @@ sizeClasses :: Size -> [Text]
 sizeClasses = \case
   Small -> ["px-2", "py-1", Tokens.textSm]
   Medium -> [Tokens.px3, Tokens.py2, Tokens.textSm]
+  Large -> [Tokens.px6, "py-3"]
+
+cornerClasses :: Corners -> [Text]
+cornerClasses = \case
+  Rounded -> ["rounded"]
+  Square -> []
 
 widthClasses :: Width -> [Text]
 widthClasses = \case
   Auto -> []
   Full -> ["w-full"]
 
--- | The classes that do not change with the style.
+-- | The classes of a button that do not change with the style.
 shapeClasses :: Spec -> [Text]
-shapeClasses spec = baseClasses <> sizeClasses (spec ^. size) <> widthClasses (spec ^. width)
+shapeClasses spec =
+  baseClasses
+    <> sizeClasses (spec ^. size)
+    <> cornerClasses (spec ^. corners)
+    <> widthClasses (spec ^. width)
 
--- | The classes that give a style its colors.
+-- | The classes that give a style its colors and its hover effect.
 colorClasses :: ButtonStyle -> [Text]
 colorClasses = \case
-  Primary -> [Tokens.bgInverse, Tokens.fgInverse]
-  Secondary -> [Tokens.bgButton, Tokens.fgPrimary]
-  Danger -> [Tokens.bgButton, Tokens.errorText]
-  Tinted Success -> [tint "success", Tokens.successText]
-  Tinted Warning -> [tint "warning", Tokens.warningText]
-  Tinted Error -> [tint "error", Tokens.errorText]
-  Tinted Info -> [tint "info", Tokens.infoText]
+  Primary -> [Tokens.bgInverse, Tokens.fgInverse, fade]
+  Secondary -> [Tokens.bgButton, Tokens.fgPrimary, fade]
+  Danger -> [Tokens.bgButton, Tokens.errorText, fade]
+  Tinted Success -> [tint "success", Tokens.successText, fade]
+  Tinted Warning -> [tint "warning", Tokens.warningText, fade]
+  Tinted Error -> [tint "error", Tokens.errorText, fade]
+  Tinted Info -> [tint "info", Tokens.infoText, fade]
+  Accent -> [Theme.accent, Theme.accentFg, "hover:opacity-90"]
+  Muted -> [Tokens.bgAlt, Tokens.fgPrimary, Tokens.hoverBg]
   where
+    fade :: Text
+    fade = "hover:opacity-80"
+
     -- The status tokens such as 'Tokens.warningBg' use an opacity modifier,
     -- which Tailwind cannot apply to a color from a CSS variable. A mix with
     -- transparent gives the tint.
     tint :: Text -> Text
     tint color = [i|bg-[color-mix(in_srgb,var(--theme-#{color})_15%,transparent)]|]
+
+-- | Every style, for the safelist.
+--
+-- Each case names the next style. A new constructor with no case here is a
+-- compile error, so the safelist cannot miss a style.
+styles :: [ButtonStyle]
+styles = from Primary
+  where
+    from :: ButtonStyle -> [ButtonStyle]
+    from s = case s of
+      Primary -> s : from Secondary
+      Secondary -> s : from Danger
+      Danger -> s : from Accent
+      Accent -> s : from Muted
+      Muted -> s : map Tinted [minBound .. maxBound]
+      Tinted _ -> []
 
 --------------------------------------------------------------------------------
 -- Rendering
@@ -284,17 +375,23 @@ render spec label = case spec ^. kind of
       )
       label
   PageLink url -> Lucid.a_ ([Lucid.href_ url, styled] <> extra) label
+  -- A label is an inline element, so it needs inline-block for its padding.
+  LabelFor inputId ->
+    Lucid.label_
+      ([Lucid.for_ inputId, class_ $ base ("inline-block" : shape <> colorClasses (spec ^. style))] <> extra)
+      label
   Toggle condition unselected ->
     Lucid.button_
       ( [ Lucid.type_ "button",
-          class_ $ base (shapeClasses spec),
+          class_ $ base shape,
           xBindClass_ [i|#{condition} ? '#{colors (spec ^. style)}' : '#{colors unselected}'|]
         ]
           <> extra
       )
       label
   where
-    styled = class_ $ base (shapeClasses spec <> colorClasses (spec ^. style))
+    shape = shapeClasses spec
+    styled = class_ $ base (shape <> colorClasses (spec ^. style))
     extra = spec ^. attributes
     colors = Text.unwords . colorClasses
 
@@ -316,12 +413,13 @@ group =
 -- appear on one page only.
 safelist :: [Text]
 safelist =
-  baseClasses
-    <> foldMap sizeClasses [minBound .. maxBound]
-    <> foldMap widthClasses [minBound .. maxBound]
-    <> foldMap colorClasses styles
-  where
-    styles = [Primary, Secondary, Danger] <> map Tinted [minBound .. maxBound]
+  nub $
+    baseClasses
+      <> ["inline-block"]
+      <> foldMap sizeClasses [minBound .. maxBound]
+      <> foldMap cornerClasses [minBound .. maxBound]
+      <> foldMap widthClasses [minBound .. maxBound]
+      <> foldMap colorClasses styles
 
 -- | An icon link that downloads a file.
 --

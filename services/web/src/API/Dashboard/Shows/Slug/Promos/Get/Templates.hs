@@ -160,6 +160,7 @@ renderSubmitForm showSlug uploadUrl today =
         { fcAction = [i|/#{newPostUri}|],
           fcMethod = "post",
           fcHtmxTarget = Just "#main-content",
+          fcFooterLook = DashboardFooter,
           fcHtmxSwap = Just "innerHTML"
         }
 

@@ -25,6 +25,8 @@ where
 
 --------------------------------------------------------------------------------
 
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Data.Aeson (ToJSON (..), object, (.=))
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BSL
@@ -32,6 +34,7 @@ import Data.Int (Int64)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Encoding qualified as Text
+import Design (base, class_)
 import Lucid qualified
 import Lucid.Alpine
 import Lucid.Base (makeAttributes)
@@ -183,11 +186,15 @@ renderEventGalleryEditor maxSizeMB existingImages = do
                 ]
 
               -- Remove button
-              Lucid.button_
-                [ Lucid.type_ "button",
-                  xOnClick_ "removeImage(idx)",
-                  Lucid.class_ "fb-images-remove"
-                ]
+              Button.render
+                ( Button.defaults
+                    & Button.small
+                    & Button.with
+                      [ class_ $ base ["absolute", "top-1", "right-1"],
+                        xOnClick_ "removeImage(idx)",
+                        makeAttributes "aria-label" "Remove photo"
+                      ]
+                )
                 "\215"
 
               -- Caption input (visible on the public page)

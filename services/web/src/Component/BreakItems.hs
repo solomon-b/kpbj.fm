@@ -364,6 +364,7 @@ renderBreakItemForm urls postUrl submitLabel mUploadUrl startsOn endsOn title mU
         { fcAction = postUrl,
           fcMethod = "post",
           fcHtmxTarget = Just "#main-content",
+          fcFooterLook = DashboardFooter,
           fcHtmxSwap = Just "innerHTML"
         }
 

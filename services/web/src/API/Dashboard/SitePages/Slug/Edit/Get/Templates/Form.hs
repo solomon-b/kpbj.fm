@@ -50,6 +50,7 @@ template page = do
         { fcAction = [i|/#{pageEditUrl}|],
           fcMethod = "post",
           fcHtmxTarget = Just "#main-content",
+          fcFooterLook = DashboardFooter,
           fcHtmxSwap = Just "innerHTML"
         }
 

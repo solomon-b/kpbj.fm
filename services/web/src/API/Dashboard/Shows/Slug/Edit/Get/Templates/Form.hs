@@ -61,6 +61,7 @@ template backend showModel userMeta isStaff schedulesJson eligibleHosts currentH
         { fcAction = postUrl,
           fcMethod = "post",
           fcHtmxTarget = Just "#main-content",
+          fcFooterLook = DashboardFooter,
           fcHtmxSwap = Just "innerHTML"
         }
 

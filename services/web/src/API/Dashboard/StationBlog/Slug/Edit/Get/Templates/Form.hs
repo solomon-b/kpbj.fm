@@ -60,6 +60,7 @@ template backend blogPost tags userMeta = do
         { fcAction = [i|/#{postEditUrl}|],
           fcMethod = "post",
           fcHtmxTarget = Just "#main-content",
+          fcFooterLook = DashboardFooter,
           fcHtmxSwap = Just "innerHTML"
         }
 

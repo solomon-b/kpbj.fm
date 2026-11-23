@@ -201,7 +201,7 @@ test.describe("Event photo gallery editor", () => {
     await test.step("deleting a photo removes it", async () => {
       await page.goto(editUrl);
       await expect(cards).toHaveCount(2);
-      await page.locator(".fb-images-remove").first().click();
+      await page.getByRole("button", { name: "Remove photo" }).first().click();
       await expect(cards).toHaveCount(1);
       await saveEvent(page);
       await page.waitForLoadState("networkidle");

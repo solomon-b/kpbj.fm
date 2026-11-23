@@ -29,9 +29,10 @@ import Lucid qualified
 -- | The classes that the Tailwind CDN always writes.
 --
 -- It holds every button class, and the classes of other elements that
--- showed the problem.
+-- showed the problem. It also holds the classes that place the remove button
+-- on an image thumbnail, because no component gives them.
 safelist :: [Text]
-safelist = Button.safelist <> ["max-h-64"]
+safelist = Button.safelist <> ["max-h-64", "absolute", "top-1", "right-1"]
 
 -- | The @script@ element that sets @tailwind.config@.
 configScript :: Lucid.Html ()

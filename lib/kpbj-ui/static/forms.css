@@ -279,20 +279,6 @@
   text-align: center;
 }
 
-.fb-file-button {
-  display: inline-block;
-  padding: 0.75rem 1.5rem;
-  background-color: var(--theme-info);
-  color: var(--theme-fg-inverse);
-  font-weight: 700;
-  cursor: pointer;
-  transition: opacity 0.15s ease-in-out;
-}
-
-.fb-file-button:hover {
-  opacity: 0.9;
-}
-
 .fb-file-hint {
   font-size: 0.75rem;
   color: var(--theme-fg-muted);
@@ -328,19 +314,6 @@
 .fb-file-size {
   font-size: 0.75rem;
   color: var(--theme-fg-muted);
-}
-
-.fb-file-remove {
-  font-size: 0.875rem;
-  color: var(--theme-error);
-  background: none;
-  border: none;
-  cursor: pointer;
-  text-decoration: underline;
-}
-
-.fb-file-remove:hover {
-  opacity: 0.8;
 }
 
 /* ==========================================================================
@@ -447,19 +420,6 @@
   color: var(--theme-fg-muted);
 }
 
-.fb-image-remove {
-  font-size: 0.875rem;
-  color: var(--theme-error);
-  background: none;
-  border: none;
-  cursor: pointer;
-  text-decoration: underline;
-}
-
-.fb-image-remove:hover {
-  opacity: 0.8;
-}
-
 .fb-image-info {
   display: flex;
   align-items: center;
@@ -528,19 +488,6 @@
   margin-left: 0.5rem;
 }
 
-.fb-image-crop-close {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  color: var(--theme-fg-muted);
-  cursor: pointer;
-  line-height: 1;
-}
-
-.fb-image-crop-close:hover {
-  color: var(--theme-fg);
-}
-
 .fb-image-crop-container {
   flex: 1;
   min-height: 300px;
@@ -569,23 +516,6 @@
   gap: 0.5rem;
 }
 
-.fb-image-crop-zoom-btn {
-  width: 2rem;
-  height: 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: var(--theme-bg-alt);
-  border: 1px solid var(--theme-border);
-  cursor: pointer;
-  font-size: 1.25rem;
-  color: var(--theme-fg);
-}
-
-.fb-image-crop-zoom-btn:hover {
-  background-color: var(--theme-hover);
-}
-
 .fb-image-crop-zoom-label {
   font-size: 0.75rem;
   color: var(--theme-fg-muted);
@@ -594,32 +524,6 @@
 .fb-image-crop-actions {
   display: flex;
   gap: 0.75rem;
-}
-
-.fb-image-crop-cancel {
-  padding: 0.5rem 1rem;
-  background-color: var(--theme-bg-alt);
-  color: var(--theme-fg);
-  border: 1px solid var(--theme-border);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.fb-image-crop-cancel:hover {
-  background-color: var(--theme-hover);
-}
-
-.fb-image-crop-confirm {
-  padding: 0.5rem 1rem;
-  background-color: var(--theme-accent);
-  color: var(--theme-accent-fg);
-  border: none;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.fb-image-crop-confirm:hover {
-  opacity: 0.9;
 }
 
 /* ==========================================================================
@@ -646,23 +550,6 @@
   aspect-ratio: var(--fb-images-aspect-ratio, 1 / 1);
   object-fit: cover;
   display: block;
-}
-
-.fb-images-remove {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  cursor: pointer;
-  background: var(--theme-bg);
-  border: 1px solid var(--theme-border-muted);
-  line-height: 1;
-  padding: 2px 6px;
-  color: var(--theme-fg);
-  font-family: inherit;
-}
-
-.fb-images-remove:hover {
-  background: var(--theme-hover);
 }
 
 .fb-images-alt-input {
@@ -720,22 +607,6 @@
   border: 1px solid var(--theme-border-muted);
 }
 
-.fb-player-button {
-  flex-shrink: 0;
-  padding: 0.75rem 2rem;
-  background-color: var(--theme-fg);
-  color: var(--theme-bg);
-  font-weight: 700;
-  font-size: 1.125rem;
-  border: none;
-  cursor: pointer;
-  transition: background-color 0.15s ease-in-out;
-}
-
-.fb-player-button:hover {
-  background-color: var(--theme-fg-muted);
-}
-
 .fb-player-progress {
   flex: 1;
   height: 2rem;
@@ -767,21 +638,6 @@
 .fb-audio-button-wrapper {
   display: block;
   text-align: center;
-}
-
-.fb-audio-button {
-  display: inline-block;
-  padding: 0.75rem 1.5rem;
-  background-color: var(--theme-info);
-  color: var(--theme-fg-inverse);
-  font-weight: 700;
-  border: none;
-  cursor: pointer;
-  transition: opacity 0.15s ease-in-out;
-}
-
-.fb-audio-button:hover {
-  opacity: 0.9;
 }
 
 .fb-audio-empty,
@@ -823,19 +679,6 @@
 .fb-audio-uploaded-actions {
   display: flex;
   gap: 0.75rem;
-}
-
-.fb-audio-remove {
-  font-size: 0.875rem;
-  color: var(--theme-error);
-  background: none;
-  border: none;
-  cursor: pointer;
-  text-decoration: underline;
-}
-
-.fb-audio-remove:hover {
-  opacity: 0.8;
 }
 
 /* ==========================================================================
@@ -990,84 +833,6 @@
   align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
-}
-
-.fb-submit {
-  padding: 0.75rem 1.5rem;
-  background-color: var(--theme-accent);
-  color: var(--theme-accent-fg);
-  font-weight: 700;
-  border: none;
-  cursor: pointer;
-  transition: all 0.15s ease-in-out;
-}
-
-.fb-submit:hover {
-  opacity: 0.9;
-}
-
-.fb-submit--loading {
-  opacity: 0.7;
-  cursor: wait;
-}
-
-.fb-submit:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.fb-cancel {
-  padding: 0.75rem 1.5rem;
-  background-color: var(--theme-bg-alt);
-  color: var(--theme-fg);
-  font-weight: 700;
-  text-decoration: none;
-  transition: all 0.15s ease-in-out;
-}
-
-.fb-cancel:hover {
-  background-color: var(--theme-hover);
-}
-
-/* Dashboard forms use the look of Component.Button: Primary for submit and
-   Secondary for cancel. Keep these values in step with that module. */
-.dashboard .fb-submit,
-.dashboard .fb-cancel {
-  padding: 0.5rem 0.75rem;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  font-weight: 700;
-  border: none;
-  border-radius: 0.25rem;
-  white-space: nowrap;
-}
-
-.dashboard .fb-submit {
-  background-color: var(--theme-bg-inverse);
-  color: var(--theme-fg-inverse);
-}
-
-.dashboard .fb-cancel {
-  background-color: var(--theme-button);
-  color: var(--theme-fg);
-}
-
-.dashboard .fb-submit:hover {
-  opacity: 0.8;
-}
-
-.dashboard .fb-cancel:hover {
-  background-color: var(--theme-button);
-  opacity: 0.8;
-}
-
-.dashboard .fb-submit--loading,
-.dashboard .fb-submit--loading:hover {
-  opacity: 0.7;
-}
-
-.dashboard .fb-submit:disabled {
-  opacity: 0.5;
 }
 
 /* ==========================================================================
