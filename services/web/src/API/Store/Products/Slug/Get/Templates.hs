@@ -169,13 +169,13 @@ renderProductInfo product' = do
           Lucid.span_ [class_ $ base [Tokens.fgMuted]] $
             Lucid.toHtml ([i|#{inventoryCount} in stock|] :: Text)
         Lucid.template_ [xIf_ [i|#{inventoryCount} <= 0|]] $
-          Lucid.span_ [class_ $ base [Tokens.fontBold, "text-red-600"]] "OUT OF STOCK"
+          Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.errorText]] "OUT OF STOCK"
     Lucid.template_ [xIf_ "optionTypes.length > 0"] $
       Lucid.div_ [] $ do
         Lucid.template_ [xIf_ "resolvedVariant() && resolvedVariant().inventoryCount > 0"] $
           Lucid.span_ [class_ $ base [Tokens.fgMuted], xText_ "displayInventory() + ' in stock'"] ""
         Lucid.template_ [xIf_ "resolvedVariant() && resolvedVariant().inventoryCount <= 0"] $
-          Lucid.span_ [class_ $ base [Tokens.fontBold, "text-red-600"]] "OUT OF STOCK"
+          Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.errorText]] "OUT OF STOCK"
         Lucid.template_ [xIf_ "!resolvedVariant()"] $
           Lucid.span_ [class_ $ base [Tokens.fgMuted]] "Select options to see availability"
 
