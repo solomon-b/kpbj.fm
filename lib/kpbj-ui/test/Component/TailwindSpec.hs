@@ -4,6 +4,7 @@ module Component.TailwindSpec (spec) where
 --------------------------------------------------------------------------------
 
 import Component.Badge qualified as Badge
+import Component.Banner qualified as Banner
 import Component.Button (ButtonStyle (..), Kind (..), (&))
 import Component.Button qualified as Button
 import Component.Card qualified as Card
@@ -35,6 +36,14 @@ spec = describe "Component.Tailwind" $ do
 
     it "holds every class that a badge, a card, or a modal renders" $
       unlisted Tailwind.safelist panels `shouldBe` []
+
+    it "holds every banner color class" $
+      for_ Banner.safelist $
+        \c -> Tailwind.safelist `shouldContain` [c]
+
+    it "holds every status tint" $
+      for_ statusTints $
+        \c -> Tailwind.safelist `shouldContain` [c]
 
   it "keeps max-h-64 in the safelist" $
     Tailwind.safelist `shouldContain` ["max-h-64"]
@@ -100,3 +109,13 @@ panels = do
 
 render :: Lucid.Html () -> Text
 render = LText.toStrict . Lucid.renderText
+
+-- | The 10% tint of each status color.
+statusTints :: [Text]
+statusTints =
+  [ "bg-[color-mix(in_srgb,var(--theme-success)_10%,transparent)]",
+    "bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)]",
+    "bg-[color-mix(in_srgb,var(--theme-warning)_10%,transparent)]",
+    "bg-[color-mix(in_srgb,var(--theme-info)_10%,transparent)]",
+    "bg-[color-mix(in_srgb,var(--theme-fg-muted)_10%,transparent)]"
+  ]

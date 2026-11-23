@@ -8,10 +8,9 @@
 -- >
 -- > Badge.badge Badge.Regular Badge.Success "Published"
 --
--- Each shape copies a look that the pages had before this module. The tints
--- of 'Success', 'Warning', 'Error', 'Info', and 'Muted' use an opacity
--- modifier on a CSS variable color. Tailwind writes no rule for those, so
--- these badges show colored text with no fill.
+-- Each shape copies a look that the pages had before this module. The tones
+-- 'Success', 'Warning', 'Error', 'Info', and 'Muted' fill the badge with a
+-- 10% tint of the status color.
 module Component.Badge
   ( -- * Variants
     Shape (..),

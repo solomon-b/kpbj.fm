@@ -29,6 +29,9 @@ module Component.Banner
     bannerContainerId,
     bannerTemplates,
     bannerTemplateId,
+
+    -- * Tailwind
+    safelist,
   )
 where
 
@@ -97,11 +100,20 @@ bannerItem bannerType title message =
           ]
           "×"
   where
-    (bgColor, borderColor, textColor, icon) = case bannerType of
-      Success -> (Tokens.successBg, Tokens.successBorder, Tokens.successText, "✓" :: Text)
-      Error -> (Tokens.errorBg, Tokens.errorBorder, Tokens.errorText, "✕")
-      Warning -> (Tokens.warningBg, Tokens.warningBorder, Tokens.warningText, "⚠")
-      Info -> (Tokens.infoBg, Tokens.infoBorder, Tokens.infoText, "ℹ")
+    (bgColor, borderColor, textColor) = colorClasses bannerType
+    icon = case bannerType of
+      Success -> "✓" :: Text
+      Error -> "✕"
+      Warning -> "⚠"
+      Info -> "ℹ"
+
+-- | The tint, the border color, and the text color of a banner type.
+colorClasses :: BannerType -> (Text, Text, Text)
+colorClasses = \case
+  Success -> (Tokens.successBg, Tokens.successBorder, Tokens.successText)
+  Error -> (Tokens.errorBg, Tokens.errorBorder, Tokens.errorText)
+  Warning -> (Tokens.warningBg, Tokens.warningBorder, Tokens.warningText)
+  Info -> (Tokens.infoBg, Tokens.infoBorder, Tokens.infoText)
 
 -- | A banner for an HTMX response.
 --
@@ -151,3 +163,15 @@ bannerTemplates = traverse_ template [minBound .. maxBound]
     template bannerType =
       Lucid.template_ [Lucid.id_ (bannerTemplateId bannerType)] $
         bannerItem bannerType "" ""
+
+--------------------------------------------------------------------------------
+-- Tailwind
+
+-- | The color classes of every banner type. "Component.Tailwind" puts them in
+-- the safelist, because a banner can first appear in an HTMX swap.
+safelist :: [Text]
+safelist = foldMap typeClasses [minBound .. maxBound]
+  where
+    typeClasses bannerType =
+      let (bgColor, borderColor, textColor) = colorClasses bannerType
+       in [bgColor, borderColor, textColor]

@@ -361,9 +361,13 @@ hoverBg = Theme.hoverBg
 
 --------------------------------------------------------------------------------
 -- Status Colors
+--
+-- Each @*Bg@ token is a 10% tint of its status color. Tailwind cannot apply
+-- an opacity modifier such as @/10@ to a color from a CSS variable, and it
+-- writes no rule for one. A mix with transparent gives the tint.
 
 successBg :: Text
-successBg = "bg-[var(--theme-success)]/10"
+successBg = "bg-[color-mix(in_srgb,var(--theme-success)_10%,transparent)]"
 
 successBorder :: Text
 successBorder = "border-[var(--theme-success)]"
@@ -372,7 +376,7 @@ successText :: Text
 successText = Theme.success
 
 errorBg :: Text
-errorBg = "bg-[var(--theme-error)]/10"
+errorBg = "bg-[color-mix(in_srgb,var(--theme-error)_10%,transparent)]"
 
 errorBorder :: Text
 errorBorder = "border-[var(--theme-error)]"
@@ -381,7 +385,7 @@ errorText :: Text
 errorText = Theme.error
 
 warningBg :: Text
-warningBg = "bg-[var(--theme-warning)]/10"
+warningBg = "bg-[color-mix(in_srgb,var(--theme-warning)_10%,transparent)]"
 
 warningBorder :: Text
 warningBorder = "border-[var(--theme-warning)]"
@@ -390,7 +394,7 @@ warningText :: Text
 warningText = Theme.warning
 
 infoBg :: Text
-infoBg = "bg-[var(--theme-info)]/10"
+infoBg = "bg-[color-mix(in_srgb,var(--theme-info)_10%,transparent)]"
 
 infoBorder :: Text
 infoBorder = "border-[var(--theme-info)]"
@@ -400,7 +404,7 @@ infoText = Theme.info
 
 -- | A tint of the muted foreground, for a neutral status.
 mutedBg :: Text
-mutedBg = "bg-[var(--theme-fg-muted)]/10"
+mutedBg = "bg-[color-mix(in_srgb,var(--theme-fg-muted)_10%,transparent)]"
 
 --------------------------------------------------------------------------------
 -- Layout
