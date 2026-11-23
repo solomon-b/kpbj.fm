@@ -34,7 +34,7 @@ toggleStyle :: Bool -> Attributes
 toggleStyle isActive = class_ $ do
   base [Tokens.px4, Tokens.py2, Tokens.cardBorder, Tokens.fontBold]
   Design.when isActive $ base [Tokens.bgInverse, Tokens.fgInverse]
-  Design.when (not isActive) $ base [Tokens.bgMain, Tokens.fgPrimary, "Tokens.hoverBg"]
+  Design.when (not isActive) $ base [Tokens.bgMain, Tokens.fgPrimary, Tokens.hoverBg]
 
 --------------------------------------------------------------------------------
 
@@ -115,7 +115,7 @@ renderPagination showModel maybeTag currentPage totalPages = do
           hxGet_ [i|/#{showBlogGetUrl (Shows.slug showModel) (Just (currentPage - 1)) maybeTag}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
-          class_ $ base [Tokens.px4, Tokens.py2, Tokens.bgMain, Tokens.fgPrimary, Tokens.cardBorder, "Tokens.hoverBg", Tokens.fontBold]
+          class_ $ base [Tokens.px4, Tokens.py2, Tokens.bgMain, Tokens.fgPrimary, Tokens.cardBorder, Tokens.hoverBg, Tokens.fontBold]
         ]
         "← Previous"
 
@@ -138,6 +138,6 @@ renderPagination showModel maybeTag currentPage totalPages = do
           hxGet_ [i|/#{showBlogGetUrl (Shows.slug showModel) (Just (currentPage + 1)) maybeTag}|],
           hxTarget_ "#main-content",
           hxPushUrl_ "true",
-          class_ $ base [Tokens.px4, Tokens.py2, Tokens.bgMain, Tokens.fgPrimary, Tokens.cardBorder, "Tokens.hoverBg", Tokens.fontBold]
+          class_ $ base [Tokens.px4, Tokens.py2, Tokens.bgMain, Tokens.fgPrimary, Tokens.cardBorder, Tokens.hoverBg, Tokens.fontBold]
         ]
         "Next →"

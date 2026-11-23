@@ -107,6 +107,10 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **The nix files have no em-dashes.** The comments in `nixos/*.nix` now use a colon, a comma, or a new sentence. Four strings change with them: the systemd descriptions of the `episode-check` and `watchdog` units, the description of the root disk alert, and the pgBackRest warning for a failed S3 backup.
 
 ### Fixed
+- **Three show pages use their border and hover tokens.** Ten class lists had a token name inside a string, such as `"Tokens.borderMuted"`, so the page got that text in place of the class. The changes:
+  - On the shows list, the search field, the three filter selects, and the Clear button have the muted theme border in place of the default gray border.
+  - On a show blog post, the line under the header and the line above the footer have the theme border color.
+  - On a show blog list, the Previous, Next, and page number links show the hover color. The "All" link and the tag filter links show it too.
 - **No template uses an undefined CSS variable.** Each undefined variable gave no color, so an element lost its background, its text color, or its border. The changes:
   - The subscribe buttons on the home page and the About page lost their background on hover, so the label was hard to read. They now fade to 80% opacity on hover, the same as the other inverse buttons. The `--theme-hover` color is not used there, because the light inverse label does not show on it.
   - The "Thanks for subscribing!" text on the home page and the About page uses the success color.
