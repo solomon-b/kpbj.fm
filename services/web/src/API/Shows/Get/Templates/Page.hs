@@ -130,7 +130,7 @@ renderFilters allTags maybeTagId maybeStatus maybeSearch maybeSortBy = do
           [ Lucid.type_ "text",
             Lucid.id_ "search",
             Lucid.name_ "search",
-            class_ $ base [Tokens.fullWidth, "border", "Tokens.borderMuted", "px-3", Tokens.py2],
+            class_ $ base [Tokens.fullWidth, "border", Tokens.borderMuted, "px-3", Tokens.py2],
             Lucid.placeholder_ "Search shows...",
             Lucid.value_ (maybe "" display maybeSearch)
           ]
@@ -142,7 +142,7 @@ renderFilters allTags maybeTagId maybeStatus maybeSearch maybeSortBy = do
           Lucid.select_
             [ Lucid.id_ "tag",
               Lucid.name_ "tag",
-              class_ $ base [Tokens.fullWidth, "border", "Tokens.borderMuted", "px-3", Tokens.py2, Tokens.bgMain]
+              class_ $ base [Tokens.fullWidth, "border", Tokens.borderMuted, "px-3", Tokens.py2, Tokens.bgMain]
             ]
             $ do
               Lucid.option_ ([Lucid.value_ ""] <> [Lucid.selected_ "selected" | isNothing maybeTagId]) "All Tags"
@@ -161,7 +161,7 @@ renderFilters allTags maybeTagId maybeStatus maybeSearch maybeSortBy = do
         Lucid.select_
           [ Lucid.id_ "status",
             Lucid.name_ "status",
-            class_ $ base [Tokens.fullWidth, "border", "Tokens.borderMuted", "px-3", Tokens.py2, Tokens.bgMain]
+            class_ $ base [Tokens.fullWidth, "border", Tokens.borderMuted, "px-3", Tokens.py2, Tokens.bgMain]
           ]
           $ do
             Lucid.option_ ([Lucid.value_ ""] <> [Lucid.selected_ "selected" | isNothing maybeStatus]) "All Shows"
@@ -174,7 +174,7 @@ renderFilters allTags maybeTagId maybeStatus maybeSearch maybeSortBy = do
         Lucid.select_
           [ Lucid.id_ "sortBy",
             Lucid.name_ "sortBy",
-            class_ $ base [Tokens.fullWidth, "border", "Tokens.borderMuted", "px-3", Tokens.py2, Tokens.bgMain]
+            class_ $ base [Tokens.fullWidth, "border", Tokens.borderMuted, "px-3", Tokens.py2, Tokens.bgMain]
           ]
           $ do
             Lucid.option_ ([Lucid.value_ "name_az"] <> [Lucid.selected_ "selected" | maybeSortBy == Just NameAZ || isNothing maybeSortBy]) "Name (A-Z)"
@@ -192,7 +192,7 @@ renderFilters allTags maybeTagId maybeStatus maybeSearch maybeSortBy = do
         Lucid.button_
           [ Lucid.type_ "button",
             Lucid.onclick_ "clearFilters()",
-            class_ $ do base ["flex-1", "border", "Tokens.borderMuted", Tokens.py2]; desktop ["flex-none", Tokens.px4]
+            class_ $ do base ["flex-1", "border", Tokens.borderMuted, Tokens.py2]; desktop ["flex-none", Tokens.px4]
           ]
           "Clear"
 
