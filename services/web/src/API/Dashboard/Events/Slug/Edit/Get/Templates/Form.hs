@@ -10,6 +10,7 @@ where
 
 import API.Links (dashboardEventsLinks)
 import API.Types (DashboardEventsRoutes (..))
+import Component.Card qualified as Card
 import Component.Form.Hints (markdownHint)
 import Component.Gallery.EventGalleryEditor (GalleryImageView (..), renderEventGalleryEditor)
 import Data.Maybe (fromMaybe)
@@ -168,7 +169,7 @@ template backend event galleryImages userMeta = do
 
 renderFormHeader :: Events.Model -> UserMetadata.Model -> Links.URI -> Lucid.Html ()
 renderFormHeader event userMeta eventBackUrl = do
-  Lucid.section_ [class_ $ base [Tokens.bgMain, Tokens.fgPrimary, Tokens.p6, Tokens.mb8, Tokens.fullWidth]] $ do
+  Card.section Card.Header [] $ do
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "EDIT EVENT"

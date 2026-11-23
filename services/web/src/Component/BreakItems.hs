@@ -39,6 +39,7 @@ import API.Links (dashboardUnderwritersLinks, rootLink)
 import API.Types (DashboardUnderwritersRoutes (..))
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Card qualified as Card
 import Component.InlineAudioPlayer (renderInlineAudioPlayer)
 import Component.Table
   ( ColumnAlign (..),
@@ -263,7 +264,7 @@ renderRow backend urls mNames item =
 
 renderEmptyState :: SectionUrls -> Lucid.Html ()
 renderEmptyState urls =
-  Lucid.div_ [class_ $ base [Theme.bgAlt, Tokens.border2, Theme.borderMuted, "p-12", "text-center"]] $ do
+  Card.card Card.EmptyState [] $ do
     Lucid.p_ [class_ $ base [Tokens.textXl, Theme.fgMuted]] $
       Lucid.toHtml ("No " <> Text.toLower urls.suNounPlural <> " uploaded yet.")
     Lucid.p_ [class_ $ base [Theme.fgMuted, "mt-2"]] $

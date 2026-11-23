@@ -12,6 +12,7 @@ import API.Links (dashboardSitePagesLinks)
 import API.Types (DashboardSitePagesRoutes (..))
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Card qualified as Card
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
@@ -45,7 +46,7 @@ template page revision = do
 
 renderHeader :: SitePages.Model -> SitePageRevisions.Model -> Lucid.Html ()
 renderHeader page revision =
-  Lucid.section_ [class_ $ base [Tokens.bgMain, Tokens.fgPrimary, Tokens.p6, Tokens.mb8, Tokens.fullWidth]] $ do
+  Card.section Card.Header [] $ do
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "REVISION DETAIL"
@@ -75,7 +76,7 @@ renderHeader page revision =
 
 renderDiffSection :: SitePages.Model -> SitePageRevisions.Model -> Lucid.Html ()
 renderDiffSection page revision = do
-  Lucid.section_ [class_ $ base [Tokens.bgMain, Tokens.p6, Tokens.mb8, "rounded"]] $ do
+  Card.section Card.Detail [Tokens.mb8] $ do
     Lucid.h2_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb4]] "Changes from this revision to current version"
     Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb4]] $ do
       "Lines in "
@@ -88,7 +89,7 @@ renderDiffSection page revision = do
 
 renderRestoreButton :: SitePages.Model -> SitePageRevisions.Model -> Lucid.Html ()
 renderRestoreButton page revision = do
-  Lucid.section_ [class_ $ base [Tokens.bgMain, Tokens.p6, "rounded"]] $ do
+  Card.section Card.Detail [] $ do
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h3_ [class_ $ base [Tokens.fontBold, Tokens.mb2]] "Restore this revision"

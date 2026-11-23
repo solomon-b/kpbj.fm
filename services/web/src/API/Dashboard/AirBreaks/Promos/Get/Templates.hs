@@ -19,6 +19,7 @@ import API.Types
 import Component.BreakItems (formatDuration, formatRange)
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Card qualified as Card
 import Component.InlineAudioPlayer (renderInlineAudioPlayer)
 import Component.Table
   ( ColumnAlign (..),
@@ -122,7 +123,7 @@ pageUrl pageNum =
 
 renderEmptyState :: Lucid.Html ()
 renderEmptyState =
-  Lucid.div_ [class_ $ base [Theme.bgAlt, Tokens.border2, Theme.borderMuted, "p-12", "text-center"]] $ do
+  Card.card Card.EmptyState [] $ do
     Lucid.p_ [class_ $ base [Tokens.textXl, Theme.fgMuted]] "No show promos yet."
     Lucid.p_ [class_ $ base [Theme.fgMuted, "mt-2"]] "Hosts submit promos from their show pages."
 

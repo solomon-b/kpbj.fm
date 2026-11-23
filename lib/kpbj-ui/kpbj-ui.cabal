@@ -42,12 +42,15 @@ library
     , string-interpolate
     , text
   exposed-modules:
-      Component.Banner
+      Component.Badge
+    , Component.Banner
     , Component.Button
+    , Component.Card
     , Component.Choice
     , Component.Field
     , Component.InfiniteScroll
     , Component.Input
+    , Component.Modal
     , Component.PageHeader
     , Component.SourceTypeBadge
     , Component.Table
@@ -72,10 +75,14 @@ test-suite kpbj-ui-test
   hs-source-dirs:   test
   main-is:          Main.hs
   other-modules:
+    Component.BadgeSpec
     Component.ButtonSpec
+    Component.CardSpec
     Component.ChoiceSpec
     Component.FieldSpec
     Component.InputSpec
+    Component.ModalSpec
+    Component.SourceTypeBadgeSpec
     Component.TailwindSpec
     Design.ThemeSpec
     Lucid.Form.Builder.RenderSpec

@@ -11,8 +11,10 @@ where
 
 import API.Links (blogLinks, dashboardStationBlogLinks)
 import API.Types
+import Component.Badge qualified as Badge
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Card qualified as Card
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -126,23 +128,14 @@ renderPostRow post =
                 "Delete"
 
 renderStatusBadge :: BlogPostStatus -> Lucid.Html ()
-renderStatusBadge status = case status of
-  Published ->
-    Lucid.span_
-      [class_ $ base ["inline-block", Tokens.successBg, Tokens.successText, "px-3", "py-1", Tokens.textSm, Tokens.fontBold, "rounded"]]
-      "Published"
-  Draft ->
-    Lucid.span_
-      [class_ $ base ["inline-block", Tokens.warningBg, Tokens.warningText, "px-3", "py-1", Tokens.textSm, Tokens.fontBold, "rounded"]]
-      "Draft"
-  Deleted ->
-    Lucid.span_
-      [class_ $ base ["inline-block", Tokens.errorBg, Tokens.errorText, "px-3", "py-1", Tokens.textSm, Tokens.fontBold, "rounded"]]
-      "Deleted"
+renderStatusBadge = \case
+  Published -> Badge.badge Badge.Regular Badge.Success "Published"
+  Draft -> Badge.badge Badge.Regular Badge.Warning "Draft"
+  Deleted -> Badge.badge Badge.Regular Badge.Error "Deleted"
 
 renderEmptyState :: Lucid.Html ()
 renderEmptyState = do
-  Lucid.div_ [class_ $ base [Theme.bgAlt, Tokens.border2, Theme.borderMuted, "p-12", "text-center"]] $ do
+  Card.card Card.EmptyState [] $ do
     Lucid.p_ [class_ $ base [Tokens.textXl, Theme.fgMuted]] "No blog posts found."
     Lucid.p_ [class_ $ base [Theme.fgMuted, "mt-2"]] "Create a new post to get started."
 

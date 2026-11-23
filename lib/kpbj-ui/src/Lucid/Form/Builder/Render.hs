@@ -30,6 +30,7 @@ import Component.Button qualified as Button
 import Component.Choice qualified as Choice
 import Component.Field qualified as Field
 import Component.Input qualified as Input
+import Component.Modal qualified as Modal
 import Control.Applicative ((<|>))
 import Control.Monad (forM_, when)
 import Data.Aeson qualified as Aeson
@@ -2313,41 +2314,29 @@ renderCropperModal ::
   -- | Aspect ratio text for display (e.g., "16:9").
   Text ->
   Lucid.Html ()
-renderCropperModal ratioText = do
-  Lucid.div_
-    [ xShow_ "showCropper",
-      Lucid.style_ "display: none;",
-      Lucid.class_ "fb-image-crop-modal"
-    ]
-    $ do
-      Lucid.div_
-        [ xOnClick_ "cancelCrop()",
-          Lucid.class_ "fb-image-crop-backdrop"
+renderCropperModal ratioText =
+  Modal.modal Modal.Cropper "showCropper" "cancelCrop()" [Lucid.style_ "display: none;"] $ do
+    Lucid.div_ [Lucid.class_ "fb-image-crop-header"] $ do
+      Lucid.h3_ [Lucid.class_ "fb-image-crop-title"] $ do
+        "Crop Image"
+        Lucid.span_ [Lucid.class_ "fb-image-crop-ratio"] $
+          Lucid.toHtml ([i|(#{ratioText} ratio)|] :: Text)
+      Button.render (Button.defaults & Button.small & Button.with [xOnClick_ "cancelCrop()"]) "\215"
+
+    Lucid.div_ [Lucid.class_ "fb-image-crop-container"] $
+      Lucid.img_
+        [ xRef_ "cropperImage",
+          xBindSrc_ "cropImageUrl",
+          Lucid.class_ "fb-image-crop-img",
+          Lucid.alt_ "Image to crop"
         ]
-        mempty
 
-      Lucid.div_ [Lucid.class_ "fb-image-crop-dialog"] $ do
-        Lucid.div_ [Lucid.class_ "fb-image-crop-header"] $ do
-          Lucid.h3_ [Lucid.class_ "fb-image-crop-title"] $ do
-            "Crop Image"
-            Lucid.span_ [Lucid.class_ "fb-image-crop-ratio"] $
-              Lucid.toHtml ([i|(#{ratioText} ratio)|] :: Text)
-          Button.render (Button.defaults & Button.small & Button.with [xOnClick_ "cancelCrop()"]) "\215"
+    Lucid.div_ [Lucid.class_ "fb-image-crop-footer"] $ do
+      Lucid.div_ [Lucid.class_ "fb-image-crop-zoom"] $ do
+        Button.render (Button.defaults & Button.small & Button.with [xOnClick_ "cropper?.zoom(-0.1)"]) "\8722"
+        Lucid.span_ [Lucid.class_ "fb-image-crop-zoom-label"] "Zoom"
+        Button.render (Button.defaults & Button.small & Button.with [xOnClick_ "cropper?.zoom(0.1)"]) "+"
 
-        Lucid.div_ [Lucid.class_ "fb-image-crop-container"] $
-          Lucid.img_
-            [ xRef_ "cropperImage",
-              xBindSrc_ "cropImageUrl",
-              Lucid.class_ "fb-image-crop-img",
-              Lucid.alt_ "Image to crop"
-            ]
-
-        Lucid.div_ [Lucid.class_ "fb-image-crop-footer"] $ do
-          Lucid.div_ [Lucid.class_ "fb-image-crop-zoom"] $ do
-            Button.render (Button.defaults & Button.small & Button.with [xOnClick_ "cropper?.zoom(-0.1)"]) "\8722"
-            Lucid.span_ [Lucid.class_ "fb-image-crop-zoom-label"] "Zoom"
-            Button.render (Button.defaults & Button.small & Button.with [xOnClick_ "cropper?.zoom(0.1)"]) "+"
-
-          Lucid.div_ [Lucid.class_ "fb-image-crop-actions"] $ do
-            Button.render (Button.defaults & Button.with [xOnClick_ "cancelCrop()"]) "Cancel"
-            Button.render (Button.defaults & Button.accent & Button.with [xOnClick_ "confirmCrop()"]) "Apply Crop"
+      Lucid.div_ [Lucid.class_ "fb-image-crop-actions"] $ do
+        Button.render (Button.defaults & Button.with [xOnClick_ "cancelCrop()"]) "Cancel"
+        Button.render (Button.defaults & Button.accent & Button.with [xOnClick_ "confirmCrop()"]) "Apply Crop"

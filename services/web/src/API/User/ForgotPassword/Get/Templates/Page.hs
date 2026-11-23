@@ -12,6 +12,7 @@ where
 
 import API.Links (userLinks)
 import API.Types
+import Component.Card qualified as Card
 import Component.PageHeader (pageHeader)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -37,7 +38,7 @@ template :: Lucid.Html ()
 template =
   let postUrl = [i|/#{userForgotPasswordPostUrl}|]
    in Lucid.div_ [class_ $ base [Tokens.fullWidth, "max-w-md", "mx-auto"]] $ do
-        Lucid.div_ [class_ $ base [Tokens.bgMain, "p-8"]] $ do
+        Card.card Card.Auth [] $ do
           pageHeader "FORGOT PASSWORD"
 
           -- Instructions
@@ -60,7 +61,7 @@ template =
 successTemplate :: Lucid.Html ()
 successTemplate =
   Lucid.div_ [class_ $ base [Tokens.fullWidth, "max-w-md", "mx-auto"]] $ do
-    Lucid.div_ [class_ $ base [Tokens.bgMain, "p-8"]] $ do
+    Card.card Card.Auth [] $ do
       -- Success icon
       Lucid.div_ [Lucid.class_ "text-center"] $ do
         Lucid.div_ [class_ $ base ["mx-auto", "h-16", "w-16", "flex", "items-center", "justify-center", "rounded-full", Tokens.successBg]] $ do

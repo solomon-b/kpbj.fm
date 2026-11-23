@@ -15,8 +15,10 @@ where
 
 import API.Links (dashboardInvitationsLinks, inviteLinks, rootLink)
 import API.Types (DashboardInvitationsRoutes (..), InviteRoutes (..))
+import Component.Badge qualified as Badge
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Card qualified as Card
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -117,16 +119,11 @@ renderInvitationRow appBaseUrl invitation =
     rowId = "invitation-row-" <> invitationIdText
 
 renderStatusBadge :: HostInvitation.Status -> Lucid.Html ()
-renderStatusBadge status =
-  Lucid.span_
-    [class_ $ base ["inline-block", Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, "rounded", bgClass, textClass]]
-    $ Lucid.toHtml statusText
-  where
-    (bgClass, textClass, statusText) = case status of
-      HostInvitation.Pending -> (Tokens.warningBg, Tokens.warningText, "Pending") :: (Text, Text, Text)
-      HostInvitation.Claimed -> (Tokens.successBg, Tokens.successText, "Claimed")
-      HostInvitation.Expired -> (Tokens.bgAlt, Tokens.fgMuted, "Expired")
-      HostInvitation.Revoked -> (Tokens.errorBg, Tokens.errorText, "Revoked")
+renderStatusBadge = \case
+  HostInvitation.Pending -> Badge.badge Badge.Regular Badge.Warning "Pending"
+  HostInvitation.Claimed -> Badge.badge Badge.Regular Badge.Success "Claimed"
+  HostInvitation.Expired -> Badge.badge Badge.Regular Badge.Neutral "Expired"
+  HostInvitation.Revoked -> Badge.badge Badge.Regular Badge.Error "Revoked"
 
 renderActions :: Text -> HostInvitation.ModelWithCreator -> Lucid.Html ()
 renderActions appBaseUrl invitation =
@@ -202,7 +199,7 @@ renderActions appBaseUrl invitation =
 
 renderEmptyState :: Lucid.Html ()
 renderEmptyState =
-  Lucid.div_ [class_ $ base [Tokens.bgAlt, Tokens.border2, Tokens.borderMuted, "p-12", "text-center"]] $ do
+  Card.card Card.EmptyState [] $ do
     Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.fgMuted]] "No invitations found."
     Lucid.p_ [class_ $ base [Tokens.fgMuted, "mt-2"]] "Create a new invitation to onboard a host."
 

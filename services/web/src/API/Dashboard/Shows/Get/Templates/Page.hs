@@ -15,8 +15,10 @@ where
 
 import API.Links (dashboardShowsLinks)
 import API.Types (DashboardShowsRoutes (..))
+import Component.Badge qualified as Badge
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Card qualified as Card
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -148,24 +150,16 @@ renderShowRow isAdmin deletedView showInfo =
                         "Delete"
 
 renderStatusBadge :: Shows.Status -> Lucid.Html ()
-renderStatusBadge status = do
-  let (bgClass, textClass, statusText) = case status of
-        Shows.Active -> (Tokens.successBg, Tokens.successText, "Active") :: (Text, Text, Text)
-        Shows.Inactive -> (Tokens.bgAlt, Tokens.fgPrimary, "Inactive")
-
-  Lucid.span_
-    [class_ $ base ["inline-block", Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, "rounded", bgClass, textClass]]
-    $ Lucid.toHtml statusText
+renderStatusBadge = \case
+  Shows.Active -> Badge.badge Badge.Regular Badge.Success "Active"
+  Shows.Inactive -> Badge.badge Badge.Regular Badge.Plain "Inactive"
 
 renderDeletedBadge :: Lucid.Html ()
-renderDeletedBadge =
-  Lucid.span_
-    [class_ $ base ["inline-block", Tokens.px3, "py-1", Tokens.textSm, Tokens.fontBold, "rounded", Tokens.errorBg, Tokens.errorText]]
-    "Deleted"
+renderDeletedBadge = Badge.badge Badge.Regular Badge.Error "Deleted"
 
 renderEmptyState :: Bool -> Maybe Text -> Lucid.Html ()
 renderEmptyState deletedView maybeQuery = do
-  Lucid.div_ [class_ $ base [Tokens.bgAlt, Tokens.border2, Tokens.borderMuted, "p-12", "text-center"]] $ do
+  Card.card Card.EmptyState [] $ do
     Lucid.p_ [class_ $ base [Tokens.textXl, Tokens.fgMuted]] $
       if deletedView
         then "No deleted shows."

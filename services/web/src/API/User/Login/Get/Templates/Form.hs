@@ -7,6 +7,7 @@ module API.User.Login.Get.Templates.Form where
 
 import API.Links (userLinks)
 import API.Types
+import Component.Card qualified as Card
 import Component.PageHeader (pageHeader)
 import Data.Maybe (fromMaybe)
 import Data.String.Interpolate (i)
@@ -41,7 +42,7 @@ template emailAddress redirectLink =
    in Lucid.div_
         [class_ $ base [Tokens.fullWidth, "max-w-md", "mx-auto"]]
         do
-          Lucid.div_ [class_ $ base [Tokens.bgMain, "p-8"]] do
+          Card.card Card.Auth [] do
             pageHeader "LOGIN"
 
             -- Login form using form builder

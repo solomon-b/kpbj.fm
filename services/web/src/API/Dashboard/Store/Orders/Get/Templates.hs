@@ -7,6 +7,8 @@ module API.Dashboard.Store.Orders.Get.Templates (template) where
 
 import API.Links (dashboardStoreOrdersLinks, rootLink)
 import API.Types (DashboardStoreOrdersRoutes (..))
+import Component.Badge qualified as Badge
+import Component.Card qualified as Card
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -78,24 +80,20 @@ renderOrderRow order =
 
 renderStatusBadge :: Orders.OrderStatus -> Lucid.Html ()
 renderStatusBadge status =
-  let (bgClass, textClass) = statusColors status
-      statusLabel = display status :: Text
-   in Lucid.span_
-        [class_ $ base ["inline-block", "px-3", "py-1", Tokens.textSm, Tokens.fontBold, "rounded", bgClass, textClass]]
-        (Lucid.toHtml statusLabel)
+  Badge.badge Badge.Regular (statusTone status) $ Lucid.toHtml (display status :: Text)
 
-statusColors :: Orders.OrderStatus -> (Text, Text)
-statusColors = \case
-  Orders.Pending -> (Tokens.warningBg, Tokens.warningText)
-  Orders.Paid -> (Tokens.infoBg, Tokens.infoText)
-  Orders.Shipped -> (Tokens.successBg, Tokens.successText)
-  Orders.Completed -> (Tokens.successBg, Tokens.successText)
-  Orders.Cancelled -> (Tokens.errorBg, Tokens.errorText)
-  Orders.Refunded -> (Tokens.warningBg, Tokens.warningText)
+statusTone :: Orders.OrderStatus -> Badge.Tone
+statusTone = \case
+  Orders.Pending -> Badge.Warning
+  Orders.Paid -> Badge.Info
+  Orders.Shipped -> Badge.Success
+  Orders.Completed -> Badge.Success
+  Orders.Cancelled -> Badge.Error
+  Orders.Refunded -> Badge.Warning
 
 renderEmptyState :: Lucid.Html ()
 renderEmptyState = do
-  Lucid.div_ [class_ $ base [Theme.bgAlt, Tokens.border2, Theme.borderMuted, "p-12", "text-center"]] $ do
+  Card.card Card.EmptyState [] $ do
     Lucid.p_ [class_ $ base [Tokens.textXl, Theme.fgMuted]] "No orders yet."
     Lucid.p_ [class_ $ base [Theme.fgMuted, "mt-2"]] "Orders will appear here once customers complete purchases."
 

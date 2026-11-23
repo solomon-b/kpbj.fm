@@ -9,6 +9,7 @@ where
 --------------------------------------------------------------------------------
 
 import Component.AudioPlayer.Waveform qualified as WaveformPlayer
+import Component.Badge qualified as Badge
 import Control.Monad (unless)
 import Data.Maybe (isJust)
 import Data.String.Interpolate (i)
@@ -64,7 +65,7 @@ template backend _userMeta showModel episode tracks tags = do
             if isArchived
               then Lucid.div_ $ do
                 Lucid.span_ [class_ $ base [Tokens.fontBold, Tokens.fgMuted]] "Status: "
-                Lucid.span_ [class_ $ base ["inline-block", Tokens.errorBg, Tokens.errorText, "px-2", "py-1", "rounded", "text-xs", Tokens.fontBold]] "ARCHIVED"
+                Badge.badge Badge.Compact Badge.Error "ARCHIVED"
               else mempty
 
             -- The date the episode airs on

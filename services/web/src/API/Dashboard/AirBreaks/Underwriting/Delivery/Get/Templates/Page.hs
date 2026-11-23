@@ -18,6 +18,7 @@ import API.Links (dashboardUnderwritingLinks)
 import API.Types (DashboardUnderwritingRoutes (..))
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTableWithBodyId)
 import Control.Monad (forM_)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -62,12 +63,20 @@ template firstDay rows =
         Lucid.p_
           [class_ $ base [Tokens.p4, Tokens.textSm, Tokens.fgMuted]]
           "No underwriting was active or aired this month."
-      else Lucid.table_ [class_ $ base ["w-full"]] $ do
-        Lucid.thead_ $
-          Lucid.tr_ [class_ $ base ["border-b-2", Tokens.borderMuted]] $
-            forM_ ["Underwriter", "Days Active", "Maximum", "Aired"] $ \h ->
-              Lucid.th_ [class_ $ base [Tokens.p4, "text-left", Tokens.textSm, Tokens.fontBold]] h
-        Lucid.tbody_ $ mapM_ renderRow rows
+      else
+        renderTableWithBodyId
+          "delivery-table-body"
+          TableConfig
+            { headers =
+                [ ColumnHeader "Underwriter" AlignLeft,
+                  ColumnHeader "Days Active" AlignLeft,
+                  ColumnHeader "Maximum" AlignLeft,
+                  ColumnHeader "Aired" AlignLeft
+                ],
+              wrapperClass = "overflow-x-auto",
+              tableClass = "w-full"
+            }
+          (mapM_ renderRow rows)
 
 -- | The month name, with links to the month before and the month after.
 renderMonthNav :: Day -> Lucid.Html ()
@@ -83,6 +92,8 @@ renderMonthNav firstDay =
       let uri = Links.linkURI (dashboardUnderwritingLinks.delivery (Just (Text.pack (formatTime defaultTimeLocale "%Y-%m" target))))
        in Button.render (Button.defaults & Button.dashboardLink [i|/#{uri}|]) (Lucid.toHtml label)
 
+-- | Two table rows for one underwriter: the numbers, then a row that expands
+-- to list the airings.
 renderRow :: DeliveryRow -> Lucid.Html ()
 renderRow row = do
   Lucid.tr_ $ do
@@ -90,7 +101,7 @@ renderRow row = do
     cell (Lucid.toHtml (show row.drDaysActive))
     cell (Lucid.toHtml (show (maxAirings row)))
     cell (Lucid.toHtml (show (length row.drAirings)))
-  Lucid.tr_ [class_ $ base ["border-b-2", Tokens.borderMuted]] $
+  Lucid.tr_ [class_ $ base ["border-b", Tokens.borderMuted]] $
     Lucid.td_ [Lucid.colspan_ "4", class_ $ base [Tokens.px4, "pb-4", Tokens.textSm]] $
       Lucid.details_ $ do
         Lucid.summary_ [class_ $ base [Tokens.fgMuted, "cursor-pointer"]] "Airings"

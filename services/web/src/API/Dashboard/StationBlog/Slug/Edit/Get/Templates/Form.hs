@@ -10,6 +10,7 @@ where
 
 import API.Links (dashboardStationBlogLinks)
 import API.Types (DashboardStationBlogRoutes (..))
+import Component.Card qualified as Card
 import Component.Form.Hints (markdownHint, plainTextHint)
 import Data.Foldable (for_)
 import Data.String.Interpolate (i)
@@ -121,7 +122,7 @@ template backend blogPost tags userMeta = do
 
 renderFormHeader :: BlogPosts.Model -> UserMetadata.Model -> Links.URI -> Lucid.Html ()
 renderFormHeader blogPost userMeta postBackUrl =
-  Lucid.section_ [class_ $ base [Tokens.bgMain, Tokens.fgPrimary, Tokens.p6, Tokens.mb8, Tokens.fullWidth]] $ do
+  Card.section Card.Header [] $ do
     Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between"]] $ do
       Lucid.div_ $ do
         Lucid.h1_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb2]] "EDIT BLOG POST"

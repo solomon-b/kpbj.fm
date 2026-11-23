@@ -10,6 +10,7 @@ where
 
 import API.Links (apiLinks, userLinks)
 import API.Types
+import Component.Card qualified as Card
 import Component.PageHeader (pageHeader)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -49,7 +50,7 @@ template mDisplayName mFullName mEmailAddress _redirectLink =
    in Lucid.div_
         [class_ $ base ["max-w-2xl", "mx-auto"]]
         do
-          Lucid.div_ [class_ $ base [Tokens.bgMain, "p-8"]] do
+          Card.card Card.Auth [] do
             pageHeader "CREATE ACCOUNT"
 
             -- Registration form using form builder

@@ -11,6 +11,7 @@ where
 
 import API.Links (userLinks)
 import API.Types
+import Component.Card qualified as Card
 import Component.PageHeader (pageHeader)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -38,7 +39,7 @@ template token =
    in Lucid.div_
         [class_ $ base [Tokens.fullWidth, "max-w-md", "mx-auto"]]
         do
-          Lucid.div_ [class_ $ base [Tokens.bgMain, "p-8"]] do
+          Card.card Card.Auth [] do
             pageHeader "RESET PASSWORD"
 
             -- Instructions

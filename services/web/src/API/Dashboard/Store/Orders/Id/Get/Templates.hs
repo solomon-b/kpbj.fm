@@ -16,8 +16,10 @@ where
 
 import API.Links (dashboardStoreOrdersLinks, rootLink)
 import API.Types (DashboardStoreOrdersRoutes (..))
+import Component.Badge qualified as Badge
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTableWithBodyId, rowAttrs)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -83,30 +85,16 @@ renderOrderHeader order =
 
 renderStatusBadge :: Orders.OrderStatus -> Lucid.Html ()
 renderStatusBadge status =
-  let (bgClass, textClass) = statusColors status
-   in Lucid.span_
-        [ class_ $
-            base
-              [ "inline-block",
-                "px-3",
-                "py-1",
-                Tokens.textSm,
-                Tokens.fontBold,
-                "rounded",
-                bgClass,
-                textClass
-              ]
-        ]
-        $ Lucid.toHtml (display status)
+  Badge.badge Badge.Regular (statusTone status) $ Lucid.toHtml (display status)
 
-statusColors :: Orders.OrderStatus -> (Text, Text)
-statusColors = \case
-  Orders.Pending -> (Tokens.warningBg, Tokens.warningText)
-  Orders.Paid -> (Tokens.infoBg, Tokens.infoText)
-  Orders.Shipped -> (Tokens.infoBg, Tokens.infoText)
-  Orders.Completed -> (Tokens.successBg, Tokens.successText)
-  Orders.Cancelled -> (Tokens.errorBg, Tokens.errorText)
-  Orders.Refunded -> (Tokens.errorBg, Tokens.errorText)
+statusTone :: Orders.OrderStatus -> Badge.Tone
+statusTone = \case
+  Orders.Pending -> Badge.Warning
+  Orders.Paid -> Badge.Info
+  Orders.Shipped -> Badge.Info
+  Orders.Completed -> Badge.Success
+  Orders.Cancelled -> Badge.Error
+  Orders.Refunded -> Badge.Error
 
 renderItemsTable :: [OrderItems.Model] -> Lucid.Html ()
 renderItemsTable items =
@@ -114,45 +102,41 @@ renderItemsTable items =
     Lucid.h2_
       [class_ $ base [Tokens.fontBold, Tokens.mb4, "uppercase", Tokens.textSm, Tokens.fgMuted]]
       "Items"
-    Lucid.table_ [class_ $ base ["w-full", "border", Tokens.borderDefault]] $ do
-      Lucid.thead_ $ do
-        Lucid.tr_
-          [class_ $ base [Tokens.bgAlt, Tokens.textSm, Tokens.fontBold, "uppercase"]]
-          $ do
-            Lucid.th_ (thAttrs AlignLeft) "Product"
-            Lucid.th_ (thAttrs AlignLeft) "Variant"
-            Lucid.th_ (thAttrs AlignRight) "Qty"
-            Lucid.th_ (thAttrs AlignRight) "Unit Price"
-            Lucid.th_ (thAttrs AlignRight) "Total"
-      Lucid.tbody_ $ mapM_ renderItemRow items
+    renderTableWithBodyId
+      "order-items-table-body"
+      TableConfig
+        { headers =
+            [ ColumnHeader "Product" AlignLeft,
+              ColumnHeader "Variant" AlignLeft,
+              ColumnHeader "Qty" AlignRight,
+              ColumnHeader "Unit Price" AlignRight,
+              ColumnHeader "Total" AlignRight
+            ],
+          wrapperClass = "overflow-x-auto",
+          tableClass = "w-full"
+        }
+      (mapM_ renderItemRow items)
 
 renderItemRow :: OrderItems.Model -> Lucid.Html ()
 renderItemRow item =
   let lineTotal = Cents (item.oiUnitPriceCents.unCents * item.oiQuantity)
-   in Lucid.tr_
-        [class_ $ base ["border-t", Tokens.borderMuted]]
-        $ do
-          Lucid.td_ (tdAttrs AlignLeft) $ Lucid.toHtml item.oiProductName
-          Lucid.td_ (tdAttrs AlignLeft) $ Lucid.toHtml item.oiVariantLabel
-          Lucid.td_ (tdAttrs AlignRight) $ Lucid.toHtml (display item.oiQuantity)
-          Lucid.td_ (tdAttrs AlignRight) $ Lucid.toHtml (Cents.formatDisplay item.oiUnitPriceCents)
-          Lucid.td_ (tdAttrs AlignRight) $ Lucid.toHtml (Cents.formatDisplay lineTotal)
+      rowId = "order-item-" <> display item.oiId
+   in Lucid.tr_ (rowAttrs rowId) $ do
+        Lucid.td_ (cellAttrs AlignLeft) $ Lucid.toHtml item.oiProductName
+        Lucid.td_ (cellAttrs AlignLeft) $ Lucid.toHtml item.oiVariantLabel
+        Lucid.td_ (cellAttrs AlignRight) $ Lucid.toHtml (display item.oiQuantity)
+        Lucid.td_ (cellAttrs AlignRight) $ Lucid.toHtml (Cents.formatDisplay item.oiUnitPriceCents)
+        Lucid.td_ (cellAttrs AlignRight) $ Lucid.toHtml (Cents.formatDisplay lineTotal)
 
-data ColAlign = AlignLeft | AlignRight
-
-thAttrs :: ColAlign -> [Lucid.Attributes]
-thAttrs align =
-  [ class_ $ base ([Tokens.p2, Tokens.textSm] <> alignClass align)
-  ]
-
-tdAttrs :: ColAlign -> [Lucid.Attributes]
-tdAttrs align =
-  [ class_ $ base ([Tokens.p2, Tokens.textSm] <> alignClass align)
-  ]
-
-alignClass :: ColAlign -> [Text]
-alignClass AlignLeft = ["text-left"]
-alignClass AlignRight = ["text-right"]
+-- | A cell of the items table. The cell aligns with its column header.
+cellAttrs :: ColumnAlign -> [Lucid.Attributes]
+cellAttrs align = [class_ $ base [Tokens.p4, Tokens.textSm, alignClass]]
+  where
+    alignClass :: Text
+    alignClass = case align of
+      AlignLeft -> "text-left"
+      AlignRight -> "text-right"
+      AlignCenter -> "text-center"
 
 renderShippingAddress :: Orders.Model -> Lucid.Html ()
 renderShippingAddress order =
