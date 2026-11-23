@@ -6,6 +6,8 @@ module API.User.VerifyEmailSent.Get.Templates.Page (template) where
 
 import API.Links (userLinks)
 import API.Types (UserRoutes (loginGet, verifyEmailResendPost))
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.Card qualified as Card
 import Data.String.Interpolate (i)
 import Data.Text (Text)
@@ -91,10 +93,8 @@ template mEmail = do
                   Lucid.name_ "email",
                   Lucid.value_ (display email)
                 ]
-              Lucid.button_
-                [ Lucid.type_ "submit",
-                  class_ $ base [Tokens.fullWidth, "flex", "justify-center", "py-3", Tokens.px4, Tokens.border2, Tokens.borderDefault, Tokens.textSm, Tokens.fontBold, Tokens.fgPrimary, Tokens.bgMain, Tokens.hoverBg, "transition-colors"]
-                ]
+              Button.render
+                (Button.defaults & Button.muted & Button.large & Button.square & Button.fullWidth & Button.submit)
                 "Resend Verification Email"
 
     -- Login link
