@@ -16,6 +16,8 @@ where
 
 import API.Links (storeApiLinks, storeLinks)
 import API.Types (StoreApiRoutes (..), StoreRoutes (..))
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.Field qualified as Field
 import Component.Input qualified as Input
 import Component.PageHeader (pageHeader)
@@ -203,12 +205,18 @@ renderShippingSection =
 
     -- Get Shipping Rates button
     Lucid.div_ [class_ $ base [Tokens.mt4]]
-      $ Lucid.button_
-        [ Lucid.type_ "button",
-          xOn_ "click" "fetchShippingRates()",
-          makeAttributes ":disabled" "!isAddressComplete || loadingRates",
-          class_ $ base [Tokens.buttonPrimary, "w-full", "uppercase", "disabled:opacity-50", "disabled:cursor-not-allowed"]
-        ]
+      $ Button.render
+        ( Button.defaults
+            & Button.accent
+            & Button.large
+            & Button.square
+            & Button.fullWidth
+            & Button.with
+              [ xOn_ "click" "fetchShippingRates()",
+                makeAttributes ":disabled" "!isAddressComplete || loadingRates",
+                class_ $ base ["uppercase"]
+              ]
+        )
       $ Lucid.span_ [xText_ "loadingRates ? 'Loading Rates...' : 'Get Shipping Rates'"] "Get Shipping Rates"
 
 -- | Inline error banner shown on the rates step when session creation fails.

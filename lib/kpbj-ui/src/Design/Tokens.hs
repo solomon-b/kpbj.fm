@@ -110,7 +110,6 @@ module Design.Tokens
 
     -- * Component Patterns
     cardBase,
-    buttonPrimary,
     linkText,
     navLink,
 
@@ -427,10 +426,6 @@ fullWidth = "w-full"
 -- | Base card styling.
 cardBase :: Text
 cardBase = cls [bgMain]
-
--- | Primary button styling.
-buttonPrimary :: Text
-buttonPrimary = cls [Theme.accent, Theme.accentFg, Theme.accentHover, px4, md px6, py2, md "py-3", fontBold]
 
 -- | Text link styling.
 linkText :: Text
