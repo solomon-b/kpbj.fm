@@ -109,7 +109,7 @@ template backend post author tags renderedContent = do
                   "KPBJ " <> show (UserMetadata.mUserRole author) <> " • " <> Text.unpack (display (UserMetadata.mFullName author))
 
   -- Navigation
-  Lucid.div_ [Lucid.class_ "mt-8 text-center"] $ do
+  Lucid.div_ [class_ $ base [Tokens.mt8, "text-center"]] $ do
     Lucid.a_
       [ Lucid.href_ [i|/#{blogGetUrl}|],
         hxGet_ [i|/#{blogGetUrl}|],

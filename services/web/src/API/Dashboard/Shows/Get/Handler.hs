@@ -125,7 +125,7 @@ filtersUI queryFilter statusFilter deletedView = do
     [ hxGet_ dashboardShowsGetUrl,
       hxTarget_ "#main-content",
       hxPushUrl_ "true",
-      Lucid.class_ "flex items-center gap-3"
+      class_ $ base ["flex", "items-center", Tokens.gap3]
     ]
     $ do
       -- Search input

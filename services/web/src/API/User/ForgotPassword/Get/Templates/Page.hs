@@ -63,7 +63,7 @@ successTemplate =
   Lucid.div_ [class_ $ base [Tokens.fullWidth, "max-w-md", "mx-auto"]] $ do
     Card.card Card.Auth [] $ do
       -- Success icon
-      Lucid.div_ [Lucid.class_ "text-center"] $ do
+      Lucid.div_ [class_ $ base ["text-center"]] $ do
         Lucid.div_ [class_ $ base ["mx-auto", "h-16", "w-16", "flex", "items-center", "justify-center", "rounded-full", Tokens.successBg]] $ do
           Lucid.span_ [class_ $ base [Tokens.successText, "text-3xl"]] "✓"
 

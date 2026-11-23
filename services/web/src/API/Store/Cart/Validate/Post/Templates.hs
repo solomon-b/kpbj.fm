@@ -216,7 +216,7 @@ renderThumbnail backend mImagePath altText =
         Lucid.img_
           [ Lucid.src_ (buildMediaUrl backend path'),
             Lucid.alt_ altText,
-            Lucid.class_ "w-full h-full object-cover"
+            class_ $ base [Tokens.fullWidth, "h-full", "object-cover"]
           ]
       Nothing ->
         Lucid.div_

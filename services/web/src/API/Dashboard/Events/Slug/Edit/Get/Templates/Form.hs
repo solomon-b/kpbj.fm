@@ -179,7 +179,7 @@ renderFormHeader event userMeta eventBackUrl = do
           " • "
           Lucid.strong_ "Editor: "
           Lucid.toHtml userMeta.mDisplayName
-      Lucid.div_ [Lucid.class_ "space-x-4"] $ do
+      Lucid.div_ [class_ $ base ["space-x-4"]] $ do
         Lucid.a_
           [ Lucid.href_ [i|/#{eventBackUrl}|],
             hxGet_ [i|/#{eventBackUrl}|],

@@ -15,7 +15,7 @@ import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
 import Data.String.Interpolate (i)
 import Data.Text (Text)
-import Design (base, class_, tablet)
+import Design (base, class_, class_', tablet)
 import Design.FormStyles (formBuilderCSS)
 import Design.Theme (defaultTheme, getTheme, themeCSS)
 import Design.Tokens qualified as Tokens
@@ -95,7 +95,7 @@ desktopMusicPlayer =
               Lucid.max_ "100",
               xModel_ "volume",
               xOnInput_ "setVolume($event.target.value)",
-              Lucid.class_ "w-20 h-1"
+              class_ $ base ["w-20", "h-1"]
             ]
       -- Line 2: Now playing info
       Lucid.div_ [class_ $ base ["flex", "items-center", "justify-center", Tokens.gap4, Tokens.textSm, "font-mono"]] $ do
@@ -904,7 +904,7 @@ mobileNavLink label url =
 
 -- | Navigation link classes with theme support
 navLinkDark :: Text
-navLinkDark = Tokens.navLink <> " " <> Tokens.fgPrimary
+navLinkDark = class_' $ base [Tokens.navLink, Tokens.fgPrimary]
 
 navigation :: Lucid.Html ()
 navigation =

@@ -61,7 +61,7 @@ template ::
   Lucid.Html ()
 template backend product' images optionTypes optionValues variants variantOptions = do
   Lucid.div_
-    [ Lucid.class_ "max-w-4xl mx-auto",
+    [ class_ $ base ["max-w-4xl", "mx-auto"],
       xData_ (alpineState backend product' images optionTypes optionValues variants variantOptions)
     ]
     $ do
@@ -95,10 +95,10 @@ renderBreadcrumb productName =
         hxGet_ [i|/#{storeListUrl}|],
         hxTarget_ "#main-content",
         hxPushUrl_ "true",
-        Lucid.class_ "hover:underline"
+        class_ $ base ["hover:underline"]
       ]
       "Store"
-    Lucid.span_ [Lucid.class_ "mx-2"] "/"
+    Lucid.span_ [class_ $ base ["mx-2"]] "/"
     Lucid.span_ [] $ Lucid.toHtml productName
 
 --------------------------------------------------------------------------------
@@ -123,7 +123,7 @@ renderImageGallery backend images' =
             [ xBindSrc_ "images[selectedImageIndex].url",
               Lucid.src_ (buildMediaUrl backend firstImage.piImagePath),
               Lucid.alt_ firstImage.piAltText,
-              Lucid.class_ "w-full h-full object-cover"
+              class_ $ base [Tokens.fullWidth, "h-full", "object-cover"]
             ]
 
         -- Thumbnails (only if more than one image)
@@ -133,11 +133,11 @@ renderImageGallery backend images' =
               $ Lucid.button_
                 [ xOnClick_ "selectedImageIndex = idx",
                   xBindClass_ "idx === selectedImageIndex ? 'border-2 border-[var(--theme-fg-primary)] opacity-100' : 'border border-[var(--theme-border-muted)] opacity-60 hover:opacity-100'",
-                  Lucid.class_ "w-16 h-16 overflow-hidden flex-shrink-0 transition-opacity"
+                  class_ $ base ["w-16", "h-16", "overflow-hidden", "flex-shrink-0", "transition-opacity"]
                 ]
               $ Lucid.img_
                 [ xBindSrc_ "img.url",
-                  Lucid.class_ "w-full h-full object-cover"
+                  class_ $ base [Tokens.fullWidth, "h-full", "object-cover"]
                 ]
 
 --------------------------------------------------------------------------------

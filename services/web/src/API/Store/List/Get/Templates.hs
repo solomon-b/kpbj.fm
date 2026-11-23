@@ -24,7 +24,7 @@ template :: StorageBackend -> [Products.ProductWithHeroImage] -> Lucid.Html ()
 template backend products = do
   pageHeader "STORE"
 
-  Lucid.section_ [Lucid.id_ "store-content-container", Lucid.class_ "w-full"] $ do
+  Lucid.section_ [Lucid.id_ "store-content-container", class_ $ base [Tokens.fullWidth]] $ do
     Lucid.p_
       [class_ $ base [Tokens.fgMuted, Tokens.textSm, Tokens.mb6, "text-center"]]
       "Support KPBJ \x2014 all proceeds go directly to the station."

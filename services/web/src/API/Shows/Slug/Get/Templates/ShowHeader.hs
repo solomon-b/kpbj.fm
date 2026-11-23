@@ -43,7 +43,7 @@ renderShowHeader backend showModel hosts schedules tags = do
           case showModel.logoUrl of
             Just logoPath -> do
               let logoAlt = showModel.title <> " logo"
-              Lucid.img_ [Lucid.src_ (buildMediaUrl backend logoPath), Lucid.alt_ logoAlt, Lucid.class_ "w-full h-full object-cover"]
+              Lucid.img_ [Lucid.src_ (buildMediaUrl backend logoPath), Lucid.alt_ logoAlt, class_ $ base [Tokens.fullWidth, "h-full", "object-cover"]]
             Nothing -> "[SHOW IMAGE]"
 
       -- Show Info

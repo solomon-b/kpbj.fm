@@ -236,7 +236,7 @@ renderStatusBadge = \case
 renderEmptyState :: Maybe Text -> Lucid.Html ()
 renderEmptyState maybeQuery = do
   Lucid.div_ [class_ $ base [Tokens.bgMain, Tokens.fgMuted, "p-12", "text-center"]] $ do
-    Lucid.p_ [Lucid.class_ "text-xl"] $
+    Lucid.p_ [class_ $ base [Tokens.textXl]] $
       case maybeQuery of
         Nothing -> "No users found."
         Just query -> Lucid.toHtml $ "No users found matching \"" <> query <> "\"."

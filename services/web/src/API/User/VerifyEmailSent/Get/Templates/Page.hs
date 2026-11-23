@@ -10,6 +10,8 @@ import Component.Card qualified as Card
 import Data.String.Interpolate (i)
 import Data.Text (Text)
 import Data.Text.Display (display)
+import Design (base, class_)
+import Design.Tokens qualified as Tokens
 import Domain.Types.EmailAddress (EmailAddress)
 import Lucid qualified
 import Lucid.HTMX
@@ -40,34 +42,34 @@ template :: Maybe EmailAddress -> Lucid.Html ()
 template mEmail = do
   Card.card Card.Auth ["max-w-md", "w-full", "space-y-8"] $ do
     -- Email icon
-    Lucid.div_ [Lucid.class_ "text-center"] $ do
-      Lucid.div_ [Lucid.class_ "mx-auto h-16 w-16 flex items-center justify-center rounded-full bg-[var(--theme-info-bg)]"] $ do
-        Lucid.span_ [Lucid.class_ "text-[var(--theme-info-text)] text-3xl"] "✉"
+    Lucid.div_ [class_ $ base ["text-center"]] $ do
+      Lucid.div_ [class_ $ base ["mx-auto", "h-16", "w-16", "flex", "items-center", "justify-center", "rounded-full", "bg-[var(--theme-info-bg)]"]] $ do
+        Lucid.span_ [class_ $ base ["text-[var(--theme-info-text)]", Tokens.text3xl]] "✉"
 
     -- Title
     Lucid.h1_
-      [Lucid.class_ "mt-6 text-center text-2xl font-bold text-[var(--theme-fg)]"]
+      [class_ $ base [Tokens.mt6, "text-center", Tokens.text2xl, Tokens.fontBold, Tokens.fgPrimary]]
       "Check Your Email"
 
     -- Message
-    Lucid.div_ [Lucid.class_ "mt-4 text-center text-[var(--theme-fg-muted)]"] $ do
+    Lucid.div_ [class_ $ base [Tokens.mt4, "text-center", Tokens.fgMuted]] $ do
       case mEmail of
         Nothing -> do
           Lucid.p_ "We've sent you a verification email."
         Just email -> do
           Lucid.p_ $ do
             "We've sent a verification email to:"
-          Lucid.p_ [Lucid.class_ "font-semibold text-[var(--theme-fg)] mt-2"] $
+          Lucid.p_ [class_ $ base [Tokens.fontSemibold, Tokens.fgPrimary, Tokens.mt2]] $
             Lucid.toHtml (display email)
 
     Lucid.p_
-      [Lucid.class_ "mt-4 text-center text-[var(--theme-fg-muted)]"]
+      [class_ $ base [Tokens.mt4, "text-center", Tokens.fgMuted]]
       "Please click the link in the email to verify your account."
 
     -- Instructions
-    Lucid.div_ [Lucid.class_ "mt-6 p-4 bg-[var(--theme-bg-alt)] border border-[var(--theme-border-muted)]"] $ do
-      Lucid.h3_ [Lucid.class_ "font-semibold text-[var(--theme-fg)] text-sm"] "Didn't receive the email?"
-      Lucid.ul_ [Lucid.class_ "mt-2 text-sm text-[var(--theme-fg-muted)] space-y-1"] $ do
+    Lucid.div_ [class_ $ base [Tokens.mt6, Tokens.p4, Tokens.bgAlt, "border", Tokens.borderMuted]] $ do
+      Lucid.h3_ [class_ $ base [Tokens.fontSemibold, Tokens.fgPrimary, Tokens.textSm]] "Didn't receive the email?"
+      Lucid.ul_ [class_ $ base [Tokens.mt2, Tokens.textSm, Tokens.fgMuted, "space-y-1"]] $ do
         Lucid.li_ "• Check your spam or junk folder"
         Lucid.li_ "• Make sure your email address is correct"
         Lucid.li_ "• Wait a few minutes and check again"
@@ -76,9 +78,9 @@ template mEmail = do
     case mEmail of
       Nothing -> pure ()
       Just email -> do
-        Lucid.div_ [Lucid.id_ "resend-container", Lucid.class_ "mt-6"] $ do
+        Lucid.div_ [Lucid.id_ "resend-container", class_ $ base [Tokens.mt6]] $ do
           Lucid.form_
-            [ Lucid.class_ "space-y-4",
+            [ class_ $ base ["space-y-4"],
               hxPost_ resendUrl,
               hxTarget_ "#resend-container",
               hxSwap_ "innerHTML"
@@ -91,15 +93,15 @@ template mEmail = do
                 ]
               Lucid.button_
                 [ Lucid.type_ "submit",
-                  Lucid.class_ "w-full flex justify-center py-3 px-4 border-2 border-[var(--theme-border)] text-sm font-bold text-[var(--theme-fg)] bg-[var(--theme-bg)] hover:bg-[var(--theme-hover-bg)] transition-colors"
+                  class_ $ base [Tokens.fullWidth, "flex", "justify-center", "py-3", Tokens.px4, Tokens.border2, Tokens.borderDefault, Tokens.textSm, Tokens.fontBold, Tokens.fgPrimary, Tokens.bgMain, "hover:bg-[var(--theme-hover-bg)]", "transition-colors"]
                 ]
                 "Resend Verification Email"
 
     -- Login link
-    Lucid.p_ [Lucid.class_ "mt-6 text-center text-sm text-[var(--theme-fg-muted)]"] $ do
+    Lucid.p_ [class_ $ base [Tokens.mt6, "text-center", Tokens.textSm, Tokens.fgMuted]] $ do
       "Already verified? "
       Lucid.a_
         [ Lucid.href_ loginUrl,
-          Lucid.class_ "font-semibold text-[var(--theme-fg)] hover:underline"
+          class_ $ base [Tokens.fontSemibold, Tokens.fgPrimary, "hover:underline"]
         ]
         "Log in"

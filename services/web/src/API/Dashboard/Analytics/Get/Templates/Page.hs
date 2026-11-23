@@ -49,7 +49,7 @@ template range mCurrentListeners analytics = do
           -- Live listener count
           Lucid.span_ [class_ $ base ["flex", "items-center", Tokens.gap2]] $ do
             Lucid.span_
-              [ Lucid.class_ "w-2 h-2 rounded-full animate-pulse",
+              [ class_ $ base ["w-2", "h-2", "rounded-full", "animate-pulse"],
                 Lucid.style_ "background: var(--theme-success);"
               ]
               mempty
@@ -85,7 +85,7 @@ template range mCurrentListeners analytics = do
               Lucid.span_ [] $ do
                 Lucid.span_ [class_ $ base [Tokens.fgMuted]] "avg: "
                 Lucid.span_ [class_ $ base [Tokens.fontBold]] (Lucid.toHtml (show analytics.listeners.avg))
-          Lucid.div_ [Lucid.class_ "h-36"] $
+          Lucid.div_ [class_ $ base ["h-36"]] $
             chartCanvas "listeners-chart" analytics.listeners.series
 
         -- Archive plays chart panel
@@ -95,7 +95,7 @@ template range mCurrentListeners analytics = do
             Lucid.div_ [class_ $ base [Tokens.textXs]] $ do
               Lucid.span_ [class_ $ base [Tokens.fgMuted]] "total: "
               Lucid.span_ [class_ $ base [Tokens.fontBold]] (Lucid.toHtml (show analytics.archivePlays.total))
-          Lucid.div_ [Lucid.class_ "h-36"] $
+          Lucid.div_ [class_ $ base ["h-36"]] $
             chartCanvas "plays-chart" analytics.archivePlays.series
 
       -- Top episodes list
@@ -209,7 +209,7 @@ newsletterPanel nl =
         Lucid.span_ [] $ do
           Lucid.span_ [class_ $ base [Tokens.fgMuted]] "new: "
           Lucid.span_ [class_ $ base [Tokens.fontBold]] (Lucid.toHtml (show nl.new))
-    Lucid.div_ [Lucid.class_ "h-36"] $
+    Lucid.div_ [class_ $ base ["h-36"]] $
       chartCanvas "newsletter-chart" nl.series
     when (nl.total == 0) $
       Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted]] "No data in this period."

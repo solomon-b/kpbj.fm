@@ -30,6 +30,7 @@ import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time (Day, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Design (base, class_)
 import Domain.Types.HxRequest (HxRequest (..), foldHxReq)
 import Domain.Types.Limit (Limit)
 import Domain.Types.Offset (Offset)
@@ -158,12 +159,12 @@ handler showSlug maybePage (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
             renderScheduleInfo schedules
             case nextShow of
               Just upcoming -> do
-                Lucid.span_ [Lucid.class_ "mx-2"] "•"
+                Lucid.span_ [class_ $ base ["mx-2"]] "•"
                 Lucid.span_ [] $ do
                   "Next: "
                   Lucid.toHtml $ Text.pack $ formatTime defaultTimeLocale "%b %d" (ShowSchedule.usdShowDate upcoming)
               Nothing -> mempty
-            Lucid.span_ [Lucid.class_ "mx-2"] "•"
+            Lucid.span_ [class_ $ base ["mx-2"]] "•"
           else mempty
         Lucid.span_ [] $ Lucid.toHtml $ show (length episodes) <> " episodes"
 

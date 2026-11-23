@@ -40,7 +40,7 @@ renderShowCard backend s = do
       hxGet_ [i|/#{showGetUrl showSlug}|],
       hxTarget_ "#main-content",
       hxPushUrl_ "true",
-      Lucid.class_ "block"
+      class_ $ base ["block"]
     ]
     $ do
       -- Show Image (or gray placeholder)
@@ -51,7 +51,7 @@ renderShowCard backend s = do
             Lucid.img_
               [ Lucid.src_ (buildMediaUrl backend logoUrl),
                 Lucid.alt_ logoAlt,
-                Lucid.class_ "w-full h-full object-cover"
+                class_ $ base [Tokens.fullWidth, "h-full", "object-cover"]
               ]
           Nothing ->
             Lucid.div_ [class_ $ base [Tokens.fullWidth, "h-full", Tokens.bgAlt]] mempty

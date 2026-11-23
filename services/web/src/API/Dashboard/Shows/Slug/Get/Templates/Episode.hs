@@ -51,7 +51,7 @@ renderLatestEpisode backend showModel episode tracks = do
           Just artworkPath -> Lucid.img_ [Lucid.src_ (buildMediaUrl backend artworkPath), Lucid.alt_ "Episode artwork", class_ $ base [Tokens.fullWidth, "h-full", "object-cover"]]
           Nothing -> "[EP IMG]"
 
-      Lucid.div_ [Lucid.class_ "flex-grow"] $ do
+      Lucid.div_ [class_ $ base ["flex-grow"]] $ do
         let epNum = episode.episodeNumber
             epUrl = episodeDetailUrl showModel.slug epNum
         Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb2]] $ do
@@ -60,7 +60,7 @@ renderLatestEpisode backend showModel episode tracks = do
               hxGet_ [i|/#{epUrl}|],
               hxTarget_ "#main-content",
               hxPushUrl_ "true",
-              Lucid.class_ "hover:underline"
+              class_ $ base ["hover:underline"]
             ]
             $ Lucid.toHtml (show epNum)
         Lucid.div_ [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb2]] $ do
@@ -186,7 +186,7 @@ renderLatestEpisode backend showModel episode tracks = do
     renderTrack track = do
       Lucid.div_ [class_ $ base ["flex", "justify-between", Tokens.p2, Tokens.hoverBg]] $ do
         Lucid.div_ $ do
-          Lucid.span_ [Lucid.class_ "font-medium"] $ "\"" <> Lucid.toHtml track.title <> "\""
+          Lucid.span_ [class_ $ base [Tokens.fontMedium]] $ "\"" <> Lucid.toHtml track.title <> "\""
           " - "
           Lucid.span_ $ Lucid.toHtml track.artist
 
@@ -201,7 +201,7 @@ renderEpisodeCard backend showModel episode = do
         Nothing -> "[EP IMG]"
 
     -- Episode info
-    Lucid.div_ [Lucid.class_ "flex-grow"] $ do
+    Lucid.div_ [class_ $ base ["flex-grow"]] $ do
       let epNum = episode.episodeNumber
           epUrl = episodeDetailUrl showModel.slug epNum
       Lucid.h3_ [class_ $ base [Tokens.textLg, Tokens.fontBold, Tokens.mb2]] $ do
@@ -210,7 +210,7 @@ renderEpisodeCard backend showModel episode = do
             hxGet_ [i|/#{epUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            Lucid.class_ "hover:underline"
+            class_ $ base ["hover:underline"]
           ]
           $ Lucid.toHtml (show epNum)
 
@@ -229,7 +229,7 @@ renderEpisodeCard backend showModel episode = do
           -- Strip Markdown first, so the cut does not split a link or a marker.
           let plainDesc = markdownToPlainText desc
               truncatedDesc = Text.take 200 plainDesc
-          Lucid.p_ [Lucid.class_ "text-sm mb-4"] $
+          Lucid.p_ [class_ $ base [Tokens.textSm, Tokens.mb4]] $
             Lucid.toHtml $
               truncatedDesc <> if Text.length plainDesc > 200 then "..." else ""
         Nothing -> mempty

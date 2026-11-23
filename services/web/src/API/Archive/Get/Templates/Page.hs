@@ -37,7 +37,7 @@ template ::
 template backend episodes currentPage hasMore = do
   pageHeader "ARCHIVE"
 
-  Lucid.section_ [Lucid.id_ "archive-episodes-content-container", Lucid.class_ "w-full"] $ do
+  Lucid.section_ [Lucid.id_ "archive-episodes-content-container", class_ $ base [Tokens.fullWidth]] $ do
     -- Grid container with stable ID for HTMX appending
     Lucid.div_
       [ Lucid.id_ "archive-episodes-list",

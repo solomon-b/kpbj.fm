@@ -154,10 +154,9 @@ renderEphemeralUploadRow backend isStaffOrAdmin ephemeralUpload =
             renderFlagActions ephemeralUploadIdText [i|/#{flagUrl}|] rowTarget $ do
               editButton
               deleteButton
-      -- Dim flagged rows
-      rowOpacity = if isFlagged then "opacity-60" else ""
    in do
-        Lucid.tr_ (rowAttrs rowId <> [Lucid.class_ rowOpacity | isFlagged]) $ do
+        -- Dim flagged rows
+        Lucid.tr_ (rowAttrs rowId <> [class_ $ base ["opacity-60"] | isFlagged]) $ do
           -- Title cell
           Lucid.td_ [class_ $ base [Tokens.p4]] $ do
             Lucid.span_ [Lucid.class_ Tokens.fontBold] $

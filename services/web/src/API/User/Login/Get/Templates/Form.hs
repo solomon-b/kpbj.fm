@@ -92,7 +92,7 @@ rememberMeRow :: Lucid.Html ()
 rememberMeRow =
   Lucid.div_ [class_ $ base ["flex", "items-center", "justify-between", Tokens.textSm, "mb-4"]] do
     Lucid.div_ [class_ $ base ["flex", "items-center"]] do
-      Lucid.input_ [Lucid.type_ "checkbox", Lucid.id_ "remember", Lucid.name_ "remember", Lucid.class_ "mr-2"]
+      Lucid.input_ [Lucid.type_ "checkbox", Lucid.id_ "remember", Lucid.name_ "remember", class_ $ base ["mr-2"]]
       Lucid.label_ [Lucid.for_ "remember"] "Remember me"
     Lucid.a_
       [ Lucid.href_ [i|/#{userForgotPasswordGetUrl}|],

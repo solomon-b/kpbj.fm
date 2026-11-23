@@ -35,7 +35,7 @@ renderInlineAudioPlayer audioUrl =
       Lucid.audio_
         [ xRef_ "audioPlayer",
           Lucid.src_ audioUrl,
-          Lucid.class_ "hidden"
+          class_ $ base ["hidden"]
         ]
         mempty
       -- Play/Pause button
@@ -59,13 +59,13 @@ renderInlineAudioPlayer audioUrl =
         $ do
           -- Play icon (shown when not playing)
           Lucid.i_
-            [ Lucid.class_ [i|fa-solid fa-play #{Tokens.fgMuted}|],
+            [ class_ $ base ["fa-solid", "fa-play", Tokens.fgMuted],
               Lucid.term "x-show" "!playing"
             ]
             mempty
           -- Pause icon (shown when playing)
           Lucid.i_
-            [ Lucid.class_ [i|fa-solid fa-pause #{Tokens.fgMuted}|],
+            [ class_ $ base ["fa-solid", "fa-pause", Tokens.fgMuted],
               Lucid.term "x-show" "playing"
             ]
             mempty

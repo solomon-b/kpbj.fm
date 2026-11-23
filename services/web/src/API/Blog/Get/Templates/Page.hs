@@ -46,12 +46,12 @@ template backend currentTime blogPosts currentPage hasMore maybeTag = do
   -- Blog Header
   pageHeader "BLOG"
 
-  Lucid.section_ [Lucid.id_ "blog-posts-content-container", Lucid.class_ "w-full"] $ do
+  Lucid.section_ [Lucid.id_ "blog-posts-content-container", class_ $ base [Tokens.fullWidth]] $ do
     -- Items container with stable ID for HTMX appending
     Lucid.div_ [Lucid.id_ "blog-posts-list", class_ $ base [Tokens.fullWidth, "space-y-8"]] $ do
       if null blogPosts
         then Lucid.div_ [Lucid.class_ Tokens.cardBase] $ do
-          Lucid.div_ [Lucid.class_ "text-center"] $ do
+          Lucid.div_ [class_ $ base ["text-center"]] $ do
             Lucid.h2_ [class_ $ base [Tokens.headingLg, Tokens.mb4]] "No Blog Posts Yet"
             Lucid.p_ [Lucid.class_ Tokens.fgMuted] "Check back soon for updates from the KPBJ community!"
         else traverse_ (renderStationBlogPostCard backend currentTime) blogPosts

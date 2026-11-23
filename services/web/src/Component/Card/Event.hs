@@ -126,7 +126,7 @@ renderTitle variant event = do
             hxGet_ [i|/#{eventUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            Lucid.class_ "hover:underline"
+            class_ $ base ["hover:underline"]
           ]
           $ Lucid.toHtml event.emTitle
     Detail ->
