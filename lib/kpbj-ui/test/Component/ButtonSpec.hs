@@ -47,6 +47,11 @@ spec = describe "Component.Button" $ do
       mapM_ (\c -> classes `shouldContain` [c]) [Tokens.bgAlt, Tokens.hoverBg]
       classes `shouldNotContain` ["hover:opacity-80"]
 
+    it "renders a bare button with the text color of its tone, a hover background, and no fill" $ do
+      let classes = classList (render (Button.defaults & Button.bare Info) "LOGIN")
+      mapM_ (\c -> classes `shouldContain` [c]) [Tokens.infoText, Tokens.hoverBg]
+      filter (Text.isPrefixOf "bg-") classes `shouldBe` []
+
   describe "standard output" $ do
     it "renders a primary submit with these exact classes" $
       render (Button.defaults & Button.primary & Button.submit) "Save"

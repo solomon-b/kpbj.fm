@@ -76,7 +76,7 @@ buttons =
     kind <- kinds
   ]
   where
-    styles = [Primary, Secondary, Danger, Accent, Muted] <> map Tinted [minBound .. maxBound]
+    styles = [Primary, Secondary, Danger, Accent, Muted] <> map Tinted [minBound .. maxBound] <> map Bare [minBound .. maxBound]
     kinds =
       [Action, Submit, DashboardLink "/x", PageLink "/x", LabelFor "x"]
         <> map (Toggle "open") styles

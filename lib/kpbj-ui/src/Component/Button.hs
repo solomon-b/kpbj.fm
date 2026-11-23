@@ -49,6 +49,7 @@ module Component.Button
     tinted,
     accent,
     muted,
+    bare,
     small,
     large,
     square,
@@ -103,9 +104,12 @@ data ButtonStyle
   | -- | A quiet action on the alternate background, such as the cancel link
     -- of a public form.
     Muted
+  | -- | A quiet action with no fill, in the text color of its tone, such as
+    -- the link below a public form to a different form.
+    Bare Tone
   deriving stock (Eq, Show)
 
--- | The status color of a 'Tinted' button.
+-- | The status color of a 'Tinted' or 'Bare' button.
 data Tone
   = Success
   | Warning
@@ -224,6 +228,9 @@ accent = style .~ Accent
 muted :: Spec -> Spec
 muted = style .~ Muted
 
+bare :: Tone -> Spec -> Spec
+bare tone = style .~ Bare tone
+
 small :: Spec -> Spec
 small = size .~ Small
 
@@ -329,6 +336,10 @@ colorClasses = \case
   Tinted Info -> [tint "info", Tokens.infoText, fade]
   Accent -> [Theme.accent, Theme.accentFg, "hover:opacity-90"]
   Muted -> [Tokens.bgAlt, Tokens.fgPrimary, Tokens.hoverBg]
+  Bare Success -> [Tokens.successText, Tokens.hoverBg]
+  Bare Warning -> [Tokens.warningText, Tokens.hoverBg]
+  Bare Error -> [Tokens.errorText, Tokens.hoverBg]
+  Bare Info -> [Tokens.infoText, Tokens.hoverBg]
   where
     fade :: Text
     fade = "hover:opacity-80"
@@ -352,8 +363,9 @@ styles = from Primary
       Secondary -> s : from Danger
       Danger -> s : from Accent
       Accent -> s : from Muted
-      Muted -> s : map Tinted [minBound .. maxBound]
+      Muted -> s : map Tinted [minBound .. maxBound] <> map Bare [minBound .. maxBound]
       Tinted _ -> []
+      Bare _ -> []
 
 --------------------------------------------------------------------------------
 -- Rendering
