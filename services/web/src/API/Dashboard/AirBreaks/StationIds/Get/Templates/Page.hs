@@ -48,7 +48,7 @@ template ::
   Lucid.Html ()
 template backend stationIds (PageNumber pageNum) hasMore _userMeta = do
   -- Station IDs table or empty state
-  Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden", Tokens.mb8]] $
+  Card.section Card.TablePanel [Tokens.mb8] $
     if null stationIds
       then renderEmptyState
       else

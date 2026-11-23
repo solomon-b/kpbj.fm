@@ -14,6 +14,7 @@ import API.Types
 import Component.Badge qualified as Badge
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Card qualified as Card
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -56,7 +57,7 @@ template ::
   Lucid.Html ()
 template viewerId viewerRole now users currentPage hasMore maybeQuery maybeRoleFilter sortBy = do
   -- User table or empty state
-  Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden", Tokens.mb8]] $
+  Card.section Card.TablePanel [Tokens.mb8] $
     if null users
       then renderEmptyState maybeQuery
       else

@@ -23,6 +23,8 @@ where
 
 --------------------------------------------------------------------------------
 
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Data.Aeson (FromJSON, ToJSON, (.=))
 import Data.Aeson qualified as Aeson
 import Data.String.Interpolate (i)
@@ -331,11 +333,8 @@ renderEditableCell fieldName trackProp =
 renderDeleteCell :: Lucid.Html ()
 renderDeleteCell =
   Lucid.td_ [class_ $ base [Tokens.p3, "text-center"]] $
-    Lucid.button_
-      [ Lucid.type_ "button",
-        xOnClick_ "removeTrack(index)",
-        class_ $ base [Tokens.errorText, "hover:opacity-80", Tokens.fontBold, "text-lg"]
-      ]
+    Button.render
+      (Button.defaults & Button.danger & Button.small & Button.with [xOnClick_ "removeTrack(index)"])
       "×"
 
 --------------------------------------------------------------------------------

@@ -17,6 +17,7 @@ import API.Links (dashboardUnderwritersLinks)
 import API.Types (DashboardUnderwritersRoutes (..))
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Card qualified as Card
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -42,7 +43,7 @@ tableBodyId = "underwriters-table-body"
 -- | The whole page.
 template :: [Underwriters.Model] -> Lucid.Html ()
 template underwriters =
-  Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden", Tokens.mb8]] $ do
+  Card.section Card.TablePanel [Tokens.mb8] $ do
     renderAddForm
     renderIndexTable
       IndexTableConfig

@@ -602,11 +602,8 @@ renderReplayTimePicker =
                   "No matching times \x2014 try \"8:00 PM\" or \"8p\""
         -- Clear button
         Lucid.template_ [xIf_ "slot.replayTime"] $
-          Lucid.button_
-            [ Lucid.type_ "button",
-              xOnClick_ "clearReplayTime()",
-              class_ $ base [Tokens.textSm, Tokens.fontBold, Tokens.errorText, "hover:opacity-80", Tokens.px4, Tokens.py2]
-            ]
+          Button.render
+            (Button.defaults & Button.danger & Button.with [xOnClick_ "clearReplayTime()"])
             "CLEAR"
 
 --------------------------------------------------------------------------------

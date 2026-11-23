@@ -53,7 +53,7 @@ template page revisions = do
   if null revisions
     then renderEmptyState
     else
-      Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden", Tokens.mb8]] $
+      Card.section Card.TablePanel [Tokens.mb8] $
         renderIndexTable
           IndexTableConfig
             { itcBodyId = "revisions-table-body",

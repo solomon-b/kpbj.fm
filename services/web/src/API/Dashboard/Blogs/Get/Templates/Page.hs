@@ -11,6 +11,7 @@ where
 import API.Dashboard.Blogs.Get.Templates.BlogPostRow (renderBlogPostTableRow)
 import API.Links (dashboardBlogsLinks)
 import API.Types
+import Component.Card qualified as Card
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -42,7 +43,7 @@ template = renderBlogSection
 -- | Blog posts table section
 renderBlogSection :: Maybe Shows.Model -> [ShowBlogPosts.Model] -> Int64 -> Bool -> Lucid.Html ()
 renderBlogSection selectedShow blogPosts currentPage hasMore = do
-  Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden"]] $
+  Card.section Card.TablePanel [] $
     case (blogPosts, selectedShow) of
       ([], _) ->
         renderEmptyState

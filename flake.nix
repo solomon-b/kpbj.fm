@@ -250,6 +250,7 @@
               easypost-http
               mailchimp-http
               google-service-account
+              kpbj-ui
               sync-host-emails
               sync-schedule-calendar;
           };

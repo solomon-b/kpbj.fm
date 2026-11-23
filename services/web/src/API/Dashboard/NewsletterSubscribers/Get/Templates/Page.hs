@@ -51,7 +51,7 @@ template ::
   Maybe Text ->
   Lucid.Html ()
 template subscribers total currentPage hasMore mSearch =
-  Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden", Tokens.mb8]] $
+  Card.section Card.TablePanel [Tokens.mb8] $
     if total == 0
       then renderEmptyState mSearch
       else

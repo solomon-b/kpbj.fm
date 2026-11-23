@@ -119,9 +119,10 @@ spec = describe "Component.Button" $ do
       html `shouldSatisfy` Text.isInfixOf "title=\"b\""
 
     it "adds the classes from an attribute to the button classes" $ do
-      let classes = classList (render (Button.defaults & Button.with [Lucid.class_ "absolute"]) "x")
-      classes `shouldContain` ["absolute"]
-      classes `shouldContain` [Tokens.bgButton]
+      let html = render (Button.defaults & Button.with [Lucid.class_ "absolute"]) "x"
+      Text.count "class=" html `shouldBe` 1
+      classList html `shouldContain` ["absolute"]
+      classList html `shouldContain` [Tokens.bgButton]
 
   describe "kinds" $ do
     it "renders a plain button by default" $ do

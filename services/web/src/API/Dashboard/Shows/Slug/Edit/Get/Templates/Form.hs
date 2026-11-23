@@ -162,7 +162,7 @@ renderFormHeader userMeta showModel = do
             hxGet_ [i|/#{showBackUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            class_ $ base ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]
+            class_ $ base [Tokens.infoText, Tokens.hoverBg, Tokens.textSm, "underline"]
           ]
           "VIEW SHOW"
         Lucid.a_
@@ -170,7 +170,7 @@ renderFormHeader userMeta showModel = do
             hxGet_ [i|/#{dashboardShowsGetUrl}|],
             hxTarget_ "#main-content",
             hxPushUrl_ "true",
-            class_ $ base ["text-blue-300", "hover:text-blue-100", Tokens.textSm, "underline"]
+            class_ $ base [Tokens.infoText, Tokens.hoverBg, Tokens.textSm, "underline"]
           ]
           "ALL SHOWS"
 
