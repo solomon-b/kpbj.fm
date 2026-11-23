@@ -10,6 +10,8 @@ where
 
 import API.Links (storeLinks)
 import API.Types (StoreRoutes (..))
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Control.Monad (unless, when)
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
@@ -246,13 +248,18 @@ renderAddToCartButton :: Products.Model -> Lucid.Html ()
 renderAddToCartButton product' = do
   let productId = Products.unId product'.pId
   Lucid.div_ [class_ $ base [Tokens.mb6]] $ do
-    Lucid.button_
-      [ Lucid.type_ "button",
-        class_ $ base [Tokens.fullWidth, Tokens.buttonPrimary, "text-center", "transition-colors"],
-        xOnClick_ [i|addToCart(#{productId})|],
-        xBindDisabled_ "!canAddToCart()",
-        xBindClass_ "!canAddToCart() ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'"
-      ]
+    Button.render
+      ( Button.defaults
+          & Button.accent
+          & Button.large
+          & Button.square
+          & Button.fullWidth
+          & Button.with
+            [ xOnClick_ [i|addToCart(#{productId})|],
+              xBindDisabled_ "!canAddToCart()",
+              xBindClass_ "!canAddToCart() ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'"
+            ]
+      )
       $ Lucid.span_ [xText_ "added ? 'ADDED \\u2713' : 'ADD TO CART'"] "ADD TO CART"
 
 --------------------------------------------------------------------------------

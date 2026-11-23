@@ -13,6 +13,8 @@ where
 import API.Dashboard.Invitations.Get.Templates.Page (formatDateTime, formatStartDate, renderScheduleSummary, renderStatusBadge)
 import API.Links (apiLinks, dashboardInvitationsLinks, inviteLinks, rootLink, userLinks)
 import API.Types (DashboardInvitationsRoutes (..), InviteRoutes (..), Routes (..), UserRoutes (..))
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Component.Card qualified as Card
 import Component.Form.Hints (markdownHint)
 import Data.Aeson (Value)
@@ -160,11 +162,14 @@ step1 recipientEmail scheduleData startsOn =
     -- HTML5 constraint validation; reportValidity surfaces the first
     -- invalid field's native browser tooltip.
     Lucid.div_ [class_ $ base [Tokens.mt8]] $
-      Lucid.button_
-        [ Lucid.type_ "button",
-          xOnClick_ "if (Array.from(document.querySelectorAll('#step1-fields input, #step1-fields select, #step1-fields textarea')).every(el => el.reportValidity())) { step = 2 }",
-          class_ $ base [Tokens.buttonPrimary, Tokens.fullWidth]
-        ]
+      Button.render
+        ( Button.defaults
+            & Button.accent
+            & Button.large
+            & Button.square
+            & Button.fullWidth
+            & Button.with [xOnClick_ "if (Array.from(document.querySelectorAll('#step1-fields input, #step1-fields select, #step1-fields textarea')).every(el => el.reportValidity())) { step = 2 }"]
+        )
         "Next: Set Up Your Show \x2192"
 
     -- Login link
@@ -233,10 +238,14 @@ step2 scheduleData startsOn =
           class_ $ base [Tokens.bgAlt, Tokens.fgPrimary, Tokens.px6, Tokens.py2, Tokens.fontBold, "border", Tokens.borderMuted, Tokens.hoverBg]
         ]
         "\x2190 Back"
-      Lucid.button_
-        [ Lucid.type_ "submit",
-          class_ $ base [Tokens.buttonPrimary, "flex-1"]
-        ]
+      Button.render
+        ( Button.defaults
+            & Button.accent
+            & Button.large
+            & Button.square
+            & Button.submit
+            & Button.with [class_ $ base ["flex-1"]]
+        )
         "Create Account & Show"
 
 --------------------------------------------------------------------------------
@@ -406,11 +415,14 @@ alreadyLoggedInTemplate recipientEmail =
         [class_ $ base [Tokens.fgMuted, Tokens.mb8]]
         "To claim it with a new account, log out and then open this invitation link again."
       Lucid.div_ [class_ $ base ["flex", "flex-col", "items-center", Tokens.gap4]] $ do
-        Lucid.a_
-          [ Lucid.href_ logoutUrl,
-            hxGet_ logoutUrl,
-            class_ $ base [Tokens.buttonPrimary, "inline-block"]
-          ]
+        Button.render
+          ( Button.defaults
+              & Button.accent
+              & Button.large
+              & Button.square
+              & Button.pageLink logoutUrl
+              & Button.with [hxGet_ logoutUrl, class_ $ base ["inline-block"]]
+          )
           "LOG OUT"
         Lucid.a_
           [ Lucid.href_ homeUrl,

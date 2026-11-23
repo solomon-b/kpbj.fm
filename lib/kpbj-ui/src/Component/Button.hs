@@ -1,9 +1,9 @@
 {-# LANGUAGE QuasiQuotes #-}
 
--- | Buttons for the dashboard and the form builder.
+-- | Buttons for the dashboard, the form builder, and the public pages.
 --
--- Every dashboard button and every form builder button renders through this
--- module. A caller describes a button with a 'Spec': its style by the purpose
+-- Every dashboard button, every form builder button, and the main buttons of
+-- the public pages render through this module. A caller describes a button with a 'Spec': its style by the purpose
 -- of the action, its size, its corners, its width, its kind (a button, a
 -- submit, a link, a label, or a toggle), and its extra attributes. A caller
 -- starts from 'defaults', changes it with the named modifiers or with the

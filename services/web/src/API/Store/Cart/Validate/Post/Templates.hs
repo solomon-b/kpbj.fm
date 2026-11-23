@@ -15,6 +15,8 @@ where
 
 import API.Links (storeLinks)
 import API.Types (StoreRoutes (..))
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BSL
 import Data.Foldable (for_, traverse_)
@@ -92,13 +94,20 @@ template backend items warnings = do
     "Shipping calculated at checkout."
 
   -- Checkout button
-  Lucid.a_
-    [ Lucid.href_ [i|/#{checkoutUrl}|],
-      hxGet_ [i|/#{checkoutUrl}|],
-      hxTarget_ "#main-content",
-      hxPushUrl_ "true",
-      class_ $ base [Tokens.fullWidth, Tokens.buttonPrimary, "text-center", "block", Tokens.mb4]
-    ]
+  Button.render
+    ( Button.defaults
+        & Button.accent
+        & Button.large
+        & Button.square
+        & Button.fullWidth
+        & Button.pageLink [i|/#{checkoutUrl}|]
+        & Button.with
+          [ hxGet_ [i|/#{checkoutUrl}|],
+            hxTarget_ "#main-content",
+            hxPushUrl_ "true",
+            class_ $ base ["text-center", "block", Tokens.mb4]
+          ]
+    )
     "CHECKOUT"
 
   -- Continue shopping link

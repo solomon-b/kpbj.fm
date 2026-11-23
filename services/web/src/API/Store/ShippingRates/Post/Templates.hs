@@ -14,6 +14,8 @@ where
 
 --------------------------------------------------------------------------------
 
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Data.Foldable (for_)
 import Data.Int (Int64)
 import Data.Scientific (Scientific)
@@ -94,19 +96,17 @@ template shipment rates subtotal taxRate =
                     ]
               ]
               "\x2190 Back"
-            Lucid.button_
-              [ Lucid.type_ "button",
-                makeAttributes ":disabled" "selectedRateId === null || loading",
-                xOn_ "click" "proceedToPayment()",
-                class_ $
-                  base
-                    [ Tokens.buttonPrimary,
-                      "flex-1",
-                      "uppercase",
-                      "disabled:opacity-50",
-                      "disabled:cursor-not-allowed"
+            Button.render
+              ( Button.defaults
+                  & Button.accent
+                  & Button.large
+                  & Button.square
+                  & Button.with
+                    [ makeAttributes ":disabled" "selectedRateId === null || loading",
+                      xOn_ "click" "proceedToPayment()",
+                      class_ $ base ["flex-1", "uppercase"]
                     ]
-              ]
+              )
               $ Lucid.span_ [xText_ "loading ? 'Processing...' : 'Proceed to Payment'"] "Proceed to Payment"
 
 -- | Render a message when no rates are available.

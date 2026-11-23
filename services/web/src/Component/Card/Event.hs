@@ -16,6 +16,8 @@ where
 
 import API.Links (eventsLinks)
 import API.Types
+import Component.Button ((&))
+import Component.Button qualified as Button
 import Data.Foldable (for_)
 import Data.String.Interpolate (i)
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -174,11 +176,17 @@ renderTicketLink variant event =
   case (variant, event.emTicketUrl) of
     (Detail, Just ticketUrl) ->
       Lucid.div_ [class_ $ base [Tokens.mt4]] $
-        Lucid.a_
-          [ Lucid.href_ ticketUrl,
-            Lucid.target_ "_blank",
-            Lucid.rel_ "noopener noreferrer",
-            class_ $ base [Tokens.buttonPrimary, "inline-block"]
-          ]
+        Button.render
+          ( Button.defaults
+              & Button.accent
+              & Button.large
+              & Button.square
+              & Button.pageLink ticketUrl
+              & Button.with
+                [ Lucid.target_ "_blank",
+                  Lucid.rel_ "noopener noreferrer",
+                  class_ $ base ["inline-block"]
+                ]
+          )
           "GET TICKETS"
     _ -> pure ()
