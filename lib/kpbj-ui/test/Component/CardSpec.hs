@@ -36,6 +36,14 @@ spec = describe "Component.Card" $ do
     classSet (Card.card Inset [] "x")
       `shouldBe` sort ["bg-[var(--theme-bg-alt)]", "border-2", "border-[var(--theme-border-muted)]", "p-4"]
 
+  it "renders a table panel card with the old classes" $
+    classSet (Card.card TablePanel [] "x")
+      `shouldBe` sort ["bg-[var(--theme-bg)]", "rounded", "overflow-hidden"]
+
+  it "renders a table panel section with a bottom margin" $
+    render (Card.section TablePanel ["mb-8"] "x")
+      `shouldBe` "<section class=\"bg-[var(--theme-bg)] rounded overflow-hidden mb-8\">x</section>"
+
   it "adds the extra classes of the caller" $
     classSet (Card.card Auth ["text-center"] "x")
       `shouldBe` sort ["bg-[var(--theme-bg)]", "p-8", "text-center"]

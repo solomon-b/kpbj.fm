@@ -57,7 +57,7 @@ template ::
   Lucid.Html ()
 template isAdmin deletedView theShowList currentPage hasMore maybeQuery maybeStatusFilter = do
   -- Shows table or empty state
-  Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden", Tokens.mb8]] $
+  Card.section Card.TablePanel [Tokens.mb8] $
     if null theShowList
       then renderEmptyState deletedView maybeQuery
       else

@@ -18,6 +18,7 @@ import API.Links (dashboardUnderwritingLinks)
 import API.Types (DashboardUnderwritingRoutes (..))
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Card qualified as Card
 import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTableWithBodyId)
 import Control.Monad (forM_)
 import Data.String.Interpolate (i)
@@ -56,7 +57,7 @@ template ::
   [DeliveryRow] ->
   Lucid.Html ()
 template firstDay rows =
-  Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden", Tokens.mb8]] $ do
+  Card.section Card.TablePanel [Tokens.mb8] $ do
     renderMonthNav firstDay
     if null rows
       then

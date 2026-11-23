@@ -52,6 +52,9 @@ data Variant
     Detail
   | -- | A box inside a panel: the alternate background and a muted border.
     Inset
+  | -- | The box around the table of a dashboard list page: the page
+    -- background and rounded corners. It clips the table to the corners.
+    TablePanel
   deriving stock (Eq, Show, Enum, Bounded)
 
 --------------------------------------------------------------------------------
@@ -65,6 +68,7 @@ classes = \case
   Auth -> [Tokens.bgMain, Tokens.p8]
   Detail -> [Tokens.bgMain, "rounded", Tokens.p6]
   Inset -> [Tokens.bgAlt, Tokens.border2, Tokens.borderMuted, Tokens.p4]
+  TablePanel -> [Tokens.bgMain, "rounded", "overflow-hidden"]
 
 --------------------------------------------------------------------------------
 -- Rendering

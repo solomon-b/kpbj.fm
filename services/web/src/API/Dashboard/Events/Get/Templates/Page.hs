@@ -47,7 +47,7 @@ template ::
   Lucid.Html ()
 template events currentPage hasMore = do
   -- Events table or empty state
-  Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden", Tokens.mb8]] $
+  Card.section Card.TablePanel [Tokens.mb8] $
     if null events
       then renderEmptyState
       else

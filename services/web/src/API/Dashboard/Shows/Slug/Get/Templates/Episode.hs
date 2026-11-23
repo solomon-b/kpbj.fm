@@ -174,10 +174,14 @@ renderLatestEpisode backend showModel episode tracks = do
           mapM_ renderTrack (take 4 tracks)
 
           when (length tracks > 4) $ do
-            Lucid.button_
-              [ class_ $ base [Tokens.textXs, Tokens.fgMuted, Tokens.hoverBg, "mt-2"],
-                Lucid.onclick_ "document.getElementById('all-tracks').classList.toggle('hidden')"
-              ]
+            Button.render
+              ( Button.defaults
+                  & Button.small
+                  & Button.with
+                    [ Lucid.onclick_ "document.getElementById('all-tracks').classList.toggle('hidden')",
+                      class_ $ base [Tokens.mt2]
+                    ]
+              )
               $ "+ Show all " <> Lucid.toHtml (show (length tracks)) <> " tracks"
             Lucid.div_ [Lucid.id_ "all-tracks", class_ $ base ["hidden", "space-y-2", "mt-2"]] $ do
               mapM_ renderTrack (drop 4 tracks)

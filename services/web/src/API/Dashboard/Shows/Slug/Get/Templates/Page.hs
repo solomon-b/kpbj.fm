@@ -18,7 +18,8 @@ import Component.Card qualified as Card
 import Component.Card.BlogPost (renderShowBlogPostCard)
 import Control.Monad (unless, when)
 import Data.String.Interpolate (i)
-import Design (base, class_, class_', desktop, tablet)
+import Data.Text (Text)
+import Design (base, class_, desktop, tablet)
 import Design.Tokens qualified as Tokens
 import Domain.Types.StorageBackend (StorageBackend)
 import Effects.Database.Tables.Episodes qualified as Episodes
@@ -46,21 +47,9 @@ template backend showModel episodes hosts schedules blogPosts tags currentPage =
     ]
     $ do
       -- Content Tabs Navigation
-      Lucid.div_ [class_ $ base [Tokens.mb8, Tokens.fullWidth]] $ do
-        Lucid.div_ [class_ $ base ["border-b-2", Tokens.borderDefault]] $ do
-          Lucid.nav_ [class_ $ base ["flex", Tokens.gap8]] $ do
-            Lucid.button_
-              [ xOnClick_ "activeTab = 'episodes'",
-                xBindClass_ [i|activeTab === 'episodes' ? '#{class_' $ base ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", "border-b-2", Tokens.borderDefault, Tokens.bgMain, "-mb-0.5"]}' : '#{class_' $ base ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", Tokens.fgMuted, Tokens.hoverBg]}'|],
-                Lucid.type_ "button"
-              ]
-              "Episodes"
-            Lucid.button_
-              [ xOnClick_ "activeTab = 'blog'",
-                xBindClass_ [i|activeTab === 'blog' ? '#{class_' $ base ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", "border-b-2", Tokens.borderDefault, Tokens.bgMain, "-mb-0.5"]}' : '#{class_' $ base ["py-3", Tokens.px4, Tokens.fontBold, "uppercase", Tokens.fgMuted, Tokens.hoverBg]}'|],
-                Lucid.type_ "button"
-              ]
-              "Blog"
+      Lucid.nav_ [class_ $ base ["flex", Tokens.gap2, Tokens.mb8]] $ do
+        tabButton "episodes" "EPISODES"
+        tabButton "blog" "BLOG"
 
       -- Episodes Tab Content
       Lucid.section_ [Lucid.class_ Tokens.fullWidth, xShow_ "activeTab === 'episodes'"] $ do
@@ -69,6 +58,17 @@ template backend showModel episodes hosts schedules blogPosts tags currentPage =
       -- Blog Tab Content
       Lucid.section_ [Lucid.class_ Tokens.fullWidth, xShow_ "activeTab === 'blog'"] $ do
         renderBlogContent backend showModel blogPosts
+  where
+    -- A tab is a toggle button. It is primary when its tab is open.
+    tabButton :: Text -> Lucid.Html () -> Lucid.Html ()
+    tabButton tabName label =
+      Button.render
+        ( Button.defaults
+            & Button.primary
+            & Button.toggle [i|activeTab === '#{tabName}'|] Button.Secondary
+            & Button.with [xOnClick_ [i|activeTab = '#{tabName}'|]]
+        )
+        label
 
 -- | Number of episodes per page (should match handler)
 episodesPerPage :: Int

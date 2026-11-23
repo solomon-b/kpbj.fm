@@ -328,11 +328,12 @@ renderOptionRow =
           xModel_ "opt.name",
           class_ $ base ["flex-1", Tokens.bgMain, Tokens.fgPrimary, Tokens.border2, Tokens.p2, Tokens.textSm, Tokens.fontBold]
         ]
-      Lucid.button_
-        [ Lucid.type_ "button",
-          xOnClick_ "removeOption(optIdx)",
-          class_ $ base [Tokens.errorText, Tokens.hoverBg, Tokens.textSm, Tokens.fontBold, "px-2", "py-1", "ml-2"]
-        ]
+      Button.render
+        ( Button.defaults
+            & Button.danger
+            & Button.small
+            & Button.with [xOnClick_ "removeOption(optIdx)", class_ $ base ["ml-2"]]
+        )
         "REMOVE"
 
     -- Existing values as tags
@@ -343,11 +344,12 @@ renderOptionRow =
         [class_ $ base ["inline-flex", "items-center", "gap-1", Tokens.border2, "px-2", "py-1", Tokens.textSm]]
       $ do
         Lucid.span_ [xText_ "val"] mempty
-        Lucid.button_
-          [ Lucid.type_ "button",
-            xOnClick_ "removeValue(optIdx, valIdx)",
-            class_ $ base [Tokens.errorText, "ml-1", Tokens.textSm]
-          ]
+        Button.render
+          ( Button.defaults
+              & Button.danger
+              & Button.small
+              & Button.with [xOnClick_ "removeValue(optIdx, valIdx)", class_ $ base ["ml-1"]]
+          )
           "\xd7"
 
     -- Add value input
@@ -439,9 +441,10 @@ renderVariantRow =
 
     -- Delete button
     Lucid.td_ [class_ $ base [Tokens.p2]] $
-      Lucid.button_
-        [ Lucid.type_ "button",
-          xOnClick_ "deleteVariant(vIdx)",
-          class_ $ base [Tokens.errorText, Tokens.textSm, Tokens.fontBold, "px-2", "py-1"]
-        ]
+      Button.render
+        ( Button.defaults
+            & Button.danger
+            & Button.small
+            & Button.with [xOnClick_ "deleteVariant(vIdx)"]
+        )
         "\xd7"

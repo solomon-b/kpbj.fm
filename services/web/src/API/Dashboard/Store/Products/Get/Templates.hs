@@ -10,6 +10,7 @@ import API.Types (DashboardStoreProductsRoutes (..))
 import Component.Badge qualified as Badge
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Card qualified as Card
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -40,7 +41,7 @@ template products =
       xOn_ "show-create.window" "showCreate = true",
       xOn_ "hide-create.window" "showCreate = false"
     ]
-    $ Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden", Tokens.mb8]]
+    $ Card.section Card.TablePanel [Tokens.mb8]
     $ renderIndexTable
       IndexTableConfig
         { itcBodyId = "products-table-body",
@@ -150,11 +151,11 @@ renderInlineCreateRow =
                   ]
             )
             "SAVE"
-          Lucid.button_
-            [ Lucid.type_ "button",
-              xOnClick_ "showCreate = false",
-              class_ $ base [Theme.fgMuted, Tokens.hoverBg, Tokens.textSm, "px-2", "py-1"]
-            ]
+          Button.render
+            ( Button.defaults
+                & Button.small
+                & Button.with [xOnClick_ "showCreate = false"]
+            )
             "\xd7"
 
 -- | Empty row shown when no products exist.

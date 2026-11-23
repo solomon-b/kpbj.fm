@@ -151,6 +151,36 @@ functionName ::
   AppM Result
 ```
 
+### UI Components and Styling
+
+**Where UI code lives.** The shared UI code is in `lib/kpbj-ui`. It has three layers: `Design` < `Component` < `Lucid.Form.Builder`. A layer imports only from the layers below it. `kpbj-ui` depends on no KPBJ package except `lucid-htmx-alpine` and `lucid-tailwind`. A component that only one page or one feature uses stays in `services/web/src/Component`.
+
+**Use a component where one exists.** Do not hand-build a button, an input, a badge, a card, or a dialog.
+
+- `Component.Button`: buttons, button links, labels, and toggles. Start from `Button.defaults` and add modifiers such as `Button.primary`, `Button.small`, `Button.toggle`, and `Button.with`. Build each look from the modifiers in the template. On a public page, the main action is `Button.accent & Button.large & Button.square`, and a secondary action is `Button.muted & Button.large & Button.square`. Put placement classes, such as `absolute`, in `Button.with`.
+- `Component.Badge`: status pills.
+- `Component.Card`: panels, such as a detail panel, an empty state, or the `TablePanel` around a list table.
+- `Component.Modal`: dialogs.
+- `Component.Field`, `Component.Input`, `Component.Choice`: the parts of a form field, the boxed controls, and the checkbox and radio controls.
+- `Component.Table`: list and report tables.
+- `Component.Banner`: flash and status banners (see HTMX Response Patterns).
+- `Component.PageHeader`: the page title on mobile and tablet.
+- `Component.InfiniteScroll`: lists that load more rows on scroll.
+
+**Style with the `Design` DSL.** Write `class_ $ base [...]`, and add `tablet [...]` or `desktop [...]` for responsive classes. Use a `Design.Tokens` token when its output is exactly the class that you need. Add a token only for a design value (a color, a spacing, or a type size) that has no token and appears in 3 or more places. Layout classes such as `flex` get no token. Do not write a raw `Lucid.class_ "…"` with Tailwind classes. Semantic CSS class names such as `fb-*` and `eg-*` are the exception.
+
+**Theme colors.** Theme colors come from CSS variables through the tokens. Do not use Tailwind palette colors such as `gray-*` or `red-*`. Do not use a `--theme-*` variable that the themes do not define. For a status tint, use the `color-mix` token, such as `Tokens.warningBg`. Do not put an opacity modifier on a `var()` color, such as `bg-[var(--theme-warning)]/10`, because Tailwind v3 writes no rule for it.
+
+**Add a variant to a component.**
+
+1. Add a constructor and its exact classes to the component.
+2. Make sure that the component's `safelist` holds the new classes. It feeds `Component.Tailwind.safelist`, which both frames use. In Firefox, the Tailwind Play CDN writes no rule for a class that first appears in an HTMX swap.
+3. Add a render test in `lib/kpbj-ui/test`.
+
+**Form footers.** A public form uses the default `fcFooterLook = PublicFooter`. A dashboard form sets `fcFooterLook = DashboardFooter`.
+
+**The public look.** Every change to the look of a public page needs the approval of the owner. The look of the dashboard can change.
+
 ## Handler Pattern
 
 Each action lives in a directory with three files:

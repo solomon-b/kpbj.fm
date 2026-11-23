@@ -11,6 +11,7 @@ where
 import API.Dashboard.Episodes.Get.Templates.EpisodeRow (renderEpisodeTableRow)
 import API.Links (dashboardEpisodesLinks)
 import API.Types
+import Component.Card qualified as Card
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -43,7 +44,7 @@ template = renderEpisodesSection
 -- | Episodes table section
 renderEpisodesSection :: UserMetadata.Model -> Maybe Shows.Model -> [Episodes.Model] -> Int64 -> Bool -> Lucid.Html ()
 renderEpisodesSection userMeta selectedShow episodes currentPage hasMore = do
-  Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden"]] $
+  Card.section Card.TablePanel [] $
     case (episodes, selectedShow) of
       ([], _) ->
         renderEmptyState

@@ -55,7 +55,7 @@ template ::
 template backend ephemeralUploads (PageNumber pageNum) hasMore userMeta = do
   let isStaffOrAdmin = UserMetadata.isStaffOrHigher userMeta.mUserRole
   -- Ephemeral uploads table or empty state
-  Lucid.section_ [class_ $ base [Tokens.bgMain, "rounded", "overflow-hidden", Tokens.mb8]] $
+  Card.section Card.TablePanel [Tokens.mb8] $
     if null ephemeralUploads
       then renderEmptyState
       else
