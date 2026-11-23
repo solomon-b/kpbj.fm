@@ -15,8 +15,6 @@
 -- >   desktop [T.p8]]
 --
 -- For design tokens (colors, spacing, typography), see "Design.Tokens".
---
--- For Lucid HTML components, see "Design.Lucid".
 module Design
   ( -- * StyleBuilder DSL
     StyleBuilder,

@@ -129,9 +129,8 @@ where
 --------------------------------------------------------------------------------
 
 import Data.Text (Text)
-import Data.Text qualified as Text
-import Design.StyleBuilder.Internal (cls, lg, md)
 import Design.Theme qualified as Theme
+import Lucid.Tailwind (cls, gridCols, lg, md, responsiveGrid)
 
 --------------------------------------------------------------------------------
 -- Typography
@@ -450,30 +449,3 @@ stackToRow = "flex flex-col md:flex-row"
 -- | Row on mobile, stack vertically on tablet+.
 rowToStack :: Text
 rowToStack = "flex flex-row md:flex-col"
-
---------------------------------------------------------------------------------
--- Responsive Grid
-
--- | Generate grid-cols-N class.
---
--- Example:
---
--- > gridCols 3
--- > -- Result: "grid-cols-3"
-gridCols :: Int -> Text
-gridCols n = "grid-cols-" <> Text.pack (show n)
-
--- | Generate a responsive grid class string.
---
--- Example:
---
--- > responsiveGrid 1 2 3
--- > -- Result: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
-responsiveGrid :: Int -> Int -> Int -> Text
-responsiveGrid mobileCols tabletCols desktopCols =
-  cls
-    [ "grid",
-      gridCols mobileCols,
-      md (gridCols tabletCols),
-      lg (gridCols desktopCols)
-    ]

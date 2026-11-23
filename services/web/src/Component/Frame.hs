@@ -945,7 +945,7 @@ template mGoogleAnalyticsId streamSettings mUser mFlash feedLinks main =
       mapM_ renderFeedLink feedLinks
       -- Theme CSS (must be before Tailwind for CSS variable availability)
       -- Use user's theme preference if available, otherwise default theme
-      let theme = maybe defaultTheme (getTheme . UserMetadata.mTheme) mUser
+      let theme = maybe defaultTheme (getTheme . UserMetadata.unThemeName . UserMetadata.mTheme) mUser
       Lucid.style_ [] (themeCSS theme)
       Lucid.link_ [Lucid.rel_ "stylesheet", Lucid.href_ "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.1/css/all.min.css"]
       Lucid.link_ [Lucid.rel_ "stylesheet", Lucid.href_ (rootLink $ staticAssetLink "cropper.min.css")]

@@ -261,7 +261,7 @@ template mGoogleAnalyticsId userMeta mFlash showContext selectorShows activeNav 
       -- HTMX loads the full page again.
       Lucid.meta_ [Lucid.name_ "htmx-config", Lucid.content_ "{\"refreshOnHistoryMiss\":true}"]
       -- Theme CSS (must be before Tailwind for CSS variable availability)
-      let theme = getTheme userMeta.mTheme
+      let theme = getTheme (UserMetadata.unThemeName userMeta.mTheme)
       Lucid.style_ [] (themeCSS theme)
       -- HTMX indicator CSS (hides loading indicators until request in flight)
       Lucid.style_ [] htmxIndicatorStyles
