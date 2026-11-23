@@ -107,6 +107,10 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 - **The nix files have no em-dashes.** The comments in `nixos/*.nix` now use a colon, a comma, or a new sentence. Four strings change with them: the systemd descriptions of the `episode-check` and `watchdog` units, the description of the root disk alert, and the pgBackRest warning for a failed S3 backup.
 
 ### Fixed
+- **The resend and store messages use the theme status colors.** Some messages used fixed Tailwind palette colors, so they did not change with the theme or with dark mode. The changes:
+  - The "Verification email sent!" and "Error" boxes after a resend on the "Check your email" page use the success and error tint, border, and text colors.
+  - The checkout error box and the box for a failed shipping rate request have the theme error border.
+  - The "OUT OF STOCK" label on the store product cards and on a product page uses the theme error color.
 - **The toggle switch follows the theme.** The toggle in `forms.css` had fixed gray and white colors. The track now uses the muted border color, and the knob uses the page background. In the default light theme these are the same gray and white, so it looks the same there. In dark mode and in the other color schemes, the toggle now matches the page. Only the dashboard event forms use the toggle.
 - **Three show pages use their border and hover tokens.** Ten class lists had a token name inside a string, such as `"Tokens.borderMuted"`, so the page got that text in place of the class. The changes:
   - On the shows list, the search field, the three filter selects, and the Clear button have the muted theme border in place of the default gray border.

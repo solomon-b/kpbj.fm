@@ -216,7 +216,7 @@ renderCheckoutError :: Lucid.Html ()
 renderCheckoutError =
   Lucid.div_
     [ xShow_ "checkoutError",
-      class_ $ base [Tokens.border2, "border-red-500", Tokens.p4, Tokens.mb4]
+      class_ $ base [Tokens.border2, Tokens.errorBorder, Tokens.p4, Tokens.mb4]
     ]
     $ Lucid.p_
       [class_ $ base [Tokens.fgPrimary], xText_ "checkoutError"]
@@ -409,7 +409,7 @@ checkoutAlpineState mStripeKey =
     })
     .catch(err => {
       document.getElementById('shipping-rates').innerHTML =
-        '<div class="border-2 border-red-500 p-4">Failed to load shipping rates. Please try again.</div>';
+        '<div class="border-2 border-[var(--theme-error)] p-4">Failed to load shipping rates. Please try again.</div>';
       this.loadingRates = false;
     });
   },

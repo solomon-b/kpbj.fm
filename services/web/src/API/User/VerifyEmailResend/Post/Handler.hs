@@ -67,13 +67,13 @@ handler form = do
 -- | Success message fragment returned to HTMX.
 successMessage :: Lucid.Html ()
 successMessage =
-  Lucid.div_ [class_ $ base [Tokens.p4, "bg-green-50", "border", "border-green-200", "text-green-800"]] $ do
+  Lucid.div_ [class_ $ base [Tokens.p4, Tokens.successBg, "border", Tokens.successBorder, Tokens.successText]] $ do
     Lucid.p_ [class_ $ base [Tokens.fontSemibold]] "Verification email sent!"
     Lucid.p_ [class_ $ base [Tokens.textSm, "mt-1"]] "Please check your inbox and spam folder."
 
 -- | Error message fragment returned to HTMX.
 errorMessage :: Text -> Lucid.Html ()
 errorMessage msg =
-  Lucid.div_ [class_ $ base [Tokens.p4, "bg-red-50", "border", "border-red-200", "text-red-800"]] $ do
+  Lucid.div_ [class_ $ base [Tokens.p4, Tokens.errorBg, "border", Tokens.errorBorder, Tokens.errorText]] $ do
     Lucid.p_ [class_ $ base [Tokens.fontSemibold]] "Error"
     Lucid.p_ [class_ $ base [Tokens.textSm, "mt-1"]] $ Lucid.toHtml msg
