@@ -132,7 +132,7 @@ renderImageGallery backend images' =
             Lucid.template_ [xFor_ "(img, idx) in images"]
               $ Lucid.button_
                 [ xOnClick_ "selectedImageIndex = idx",
-                  xBindClass_ "idx === selectedImageIndex ? 'border-2 border-[var(--theme-fg-primary)] opacity-100' : 'border border-[var(--theme-border-muted)] opacity-60 hover:opacity-100'",
+                  xBindClass_ "idx === selectedImageIndex ? 'border-2 border-[var(--theme-fg)] opacity-100' : 'border border-[var(--theme-border-muted)] opacity-60 hover:opacity-100'",
                   class_ $ base ["w-16", "h-16", "overflow-hidden", "flex-shrink-0", "transition-opacity"]
                 ]
               $ Lucid.img_
