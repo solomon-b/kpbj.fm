@@ -310,9 +310,10 @@ group =
 
 -- | Every class that 'render' can give a button.
 --
--- The dashboard frame puts these classes in the safelist of the Tailwind CDN
--- config. In Firefox, the CDN does not write the rule for a class that first
--- appears in an HTMX swap, and some button classes appear on one page only.
+-- "Component.Tailwind" puts these classes in the safelist of the Tailwind CDN
+-- config that every frame uses. In Firefox, the CDN does not write the rule
+-- for a class that first appears in an HTMX swap, and some button classes
+-- appear on one page only.
 safelist :: [Text]
 safelist =
   baseClasses

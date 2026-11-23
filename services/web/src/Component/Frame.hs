@@ -10,6 +10,7 @@ import App.CustomContext (StreamConfig (..))
 import Component.Banner (bannerContainer, bannerContainerId, bannerTemplates)
 import Component.FeedLink (FeedLink, renderFeedLink)
 import Component.Flash (FlashMessage, renderFlash)
+import Component.Tailwind qualified as Tailwind
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
 import Data.String.Interpolate (i)
@@ -953,7 +954,7 @@ template mGoogleAnalyticsId streamSettings mUser mFlash feedLinks main =
       Lucid.script_ [Lucid.src_ (rootLink $ staticAssetLink "cropper.min.js")] (mempty @Text)
       Lucid.script_ [Lucid.src_ (rootLink $ staticAssetLink "htmx.min.js")] (mempty @Text)
       Lucid.script_ [Lucid.src_ (rootLink $ staticAssetLink "alpine.min.js"), Lucid.defer_ "true"] (mempty @Text)
-      Lucid.script_ [] ("tailwind.config = { darkMode: 'class', theme: { fontFamily: { sans: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'], mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'] } } }" :: Text)
+      Tailwind.configScript
       Lucid.script_ [] playerScript
       Lucid.script_ [] cartStoreScript
       Lucid.script_ [] (darkModeScript (UserMetadata.mColorScheme <$> mUser))
