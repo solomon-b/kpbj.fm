@@ -2048,15 +2048,16 @@ renderDateInputField inputType errorMessage field = do
       cfg = fConfig field
       val = fValidation field
       isReq = vcRequired val
+      isDisabled = fcDisabled cfg
       hasVal = needsValidation field
       capName = capitalizeFirst name
 
   Field.field [] $ do
     -- Label
     Field.label
-      Field.Enabled
+      (labelState isDisabled)
       [Lucid.for_ name]
-      (Lucid.toHtml $ fromMaybe name (fcLabel cfg) <> if isReq then " *" else "")
+      (Lucid.toHtml $ fromMaybe name (fcLabel cfg) <> if isReq && not isDisabled then " *" else "")
 
     -- Date input
     Input.input $
@@ -2066,7 +2067,7 @@ renderDateInputField inputType errorMessage field = do
       ]
         <> maybe [] (\v -> [Lucid.value_ v]) (fcInitialValue cfg)
         <> [Lucid.required_ "" | isReq]
-        <> [Lucid.disabled_ "" | fcDisabled cfg]
+        <> [Lucid.disabled_ "" | isDisabled]
         <> if hasVal
           then
             [ xModel_ ("fields." <> name <> ".value"),
@@ -2092,15 +2093,16 @@ renderNumberField field minVal maxVal step = do
       cfg = fConfig field
       val = fValidation field
       isReq = vcRequired val
+      isDisabled = fcDisabled cfg
       hasVal = needsValidation field
       capName = capitalizeFirst name
 
   Field.field [] $ do
     -- Label
     Field.label
-      Field.Enabled
+      (labelState isDisabled)
       [Lucid.for_ name]
-      (Lucid.toHtml $ fromMaybe name (fcLabel cfg) <> if isReq then " *" else "")
+      (Lucid.toHtml $ fromMaybe name (fcLabel cfg) <> if isReq && not isDisabled then " *" else "")
 
     -- Number input
     Input.input $
@@ -2113,7 +2115,7 @@ renderNumberField field minVal maxVal step = do
         <> maybe [] (\n -> [Lucid.max_ (Text.pack $ show n)]) maxVal
         <> maybe [] (\n -> [Lucid.step_ (Text.pack $ show n)]) step
         <> [Lucid.required_ "" | isReq]
-        <> [Lucid.disabled_ "" | fcDisabled cfg]
+        <> [Lucid.disabled_ "" | isDisabled]
         <> if hasVal
           then
             [ xModel_ ("fields." <> name <> ".value"),
@@ -2187,7 +2189,7 @@ renderToggleField field = do
   Field.field [] $ do
     -- Optional main label
     forM_ (fcLabel cfg) $ \lbl ->
-      Field.label Field.Enabled [] (Lucid.toHtml lbl)
+      Field.label (labelState isDisabled) [] (Lucid.toHtml lbl)
 
     -- Toggle container with Alpine.js state
     Lucid.div_
