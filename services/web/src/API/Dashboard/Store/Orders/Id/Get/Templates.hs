@@ -14,9 +14,9 @@ where
 
 --------------------------------------------------------------------------------
 
+import API.Dashboard.Store.Orders.Get.Templates (renderStatusBadge)
 import API.Links (dashboardStoreOrdersLinks, rootLink)
 import API.Types (DashboardStoreOrdersRoutes (..))
-import Component.Badge qualified as Badge
 import Component.Button ((&))
 import Component.Button qualified as Button
 import Component.Table (ColumnAlign (..), ColumnHeader (..), TableConfig (..), renderTableWithBodyId, rowAttrs)
@@ -82,19 +82,6 @@ renderOrderHeader order =
         Lucid.div_
           [class_ $ base [Tokens.textSm, Tokens.fgMuted]]
           $ Lucid.toHtml (display order.oEmail)
-
-renderStatusBadge :: Orders.OrderStatus -> Lucid.Html ()
-renderStatusBadge status =
-  Badge.badge Badge.Regular (statusTone status) $ Lucid.toHtml (display status)
-
-statusTone :: Orders.OrderStatus -> Badge.Tone
-statusTone = \case
-  Orders.Pending -> Badge.Warning
-  Orders.Paid -> Badge.Info
-  Orders.Shipped -> Badge.Info
-  Orders.Completed -> Badge.Success
-  Orders.Cancelled -> Badge.Error
-  Orders.Refunded -> Badge.Error
 
 renderItemsTable :: [OrderItems.Model] -> Lucid.Html ()
 renderItemsTable items =

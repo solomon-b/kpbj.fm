@@ -1,7 +1,11 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module API.Dashboard.Store.Orders.Get.Templates (template) where
+module API.Dashboard.Store.Orders.Get.Templates
+  ( template,
+    renderStatusBadge,
+  )
+where
 
 --------------------------------------------------------------------------------
 
@@ -78,15 +82,20 @@ renderOrderRow order =
           Lucid.div_ [Lucid.class_ Tokens.textSm] $
             Lucid.toHtml (Cents.formatDisplay order.oTotalCents)
 
+-- | The status badge of an order. The order list and the order detail page
+-- both use it, so a status has one tone everywhere.
 renderStatusBadge :: Orders.OrderStatus -> Lucid.Html ()
 renderStatusBadge status =
   Badge.badge Badge.Regular (statusTone status) $ Lucid.toHtml (display status :: Text)
 
+-- | Only a finished order is a success. A shipped order still waits for
+-- delivery, so it is info. A refund is not a failure of the order, as a
+-- cancel is, so it is a warning.
 statusTone :: Orders.OrderStatus -> Badge.Tone
 statusTone = \case
   Orders.Pending -> Badge.Warning
   Orders.Paid -> Badge.Info
-  Orders.Shipped -> Badge.Success
+  Orders.Shipped -> Badge.Info
   Orders.Completed -> Badge.Success
   Orders.Cancelled -> Badge.Error
   Orders.Refunded -> Badge.Warning
