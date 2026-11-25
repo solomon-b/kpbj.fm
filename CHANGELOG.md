@@ -4,7 +4,8 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
-_No changes yet._
+### Added
+- **The track listing editor has a text view for bulk edits.** The new BULK EDIT button below the track table opens a text area that holds the current list, one track per line, as `Artist - Title`. A DJ can paste or edit the full list there. APPLY replaces the full list with the parsed text, and CANCEL discards the text. The first dash that has white space on each side splits a line into the artist and the title. The dash can be a hyphen, an en dash, or an em dash. A line with no such dash becomes a title with no artist, and blank lines drop out. If a DJ saves the episode while the text view is open, the episode gets the tracks of the text. The new episode form and the edit episode form both have the view. All of the work is in the browser, so the server does not change.
 
 ---
 
