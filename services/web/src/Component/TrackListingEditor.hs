@@ -5,6 +5,7 @@
 -- A reusable table-based track editor with:
 -- - Click-to-edit inline editing for title and artist
 -- - Drag-and-drop reordering using native HTML5 APIs
+-- - A text view for bulk edits, one @Artist - Title@ line for each track
 -- - JSON serialization for form submission
 --
 -- Used in both Episode New and Episode Edit forms.
@@ -25,6 +26,7 @@ where
 
 import Component.Button ((&))
 import Component.Button qualified as Button
+import Component.Input qualified as Input
 import Data.Aeson (FromJSON, ToJSON, (.=))
 import Data.Aeson qualified as Aeson
 import Data.String.Interpolate (i)
@@ -96,14 +98,20 @@ render Config {..} = do
       xData_ (alpineState initialTracksJson)
     ]
     $ do
-      -- Track table (always visible, includes add row functionality)
-      renderTrackTable
+      -- Track table (hidden while the text view is open)
+      Lucid.div_ [xShow_ "!bulkOpen"] $ do
+        renderTrackTable
+        renderBulkButton
 
-      -- Hidden JSON field for form submission
+      -- Text view of the same list
+      renderBulkEditor
+
+      -- Hidden JSON field for form submission. An open text view wins, so a
+      -- save without APPLY keeps the text.
       Lucid.input_
         [ Lucid.type_ "hidden",
           Lucid.name_ jsonFieldName,
-          xBindValue_ "JSON.stringify(tracks)"
+          xBindValue_ "JSON.stringify(bulkOpen ? parseTracks(bulkText) : tracks)"
         ]
 
 --------------------------------------------------------------------------------
@@ -120,6 +128,42 @@ alpineState initialTracksJson =
   isTabbing: false,
   draggedIndex: null,
   dragOverIndex: null,
+  bulkOpen: false,
+  bulkText: '',
+
+  formatTracks() {
+    return this.tracks
+      .map(t => t.tiArtist ? t.tiArtist + ' - ' + t.tiTitle : t.tiTitle)
+      .filter(line => line !== '')
+      .join('\\n');
+  },
+
+  parseTracks(text) {
+    return text.split(/\\r?\\n/)
+      .map(line => {
+        const m = line.match(/^(.*?)\\s[-–—]\\s(.*)$/);
+        return m
+          ? { tiArtist: m[1].trim(), tiTitle: m[2].trim() }
+          : { tiArtist: '', tiTitle: line.trim() };
+      })
+      .filter(t => t.tiTitle !== '' || t.tiArtist !== '');
+  },
+
+  openBulk() {
+    this.saveEdit();
+    this.bulkText = this.formatTracks();
+    this.bulkOpen = true;
+  },
+
+  applyBulk() {
+    this.tracks = this.parseTracks(this.bulkText);
+    this.cancelBulk();
+  },
+
+  cancelBulk() {
+    this.bulkOpen = false;
+    this.bulkText = '';
+  },
 
   addTrack() {
     this.tracks.push({ tiTitle: '', tiArtist: '' });
@@ -358,3 +402,38 @@ renderAddRow =
       Lucid.td_ [class_ $ base ["p-2"]] mempty
       -- Empty delete cell
       Lucid.td_ [class_ $ base ["p-2"]] mempty
+
+--------------------------------------------------------------------------------
+-- Bulk Edit
+
+-- | Render the button that opens the text view.
+renderBulkButton :: Lucid.Html ()
+renderBulkButton =
+  Lucid.div_ [class_ $ base [Tokens.mt2]] $
+    Button.render
+      (Button.defaults & Button.secondary & Button.small & Button.with [xOnClick_ "openBulk()"])
+      "BULK EDIT"
+
+-- | Render the text view: one @Artist - Title@ line for each track.
+--
+-- The textarea has no @name@, so the form does not post it. The hidden JSON
+-- field carries the parsed text.
+renderBulkEditor :: Lucid.Html ()
+renderBulkEditor =
+  Lucid.div_ [xShow_ "bulkOpen", xCloak_] $ do
+    Lucid.p_
+      [class_ $ base [Tokens.textSm, Tokens.fgMuted, Tokens.mb2]]
+      "One track per line: Artist - Title. APPLY replaces the full list."
+    Input.textarea
+      [ xModel_ "bulkText",
+        Lucid.rows_ "12",
+        Lucid.placeholder_ "Artist - Title"
+      ]
+      mempty
+    Lucid.div_ [class_ $ base ["flex", Tokens.gap3, Tokens.mt2]] $ do
+      Button.render
+        (Button.defaults & Button.primary & Button.small & Button.with [xOnClick_ "applyBulk()"])
+        "APPLY"
+      Button.render
+        (Button.defaults & Button.secondary & Button.small & Button.with [xOnClick_ "cancelBulk()"])
+        "CANCEL"
