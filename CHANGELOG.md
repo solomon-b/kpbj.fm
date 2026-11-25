@@ -4,6 +4,12 @@ All notable changes to KPBJ 95.9FM are documented in this file.
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [0.14.0] - 2026-11-24
+
 ### Added
 - **`just staging-vulnix` and `just prod-vulnix` scan a server system for known CVEs.** The recipes run the new flake apps `vulnix-staging` and `vulnix-prod`. Each app builds the NixOS system locally and runs `vulnix --closure` on it. The scan covers the runtime closure, which is what runs on the server, and not the packages used only to build it. The scan must run locally because the server has no derivations. Extra arguments go to `vulnix`, for example `just prod-vulnix --json`.
 - **`just staging-vulnix-triage` and `just prod-vulnix-triage` classify each vulnix finding.** The new `scripts/vulnix-triage.sh` collects the evidence for each finding into one JSON bundle. The evidence is the NVD record of each CVE, the patches that nixpkgs applies, the dependency chain from the system to the package, and the package version in the latest stable and unstable nixpkgs. The script also reads the open ports and the nginx routes of the server. Then `claude -p` reads the bundle with no tools and the prompt in `scripts/vulnix-triage-prompt.md`. It gives each CVE a verdict: false match, not affected, patched, fixed by an upgrade, needs action, or unknown. It also writes a draft vulnix whitelist. NVD responses are cached for 7 days. An optional `NVD_API_KEY` makes the first run faster. `--bundle-only` stops after the bundle. The `vulnix-staging` and `vulnix-prod` apps now print the system path to stderr, so `--json` output stays valid JSON.
