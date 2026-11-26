@@ -10,19 +10,24 @@ module API.Playout.Played.Post.HandlerSpec where
 
 import API.Playout.Played.Post.Handler (record)
 import API.Playout.Types (PlayedRequest (..))
+import App.BaseUrl (baseUrl)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Aeson (eitherDecode)
 import Data.Int (Int64)
 import Data.Text qualified as Text
-import Data.Time (UTCTime (..), fromGregorian)
+import Data.Time (DayOfWeek (..), TimeOfDay (..), UTCTime (..), fromGregorian)
+import Domain.Types.Slug (Slug (..))
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Execute (execQuery)
 import Effects.Database.Tables.BreakItems qualified as BreakItems
+import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.PlaybackHistory qualified as PlaybackHistory
+import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
+import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Hasql.Transaction.Sessions qualified as TRX
-import Test.Database.Helpers (insertTestUser, unwrapInsert)
+import Test.Database.Helpers (insertTestEpisode, insertTestShowWithSchedule, insertTestUser, unwrapInsert)
 import Test.Database.Monad (TestDBConfig, withTestDB)
 import Test.Handler.Fixtures (mkUserInsert)
 import Test.Handler.Monad (bracketAppM)
@@ -42,6 +47,8 @@ spec =
       it "records a resumed episode once for one planned start" recordsEpisodeOncePerPlannedStart
       it "records the same break item at two planned starts" recordsTwoPlannedStarts
       it "records a post with no planned start" recordsWithoutPlannedStart
+      it "stores the episode id for a rerun" storesRerunEpisodeId
+      it "stores a rerun with no episode id when its url matches no episode" storesRerunWithoutEpisode
       it "decodes the body that radio.liq sends for a break item" . const $ decodesBreakItemBody
       it "decodes a body with no planned start" . const $ decodesBodyWithoutPlannedStart
 
@@ -226,6 +233,82 @@ recordsWithoutPlannedStart cfg = bracketAppM cfg $ do
   recordOrFail (psaPlayed itemId) {prPlannedStart = Nothing}
   rows <- allRows
   liftIO $ rows `shouldBe` 2
+
+--------------------------------------------------------------------------------
+-- Reruns
+
+-- | Insert a show with a Monday slot and one episode with audio. Returns the
+-- id of the episode.
+seedEarlierEpisode :: AppM Episodes.Id
+seedEarlierEpisode = do
+  userInsert <- liftIO $ mkUserInsert "rerun-host" UserMetadata.Host
+  let showInsert = Shows.Insert "Rerun Show" (Slug "rerun-show") Nothing Nothing Shows.Active
+      template =
+        ShowSchedule.ScheduleTemplateInsert
+          { stiShowId = Shows.Id 0,
+            stiDayOfWeek = Monday,
+            stiWeeksOfMonth = [1, 2, 3, 4, 5],
+            stiStartTime = TimeOfDay 14 0 0,
+            stiEndTime = TimeOfDay 15 0 0,
+            stiTimezone = "America/Los_Angeles",
+            stiReplayStartTime = Nothing
+          }
+  result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+    userId <- insertTestUser userInsert
+    (showId, templateId) <- insertTestShowWithSchedule showInsert template
+    insertTestEpisode
+      Episodes.Insert
+        { Episodes.eiId = showId,
+          Episodes.eiDescription = Nothing,
+          Episodes.eiAudioFilePath = Just "audio/episodes/2024/12/30/rerun-show_2024-12-30_abc.mp3",
+          Episodes.eiAudioFileSize = Just 1024,
+          Episodes.eiAudioMimeType = Just "audio/mpeg",
+          Episodes.eiDurationSeconds = Just 3500,
+          Episodes.eiArtworkUrl = Nothing,
+          Episodes.eiScheduleTemplateId = Just templateId,
+          Episodes.eiAirDate = Just (fromGregorian 2024 12 30),
+          Episodes.eiCreatedBy = userId
+        }
+  case result of
+    Left err -> error ("Setup failed: " <> show err)
+    Right episodeId -> pure episodeId
+
+-- | A rerun that started, with the given url.
+rerunPlayed :: Text.Text -> PlayedRequest
+rerunPlayed url =
+  (psaPlayed "")
+    { prTitle = "Rerun Show",
+      prSourceType = "rerun",
+      prSourceUrl = url,
+      prPlannedStart = plannedAt 3600
+    }
+
+-- | The source type and the episode id of the newest row.
+newestRow :: AppM (Text.Text, Maybe Int64)
+newestRow =
+  execQuery (PlaybackHistory.getRecentPlayback 1) >>= \case
+    Right [row] -> pure (row.phSourceType, row.phEpisodeId)
+    other -> error ("Expected one row, got " <> show other)
+
+storesRerunEpisodeId :: TestDBConfig -> IO ()
+storesRerunEpisodeId cfg = bracketAppM cfg $ do
+  episodeId <- seedEarlierEpisode
+  -- The handler finds the episode from the media url of the test server.
+  appBaseUrl <- baseUrl
+  recordOrFail (rerunPlayed (appBaseUrl <> "/media/audio/episodes/2024/12/30/rerun-show_2024-12-30_abc.mp3"))
+  stored <- newestRow
+  liftIO $ stored `shouldBe` ("rerun", Just (Episodes.unId episodeId))
+
+storesRerunWithoutEpisode :: TestDBConfig -> IO ()
+storesRerunWithoutEpisode cfg = bracketAppM cfg $ do
+  _ <- seedEarlierEpisode
+  -- A media url of the test server, so the handler reaches the episode lookup.
+  appBaseUrl <- baseUrl
+  recordOrFail (rerunPlayed (appBaseUrl <> "/media/audio/episodes/no-such-file.mp3"))
+  stored <- newestRow
+  liftIO $ stored `shouldBe` ("rerun", Nothing)
+
+--------------------------------------------------------------------------------
 
 -- | The body of a break item post, as radio.liq builds it with
 -- @json.stringify@. Every value is a string, the break item id too.

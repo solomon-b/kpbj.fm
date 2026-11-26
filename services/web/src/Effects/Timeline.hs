@@ -1,7 +1,8 @@
 -- | Collect the inputs of the playout timeline from the database.
 --
 -- 'Domain.Timeline.buildTimeline' is pure. This module reads the schedule, the
--- break plans, and the ephemeral pool, and hands them to it.
+-- rerun candidates, the break plans, and the ephemeral pool, and hands them
+-- to it.
 module Effects.Timeline
   ( lookAround,
     timelineAround,
@@ -11,6 +12,7 @@ module Effects.Timeline
 
     -- * Exported for testing
     slotInputs,
+    candidatesByShow,
   )
 where
 
@@ -20,10 +22,12 @@ import App.Monad (AppM)
 import Control.Monad (forM_)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT)
+import Data.Containers.ListUtils (nubOrd)
+import Data.List.NonEmpty (nonEmpty)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
-import Data.Maybe (fromMaybe)
-import Data.Time (Day, NominalDiffTime, UTCTime, addUTCTime)
+import Data.Maybe (fromMaybe, isNothing)
+import Data.Time (Day, NominalDiffTime, UTCTime, addUTCTime, toModifiedJulianDay)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Domain.DayTimeline (TimelineData (..))
 import Domain.Timeline
@@ -34,6 +38,7 @@ import Effects.Database.Tables.BreakPlans qualified as BreakPlans
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
 import Effects.Database.Tables.Episodes qualified as Episodes
 import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
+import Effects.Database.Tables.Shows qualified as Shows
 import Hasql.Pool (UsageError)
 import Log qualified
 
@@ -109,13 +114,21 @@ timelineBetween now from to = runExceptT $ do
   lift $ forM_ droppedWindows $ \window ->
     Log.logAttention "Slot window overlaps an earlier window" (show window)
 
+  -- Only a window with no episode can air a rerun. When every window has an
+  -- episode, the candidate query does not run.
+  let showsWithoutEpisode = nubOrd [w.swShowId | w <- keptWindows, isNothing w.swEpisode]
+  candidates <-
+    if null showsWithoutEpisode
+      then pure Map.empty
+      else candidatesByShow <$> ExceptT (execQuery (Episodes.getRerunCandidates showsWithoutEpisode))
+
   let boundaries = map fst kinds
       tracksInWindow = [t | t <- planned, t.plBoundary >= from, t.plBoundary <= to]
       input =
         TimelineInput
           { tiFrom = from,
             tiTo = to,
-            tiSlots = map toSlotInput keptWindows,
+            tiSlots = map (toSlotInput candidates) keptWindows,
             tiBreaks = toBreakInputs boundaries tracksInWindow,
             tiEphemeral = map toEphemeralCandidate uploads
           }
@@ -154,10 +167,32 @@ plannedTracksOfDay now day =
 --
 -- It drops a window that overlaps an earlier one, and returns the dropped
 -- windows second, so the caller can log them.
-slotInputs :: [Episodes.SlotWindow] -> ([SlotInput], [Episodes.SlotWindow])
-slotInputs windows =
+slotInputs ::
+  -- | The rerun candidates of each show, in episode id order
+  Map Shows.Id [Episodes.RerunCandidate] ->
+  [Episodes.SlotWindow] ->
+  ([SlotInput], [Episodes.SlotWindow])
+slotInputs candidates windows =
   let (kept, dropped) = splitOverlaps windows
-   in (map toSlotInput kept, dropped)
+   in (map (toSlotInput candidates) kept, dropped)
+
+-- | Group rerun candidates by show. Each list keeps the order of the rows.
+--
+-- The rows go in from last to first, and each one goes to the front of the
+-- list of its show. So the build is linear in the number of rows.
+candidatesByShow :: [Episodes.RerunCandidate] -> Map Shows.Id [Episodes.RerunCandidate]
+candidatesByShow rows =
+  Map.fromListWith (++) [(row.rcShowId, [row]) | row <- reverse rows]
+
+-- | The seed of the rerun pick of a slot.
+--
+-- It uses the schedule template and the air date, not the window start. So
+-- the primary window and the replay window of one slot air the same rerun. A
+-- second slot of the show on the same date has its own template, so it gets
+-- its own pick.
+rerunSeed :: ShowSchedule.TemplateId -> Day -> Int
+rerunSeed templateId airDate =
+  fromIntegral (ShowSchedule.unTemplateId templateId) * 100003 + fromIntegral (toModifiedJulianDay airDate)
 
 -- | Split time-ordered windows into the kept ones and the dropped ones.
 --
@@ -173,15 +208,29 @@ splitOverlaps = go [] []
       _ -> go (window : kept) dropped rest
 
 -- | Convert one window to the input of the timeline.
-toSlotInput :: Episodes.SlotWindow -> SlotInput
-toSlotInput window =
+--
+-- A window with no episode airs a rerun: one rerun candidate of the show
+-- with an air date before the air date of the slot. With no such episode,
+-- the slot has no episode.
+toSlotInput :: Map Shows.Id [Episodes.RerunCandidate] -> Episodes.SlotWindow -> SlotInput
+toSlotInput candidates window =
   SlotInput
     { siStart = window.swStart,
       siEnd = window.swEnd,
       siShowTitle = window.swShowTitle,
-      siEpisode = toCandidate <$> window.swEpisode
+      siAiring = maybe rerun (NewEpisode . toCandidate) window.swEpisode
     }
   where
+    earlierEpisodes =
+      [ candidate.rcEpisode
+      | candidate <- Map.findWithDefault [] window.swShowId candidates,
+        candidate.rcAirDate < window.swAirDate
+      ]
+    rerun =
+      case nonEmpty earlierEpisodes of
+        Nothing -> NoEpisode
+        Just episodes -> Rerun (toCandidate (pickSeeded (rerunSeed window.swTemplateId window.swAirDate) episodes))
+
     toCandidate :: Episodes.SlotEpisode -> EpisodeCandidate
     toCandidate episode =
       EpisodeCandidate

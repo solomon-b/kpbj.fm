@@ -173,6 +173,8 @@ toItemResponse mediaUrl item =
       case itemContent item of
         EpisodeContent episode ->
           ("episode", ecAudioKey episode, ecShowTitle episode, stationArtist, Nothing)
+        RerunContent episode ->
+          ("rerun", ecAudioKey episode, ecShowTitle episode, stationArtist, Nothing)
         EphemeralContent upload ->
           ("ephemeral", ecdAudioKey upload, ecdTitle upload, stationArtist, Nothing)
         BreakContent track ->

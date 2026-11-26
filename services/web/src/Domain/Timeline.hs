@@ -13,7 +13,8 @@
 --    that ends at a break boundary has one.
 --
 -- Lengths and offsets are whole seconds. The same input always gives the same
--- timeline, because the random picks use a seed from the region start.
+-- timeline, because the random picks use a seed from the region start. The
+-- rerun of a slot is picked before the timeline is built, with 'pickSeeded'.
 module Domain.Timeline
   ( -- * The filler
     fillerObjectKey,
@@ -21,6 +22,7 @@ module Domain.Timeline
 
     -- * Input
     EpisodeCandidate (..),
+    SlotAiring (..),
     SlotInput (..),
     BreakTrack (..),
     BreakInput (..),
@@ -34,6 +36,7 @@ module Domain.Timeline
 
     -- * Building
     buildTimeline,
+    pickSeeded,
 
     -- * Reading
     itemAt,
@@ -47,6 +50,8 @@ where
 
 import Data.Int (Int64)
 import Data.List (find, unfoldr)
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Maybe (listToMaybe)
 import Data.Set qualified as Set
@@ -79,7 +84,7 @@ fillerSeconds = 180
 --------------------------------------------------------------------------------
 -- Input
 
--- | The episode that airs in a slot.
+-- | An episode that can air in a slot.
 data EpisodeCandidate = EpisodeCandidate
   { ecId :: Episodes.Id,
     ecShowTitle :: Text,
@@ -91,13 +96,22 @@ data EpisodeCandidate = EpisodeCandidate
   }
   deriving stock (Show, Eq)
 
+-- | What airs in a slot.
+data SlotAiring
+  = -- | The episode for the air date of the slot.
+    NewEpisode EpisodeCandidate
+  | -- | An earlier episode of the show. The slot has no new episode.
+    Rerun EpisodeCandidate
+  | -- | The show has no episode that can air in this slot.
+    NoEpisode
+  deriving stock (Show, Eq)
+
 -- | One scheduled slot.
 data SlotInput = SlotInput
   { siStart :: UTCTime,
     siEnd :: UTCTime,
     siShowTitle :: Text,
-    -- | Nothing when the show has no episode for this slot.
-    siEpisode :: Maybe EpisodeCandidate
+    siAiring :: SlotAiring
   }
   deriving stock (Show, Eq)
 
@@ -147,6 +161,8 @@ data TimelineInput = TimelineInput
 -- | What an item plays.
 data Content
   = EpisodeContent EpisodeCandidate
+  | -- | An earlier episode that airs again.
+    RerunContent EpisodeCandidate
   | EphemeralContent EphemeralCandidate
   | BreakContent BreakTrack
   | FillerContent
@@ -234,6 +250,13 @@ buildSegment input breakTracksAt start end =
         Nothing -> []
         Just tracks -> fillBreak breakStart breakLength tracks
 
+-- | Pick one element of a list. The same seed and the same list always give
+-- the same element.
+--
+-- The pick uses a 'StdGen' from 'mkStdGen', as 'fillEphemeral' does.
+pickSeeded :: Int -> NonEmpty a -> a
+pickSeeded seed xs = xs NonEmpty.!! fst (uniformR (0, length xs - 1) (mkStdGen seed))
+
 -- | Remove the cue out of a filler item at the end of a segment.
 --
 -- Liquidsoap plays the items one after another, not at their planned starts.
@@ -255,7 +278,8 @@ openLastFiller items =
 -- start. With no such slot, the segment is unscheduled.
 --
 -- In a slot with an episode, the episode starts at the region start with cue
--- in 0. Let R be the region length and L the episode length.
+-- in 0. A rerun follows the same rules as a new episode. Let R be the region
+-- length and L the episode length.
 --
 -- * If L > R, the episode is cut at R, with a cue out of R.
 -- * If L == R, the episode plays to its end, with no cue out.
@@ -266,18 +290,25 @@ openLastFiller items =
 -- the whole region.
 fillContent :: TimelineInput -> UTCTime -> Int64 -> [Item]
 fillContent input regionStart regionSeconds =
-  case slotEpisode of
-    Nothing -> fillEphemeral (tiEphemeral input) regionStart regionSeconds
-    Just episode -> fillWithEpisode (tiEphemeral input) regionStart regionSeconds episode
+  case maybe NoEpisode siAiring (find holdsStart (tiSlots input)) of
+    NewEpisode episode -> fillWithEpisode EpisodeContent pool regionStart regionSeconds episode
+    Rerun episode -> fillWithEpisode RerunContent pool regionStart regionSeconds episode
+    NoEpisode -> fillEphemeral pool regionStart regionSeconds
   where
+    pool = tiEphemeral input
     holdsStart slot = siStart slot <= regionStart && regionStart < siEnd slot
-    slotEpisode = find holdsStart (tiSlots input) >>= siEpisode
 
 -- | Fill a content region that starts with an episode.
-fillWithEpisode :: [EphemeralCandidate] -> UTCTime -> Int64 -> EpisodeCandidate -> [Item]
-fillWithEpisode pool regionStart regionSeconds episode
-  | episodeSeconds >= regionSeconds =
-      [placeItem regionStart regionSeconds 0 (EpisodeContent episode) episodeSeconds]
+fillWithEpisode ::
+  -- | The content of the episode item: a new episode or a rerun
+  (EpisodeCandidate -> Content) ->
+  [EphemeralCandidate] ->
+  UTCTime ->
+  Int64 ->
+  EpisodeCandidate ->
+  [Item]
+fillWithEpisode toContent pool regionStart regionSeconds episode
+  | episodeSeconds >= regionSeconds = [episodeItem]
   | gapSeconds <= fillerSeconds =
       [episodeItem, fillerItem gapStart gapSeconds]
   | otherwise =
@@ -285,7 +316,7 @@ fillWithEpisode pool regionStart regionSeconds episode
   where
     -- A stored length below 0 would move later items back in time.
     episodeSeconds = max 0 (ecSeconds episode)
-    episodeItem = placeItem regionStart regionSeconds 0 (EpisodeContent episode) episodeSeconds
+    episodeItem = placeItem regionStart regionSeconds 0 (toContent episode) episodeSeconds
     gapSeconds = regionSeconds - episodeSeconds
     gapStart = addSeconds episodeSeconds regionStart
 

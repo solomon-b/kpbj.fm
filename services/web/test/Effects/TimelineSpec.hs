@@ -9,7 +9,9 @@ module Effects.TimelineSpec where
 --------------------------------------------------------------------------------
 
 import Control.Monad.IO.Class (liftIO)
+import Data.Foldable (for_)
 import Data.Int (Int64)
+import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Time
   ( Day,
@@ -60,6 +62,15 @@ spec =
       it "covers the whole day with segments" (coversWholeDay (fromGregorian 2025 1 6))
       it "covers a 23 hour day with segments" (coversWholeDay (fromGregorian 2025 3 9))
       it "covers a 25 hour day with segments" (coversWholeDay (fromGregorian 2025 11 2))
+      it "airs an earlier episode in a slot with no episode" earlierEpisodeRerun
+      it "groups the rerun candidates by show and keeps the row order" . const $ candidatesKeepRowOrder
+      it "gives a window with no episode a rerun from the candidates" . const $ rerunFromCandidates
+      it "gives the primary and the replay window the same rerun" . const $ replaySharesRerun
+      it "gives two slots of one show on one date their own reruns" . const $ secondSlotOwnRerun
+      it "keeps the new episode when the window has one" . const $ newEpisodeWins
+      it "leaves out a candidate on or after the air date of the slot" . const $ laterEpisodesLeftOut
+      it "gives no rerun to a show with no candidates" . const $ noCandidatesNoRerun
+      it "does not use the candidates of a different show" . const $ otherShowCandidatesUnused
 
 --------------------------------------------------------------------------------
 -- Fixtures
@@ -114,7 +125,12 @@ seedBreakItems = do
 -- | Insert a show with a Monday 14:00 to 15:00 slot and one episode that airs
 -- in it. Returns the episode id.
 seedEpisodeSlot :: User.Id -> AppM Episodes.Id
-seedEpisodeSlot userId = do
+seedEpisodeSlot = seedEpisodeSlotOn day
+
+-- | Insert the show and the slot of 'seedEpisodeSlot', with one episode for
+-- the given air date.
+seedEpisodeSlotOn :: Day -> User.Id -> AppM Episodes.Id
+seedEpisodeSlotOn airDate userId = do
   let showInsert = Shows.Insert "Timeline Show" (Slug "timeline-show") Nothing Nothing Shows.Active
       template =
         ShowSchedule.ScheduleTemplateInsert
@@ -142,7 +158,7 @@ seedEpisodeSlot userId = do
           Episodes.eiDurationSeconds = Just 3500,
           Episodes.eiArtworkUrl = Nothing,
           Episodes.eiScheduleTemplateId = Just templateId,
-          Episodes.eiAirDate = Just day,
+          Episodes.eiAirDate = Just airDate,
           Episodes.eiCreatedBy = userId
         }
   case result of
@@ -316,13 +332,166 @@ dropsOverlap = do
         Episodes.SlotWindow
           { Episodes.swStart = start,
             Episodes.swEnd = end,
+            Episodes.swShowId = Shows.Id 1,
+            Episodes.swTemplateId = ShowSchedule.TemplateId 1,
             Episodes.swShowTitle = title,
             Episodes.swShowSlug = Slug title,
+            Episodes.swAirDate = day,
             Episodes.swEpisode = Nothing
           }
       early = window (at 0 (TimeOfDay 14 0 0)) (at 0 (TimeOfDay 15 0 0)) "Early"
       overlapping = window (at 0 (TimeOfDay 14 30 0)) (at 0 (TimeOfDay 15 30 0)) "Overlapping"
       touching = window (at 0 (TimeOfDay 15 0 0)) (at 0 (TimeOfDay 16 0 0)) "Touching"
       titles (slots, dropped) = (map siShowTitle slots, map Episodes.swShowTitle dropped)
-  titles (slotInputs [early, overlapping]) `shouldBe` (["Early"], ["Overlapping"])
-  titles (slotInputs [early, overlapping, touching]) `shouldBe` (["Early", "Touching"], ["Overlapping"])
+  titles (slotInputs Map.empty [early, overlapping]) `shouldBe` (["Early"], ["Overlapping"])
+  titles (slotInputs Map.empty [early, overlapping, touching]) `shouldBe` (["Early", "Touching"], ["Overlapping"])
+
+--------------------------------------------------------------------------------
+-- Reruns
+
+-- | The 14:00 slot holds an episode of the week before and none for the day.
+-- The timeline airs the earlier episode as a rerun, and the window still has
+-- no episode.
+earlierEpisodeRerun :: TestDBConfig -> IO ()
+earlierEpisodeRerun cfg =
+  bracketAppM cfg $ do
+    userId <- seedBreakItems
+    episodeId <- seedEpisodeSlotOn (addDays (-7) day) userId
+    let now = at 0 (TimeOfDay 13 0 0)
+        instant = at 0 (TimeOfDay 14 40 0)
+    segments <- timeline now instant
+    dayData <-
+      dayTimeline now day >>= \case
+        Left err -> error ("Timeline failed: " <> show err)
+        Right timelineData -> pure timelineData
+    liftIO $ do
+      case segmentContaining instant segments of
+        Nothing -> expectationFailure "No segment holds 14:40"
+        Just segment ->
+          [ecId e | RerunContent e <- map itemContent (take 1 (segItems segment))] `shouldBe` [episodeId]
+      [w.swEpisode | w <- tdSlots dayData, w.swStart == at 0 (TimeOfDay 14 0 0)] `shouldBe` [Nothing]
+
+-- | The show of the pure rerun tests.
+rerunShow :: Shows.Id
+rerunShow = Shows.Id 7
+
+-- | A window of 'rerunShow' on the test day, with no episode.
+emptyWindow :: TimeOfDay -> TimeOfDay -> Episodes.SlotWindow
+emptyWindow start end =
+  Episodes.SlotWindow
+    { Episodes.swStart = at 0 start,
+      Episodes.swEnd = at 0 end,
+      Episodes.swShowId = rerunShow,
+      Episodes.swTemplateId = ShowSchedule.TemplateId 1,
+      Episodes.swShowTitle = "Rerun Show",
+      Episodes.swShowSlug = Slug "rerun-show",
+      Episodes.swAirDate = day,
+      Episodes.swEpisode = Nothing
+    }
+
+-- | A slot episode with the given id.
+slotEpisode :: Int64 -> Episodes.SlotEpisode
+slotEpisode episodeId =
+  Episodes.SlotEpisode
+    { Episodes.seId = Episodes.Id episodeId,
+      Episodes.seEpisodeNumber = Episodes.EpisodeNumber episodeId,
+      Episodes.seAudioFilePath = "audio/episodes/rerun.mp3",
+      Episodes.seDurationSeconds = 3500
+    }
+
+-- | The rerun candidates of one show: each episode id with the days from the
+-- test day to its air date.
+candidatesOf :: Shows.Id -> [(Int64, Integer)] -> Map.Map Shows.Id [Episodes.RerunCandidate]
+candidatesOf showId episodes =
+  Map.singleton
+    showId
+    [ Episodes.RerunCandidate showId (slotEpisode episodeId) (addDays daysLater day)
+    | (episodeId, daysLater) <- episodes
+    ]
+
+-- | What airs in each kept window.
+airings :: Map.Map Shows.Id [Episodes.RerunCandidate] -> [Episodes.SlotWindow] -> [SlotAiring]
+airings candidates = map siAiring . fst . slotInputs candidates
+
+-- | The episode id of a rerun.
+rerunId :: SlotAiring -> Maybe Episodes.Id
+rerunId = \case
+  Rerun episode -> Just (ecId episode)
+  _ -> Nothing
+
+-- | The rows of two shows arrive mixed. The list of each show keeps the
+-- order of its rows, because the rerun pick is a position in that list.
+candidatesKeepRowOrder :: Expectation
+candidatesKeepRowOrder = do
+  let row showId episodeId = Episodes.RerunCandidate (Shows.Id showId) (slotEpisode episodeId) (addDays (-7) day)
+      rows = [row 7 3, row 8 1, row 7 1, row 8 4, row 7 2]
+      idsOf = map (\candidate -> candidate.rcEpisode.seId)
+  Map.toList (Map.map idsOf (candidatesByShow rows))
+    `shouldBe` [ (Shows.Id 7, [Episodes.Id 3, Episodes.Id 1, Episodes.Id 2]),
+                 (Shows.Id 8, [Episodes.Id 1, Episodes.Id 4])
+               ]
+
+rerunFromCandidates :: Expectation
+rerunFromCandidates = do
+  let candidates = candidatesOf rerunShow [(1, -14), (2, -7)]
+  case airings candidates [emptyWindow (TimeOfDay 14 0 0) (TimeOfDay 15 0 0)] of
+    [Rerun episode] -> do
+      [Episodes.Id 1, Episodes.Id 2] `shouldContain` [ecId episode]
+      ecShowTitle episode `shouldBe` "Rerun Show"
+      ecShowSlug episode `shouldBe` Slug "rerun-show"
+    other -> expectationFailure ("Expected one rerun, got " <> show other)
+
+-- | The check runs for 20 shows. A seed that used the window start would
+-- give the two windows of some show different reruns.
+replaySharesRerun :: Expectation
+replaySharesRerun =
+  for_ [1 .. 20] $ \n -> do
+    let showId = Shows.Id n
+        candidates = candidatesOf showId [(episodeId, negate (7 * toInteger episodeId)) | episodeId <- [1 .. 8]]
+        primary = (emptyWindow (TimeOfDay 14 0 0) (TimeOfDay 15 0 0)) {Episodes.swShowId = showId}
+        replay = (emptyWindow (TimeOfDay 22 0 0) (TimeOfDay 23 0 0)) {Episodes.swShowId = showId}
+    case map rerunId (airings candidates [primary, replay]) of
+      [Just first, Just second] -> first `shouldBe` second
+      other -> expectationFailure ("Expected two reruns, got " <> show other)
+
+-- | A show with two slots on one date. Each slot has its own schedule
+-- template, so each gets its own pick. With 8 earlier episodes, the two picks
+-- differ for some of the 20 shows.
+secondSlotOwnRerun :: Expectation
+secondSlotOwnRerun = do
+  let picksOf n =
+        let showId = Shows.Id n
+            candidates = candidatesOf showId [(episodeId, negate (7 * toInteger episodeId)) | episodeId <- [1 .. 8]]
+            firstSlot = (emptyWindow (TimeOfDay 10 0 0) (TimeOfDay 11 0 0)) {Episodes.swShowId = showId}
+            secondSlot =
+              (emptyWindow (TimeOfDay 18 0 0) (TimeOfDay 19 0 0))
+                { Episodes.swShowId = showId,
+                  Episodes.swTemplateId = ShowSchedule.TemplateId 2
+                }
+         in map rerunId (airings candidates [firstSlot, secondSlot])
+      differs = \case
+        [Just first, Just second] -> first /= second
+        _ -> False
+  any (differs . picksOf) [1 .. 20] `shouldBe` True
+
+newEpisodeWins :: Expectation
+newEpisodeWins = do
+  let candidates = candidatesOf rerunShow [(1, -14), (2, -7)]
+      window = (emptyWindow (TimeOfDay 14 0 0) (TimeOfDay 15 0 0)) {Episodes.swEpisode = Just (slotEpisode 9)}
+  case airings candidates [window] of
+    [NewEpisode episode] -> ecId episode `shouldBe` Episodes.Id 9
+    other -> expectationFailure ("Expected the new episode, got " <> show other)
+
+laterEpisodesLeftOut :: Expectation
+laterEpisodesLeftOut =
+  airings (candidatesOf rerunShow [(1, 0), (2, 1)]) [emptyWindow (TimeOfDay 14 0 0) (TimeOfDay 15 0 0)]
+    `shouldBe` [NoEpisode]
+
+noCandidatesNoRerun :: Expectation
+noCandidatesNoRerun =
+  airings Map.empty [emptyWindow (TimeOfDay 14 0 0) (TimeOfDay 15 0 0)] `shouldBe` [NoEpisode]
+
+otherShowCandidatesUnused :: Expectation
+otherShowCandidatesUnused =
+  airings (candidatesOf (Shows.Id 8) [(1, -7)]) [emptyWindow (TimeOfDay 14 0 0) (TimeOfDay 15 0 0)]
+    `shouldBe` [NoEpisode]

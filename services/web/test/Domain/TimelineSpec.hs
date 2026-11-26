@@ -7,6 +7,7 @@ import Control.Monad (when)
 import Data.Foldable (for_)
 import Data.Int (Int64)
 import Data.List (nub, sort)
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Time (Day, LocalTime (..), NominalDiffTime, TimeOfDay (..), UTCTime, addUTCTime, diffUTCTime, fromGregorian)
@@ -90,22 +91,22 @@ psaTrack itemId seconds =
     }
 
 -- | One hour slot from 16:00 to 17:00 Pacific.
-hourSlot :: Maybe EpisodeCandidate -> SlotInput
-hourSlot episode =
+hourSlot :: SlotAiring -> SlotInput
+hourSlot airing =
   SlotInput
     { siStart = pacificAt 16 0,
       siEnd = pacificAt 17 0,
       siShowTitle = "Test Show",
-      siEpisode = episode
+      siAiring = airing
     }
 
 -- | The 16:00 slot and the break at 17:00, with the given ephemeral pool.
-hourInput :: Maybe EpisodeCandidate -> [BreakTrack] -> [EphemeralCandidate] -> TimelineInput
-hourInput episode breakTracks pool =
+hourInput :: SlotAiring -> [BreakTrack] -> [EphemeralCandidate] -> TimelineInput
+hourInput airing breakTracks pool =
   TimelineInput
     { tiFrom = pacificAt 16 0,
       tiTo = pacificAt 17 0,
-      tiSlots = [hourSlot episode],
+      tiSlots = [hourSlot airing],
       tiBreaks = [BreakInput (pacificAt 17 0) breakTracks],
       tiEphemeral = pool
     }
@@ -126,6 +127,7 @@ contentName :: Item -> Text
 contentName item =
   case itemContent item of
     EpisodeContent _ -> "episode"
+    RerunContent _ -> "rerun"
     EphemeralContent _ -> "ephemeral"
     BreakContent track -> btSourceType track
     FillerContent -> "filler"
@@ -188,29 +190,31 @@ genSlots from
       let slotStart = addUTCTime (fromIntegral gapHalfHours * halfHour) from
           slotEnd = addUTCTime (fromIntegral slotHalfHours * halfHour) slotStart
           slotSeconds = fromIntegral slotHalfHours * 1800
-      episode <- genEpisode slotSeconds
+      airing <- genAiring slotSeconds
       laterSlots <- genSlots slotEnd
       let slot =
             SlotInput
               { siStart = slotStart,
                 siEnd = slotEnd,
                 siShowTitle = "Generated Show",
-                siEpisode = episode
+                siAiring = airing
               }
       pure (slot : laterSlots)
 
--- | An episode for a slot of the given length, 7 times in 10.
+-- | What airs in a slot of the given length. A new episode 5 times in 10, a
+-- rerun 2 times in 10, and no episode 3 times in 10.
 --
 -- For 9 episodes in 10, the length runs from 5 minutes short to 1 minute
 -- long. This covers episodes that were uploaded before the length rule.
 --
 -- For 1 episode in 10, the length runs from 0 to 10 minutes short of the
 -- slot. Ephemeral fill then covers the gap after the episode.
-genEpisode :: Int64 -> Gen (Maybe EpisodeCandidate)
-genEpisode slotSeconds =
+genAiring :: Int64 -> Gen SlotAiring
+genAiring slotSeconds =
   Gen.frequency
-    [ (3, pure Nothing),
-      (7, Just . episodeOf <$> genEpisodeSeconds)
+    [ (3, pure NoEpisode),
+      (5, NewEpisode . episodeOf <$> genEpisodeSeconds),
+      (2, Rerun . episodeOf <$> genEpisodeSeconds)
     ]
   where
     genEpisodeSeconds =
@@ -367,9 +371,35 @@ spec = describe "Domain.Timeline" $ do
           annotateShow uploadIds
           filter (uncurry (==)) (zip uploadIds (drop 1 uploadIds)) === []
 
+  describe "pickSeeded" $ do
+    it "picks a member of the list for any seed" $ hedgehog $ do
+      seed <- forAll (Gen.int Range.linearBounded)
+      xs <- forAll (Gen.nonEmpty (Range.linear 1 20) (Gen.int (Range.linear 0 1000)))
+      assert (pickSeeded seed xs `elem` xs)
+
+    it "picks the only element of a list of one" $ hedgehog $ do
+      seed <- forAll (Gen.int Range.linearBounded)
+      pickSeeded seed ('a' :| []) === 'a'
+
+    it "reaches more than one element across seeds" $
+      length (nub [pickSeeded seed (1 :| [2 .. 8 :: Int]) | seed <- [0 .. 99]]) `shouldSatisfy` (> 1)
+
   describe "examples" $ do
+    it "places a rerun as it places a new episode" $
+      for_ [3420, 5000, 1200] $ \seconds -> do
+        let pool = [ephemeralOf 1 600, ephemeralOf 2 900]
+            asRerun (name, itemLength) = (if name == "episode" then "rerun" else name, itemLength)
+        newSegment <- onlySegment (hourInput (NewEpisode (episodeOf seconds)) exampleBreak pool)
+        rerunSegment <- onlySegment (hourInput (Rerun (episodeOf seconds)) exampleBreak pool)
+        shape rerunSegment `shouldBe` map asRerun (shape newSegment)
+        map itemCueOut (segItems rerunSegment) `shouldBe` map itemCueOut (segItems newSegment)
+
+    it "gives a rerun item the content RerunContent" $ do
+      segment <- onlySegment (hourInput (Rerun (episodeOf 3420)) exampleBreak [])
+      map itemContent (take 1 (segItems segment)) `shouldBe` [RerunContent (episodeOf 3420)]
+
     it "plays an episode, then filler, then the break" $ do
-      segment <- onlySegment (hourInput (Just (episodeOf 3420)) exampleBreak [])
+      segment <- onlySegment (hourInput (NewEpisode (episodeOf 3420)) exampleBreak [])
       shape segment
         `shouldBe` [ ("episode", 3420),
                      ("filler", 60),
@@ -382,12 +412,12 @@ spec = describe "Domain.Timeline" $ do
         `shouldBe` [Nothing, Just 60, Nothing, Nothing, Nothing, Nothing]
 
     it "cuts an episode that runs past the break start" $ do
-      segment <- onlySegment (hourInput (Just (episodeOf 3600)) exampleBreak [])
+      segment <- onlySegment (hourInput (NewEpisode (episodeOf 3600)) exampleBreak [])
       map itemCueOut (take 1 (segItems segment)) `shouldBe` [Just 3480]
       map itemSeconds (take 1 (segItems segment)) `shouldBe` [3480]
 
     it "fills a long gap with ephemeral tracks" $ do
-      segment <- onlySegment (hourInput (Just (episodeOf 1800)) exampleBreak [ephemeralOf 1 600])
+      segment <- onlySegment (hourInput (NewEpisode (episodeOf 1800)) exampleBreak [ephemeralOf 1 600])
       let afterEpisode = drop 1 (segItems segment)
           ephemeralItems = take 3 afterEpisode
       map contentName ephemeralItems `shouldBe` ["ephemeral", "ephemeral", "ephemeral"]
@@ -396,7 +426,7 @@ spec = describe "Domain.Timeline" $ do
       all isBreakItem (take 3 (drop 3 afterEpisode)) `shouldBe` True
 
     it "treats a slot with no episode as unscheduled time" $ do
-      segment <- onlySegment (hourInput Nothing exampleBreak [ephemeralOf 1 600, ephemeralOf 2 900])
+      segment <- onlySegment (hourInput NoEpisode exampleBreak [ephemeralOf 1 600, ephemeralOf 2 900])
       let contentItems = filter (\item -> itemStart item < pacificAt 16 58) (segItems segment)
       null contentItems `shouldBe` False
       map contentName contentItems `shouldBe` map (const "ephemeral") contentItems
@@ -416,7 +446,7 @@ spec = describe "Domain.Timeline" $ do
       map itemCueOut (segItems segment) `shouldBe` map Just (replicate 19 180 <> [60]) <> [Nothing]
 
     it "cuts a break that runs past its boundary" $ do
-      segment <- onlySegment (hourInput (Just (episodeOf 3480)) [stationIdTrack 150, psaTrack 1 30] [])
+      segment <- onlySegment (hourInput (NewEpisode (episodeOf 3480)) [stationIdTrack 150, psaTrack 1 30] [])
       let breakItems = filter isBreakItem (segItems segment)
       map itemSeconds breakItems `shouldBe` [120]
       map itemCueOut breakItems `shouldBe` [Just 120]
@@ -427,7 +457,7 @@ spec = describe "Domain.Timeline" $ do
               { siStart = pacificAt 16 30,
                 siEnd = pacificAt 17 30,
                 siShowTitle = "Test Show",
-                siEpisode = Just (episodeOf 3420)
+                siAiring = NewEpisode (episodeOf 3420)
               }
           timelineInput =
             TimelineInput
@@ -449,7 +479,7 @@ spec = describe "Domain.Timeline" $ do
         [] -> expectationFailure "expected segments"
 
     it "resumes an item with the elapsed seconds added to its cue in" $ do
-      segment <- onlySegment (hourInput (Just (episodeOf 3420)) exampleBreak [])
+      segment <- onlySegment (hourInput (NewEpisode (episodeOf 3420)) exampleBreak [])
       case resumeAt (pacificAt 16 20) segment of
         firstItem : _ -> do
           itemStart firstItem `shouldBe` pacificAt 16 20
@@ -459,7 +489,7 @@ spec = describe "Domain.Timeline" $ do
         [] -> expectationFailure "expected items"
 
     it "resumes at a fraction of a second and still ends at the segment end" $ do
-      segment <- onlySegment (hourInput (Just (episodeOf 3420)) exampleBreak [])
+      segment <- onlySegment (hourInput (NewEpisode (episodeOf 3420)) exampleBreak [])
       let instant = addUTCTime 0.5 (pacificAt 16 20)
           items = resumeAt instant segment
       map itemStart (take 1 items) `shouldBe` [pacificAt 16 20]
@@ -470,7 +500,7 @@ spec = describe "Domain.Timeline" $ do
     it "places no item for a 0 second upload or a 0 second break track" $ do
       let pool = [ephemeralOf 1 0, ephemeralOf 2 600]
           breakTracks = [stationIdTrack 0, psaTrack 1 30]
-      segment <- onlySegment (hourInput Nothing breakTracks pool)
+      segment <- onlySegment (hourInput NoEpisode breakTracks pool)
       let uploadIds = [ecdId upload | EphemeralContent upload <- map itemContent (segItems segment)]
           breakShape = [(contentName item, itemSeconds item) | item <- segItems segment, isBreakItem item]
       filter (\item -> itemSeconds item <= 0) (segItems segment) `shouldBe` []
@@ -479,7 +509,7 @@ spec = describe "Domain.Timeline" $ do
       breakShape `shouldBe` [("psa", 30)]
 
     it "keeps the planned start of a resumed item" $ do
-      segment <- onlySegment (hourInput (Just (episodeOf 3420)) exampleBreak [])
+      segment <- onlySegment (hourInput (NewEpisode (episodeOf 3420)) exampleBreak [])
       case resumeAt (pacificAt 16 20) segment of
         firstItem : _ -> do
           itemStart firstItem `shouldBe` pacificAt 16 20
@@ -487,12 +517,12 @@ spec = describe "Domain.Timeline" $ do
         [] -> expectationFailure "expected items"
 
     it "resumes nothing outside the segment" $ do
-      segment <- onlySegment (hourInput (Just (episodeOf 3420)) exampleBreak [])
+      segment <- onlySegment (hourInput (NewEpisode (episodeOf 3420)) exampleBreak [])
       resumeAt (pacificAt 17 0) segment `shouldBe` []
       resumeAt (pacificAt 15 59) segment `shouldBe` []
 
     it "finds the segment that holds an instant or starts at it" $ do
-      let segments = buildTimeline (hourInput (Just (episodeOf 3420)) exampleBreak [])
+      let segments = buildTimeline (hourInput (NewEpisode (episodeOf 3420)) exampleBreak [])
       fmap segStart (segmentContaining (pacificAt 16 30) segments) `shouldBe` Just (pacificAt 16 0)
       fmap segStart (segmentContaining (pacificAt 17 0) segments) `shouldBe` Nothing
       fmap segStart (segmentStartingAt (pacificAt 16 0) segments) `shouldBe` Just (pacificAt 16 0)
@@ -500,19 +530,19 @@ spec = describe "Domain.Timeline" $ do
 
   describe "itemAt" $ do
     it "returns the item whose time range holds the instant" $ do
-      let segments = buildTimeline (hourInput (Just (episodeOf 3420)) exampleBreak [])
+      let segments = buildTimeline (hourInput (NewEpisode (episodeOf 3420)) exampleBreak [])
       for_ (concatMap segItems segments) $ \item -> do
         fmap itemPlannedStart (itemAt (itemStart item) segments) `shouldBe` Just (itemPlannedStart item)
         fmap itemPlannedStart (itemAt (plusSeconds (-1) (itemEnd item)) segments) `shouldBe` Just (itemPlannedStart item)
 
     it "returns the item that starts at an edge between two items" $ do
-      segment <- onlySegment (hourInput (Just (episodeOf 3420)) exampleBreak [])
+      segment <- onlySegment (hourInput (NewEpisode (episodeOf 3420)) exampleBreak [])
       case segItems segment of
         firstItem : secondItem : _ ->
           fmap itemPlannedStart (itemAt (itemEnd firstItem) [segment]) `shouldBe` Just (itemPlannedStart secondItem)
         _ -> expectationFailure "expected at least two items"
 
     it "returns Nothing outside all segments" $ do
-      let segments = buildTimeline (hourInput (Just (episodeOf 3420)) exampleBreak [])
+      let segments = buildTimeline (hourInput (NewEpisode (episodeOf 3420)) exampleBreak [])
       itemAt (pacificAt 15 59) segments `shouldBe` Nothing
       itemAt (pacificAt 17 0) segments `shouldBe` Nothing
