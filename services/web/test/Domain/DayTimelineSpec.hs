@@ -12,6 +12,8 @@ import Domain.Types.Slug (Slug (..))
 import Domain.Types.Timezone (pacificToUtc)
 import Effects.Database.Tables.EphemeralUploads qualified as EphemeralUploads
 import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
+import Effects.Database.Tables.Shows qualified as Shows
 import Test.Hspec
 
 --------------------------------------------------------------------------------
@@ -23,6 +25,7 @@ spec =
     it "flags long filler when the ephemeral pool is empty" longFillerFlagged
     it "does not flag the short filler after an episode" shortFillerIgnored
     it "gives one problem for a slot with no episode over two segments" oneProblemPerSlot
+    it "puts the rerun of a slot in its flag" rerunInFlag
     it "flags a dropped slot on the segment where it opens" droppedSlotFlagged
     it "keeps only the scheduled segments" keepsScheduled
 
@@ -47,8 +50,11 @@ window title start end =
   Episodes.SlotWindow
     { Episodes.swStart = start,
       Episodes.swEnd = end,
+      Episodes.swShowId = Shows.Id 1,
+      Episodes.swTemplateId = ShowSchedule.TemplateId 1,
       Episodes.swShowTitle = title,
       Episodes.swShowSlug = Slug title,
+      Episodes.swAirDate = day,
       Episodes.swEpisode = Nothing
     }
 
@@ -79,7 +85,12 @@ ephemeral =
 -- | The timeline from 12:00 to 15:00. Every break is empty, so each one is
 -- all filler.
 timelineOf :: [Episodes.SlotWindow] -> [Episodes.SlotWindow] -> [EphemeralCandidate] -> TimelineData
-timelineOf kept dropped pool =
+timelineOf = timelineWith Nothing
+
+-- | The timeline of 'timelineOf'. With a rerun, each kept window that has no
+-- episode airs it.
+timelineWith :: Maybe EpisodeCandidate -> [Episodes.SlotWindow] -> [Episodes.SlotWindow] -> [EphemeralCandidate] -> TimelineData
+timelineWith mRerun kept dropped pool =
   TimelineData
     { tdSegments = buildTimeline input,
       tdSlots = kept,
@@ -100,7 +111,7 @@ timelineOf kept dropped pool =
         { siStart = Episodes.swStart w,
           siEnd = Episodes.swEnd w,
           siShowTitle = Episodes.swShowTitle w,
-          siEpisode = toCandidate w <$> Episodes.swEpisode w
+          siAiring = maybe (maybe NoEpisode Rerun mRerun) (NewEpisode . toCandidate w) (Episodes.swEpisode w)
         }
     toCandidate w episode =
       EpisodeCandidate
@@ -141,9 +152,26 @@ oneProblemPerSlot :: Expectation
 oneProblemPerSlot = do
   let slot = window "Dub Hour" (pacificAt 12 0) (pacificAt 14 0)
       views = segmentViews (timelineOf [slot] [] [ephemeral])
-  map svFlags (take 2 views) `shouldBe` replicate 2 [NoPlayableEpisode slot]
+  map svFlags (take 2 views) `shouldBe` replicate 2 [NoPlayableEpisode slot Nothing]
   map (\p -> (problemSegmentStart p, problemFlag p)) (problems views)
-    `shouldBe` [(pacificAt 12 0, NoPlayableEpisode slot)]
+    `shouldBe` [(pacificAt 12 0, NoPlayableEpisode slot Nothing)]
+
+-- | A slot with no episode that airs a rerun keeps its flag. The flag holds
+-- the rerun.
+rerunInFlag :: Expectation
+rerunInFlag = do
+  let slot = window "Dub Hour" (pacificAt 12 0) (pacificAt 13 0)
+      rerun =
+        EpisodeCandidate
+          { ecId = Episodes.Id 4,
+            ecShowTitle = "Dub Hour",
+            ecShowSlug = Slug "Dub Hour",
+            ecEpisodeNumber = Episodes.EpisodeNumber 4,
+            ecAudioKey = "audio/episodes/earlier.mp3",
+            ecSeconds = 3480
+          }
+  problemFlags (timelineWith (Just rerun) [slot] [] [ephemeral])
+    `shouldBe` [NoPlayableEpisode slot (Just rerun)]
 
 droppedSlotFlagged :: Expectation
 droppedSlotFlagged = do

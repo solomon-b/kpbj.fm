@@ -24,10 +24,10 @@ where
 
 import Data.Int (Int64)
 import Data.List (find)
-import Data.Maybe (isJust, isNothing)
+import Data.Maybe (isJust, isNothing, listToMaybe)
 import Data.Time (UTCTime, addUTCTime, diffUTCTime)
 import Domain.BreakPlanner (breakSeconds)
-import Domain.Timeline (Content (..), Item (..), Segment (..), fillerSeconds)
+import Domain.Timeline (Content (..), EpisodeCandidate, Item (..), Segment (..), fillerSeconds)
 import Effects.Database.Tables.Episodes qualified as Episodes
 
 --------------------------------------------------------------------------------
@@ -51,8 +51,9 @@ data TimelineData = TimelineData
 -- | Why a segment needs attention.
 data Flag
   = -- | The slot of the segment has no episode that can play. Either the host
-    -- uploaded nothing, or the upload has no length.
-    NoPlayableEpisode Episodes.SlotWindow
+    -- uploaded nothing, or the upload has no length. The second field is the
+    -- rerun that airs in the segment, when one does.
+    NoPlayableEpisode Episodes.SlotWindow (Maybe EpisodeCandidate)
   | -- | The content region of the segment holds more than 'fillerSeconds' of
     -- filler, in seconds.
     LongFiller Int64
@@ -99,7 +100,8 @@ segmentViews timeline = map toView (tdSegments timeline)
         }
       where
         slot = find (holds (segStart segment)) (tdSlots timeline)
-        noEpisode = [NoPlayableEpisode window | Just window <- [slot], isNothing window.swEpisode]
+        noEpisode = [NoPlayableEpisode window rerun | Just window <- [slot], isNothing window.swEpisode]
+        rerun = listToMaybe [episode | Item {itemContent = RerunContent episode} <- segItems segment]
         fillerTotal = contentFillerSeconds (tdBreakBoundaries timeline) segment
         longFiller = [LongFiller fillerTotal | fillerTotal > fillerSeconds]
         dropped =
@@ -137,7 +139,7 @@ problems views = concat (zipWith problemsOf (Nothing : map svSlot views) views)
         not (isRepeat previousSlot view flag)
       ]
     isRepeat previousSlot view = \case
-      NoPlayableEpisode _ -> previousSlot == svSlot view
+      NoPlayableEpisode _ _ -> previousSlot == svSlot view
       _ -> False
 
 -- | The seconds of filler in the content region of a segment.

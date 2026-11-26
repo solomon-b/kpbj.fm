@@ -50,6 +50,10 @@ spec = do
       nowPlayingOf (Just (itemOf (EpisodeContent episode)))
         `shouldBe` NowPlaying "Now Show - Episode 7" (Just "/shows/now-show/episodes/7")
 
+    it "marks a rerun in the title and links it to the page of its episode" $
+      nowPlayingOf (Just (itemOf (RerunContent episode)))
+        `shouldBe` NowPlaying "Now Show - Episode 7 (Rerun)" (Just "/shows/now-show/episodes/7")
+
     it "gives a break track its title and no link" $
       nowPlayingOf (Just (itemOf (BreakContent track))) `shouldBe` NowPlaying "Library Hours" Nothing
 

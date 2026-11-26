@@ -49,9 +49,9 @@ action mSecret request = do
 -- | Insert the playback record for a track that started.
 record :: PlayedRequest -> ExceptT HandlerError AppM ()
 record request = do
-  -- Resolve episode ID from source URL when source type is "episode"
+  -- Resolve episode ID from source URL when source type is "episode" or "rerun"
   mEpisodeId <-
-    if request.prSourceType == "episode"
+    if request.prSourceType `elem` ["episode", "rerun"]
       then do
         storageBackend <- lift $ asks (Has.getter @StorageBackend)
         appBaseUrl <- lift baseUrl

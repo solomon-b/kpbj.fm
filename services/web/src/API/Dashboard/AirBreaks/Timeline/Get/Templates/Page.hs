@@ -162,8 +162,9 @@ renderProblems ps =
 -- | The problem bar line of a problem.
 problemText :: Problem -> Text
 problemText p = case p.problemFlag of
-  NoPlayableEpisode window ->
+  NoPlayableEpisode window mRerun ->
     Text.unwords [clockTime window.swStart, showTitle window, "has no playable episode"]
+      <> maybe "" (\episode -> [i|: a rerun of episode #{ecEpisodeNumber episode} airs|]) mRerun
   LongFiller seconds ->
     Text.unwords
       [ clockTime p.problemSegmentStart,
@@ -224,7 +225,8 @@ renderSegment view sv = do
 -- | The flag text on a segment row.
 flagText :: Flag -> Text
 flagText = \case
-  NoPlayableEpisode _ -> "NO PLAYABLE EPISODE"
+  NoPlayableEpisode _ Nothing -> "NO PLAYABLE EPISODE"
+  NoPlayableEpisode _ (Just _) -> "NO NEW EPISODE · RERUN"
   LongFiller seconds -> [i|#{minutes seconds} MIN FILLER|]
   DroppedSlot window _ -> showTitle window <> " DOES NOT AIR"
 
@@ -248,7 +250,7 @@ renderItem view sv item = do
     isCurrent = isCurrentItem view item
     isProblem = case itemContent item of
       FillerContent -> any isLongFiller sv.svFlags
-      EphemeralContent _ -> any isNoEpisode sv.svFlags
+      EphemeralContent _ -> any isOnlyFill sv.svFlags
       _ -> False
     rowClasses =
       [Tokens.warningBg | isCurrent]
@@ -274,19 +276,24 @@ isLongFiller = \case
   LongFiller _ -> True
   _ -> False
 
-isNoEpisode :: Flag -> Bool
-isNoEpisode = \case
-  NoPlayableEpisode _ -> True
+-- | True when the slot has no episode and no rerun, so it airs only fill.
+-- The fill after a rerun is the same fill that follows a short episode, so
+-- it is not a problem.
+isOnlyFill :: Flag -> Bool
+isOnlyFill = \case
+  NoPlayableEpisode _ Nothing -> True
   _ -> False
 
 cellClasses :: [Text]
 cellClasses = [Tokens.px3, "py-1", "border-t", Tokens.borderMuted, "whitespace-nowrap"]
 
 -- | The source type and the title of an item, as @/api/playout/now@ names
--- them.
+-- them. The title of a rerun also has the episode number, so staff see which
+-- episode airs again.
 describe :: Content -> (Text, Text)
 describe = \case
   EpisodeContent episode -> ("episode", ecShowTitle episode)
+  RerunContent episode -> ("rerun", [i|#{ecShowTitle episode} - Episode #{ecEpisodeNumber episode}|])
   EphemeralContent upload -> ("ephemeral", ecdTitle upload)
   BreakContent track -> (btSourceType track, btTitle track)
   FillerContent -> ("filler", "KPBJ filler")
@@ -298,6 +305,8 @@ itemLink sv = \case
     window <- sv.svSlot
     episode <- window.swEpisode
     pure (Links.linkURI (dashboardEpisodesLinks.detail window.swShowSlug episode.seEpisodeNumber))
+  RerunContent episode ->
+    Just (Links.linkURI (dashboardEpisodesLinks.detail (ecShowSlug episode) (ecEpisodeNumber episode)))
   EphemeralContent upload ->
     Just (Links.linkURI (dashboardEphemeralUploadsLinks.editGet (ecdId upload)))
   BreakContent track -> case btSourceType track of

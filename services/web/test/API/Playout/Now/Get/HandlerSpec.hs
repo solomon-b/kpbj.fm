@@ -383,16 +383,17 @@ encodesEachContentKind = do
             itemCueIn = 0,
             itemCueOut = cueOut
           }
-      episode =
-        EpisodeContent
-          EpisodeCandidate
-            { ecId = Episodes.Id 7,
-              ecShowTitle = "Now Show",
-              ecShowSlug = Slug "now-show",
-              ecEpisodeNumber = Episodes.EpisodeNumber 1,
-              ecAudioKey = "audio/episodes/now.mp3",
-              ecSeconds = 3500
-            }
+      candidate =
+        EpisodeCandidate
+          { ecId = Episodes.Id 7,
+            ecShowTitle = "Now Show",
+            ecShowSlug = Slug "now-show",
+            ecEpisodeNumber = Episodes.EpisodeNumber 1,
+            ecAudioKey = "audio/episodes/now.mp3",
+            ecSeconds = 3500
+          }
+      episode = EpisodeContent candidate
+      rerun = RerunContent candidate
       ephemeral =
         EphemeralContent
           EphemeralCandidate
@@ -412,6 +413,8 @@ encodesEachContentKind = do
             }
   encode (item episode 3480 (Just 3480))
     `shouldBe` expectedJson "episode" "https://media.test/audio/episodes/now.mp3" "Now Show" 3480 (Number 3480) Null
+  encode (item rerun 3480 (Just 3480))
+    `shouldBe` expectedJson "rerun" "https://media.test/audio/episodes/now.mp3" "Now Show" 3480 (Number 3480) Null
   encode (item ephemeral 300 Nothing)
     `shouldBe` expectedJson "ephemeral" "https://media.test/audio/ephemeral/night.mp3" "Night Sounds" 300 Null Null
   encode (item psa 30 Nothing)

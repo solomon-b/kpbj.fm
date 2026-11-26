@@ -14,7 +14,7 @@ playbackInsertGen :: (MonadGen m) => m PlaybackHistory.Insert
 playbackInsertGen = do
   piTitle <- genText
   piArtist <- Gen.maybe genText
-  piSourceType <- Gen.element ["episode", "ephemeral"] -- Free-form Text in schema; these are the known valid values
+  piSourceType <- Gen.element ["episode", "rerun", "ephemeral"] -- Free-form Text in schema; these are the known valid values
   piSourceUrl <- genUrl
   let piEpisodeId = Nothing
       -- Episode and ephemeral rows never carry a break item.

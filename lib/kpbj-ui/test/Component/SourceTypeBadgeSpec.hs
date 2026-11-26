@@ -27,6 +27,7 @@ spec = describe "Component.SourceTypeBadge" $
 cases :: [(Text, Text)]
 cases =
   [ ("episode", old (tint "success" <> " text-[var(--theme-success)]") "episode"),
+    ("rerun", old "bg-[var(--theme-bg-alt)] text-[var(--theme-fg)]" "rerun"),
     ("ephemeral", old (tint "info" <> " text-[var(--theme-info)]") "ephemeral"),
     ("station_id", old (tint "warning" <> " text-[var(--theme-warning)]") "station_id"),
     ("psa", old (tint "warning" <> " text-[var(--theme-warning)]") "psa"),

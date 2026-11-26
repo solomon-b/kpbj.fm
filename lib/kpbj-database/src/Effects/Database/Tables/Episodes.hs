@@ -52,6 +52,8 @@ module Effects.Database.Tables.Episodes
     getSlotWindowsBetween,
     SlotWindow (..),
     SlotEpisode (..),
+    getRerunCandidates,
+    RerunCandidate (..),
     insertEpisode,
     updateEpisode,
     updateEpisodeFiles,
@@ -829,10 +831,18 @@ instance DecodeRow AiringEpisode where
 data SlotWindow = SlotWindow
   { swStart :: UTCTime,
     swEnd :: UTCTime,
+    -- | The show that holds the slot.
+    swShowId :: Shows.Id,
+    -- | The schedule template of the slot. The primary window and the replay
+    -- window of one slot have the same template.
+    swTemplateId :: ShowSchedule.TemplateId,
     -- | The title of the show that holds the slot.
     swShowTitle :: Text,
     -- | The slug of the show that holds the slot.
     swShowSlug :: Slug,
+    -- | The air date of the slot, in Pacific. The primary window and the
+    -- replay window of one slot have the same air date.
+    swAirDate :: Day,
     -- | Nothing when the slot has no episode that can play.
     swEpisode :: Maybe SlotEpisode
   }
@@ -853,15 +863,21 @@ data SlotEpisode = SlotEpisode
 -- | The query gives the four episode columns all set or all NULL. The
 -- episode is present only when all four are set.
 instance DecodeRow SlotWindow where
-  decodeRow = toSlotWindow <$> decodeRow
+  decodeRow = toSlotWindow <$> decodeRow <*> decodeRow
     where
-      toSlotWindow :: (UTCTime, UTCTime, Text, Slug, Maybe Id, Maybe EpisodeNumber, Maybe Text, Maybe Int64) -> SlotWindow
-      toSlotWindow (start, end, showTitle, showSlug, episodeId, episodeNumber, audioFilePath, seconds) =
+      toSlotWindow ::
+        (UTCTime, UTCTime, Shows.Id, ShowSchedule.TemplateId, Text, Slug, Day) ->
+        (Maybe Id, Maybe EpisodeNumber, Maybe Text, Maybe Int64) ->
+        SlotWindow
+      toSlotWindow (start, end, showId, templateId, showTitle, showSlug, airDate) (episodeId, episodeNumber, audioFilePath, seconds) =
         SlotWindow
           { swStart = start,
             swEnd = end,
+            swShowId = showId,
+            swTemplateId = templateId,
             swShowTitle = showTitle,
             swShowSlug = showSlug,
+            swAirDate = airDate,
             swEpisode = SlotEpisode <$> episodeId <*> episodeNumber <*> audioFilePath <*> seconds
           }
 
@@ -928,6 +944,7 @@ getSlotWindowsBetween fromTime toTime =
       SELECT
         st.id AS template_id,
         d.air_date,
+        s.id AS show_id,
         s.title AS show_title,
         s.slug AS show_slug,
         w.window_start,
@@ -956,8 +973,11 @@ getSlotWindowsBetween fromTime toTime =
     SELECT
       sw.window_start,
       sw.window_end,
+      sw.show_id,
+      sw.template_id,
       sw.show_title,
       sw.show_slug,
+      sw.air_date,
       CASE WHEN e.duration_seconds > 0 THEN e.id END,
       CASE WHEN e.duration_seconds > 0 THEN e.episode_number END,
       CASE WHEN e.duration_seconds > 0 THEN e.audio_file_path END,
@@ -978,6 +998,57 @@ getSlotWindowsBetween fromTime toTime =
       AND sw.window_end > #{fromTime}
       AND sw.window_start < #{toTime}
     ORDER BY sw.window_start, sw.template_id
+  |]
+
+-- | One episode that can air again as a rerun.
+data RerunCandidate = RerunCandidate
+  { rcShowId :: Shows.Id,
+    rcEpisode :: SlotEpisode,
+    -- | The date the episode first aired, in Pacific.
+    rcAirDate :: Day
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving (Display) via (RecordInstance RerunCandidate)
+
+instance DecodeRow RerunCandidate where
+  decodeRow = toRerunCandidate <$> decodeRow
+    where
+      toRerunCandidate :: (Shows.Id, Id, EpisodeNumber, Text, Int64, Day) -> RerunCandidate
+      toRerunCandidate (showId, episodeId, episodeNumber, audioFilePath, seconds, airDate) =
+        RerunCandidate
+          { rcShowId = showId,
+            rcEpisode = SlotEpisode episodeId episodeNumber audioFilePath seconds,
+            rcAirDate = airDate
+          }
+
+-- | The episodes of the given shows that can air again, ordered by show, then
+-- by episode id.
+--
+-- An episode can air again when it has an @audio_file_path@, no @deleted_at@,
+-- a @duration_seconds@ of more than 0, and an @air_date@. The episodes of a
+-- show come from every schedule template of the show.
+--
+-- The order is stable. The rerun pick is a position in the list of a show, so
+-- the same rows must give the same list on each call.
+getRerunCandidates :: [Shows.Id] -> Hasql.Statement () [RerunCandidate]
+getRerunCandidates showIds =
+  interp
+    False
+    [sql|
+    SELECT
+      ep.show_id,
+      ep.id,
+      ep.episode_number,
+      ep.audio_file_path,
+      ep.duration_seconds,
+      ep.air_date
+    FROM episodes ep
+    WHERE ep.show_id = ANY(#{showIds})
+      AND ep.audio_file_path IS NOT NULL
+      AND ep.deleted_at IS NULL
+      AND ep.duration_seconds > 0
+      AND ep.air_date IS NOT NULL
+    ORDER BY ep.show_id, ep.id
   |]
 
 -- | The episodes of 'getAiringEpisodes', without their window starts.

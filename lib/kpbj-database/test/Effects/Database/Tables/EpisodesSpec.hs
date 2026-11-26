@@ -17,6 +17,7 @@ import Data.Time.Clock (UTCTime (..), addUTCTime, getCurrentTime)
 import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..))
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Offset (Offset (..))
+import Domain.Types.Slug (Slug (..))
 import Domain.Types.Timezone (pacificDay, pacificToUtc)
 import Effects.Database.Class (MonadDB (..))
 import Effects.Database.Tables.EpisodeTags qualified as EpisodeTags
@@ -109,6 +110,12 @@ spec =
           hedgehog . prop_slotWindowNonPositiveLength
         runs 1 . it "opens a 01:00 slot on the fall-back date when getAiringEpisodes does" $
           hedgehog . prop_slotWindowOnFallBackDate
+
+      describe "Rerun candidates" $ do
+        runs 10 . it "getRerunCandidates: returns the playable episodes of the given shows in id order" $
+          hedgehog . prop_rerunCandidatesOfShows
+        runs 10 . it "getRerunCandidates: leaves out an episode that cannot air" $
+          hedgehog . prop_rerunCandidatesLeaveOutUnplayable
 
       describe "Play logging" $ do
         runs 10 . it "getEpisodeByAudioPath: finds a soft-deleted episode" $
@@ -2743,27 +2750,31 @@ prop_slotWindowWithNoEpisode cfg = do
 
     act $ do
       result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
-        _ <- insertMondaySlot showInsert Nothing
+        (showId, templateId) <- insertMondaySlot showInsert Nothing
         windows <-
           TRX.statement () $
             UUT.getSlotWindowsBetween (slotTestTime 0 (TimeOfDay 0 0 0)) (slotTestTime 1 (TimeOfDay 0 0 0))
         TRX.condemn
-        pure windows
+        pure (showId, templateId, windows)
 
       assert $ do
-        windows <- assertRight result
+        (showId, templateId, windows) <- assertRight result
         windows
           === [ UUT.SlotWindow
                   { swStart = slotTestTime 0 (TimeOfDay 14 0 0),
                     swEnd = slotTestTime 0 (TimeOfDay 16 0 0),
+                    swShowId = showId,
+                    swTemplateId = templateId,
                     swShowTitle = Shows.siTitle showInsert,
                     swShowSlug = Shows.siSlug showInsert,
+                    swAirDate = slotTestDay,
                     swEpisode = Nothing
                   }
               ]
 
 -- | A template with a replay gives the primary window and the replay window.
--- The replay opens at 22:00 and closes at midnight. Both hold the episode.
+-- The replay opens at 22:00 and closes at midnight. Both hold the episode, the
+-- template, and the air date of the primary window.
 prop_slotWindowsPrimaryAndReplay :: TestDBConfig -> PropertyT IO ()
 prop_slotWindowsPrimaryAndReplay cfg = do
   arrange (bracketConn cfg) $ do
@@ -2791,17 +2802,20 @@ prop_slotWindowsPrimaryAndReplay cfg = do
           TRX.statement () $
             UUT.getSlotWindowsBetween (slotTestTime 0 (TimeOfDay 0 0 0)) (slotTestTime 1 (TimeOfDay 6 0 0))
         TRX.condemn
-        pure (episodeId, fmap UUT.episodeNumber episode, windows)
+        pure (showId, templateId, episodeId, fmap UUT.episodeNumber episode, windows)
 
       assert $ do
-        (episodeId, mEpisodeNumber, windows) <- assertRight result
+        (showId, templateId, episodeId, mEpisodeNumber, windows) <- assertRight result
         episodeNumber <- assertJust mEpisodeNumber
         let window start end =
               UUT.SlotWindow
                 { swStart = start,
                   swEnd = end,
+                  swShowId = showId,
+                  swTemplateId = templateId,
                   swShowTitle = Shows.siTitle showInsert,
                   swShowSlug = Shows.siSlug showInsert,
+                  swAirDate = slotTestDay,
                   swEpisode =
                     Just
                       UUT.SlotEpisode
@@ -2911,3 +2925,90 @@ prop_slotWindowOnFallBackDate cfg = do
         (UUT.swStart window, UUT.swEnd window) === (windowOpen, windowClose)
         fmap UUT.seId (UUT.swEpisode window) === Just episodeId
         airing === [[], [episodeId], [episodeId], []]
+
+-- | An episode with audio and a length, on an earlier Monday.
+earlierEpisodeInsert ::
+  UUT.Insert ->
+  Shows.Id ->
+  ShowSchedule.TemplateId ->
+  User.Id ->
+  -- | How many weeks before 'slotTestDay' the episode aired
+  Integer ->
+  Text ->
+  UUT.Insert
+earlierEpisodeInsert episodeTemplate showId templateId userId weeksBefore audioPath =
+  episodeTemplate
+    { UUT.eiId = showId,
+      UUT.eiScheduleTemplateId = Just templateId,
+      UUT.eiAirDate = Just (addDays (negate (7 * weeksBefore)) slotTestDay),
+      UUT.eiCreatedBy = userId,
+      UUT.eiAudioFilePath = Just audioPath,
+      UUT.eiDurationSeconds = Just 3600
+    }
+
+-- | The rerun candidates are the playable episodes of the shows asked for, in
+-- id order, with no episode of a different show. No shows give no rows.
+prop_rerunCandidatesOfShows :: TestDBConfig -> PropertyT IO ()
+prop_rerunCandidatesOfShows cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      let otherShow = showInsert {Shows.siTitle = "Rerun Other Show", Shows.siSlug = Slug "rerun-other-show"}
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertMondaySlot showInsert Nothing
+        (otherShowId, otherTemplateId) <- insertMondaySlot otherShow Nothing
+        firstId <- insertTestEpisode (earlierEpisodeInsert episodeTemplate showId templateId userId 2 "audio/episodes/earlier-first.mp3")
+        secondId <- insertTestEpisode (earlierEpisodeInsert episodeTemplate showId templateId userId 1 "audio/episodes/earlier-second.mp3")
+        _ <- insertTestEpisode (earlierEpisodeInsert episodeTemplate otherShowId otherTemplateId userId 1 "audio/episodes/earlier-other.mp3")
+        candidates <- TRX.statement () (UUT.getRerunCandidates [showId])
+        noShows <- TRX.statement () (UUT.getRerunCandidates [])
+        TRX.condemn
+        pure (showId, firstId, secondId, candidates, noShows)
+
+      assert $ do
+        (showId, firstId, secondId, candidates, noShows) <- assertRight result
+        [(UUT.rcShowId c, UUT.seId (UUT.rcEpisode c), UUT.rcAirDate c) | c <- candidates]
+          === [ (showId, firstId, addDays (-14) slotTestDay),
+                (showId, secondId, addDays (-7) slotTestDay)
+              ]
+        [UUT.seAudioFilePath (UUT.rcEpisode c) | c <- candidates]
+          === ["audio/episodes/earlier-first.mp3", "audio/episodes/earlier-second.mp3"]
+        noShows === []
+
+-- | An episode with no audio, with a length of 0, with @deleted_at@ set, or
+-- with no air date is not a rerun candidate.
+prop_rerunCandidatesLeaveOutUnplayable :: TestDBConfig -> PropertyT IO ()
+prop_rerunCandidatesLeaveOutUnplayable cfg = do
+  arrange (bracketConn cfg) $ do
+    userWithMetadata <- forAllT userWithMetadataInsertGen
+    showInsert <- forAllT showInsertGen
+    episodeTemplate <- forAllT $ episodeInsertGen (Shows.Id 1) (ShowSchedule.TemplateId 1) (User.Id 1)
+
+    act $ do
+      result <- runDB $ TRX.transaction TRX.ReadCommitted TRX.Write $ do
+        userId <- insertTestUser userWithMetadata
+        (showId, templateId) <- insertMondaySlot showInsert Nothing
+        let playable = earlierEpisodeInsert episodeTemplate showId templateId userId
+        _ <-
+          insertTestEpisode
+            (playable 1 "audio/episodes/unused.mp3") {UUT.eiAudioFilePath = Nothing, UUT.eiDurationSeconds = Nothing}
+        _ <- insertTestEpisode (playable 2 "audio/episodes/earlier-no-length.mp3") {UUT.eiDurationSeconds = Just 0}
+        deletedId <- insertTestEpisode (playable 3 "audio/episodes/earlier-deleted.mp3")
+        detachedId <- insertTestEpisode (playable 4 "audio/episodes/earlier-detached.mp3")
+        _ <- TRX.statement () (UUT.deleteEpisode deletedId)
+        -- A closed schedule detaches its episodes this way.
+        TRX.statement () $
+          interp @()
+            False
+            [sql| UPDATE episodes SET air_date = NULL, schedule_template_id = NULL WHERE id = #{detachedId} |]
+        candidates <- TRX.statement () (UUT.getRerunCandidates [showId])
+        TRX.condemn
+        pure candidates
+
+      assert $ do
+        candidates <- assertRight result
+        candidates === []

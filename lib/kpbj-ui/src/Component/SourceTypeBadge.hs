@@ -23,6 +23,7 @@ sourceTypeBadge sourceType =
     tone :: Text -> Tone
     tone = \case
       "episode" -> Success
+      "rerun" -> Plain
       "ephemeral" -> Info
       "station_id" -> Warning
       "psa" -> Warning

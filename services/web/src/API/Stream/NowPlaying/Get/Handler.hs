@@ -62,13 +62,19 @@ actionAt now = do
       pure (nowPlayingOf Nothing)
     Right segments -> pure (nowPlayingOf (itemAt wholeNow segments))
 
--- | The title and the page of an item. Only an episode has a page.
+-- | The title and the page of an item. Only an episode and a rerun have a
+-- page.
 nowPlayingOf :: Maybe Item -> NowPlaying
 nowPlayingOf mItem =
   case itemContent <$> mItem of
     Just (EpisodeContent episode) ->
       NowPlaying
         { npTitle = [i|#{ecShowTitle episode} - Episode #{ecEpisodeNumber episode}|],
+          npUrl = Just (rootLink (showEpisodesLinks.detail (ecShowSlug episode) (ecEpisodeNumber episode)))
+        }
+    Just (RerunContent episode) ->
+      NowPlaying
+        { npTitle = [i|#{ecShowTitle episode} - Episode #{ecEpisodeNumber episode} (Rerun)|],
           npUrl = Just (rootLink (showEpisodesLinks.detail (ecShowSlug episode) (ecEpisodeNumber episode)))
         }
     Just (EphemeralContent upload) -> NowPlaying (ecdTitle upload) Nothing
