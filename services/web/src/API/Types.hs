@@ -130,6 +130,7 @@ import API.Dashboard.Invitations.New.Get.Route qualified as Dashboard.Invitation
 import API.Dashboard.Invitations.New.Post.Route qualified as Dashboard.Invitations.New.Post
 import API.Dashboard.Invitations.Regenerate.Route qualified as Dashboard.Invitations.Regenerate
 import API.Dashboard.MissingEpisodes.Get.Route qualified as Dashboard.MissingEpisodes.Get
+import API.Dashboard.MissingEpisodes.Past.Get.Route qualified as Dashboard.MissingEpisodes.Past.Get
 import API.Dashboard.NewsletterSubscribers.Bulk.Get.Route qualified as Dashboard.NewsletterSubscribers.Bulk.Get
 import API.Dashboard.NewsletterSubscribers.Bulk.Post.Route qualified as Dashboard.NewsletterSubscribers.Bulk.Post
 import API.Dashboard.NewsletterSubscribers.Delete.Route qualified as Dashboard.NewsletterSubscribers.Delete
@@ -496,6 +497,8 @@ data DashboardAdminRoutes mode = DashboardAdminRoutes
     streamSettings :: mode :- NamedRoutes DashboardStreamSettingsRoutes,
     -- | @GET /dashboard/missing-episodes@ - Shows missing episode uploads
     missingEpisodes :: mode :- Dashboard.MissingEpisodes.Get.Route,
+    -- | @GET /dashboard/missing-episodes/past@ - Finished slots that aired no new episode
+    missingEpisodesPast :: mode :- Dashboard.MissingEpisodes.Past.Get.Route,
     -- | @/dashboard/analytics/...@ - Analytics dashboard routes
     analytics :: mode :- NamedRoutes DashboardAnalyticsRoutes,
     -- | @/dashboard/store/...@ - Store management routes

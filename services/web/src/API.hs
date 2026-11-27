@@ -111,6 +111,7 @@ import API.Dashboard.Invitations.New.Get.Handler qualified as Dashboard.Invitati
 import API.Dashboard.Invitations.New.Post.Handler qualified as Dashboard.Invitations.New.Post
 import API.Dashboard.Invitations.Regenerate.Handler qualified as Dashboard.Invitations.Regenerate
 import API.Dashboard.MissingEpisodes.Get.Handler qualified as Dashboard.MissingEpisodes.Get
+import API.Dashboard.MissingEpisodes.Past.Get.Handler qualified as Dashboard.MissingEpisodes.Past.Get
 import API.Dashboard.NewsletterSubscribers.Bulk.Get.Handler qualified as Dashboard.NewsletterSubscribers.Bulk.Get
 import API.Dashboard.NewsletterSubscribers.Bulk.Post.Handler qualified as Dashboard.NewsletterSubscribers.Bulk.Post
 import API.Dashboard.NewsletterSubscribers.Delete.Handler qualified as Dashboard.NewsletterSubscribers.Delete
@@ -437,6 +438,7 @@ server =
           sitePages = dashboardSitePagesRoutes,
           streamSettings = dashboardStreamSettingsRoutes,
           missingEpisodes = Dashboard.MissingEpisodes.Get.handler,
+          missingEpisodesPast = Dashboard.MissingEpisodes.Past.Get.handler,
           analytics = dashboardAnalyticsRoutes,
           store = dashboardStoreRoutes,
           newsletterSubscribers = dashboardNewsletterSubscribersRoutes

@@ -10,6 +10,7 @@ where
 import API.Links (dashboardShowsLinks)
 import API.Types
 import Component.Card qualified as Card
+import Component.MissingEpisodesNav qualified as MissingEpisodesNav
 import Component.Table
   ( ColumnAlign (..),
     ColumnHeader (..),
@@ -37,6 +38,7 @@ template ::
   [ShowSchedule.ShowMissingEpisode] ->
   Lucid.Html ()
 template missingEpisodes = do
+  MissingEpisodesNav.render MissingEpisodesNav.Upcoming
   Card.section Card.TablePanel [Tokens.mb8] $
     if null missingEpisodes
       then renderEmptyState

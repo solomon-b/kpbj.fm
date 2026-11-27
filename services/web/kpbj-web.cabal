@@ -227,6 +227,9 @@ library
     API.Dashboard.MissingEpisodes.Get.Handler
     API.Dashboard.MissingEpisodes.Get.Route
     API.Dashboard.MissingEpisodes.Get.Templates.Page
+    API.Dashboard.MissingEpisodes.Past.Get.Handler
+    API.Dashboard.MissingEpisodes.Past.Get.Route
+    API.Dashboard.MissingEpisodes.Past.Get.Templates.Page
     API.Dashboard.Analytics.Get.Handler
     API.Dashboard.Analytics.Get.Route
     API.Dashboard.Analytics.Get.Templates.Page
@@ -645,12 +648,14 @@ library
     Component.Gallery.EventGalleryEditor
     Component.Gallery.EventGalleryView
     Component.DashboardFrame
+    Component.MissingEpisodesNav
     Component.EpisodeFeedItem
     Component.FeedLink
     Component.Frame
     Component.NotFound
     Component.Tags
     Domain.Types.VariantsPayload
+    Domain.Attendance
     Domain.BreakPlanner
     Domain.DayTimeline
     Domain.EpisodeLength
@@ -840,6 +845,7 @@ test-suite kpbj-web-test
        API.Dashboard.AirBreaks.StationIds.New.Post.HandlerSpec
        API.Dashboard.AirBreaks.StationIds.New.Get.HandlerSpec
        API.Dashboard.MissingEpisodes.Get.HandlerSpec
+       API.Dashboard.MissingEpisodes.Past.Get.HandlerSpec
        API.Dashboard.Shows.Get.HandlerSpec
        API.Dashboard.Shows.New.Post.HandlerSpec
        API.Dashboard.Shows.Slug.Delete.HandlerSpec
@@ -886,6 +892,7 @@ test-suite kpbj-web-test
        App.Dashboard.ShowContextSpec
        App.DomainsSpec
        App.RequestLogSpec
+       Domain.AttendanceSpec
        Domain.BreakPlannerSpec
        Domain.DayTimelineSpec
        Domain.EpisodeLengthSpec

@@ -48,6 +48,7 @@ module API.Links
     dashboardSitePagesLinks,
     dashboardStreamSettingsLinks,
     dashboardMissingEpisodesLink,
+    dashboardMissingEpisodesPastLink,
     dashboardAnalyticsLinks,
     dashboardInvitationsLinks,
     dashboardNewsletterSubscribersLinks,
@@ -72,6 +73,7 @@ where
 import API.Types
 import Data.Int (Int64)
 import Data.Text (Text)
+import Domain.Attendance (AttendanceRange)
 import Domain.Types.Slug (Slug)
 import Domain.Types.WeekOffset (WeekOffset)
 import Servant.Links (AsLink, Link, allFieldLinks)
@@ -194,6 +196,10 @@ dashboardStreamSettingsLinks = dashboardAdminLinks.streamSettings
 -- | Dashboard missing episodes link
 dashboardMissingEpisodesLink :: Link
 dashboardMissingEpisodesLink = dashboardAdminLinks.missingEpisodes
+
+-- | Dashboard missed episodes link. Takes an optional range.
+dashboardMissingEpisodesPastLink :: Maybe AttendanceRange -> Link
+dashboardMissingEpisodesPastLink = dashboardAdminLinks.missingEpisodesPast
 
 -- | Dashboard analytics route links.
 dashboardAnalyticsLinks :: DashboardAnalyticsRoutes (AsLink Link)
