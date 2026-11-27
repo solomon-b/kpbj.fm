@@ -54,6 +54,7 @@ import API.Dashboard.Invitations.Id.Edit.Post.HandlerSpec qualified as Dashboard
 import API.Dashboard.Invitations.New.Post.HandlerSpec qualified as DashboardInvitationsNewPostHandler
 import API.Dashboard.Invitations.Regenerate.HandlerSpec qualified as DashboardInvitationsRegenerateHandler
 import API.Dashboard.MissingEpisodes.Get.HandlerSpec qualified as DashboardMissingEpisodesGetHandler
+import API.Dashboard.MissingEpisodes.Past.Get.HandlerSpec qualified as DashboardMissingEpisodesPastGetHandler
 import API.Dashboard.Profile.Edit.Get.HandlerSpec qualified as DashboardProfileEditGetHandler
 import API.Dashboard.Profile.Edit.Post.HandlerSpec qualified as DashboardProfileEditPostHandler
 import API.Dashboard.Shows.Get.HandlerSpec qualified as DashboardShowsGetHandler
@@ -126,6 +127,7 @@ import Component.DashboardFrameSpec qualified as DashboardFrame
 import Component.FlashSpec qualified as Flash
 import Component.ScheduleEditorSpec qualified as ScheduleEditor
 import Data.Maybe (fromMaybe)
+import Domain.AttendanceSpec qualified as Attendance
 import Domain.BreakPlannerSpec qualified as BreakPlanner
 import Domain.DayTimelineSpec qualified as DayTimeline
 import Domain.EpisodeLengthSpec qualified as EpisodeLength
@@ -196,6 +198,7 @@ main = do
     MimeTypeValidation.spec
     StagedUploadsEffects.spec
     AudioUploadHandler.spec
+    Attendance.spec
     BreakPlanner.spec
     DayTimeline.spec
     EpisodeLength.spec
@@ -310,6 +313,7 @@ main = do
     DashboardStationIdsNewPostHandler.spec
     DashboardStationIdsDeleteHandler.spec
     DashboardMissingEpisodesGetHandler.spec
+    DashboardMissingEpisodesPastGetHandler.spec
     StoreListHandler.spec
     StoreProductHandler.spec
     StoreCartValidateHandler.spec

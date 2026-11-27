@@ -254,6 +254,7 @@ test-suite kpbj-database-test
     Effects.Database.Tables.ShowBlogTagsSpec
     Effects.Database.Tables.ShowHostSpec
     Effects.Database.Tables.ShowScheduleMissingEpisodesSpec
+    Effects.Database.Tables.ShowSchedulePastSlotsSpec
     Effects.Database.Tables.ShowScheduleSpec
     Effects.Database.Tables.ShowTagsSpec
     Effects.Database.Tables.ShowsSpec

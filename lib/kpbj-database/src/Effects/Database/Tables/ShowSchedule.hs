@@ -65,6 +65,12 @@ module Effects.Database.Tables.ShowSchedule
     HostMissingEpisode (..),
     getHostsMissingEpisodesOnDay,
 
+    -- * Past Slots
+    PastSlot (..),
+    PastSlotHost (..),
+    SlotOutcome (..),
+    getPastSlots,
+
     -- * Recurrence
     dayOfWeekNumber,
   )
@@ -82,12 +88,14 @@ import Data.Text qualified as Text
 import Data.Text.Display (Display (..), display)
 import Data.Time (Day, DayOfWeek (..), LocalTime (..), TimeOfDay, UTCTime, addDays)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Domain.Types.DisplayName (DisplayName)
 import Domain.Types.Limit (Limit (..))
 import Domain.Types.Slug (Slug)
 import Domain.Types.Timezone (minutesFromMidnight, pacificToUtc, utcToPacific)
 import Effects.Database.Tables.Shows qualified as Shows
+import Effects.Database.Tables.User qualified as User
 import GHC.Generics (Generic)
-import Hasql.Interpolate (DecodeRow, DecodeValue (..), EncodeValue (..), OneColumn (..), OneRow (..), Sql, interp, sql)
+import Hasql.Interpolate (DecodeRow (..), DecodeValue (..), EncodeValue (..), OneColumn (..), OneRow (..), Sql, interp, sql)
 import Hasql.Statement qualified as Hasql
 import OrphanInstances.DayOfWeek ()
 import OrphanInstances.Rel8 ()
@@ -1368,4 +1376,205 @@ getHostsMissingEpisodesOnDay days =
     JOIN user_metadata um ON um.user_id = u.id
     WHERE (e.id IS NULL OR e.audio_file_path IS NULL)
     ORDER BY si.show_date ASC, si.start_time ASC, u.email ASC
+  |]
+
+--------------------------------------------------------------------------------
+-- Past Slots
+
+-- | What aired in a slot that is finished.
+data SlotOutcome
+  = -- | A new episode of the show aired in the slot.
+    Aired
+  | -- | No new episode of the show aired in the slot. The slot aired a rerun
+    -- or fill.
+    Missed
+  deriving stock (Show, Generic, Eq)
+
+-- | A host of a show on the date of a slot.
+data PastSlotHost = PastSlotHost
+  { pshUserId :: User.Id,
+    pshDisplayName :: DisplayName
+  }
+  deriving stock (Show, Generic, Eq)
+
+-- | One finished slot of 'getPastSlots'.
+data PastSlot = PastSlot
+  { psTemplateId :: TemplateId,
+    psShowId :: Shows.Id,
+    psShowTitle :: Text,
+    psShowSlug :: Slug,
+    -- | The air date of the slot, in Pacific.
+    psAirDate :: Day,
+    psStart :: UTCTime,
+    psEnd :: UTCTime,
+    psOutcome :: SlotOutcome,
+    -- | The hosts of the show when the slot opened, in the order they joined.
+    -- Empty when the show had no host then.
+    psHosts :: [PastSlotHost]
+  }
+  deriving stock (Show, Generic, Eq)
+
+instance Display PastSlot where
+  displayBuilder _ = "PastSlot"
+
+-- | The query gives the host ids and the host names as two arrays of the same
+-- length and order.
+instance DecodeRow PastSlot where
+  decodeRow = toPastSlot <$> decodeRow <*> decodeRow
+    where
+      toPastSlot ::
+        (TemplateId, Shows.Id, Text, Slug, Day, UTCTime, UTCTime) ->
+        (Bool, [User.Id], [DisplayName]) ->
+        PastSlot
+      toPastSlot (templateId, showId, showTitle, showSlug, airDate, start, end) (aired, hostIds, hostNames) =
+        PastSlot
+          { psTemplateId = templateId,
+            psShowId = showId,
+            psShowTitle = showTitle,
+            psShowSlug = showSlug,
+            psAirDate = airDate,
+            psStart = start,
+            psEnd = end,
+            psOutcome = if aired then Aired else Missed,
+            psHosts = zipWith PastSlotHost hostIds hostNames
+          }
+
+-- | Every finished slot in a range, newest first, with its outcome and the
+-- hosts of the show on that date.
+--
+-- A slot is in the range when it opens at or after the first instant and
+-- closes at or before the second. 'Nothing' for the first instant means no
+-- lower limit. Pass the current time as the second instant to get only
+-- finished slots.
+--
+-- == What a row is
+--
+-- One row is the primary window of one template on one air date. A replay
+-- window gives no row, because a replay airs the episode of its primary
+-- window a second time.
+--
+-- The windows come from the @slot_windows@ SQL function. Read the Haddock of
+-- 'Effects.Database.Tables.Episodes.getAiringEpisodes' for the time rules.
+--
+-- == The outcome
+--
+-- A slot is 'Aired' when @playback_history@ has an @episode@ row of the show
+-- that started in the window. Every other slot is 'Missed'. A rerun has the
+-- source type @rerun@, so a slot that aired a rerun is 'Missed'.
+--
+-- This reads what aired, not the @episodes@ table. An episode that staff add
+-- after the slot makes the @episodes@ row look complete, but the host still
+-- missed the slot.
+--
+-- Liquidsoap can report an item a second before its planned start. So the
+-- window opens one minute early for this test.
+--
+-- == Where the record starts
+--
+-- @playback_history@ has no episode id before its first @episode@ row with
+-- one. The query cannot tell what aired in a slot before that row. So no slot
+-- that opens before that row is in the result. With no such row, the result is
+-- empty.
+--
+-- The record also has gaps. Liquidsoap reports nothing while the stream or
+-- the web service is down. A window with no @playback_history@ row of any
+-- type gives no row, because the query cannot tell what aired in it. A slot
+-- that aired a rerun or fill has such a row, so it is still 'Missed'.
+--
+-- == The hosts
+--
+-- A host of a slot has a @show_hosts@ row with @joined_at@ at or before the
+-- slot opens, and @left_at@ not set or after the slot opens.
+--
+-- == Which shows
+--
+-- The query keeps the slots of an inactive show, because the validity rows
+-- limit them and the hosts keep their record. It excludes a deleted show.
+getPastSlots :: Maybe UTCTime -> UTCTime -> Hasql.Statement () [PastSlot]
+getPastSlots mFromTime toTime =
+  interp
+    False
+    [sql|
+    WITH bounds AS (
+      -- GREATEST ignores NULL, so a NULL first instant gives the record start.
+      SELECT GREATEST(#{mFromTime}::TIMESTAMPTZ, MIN(started_at)) AS from_time
+      FROM playback_history
+      WHERE source_type = 'episode' AND episode_id IS NOT NULL
+      HAVING MIN(started_at) IS NOT NULL
+    ),
+    air_dates AS (
+      SELECT generate_series(
+        (b.from_time AT TIME ZONE 'America/Los_Angeles')::DATE - 1,
+        (#{toTime}::TIMESTAMPTZ AT TIME ZONE 'America/Los_Angeles')::DATE,
+        INTERVAL '1 day'
+      )::DATE AS air_date
+      FROM bounds b
+    ),
+    slots AS (
+      SELECT
+        st.id AS template_id,
+        s.id AS show_id,
+        s.title AS show_title,
+        s.slug AS show_slug,
+        d.air_date,
+        w.window_start,
+        w.window_end
+      FROM schedule_templates st
+      JOIN shows s ON s.id = st.show_id
+      CROSS JOIN air_dates d
+      CROSS JOIN bounds b
+      -- A NULL replay start time gives the primary window only.
+      CROSS JOIN LATERAL slot_windows(d.air_date, st.start_time, st.end_time, NULL) w
+      WHERE
+        s.deleted_at IS NULL
+        AND EXISTS (
+          SELECT 1
+          FROM schedule_template_validity stv
+          WHERE stv.template_id = st.id
+            AND stv.effective_from <= d.air_date
+            AND (stv.effective_until IS NULL OR stv.effective_until > d.air_date)
+        )
+        AND recurrence_airs_on(day_of_week_num(st.day_of_week), st.weeks_of_month, d.air_date)
+        AND w.window_end > w.window_start
+        AND w.window_start >= b.from_time
+        AND w.window_end <= #{toTime}
+        -- The air record must hold an item in the window.
+        AND EXISTS (
+          SELECT 1
+          FROM playback_history ph
+          WHERE ph.started_at >= w.window_start - INTERVAL '1 minute'
+            AND ph.started_at < w.window_end
+        )
+    )
+    SELECT
+      sl.template_id,
+      sl.show_id,
+      sl.show_title,
+      sl.show_slug,
+      sl.air_date,
+      sl.window_start,
+      sl.window_end,
+      EXISTS (
+        SELECT 1
+        FROM playback_history ph
+        JOIN episodes e ON e.id = ph.episode_id
+        WHERE ph.source_type = 'episode'
+          AND e.show_id = sl.show_id
+          AND ph.started_at >= sl.window_start - INTERVAL '1 minute'
+          AND ph.started_at < sl.window_end
+      ),
+      COALESCE(h.user_ids, '{}'),
+      COALESCE(h.display_names, '{}')
+    FROM slots sl
+    LEFT JOIN LATERAL (
+      SELECT
+        ARRAY_AGG(sh.user_id ORDER BY sh.joined_at, sh.user_id) AS user_ids,
+        ARRAY_AGG(um.display_name::TEXT ORDER BY sh.joined_at, sh.user_id) AS display_names
+      FROM show_hosts sh
+      JOIN user_metadata um ON um.user_id = sh.user_id
+      WHERE sh.show_id = sl.show_id
+        AND sh.joined_at <= sl.window_start
+        AND (sh.left_at IS NULL OR sh.left_at > sl.window_start)
+    ) h ON TRUE
+    ORDER BY sl.window_start DESC, sl.template_id
   |]

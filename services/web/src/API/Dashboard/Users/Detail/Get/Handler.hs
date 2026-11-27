@@ -15,14 +15,18 @@ import App.Handler.Error (HandlerError, handleHtmlErrors, throwDatabaseError, th
 import App.Monad (AppM)
 import Component.DashboardFrame (DashboardNav (..))
 import Component.Flash (FlashMessage)
+import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Has (getter)
+import Data.Time (getCurrentTime)
+import Domain.Attendance (defaultRange, rangeStart, slotsOfHost)
 import Domain.Types.HxRequest (HxRequest, foldHxReq)
 import Domain.Types.StorageBackend (StorageBackend)
-import Effects.Database.Execute (execTransaction)
+import Effects.Database.Execute (execQuery, execTransaction)
 import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.ShowSchedule qualified as ShowSchedule
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
@@ -39,7 +43,10 @@ data UserDetailViewData = UserDetailViewData
     udvTargetUser :: User.Model,
     udvTargetMetadata :: UserMetadata.Model,
     udvHostedShows :: [Shows.Model],
-    udvRecentEpisodes :: [Episodes.Model]
+    udvRecentEpisodes :: [Episodes.Model],
+    -- | The finished slots of the default range that the user was a host of,
+    -- newest first.
+    udvHostedSlots :: [ShowSchedule.PastSlot]
   }
 
 -- | Business logic: fetch user and activity data.
@@ -57,6 +64,9 @@ action userMetadata targetUserId = do
   -- 3. Fetch additional info: shows they host, episodes they created
   (hostedShows, recentEpisodes) <- lift $ fetchUserActivity targetUserId
 
+  -- 4. Fetch the finished slots they were a host of
+  hostedSlots <- lift $ fetchHostedSlots targetUserId
+
   pure
     UserDetailViewData
       { udvUserMetadata = userMetadata,
@@ -64,7 +74,8 @@ action userMetadata targetUserId = do
         udvTargetUser = targetUser,
         udvTargetMetadata = targetMetadata,
         udvHostedShows = hostedShows,
-        udvRecentEpisodes = recentEpisodes
+        udvRecentEpisodes = recentEpisodes,
+        udvHostedSlots = hostedSlots
       }
 
 handler ::
@@ -76,7 +87,7 @@ handler ::
 handler targetUserId (Satisfies _ auth) mFlash (foldHxReq -> hxRequest) =
   handleHtmlErrors "User detail" dashboardLinks.home $ do
     vd <- action auth.raMetadata targetUserId
-    lift $ renderDashboardTemplate hxRequest mFlash vd.udvUserMetadata NoShow NavUsers Nothing Nothing (template vd.udvBackend vd.udvTargetUser vd.udvTargetMetadata vd.udvHostedShows vd.udvRecentEpisodes)
+    lift $ renderDashboardTemplate hxRequest mFlash vd.udvUserMetadata NoShow NavUsers Nothing Nothing (template vd.udvBackend vd.udvTargetUser vd.udvTargetMetadata vd.udvHostedShows vd.udvRecentEpisodes vd.udvHostedSlots)
 
 -- | Fetch target user and their metadata, or throw NotFound
 fetchTargetUserOrNotFound ::
@@ -109,3 +120,17 @@ fetchUserActivity targetUserId = do
       Log.logInfo "Failed to fetch user activity from database" ()
       pure ([], [])
     Right result -> pure result
+
+-- | Fetch the finished slots of the default range that the user was a host of
+fetchHostedSlots ::
+  User.Id ->
+  AppM [ShowSchedule.PastSlot]
+fetchHostedSlots targetUserId = do
+  now <- liftIO getCurrentTime
+  result <- execQuery (ShowSchedule.getPastSlots (rangeStart now defaultRange) now)
+
+  case result of
+    Left _err -> do
+      Log.logInfo "Failed to fetch past slots from database" ()
+      pure []
+    Right slots -> pure (slotsOfHost targetUserId slots)

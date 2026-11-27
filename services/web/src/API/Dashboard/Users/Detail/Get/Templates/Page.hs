@@ -1,20 +1,30 @@
+{-# LANGUAGE QuasiQuotes #-}
+
 module API.Dashboard.Users.Detail.Get.Templates.Page where
 
 --------------------------------------------------------------------------------
 
-import Control.Monad (unless)
+import API.Links (dashboardMissingEpisodesPastLink)
+import Component.Button ((&))
+import Component.Button qualified as Button
+import Control.Monad (forM_, unless)
 import Data.Maybe (fromMaybe, isJust)
+import Data.String.Interpolate (i)
 import Data.Text qualified as Text
 import Data.Text.Display (display)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
 import Design (base, class_)
 import Design.Tokens qualified as Tokens
+import Domain.Attendance (Tally (..), defaultRange, missedSlots, rangeLabel, tallySlot)
 import Domain.Types.StorageBackend (StorageBackend, buildMediaUrl)
+import Domain.Types.Timezone (utcToPacific)
 import Effects.Database.Tables.Episodes qualified as Episodes
+import Effects.Database.Tables.ShowSchedule (PastSlot (..))
 import Effects.Database.Tables.Shows qualified as Shows
 import Effects.Database.Tables.User qualified as User
 import Effects.Database.Tables.UserMetadata qualified as UserMetadata
 import Lucid qualified
+import Servant.Links qualified as Links
 
 template ::
   StorageBackend ->
@@ -22,8 +32,10 @@ template ::
   UserMetadata.Model ->
   [Shows.Model] ->
   [Episodes.Model] ->
+  -- | The finished slots of the default range that the user was a host of
+  [PastSlot] ->
   Lucid.Html ()
-template backend user metadata userShows userEpisodes = do
+template backend user metadata userShows userEpisodes hostedSlots = do
   -- User profile section
   Lucid.section_ [class_ $ base [Tokens.bgMain, Tokens.border2, Tokens.borderDefault, Tokens.p8, Tokens.mb8, Tokens.fullWidth]] $ do
     Lucid.div_ [class_ $ base ["flex", "justify-between", "items-start"]] $ do
@@ -48,12 +60,34 @@ template backend user metadata userShows userEpisodes = do
       Lucid.div_ [class_ $ base ["space-y-4"]] $
         mapM_ renderShowCard userShows
 
+  -- Missed episodes section
+  unless (null hostedSlots) $ do
+    Lucid.section_ [class_ $ base [Tokens.bgMain, Tokens.border2, Tokens.borderDefault, Tokens.p8, Tokens.mb8, Tokens.fullWidth]] $ do
+      Lucid.h2_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb4]] "MISSED EPISODES"
+      renderMissedEpisodes hostedSlots
+
   -- Episodes section
   unless (null userEpisodes) $ do
     Lucid.section_ [class_ $ base [Tokens.bgMain, Tokens.border2, Tokens.borderDefault, Tokens.p8, Tokens.mb8, Tokens.fullWidth]] $ do
       Lucid.h2_ [class_ $ base [Tokens.text2xl, Tokens.fontBold, Tokens.mb4]] "RECENT EPISODES"
       Lucid.div_ [class_ $ base ["space-y-4"]] $
         mapM_ renderEpisodeCard userEpisodes
+
+-- | The count of the slots that the user missed, each missed slot, and a link
+-- to the report for all hosts.
+renderMissedEpisodes :: [PastSlot] -> Lucid.Html ()
+renderMissedEpisodes hostedSlots = do
+  let tally = foldMap tallySlot hostedSlots
+      reportUri = Links.linkURI (dashboardMissingEpisodesPastLink Nothing)
+  Lucid.p_ [class_ $ base [Tokens.fontBold, Tokens.mb4]] $
+    Lucid.toHtml (display tally.tMissed <> " of " <> display tally.tTotal <> " slots missed " <> rangeLabel defaultRange)
+  Lucid.ul_ [class_ $ base [Tokens.textSm, Tokens.mb4]] $
+    forM_ (missedSlots hostedSlots) $ \slot ->
+      Lucid.li_ $ do
+        Lucid.toHtml (formatTime defaultTimeLocale "%a, %b %d, %Y" (utcToPacific slot.psStart))
+        Lucid.span_ [class_ $ base [Tokens.fgMuted]] " · "
+        Lucid.toHtml slot.psShowTitle
+  Button.render (Button.defaults & Button.small & Button.dashboardLink [i|/#{reportUri}|]) "All Hosts"
 
 renderField :: String -> String -> Lucid.Html ()
 renderField label value = do
